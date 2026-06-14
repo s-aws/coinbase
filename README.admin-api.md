@@ -141,14 +141,17 @@ proof-field requirements without adding execution authority. They also expose
 read-only state-repair taxonomy, repair targets, pre-apply snapshots, dry-run
 repair plans, and completion-state evidence so operators can inspect why a
 candidate is blocked or journal-accepted without applying local state changes.
-They remove the read-contract gap, but state repair execution, post-apply
-reconciliation completion, and reconciliation execution remain blockers.
+They remove the read-contract gap and can read back guarded backend local
+repair-result journals. Order/exchange-state mutation, Coinbase reads,
+Coinbase submissions, post-apply reconciliation completion, and reconciliation
+execution remain blockers.
 Disabled POST contracts exist for recovery apply and rollback; proof POST
 contracts persist append-only backend local evidence only after route-bound
 approval, admission audit, cap/guard, reconciliation plan, idempotency, and
-audit prerequisites match. These routes do not write repair rows, roll back
-state, execute reconciliation, mutate order or exchange state, call Coinbase,
-or authorize browser/BFF recovery.
+audit prerequisites match. Apply/rollback POST routes may persist guarded
+local repair-result evidence when the backend repair guard matches exactly.
+These routes do not roll back order state, execute reconciliation, mutate
+order or exchange state, call Coinbase, or authorize browser/BFF recovery.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

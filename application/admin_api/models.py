@@ -291,6 +291,10 @@ class SpotRecoveryApplyExecutionRequest(BaseModel):
     cap_guard_decision_id: str = Field(min_length=1)
     reconciliation_plan_id: str = Field(min_length=1)
     exchange_state_proof_id: str = Field(min_length=1)
+    state_repair_requested: bool = False
+    repair_target_id: str | None = None
+    pre_apply_snapshot_id: str | None = None
+    dry_run_repair_plan_id: str | None = None
     dry_run: bool = True
     operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
@@ -308,6 +312,10 @@ class SpotRecoveryRollbackExecutionRequest(BaseModel):
     admission_audit_id: str = Field(min_length=1)
     cap_guard_decision_id: str = Field(min_length=1)
     reconciliation_plan_id: str = Field(min_length=1)
+    state_repair_requested: bool = False
+    repair_target_id: str | None = None
+    pre_apply_snapshot_id: str | None = None
+    dry_run_repair_plan_id: str | None = None
     dry_run: bool = True
     operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
@@ -2358,6 +2366,7 @@ class SpotRecoveryRepairTargetItem(BaseModel):
     source_route: str
     categories: list[SpotRecoveryRepairCategory] = Field(default_factory=list)
     execution_journal_ids: list[str] = Field(default_factory=list)
+    repair_result_ids: list[str] = Field(default_factory=list)
     latest_apply_journal_id: str | None = None
     latest_rollback_journal_id: str | None = None
     exchange_state_proof_ids: list[str] = Field(default_factory=list)
@@ -2368,11 +2377,34 @@ class SpotRecoveryRepairTargetItem(BaseModel):
     pre_apply_snapshot_id: str
     dry_run_repair_plan_id: str
     completion_state: SpotRecoveryCompletionState
-    state_repair_available: bool = False
-    state_repair_executed: bool = False
-    order_state_mutated: bool = False
-    exchange_state_mutated: bool = False
-    reconciliation_executed: bool = False
+    state_repair_available: bool = Field(
+        default=False,
+        description=(
+            "True when backend recovery-state repair evidence can be derived "
+            "for this target."
+        ),
+    )
+    state_repair_executed: bool = Field(
+        default=False,
+        description=(
+            "True only when guarded local repair-result evidence exists for "
+            "this target. This does not mean order-state mutation, "
+            "exchange-state mutation, reconciliation execution, Coinbase REST "
+            "reads, or Coinbase order submission occurred."
+        ),
+    )
+    order_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend order state was actually mutated.",
+    )
+    exchange_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend exchange state was actually mutated.",
+    )
+    reconciliation_executed: bool = Field(
+        default=False,
+        description="True only when backend reconciliation execution actually ran.",
+    )
     backend_owned: bool = True
     browser_authority: str = "display_only"
     bff_authority: str = "read_only_forward"
@@ -2393,6 +2425,7 @@ class SpotRecoveryPreApplySnapshotItem(BaseModel):
     required_before_state_repair: bool = True
     execution_journal_ids: list[str] = Field(default_factory=list)
     proof_ids: list[str] = Field(default_factory=list)
+    repair_result_ids: list[str] = Field(default_factory=list)
     rollback_plan_ids: list[str] = Field(default_factory=list)
     audit_ids: list[str] = Field(default_factory=list)
     reconciliation_plan_ids: list[str] = Field(default_factory=list)
@@ -2417,11 +2450,29 @@ class SpotRecoveryDryRunRepairPlanItem(BaseModel):
     required_guard_chain: list[str] = Field(default_factory=list)
     pre_apply_snapshot_id: str
     executable: bool = False
-    state_repair_executed: bool = False
-    order_state_mutated: bool = False
-    exchange_state_mutated: bool = False
-    reconciliation_executed: bool = False
-    live_coinbase_orders_ran: bool = False
+    state_repair_executed: bool = Field(
+        default=False,
+        description=(
+            "Dry-run plans never execute repair. This remains false until a "
+            "separate guarded local repair-result record is accepted."
+        ),
+    )
+    order_state_mutated: bool = Field(
+        default=False,
+        description="Dry-run repair plans do not mutate backend order state.",
+    )
+    exchange_state_mutated: bool = Field(
+        default=False,
+        description="Dry-run repair plans do not mutate exchange state.",
+    )
+    reconciliation_executed: bool = Field(
+        default=False,
+        description="Dry-run repair plans do not execute reconciliation.",
+    )
+    live_coinbase_orders_ran: bool = Field(
+        default=False,
+        description="Dry-run repair plans do not submit Coinbase orders.",
+    )
     backend_owned: bool = True
     browser_authority: str = "display_only"
     bff_authority: str = "read_only_forward"
@@ -2469,13 +2520,24 @@ class SpotRecoveryApplyReviewResponse(AdminApiReadPayload):
     completion_states: list[SpotRecoveryCompletionStateItem] = Field(default_factory=list)
     persisted_execution_count: int = Field(default=0, ge=0)
     persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
+    persisted_repair_result_count: int = Field(default=0, ge=0)
+    persisted_repair_results: list[SpotRecoveryRepairResultRecordItem] = Field(default_factory=list)
     latest_apply_journal_id: str | None = None
+    latest_repair_result_id: str | None = None
     execution_journal_available: bool = True
     state_repair_taxonomy_available: bool = True
     repair_target_model_available: bool = True
     pre_apply_snapshot_required: bool = True
     dry_run_repair_plan_available: bool = True
-    state_repair_contract_available: bool = False
+    state_repair_contract_available: bool = Field(
+        default=False,
+        description=(
+            "True when the guarded local repair-result contract is available "
+            "for apply-review evidence. This is backend-owned evidence only, "
+            "not browser authority, Coinbase activity, order-state mutation, "
+            "or exchange-state mutation."
+        ),
+    )
     missing_contracts: list[str] = Field(default_factory=list)
     apply_review_contract_available: bool = True
     recovery_apply_available: bool = True
@@ -2516,13 +2578,24 @@ class SpotRecoveryRollbackPlanResponse(AdminApiReadPayload):
     completion_states: list[SpotRecoveryCompletionStateItem] = Field(default_factory=list)
     persisted_execution_count: int = Field(default=0, ge=0)
     persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
+    persisted_repair_result_count: int = Field(default=0, ge=0)
+    persisted_repair_results: list[SpotRecoveryRepairResultRecordItem] = Field(default_factory=list)
     latest_rollback_journal_id: str | None = None
+    latest_repair_result_id: str | None = None
     execution_journal_available: bool = True
     state_repair_taxonomy_available: bool = True
     repair_target_model_available: bool = True
     pre_apply_snapshot_required: bool = True
     dry_run_repair_plan_available: bool = True
-    rollback_repair_contract_available: bool = False
+    rollback_repair_contract_available: bool = Field(
+        default=False,
+        description=(
+            "True when the guarded local repair-result contract is available "
+            "for rollback-plan evidence. This is backend-owned evidence only, "
+            "not browser authority, Coinbase activity, order-state mutation, "
+            "or exchange-state mutation."
+        ),
+    )
     missing_contracts: list[str] = Field(default_factory=list)
     rollback_plan_contract_available: bool = True
     rollback_execution_available: bool = True
@@ -2578,7 +2651,7 @@ class SpotRecoveryProofRecordItem(BaseModel):
             "Legacy compatibility flag for recovery apply journal/proof "
             "acceptance only. This field does not mean state repair executed; "
             "prefer execution_journal_accepted, recovery_apply_journal_accepted, "
-            "and state_repair_executed when available."
+            "repair-result readback, and explicit mutation flags when available."
         ),
     )
     rollback_executed: bool = Field(
@@ -2586,8 +2659,8 @@ class SpotRecoveryProofRecordItem(BaseModel):
         description=(
             "Legacy compatibility flag for rollback journal/proof acceptance "
             "only. This field does not mean rollback mutated order or exchange "
-            "state; prefer rollback_journal_accepted and state_repair_executed "
-            "when available."
+            "state; prefer rollback_journal_accepted, repair-result readback, "
+            "and explicit mutation flags when available."
         ),
     )
     reconciliation_executed: bool = Field(
@@ -2644,6 +2717,19 @@ class SpotRecoveryExecutionRecordItem(BaseModel):
     manual_live_acknowledgement: bool = False
     source: str = "admin_api_spot_recovery_execution_journal"
     repair_journal_persisted: bool = True
+    state_repair_requested: bool = False
+    repair_guard_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    repair_guard_passed: bool = False
+    repair_guard_failures: list[str] = Field(default_factory=list)
+    repair_guard_required_chain: list[str] = Field(default_factory=list)
+    repair_target_id: str | None = None
+    expected_repair_target_id: str | None = None
+    pre_apply_snapshot_id: str | None = None
+    expected_pre_apply_snapshot_id: str | None = None
+    dry_run_repair_plan_id: str | None = None
+    expected_dry_run_repair_plan_id: str | None = None
+    repair_result_id: str | None = None
+    repair_result_journal_persisted: bool = False
     execution_journal_accepted: bool = Field(
         default=True,
         description=(
@@ -2671,8 +2757,8 @@ class SpotRecoveryExecutionRecordItem(BaseModel):
         description=(
             "Legacy compatibility flag for recovery apply journal acceptance "
             "only. This does not mean state repair executed; prefer "
-            "execution_journal_accepted, recovery_apply_journal_accepted, and "
-            "state_repair_executed."
+            "execution_journal_accepted, recovery_apply_journal_accepted, "
+            "repair_result_journal_persisted, and mutation flags."
         ),
     )
     rollback_executed: bool = Field(
@@ -2680,8 +2766,8 @@ class SpotRecoveryExecutionRecordItem(BaseModel):
         description=(
             "Legacy compatibility flag for rollback journal acceptance only. "
             "This does not mean rollback mutated order or exchange state; "
-            "prefer execution_journal_accepted, rollback_journal_accepted, and "
-            "state_repair_executed."
+            "prefer execution_journal_accepted, rollback_journal_accepted, "
+            "repair_result_journal_persisted, and mutation flags."
         ),
     )
     post_apply_reconciliation_required: bool = True
@@ -2690,8 +2776,11 @@ class SpotRecoveryExecutionRecordItem(BaseModel):
     state_repair_executed: bool = Field(
         default=False,
         description=(
-            "True only when backend state repair actually executed. Current "
-            "no-live recovery journals must leave this false."
+            "True only when the guarded local repair-result contract was "
+            "accepted for backend recovery-state evidence. This is not "
+            "order-state mutation, exchange-state mutation, reconciliation "
+            "execution, Coinbase REST reads, or Coinbase order submission; "
+            "check the explicit mutation and Coinbase flags for those."
         ),
     )
     order_state_mutated: bool = Field(
@@ -2707,6 +2796,79 @@ class SpotRecoveryExecutionRecordItem(BaseModel):
         description="True only when backend reconciliation execution actually ran.",
     )
     coinbase_order_submitted: bool = False
+    coinbase_rest_read_ran: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class SpotRecoveryRepairResultRecordItem(BaseModel):
+    """Read-only Spot recovery guarded local repair result evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    repair_result_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    completion_state: SpotRecoveryCompletionState
+    client_order_id: str
+    journal_id: str
+    audit_id: str
+    rollback_plan_id: str
+    recovery_apply_audit_id: str | None = None
+    recovery_apply_journal_id: str | None = None
+    exchange_state_proof_id: str | None = None
+    reconciliation_proof_id: str | None = None
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    repair_target_id: str
+    pre_apply_snapshot_id: str
+    dry_run_repair_plan_id: str
+    guard_passed: bool = True
+    guard_failures: list[str] = Field(default_factory=list)
+    state_repair_executed: bool = Field(
+        default=True,
+        description=(
+            "True for guarded local repair-result records accepted into "
+            "backend recovery-state evidence. This does not imply order-state "
+            "mutation, exchange-state mutation, reconciliation execution, "
+            "Coinbase REST reads, or Coinbase order submission."
+        ),
+    )
+    repair_applied: bool = Field(
+        default=False,
+        description=(
+            "True when this local repair-result record represents the apply "
+            "side of the recovery-state contract, not an order/exchange "
+            "state mutation."
+        ),
+    )
+    rollback_applied: bool = Field(
+        default=False,
+        description=(
+            "True when this local repair-result record represents the "
+            "rollback side of the recovery-state contract, not an "
+            "order/exchange state mutation."
+        ),
+    )
+    post_apply_reconciliation_completed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    reconciliation_executed: bool = False
     coinbase_rest_read_ran: bool = False
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
@@ -2745,10 +2907,13 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     post_apply_reconciliation_completion_available: bool = False
     persisted_execution_count: int = Field(default=0, ge=0)
     persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
+    persisted_repair_result_count: int = Field(default=0, ge=0)
+    persisted_repair_results: list[SpotRecoveryRepairResultRecordItem] = Field(default_factory=list)
     latest_exchange_state_proof_id: str | None = None
     latest_reconciliation_proof_id: str | None = None
     latest_apply_journal_id: str | None = None
     latest_rollback_journal_id: str | None = None
+    latest_repair_result_id: str | None = None
     post_apply_reconciliation_required_count: int = Field(default=0, ge=0)
     post_apply_reconciliation_satisfied_count: int = Field(default=0, ge=0)
     missing_contracts: list[str] = Field(default_factory=list)

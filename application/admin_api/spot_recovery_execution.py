@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiGateStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
 )
@@ -51,6 +52,19 @@ class SpotRecoveryExecutionRecord(BaseModel):
     manual_live_acknowledgement: bool = False
     source: str = "admin_api_spot_recovery_execution_journal"
     repair_journal_persisted: bool = True
+    state_repair_requested: bool = False
+    repair_guard_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    repair_guard_passed: bool = False
+    repair_guard_failures: list[str] = Field(default_factory=list)
+    repair_guard_required_chain: list[str] = Field(default_factory=list)
+    repair_target_id: str | None = None
+    expected_repair_target_id: str | None = None
+    pre_apply_snapshot_id: str | None = None
+    expected_pre_apply_snapshot_id: str | None = None
+    dry_run_repair_plan_id: str | None = None
+    expected_dry_run_repair_plan_id: str | None = None
+    repair_result_id: str | None = None
+    repair_result_journal_persisted: bool = False
     execution_journal_accepted: bool = Field(
         default=True,
         description=(
@@ -78,8 +92,8 @@ class SpotRecoveryExecutionRecord(BaseModel):
         description=(
             "Legacy compatibility flag for recovery apply journal acceptance "
             "only. This does not mean state repair executed; prefer "
-            "execution_journal_accepted, recovery_apply_journal_accepted, and "
-            "state_repair_executed."
+            "execution_journal_accepted, recovery_apply_journal_accepted, "
+            "repair_result_journal_persisted, and mutation flags."
         ),
     )
     rollback_executed: bool = Field(
@@ -87,8 +101,8 @@ class SpotRecoveryExecutionRecord(BaseModel):
         description=(
             "Legacy compatibility flag for rollback journal acceptance only. "
             "This does not mean rollback mutated order or exchange state; "
-            "prefer execution_journal_accepted, rollback_journal_accepted, and "
-            "state_repair_executed."
+            "prefer execution_journal_accepted, rollback_journal_accepted, "
+            "repair_result_journal_persisted, and mutation flags."
         ),
     )
     post_apply_reconciliation_required: bool = True
@@ -97,8 +111,11 @@ class SpotRecoveryExecutionRecord(BaseModel):
     state_repair_executed: bool = Field(
         default=False,
         description=(
-            "True only when backend state repair actually executed. Current "
-            "no-live recovery journals must leave this false."
+            "True only when the guarded local repair-result contract was "
+            "accepted for backend recovery-state evidence. This is not "
+            "order-state mutation, exchange-state mutation, reconciliation "
+            "execution, Coinbase REST reads, or Coinbase order submission; "
+            "check the explicit mutation and Coinbase flags for those."
         ),
     )
     order_state_mutated: bool = Field(

@@ -56,7 +56,7 @@ class SpotRecoveryProofRecord(BaseModel):
             "Legacy compatibility flag for recovery apply journal/proof "
             "acceptance only. This field does not mean state repair executed; "
             "prefer execution_journal_accepted, recovery_apply_journal_accepted, "
-            "and state_repair_executed when available."
+            "repair-result readback, and explicit mutation flags when available."
         ),
     )
     rollback_executed: bool = Field(
@@ -64,8 +64,8 @@ class SpotRecoveryProofRecord(BaseModel):
         description=(
             "Legacy compatibility flag for rollback journal/proof acceptance "
             "only. This field does not mean rollback mutated order or exchange "
-            "state; prefer rollback_journal_accepted and state_repair_executed "
-            "when available."
+            "state; prefer rollback_journal_accepted, repair-result readback, "
+            "and explicit mutation flags when available."
         ),
     )
     reconciliation_executed: bool = Field(

@@ -132,6 +132,7 @@ from .models import (
     SpotRecoveryPreviewSourceItem,
     SpotRecoveryProofRecordItem,
     SpotRecoveryReconciliationProofResponse,
+    SpotRecoveryRepairResultRecordItem,
     SpotRecoveryRepairTargetItem,
     SpotRecoveryRollbackPlanResponse,
     SpotRecoveryStateRepairTaxonomyItem,
@@ -142,6 +143,10 @@ from .spot_recovery_execution import (
     SpotRecoveryExecutionRecord,
 )
 from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRecord
+from .spot_recovery_repair import (
+    FileSpotRecoveryRepairResultJournalStore,
+    SpotRecoveryRepairResultRecord,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -2453,6 +2458,19 @@ def _spot_recovery_execution_item_from_record(
         manual_live_acknowledgement=record.manual_live_acknowledgement,
         source=record.source,
         repair_journal_persisted=record.repair_journal_persisted,
+        state_repair_requested=record.state_repair_requested,
+        repair_guard_status=record.repair_guard_status,
+        repair_guard_passed=record.repair_guard_passed,
+        repair_guard_failures=record.repair_guard_failures,
+        repair_guard_required_chain=record.repair_guard_required_chain,
+        repair_target_id=record.repair_target_id,
+        expected_repair_target_id=record.expected_repair_target_id,
+        pre_apply_snapshot_id=record.pre_apply_snapshot_id,
+        expected_pre_apply_snapshot_id=record.expected_pre_apply_snapshot_id,
+        dry_run_repair_plan_id=record.dry_run_repair_plan_id,
+        expected_dry_run_repair_plan_id=record.expected_dry_run_repair_plan_id,
+        repair_result_id=record.repair_result_id,
+        repair_result_journal_persisted=record.repair_result_journal_persisted,
         execution_journal_accepted=record.execution_journal_accepted,
         recovery_apply_journal_accepted=record.recovery_apply_journal_accepted,
         rollback_journal_accepted=record.rollback_journal_accepted,
@@ -2480,6 +2498,59 @@ def _spot_recovery_execution_item_from_record(
     )
 
 
+def _spot_recovery_repair_result_item_from_record(
+    record: SpotRecoveryRepairResultRecord,
+) -> SpotRecoveryRepairResultRecordItem:
+    return SpotRecoveryRepairResultRecordItem(
+        repair_result_id=record.repair_result_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        completion_state=record.completion_state,
+        client_order_id=record.client_order_id,
+        journal_id=record.journal_id,
+        audit_id=record.audit_id,
+        rollback_plan_id=record.rollback_plan_id,
+        recovery_apply_audit_id=record.recovery_apply_audit_id,
+        recovery_apply_journal_id=record.recovery_apply_journal_id,
+        exchange_state_proof_id=record.exchange_state_proof_id,
+        reconciliation_proof_id=record.reconciliation_proof_id,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        repair_target_id=record.repair_target_id,
+        pre_apply_snapshot_id=record.pre_apply_snapshot_id,
+        dry_run_repair_plan_id=record.dry_run_repair_plan_id,
+        guard_passed=record.guard_passed,
+        guard_failures=record.guard_failures,
+        state_repair_executed=record.state_repair_executed,
+        repair_applied=record.repair_applied,
+        rollback_applied=record.rollback_applied,
+        post_apply_reconciliation_completed=(
+            record.post_apply_reconciliation_completed
+        ),
+        order_state_mutated=record.order_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        reconciliation_executed=record.reconciliation_executed,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=record.detail,
+    )
+
+
 class AdminApiReadService:
     """Read-only status service for operator views.
 
@@ -2495,12 +2566,19 @@ class AdminApiReadService:
         spot_recovery_execution_store: (
             FileSpotRecoveryExecutionJournalStore | None
         ) = None,
+        spot_recovery_repair_result_store: (
+            FileSpotRecoveryRepairResultJournalStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
         )
         self.spot_recovery_execution_store = (
             spot_recovery_execution_store or FileSpotRecoveryExecutionJournalStore()
+        )
+        self.spot_recovery_repair_result_store = (
+            spot_recovery_repair_result_store
+            or FileSpotRecoveryRepairResultJournalStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -7780,10 +7858,11 @@ class AdminApiReadService:
                     ]
                 ),
                 required_backend_contract=(
-                    "Spot recovery apply, rollback, exchange-state proof, and "
-                    "reconciliation-proof command contracts with RBAC, "
-                    "idempotency, append-only audit linkage, no-live execution "
-                    "journals, and fail-closed state-repair posture."
+                    "Spot recovery apply, rollback, exchange-state proof, "
+                    "reconciliation-proof, and guarded local repair result "
+                    "contracts with RBAC, idempotency, append-only audit "
+                    "linkage, no-live execution journals, and fail-closed "
+                    "post-apply reconciliation posture."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -7799,7 +7878,6 @@ class AdminApiReadService:
                     "post_apply_reconciliation",
                 ],
                 missing_contracts=[
-                    "spot_recovery_state_repair_contract",
                     "spot_recovery_post_apply_reconciliation_completion",
                 ],
                 spot_rule_boundary=spot_boundary,
@@ -7811,11 +7889,11 @@ class AdminApiReadService:
                 detail=(
                     "Spot recovery preview, recovery-gate, and direct-order audit "
                     "reads plus apply-review, rollback-plan, and reconciliation-proof "
-                    "contract evidence now have backend proof record and no-live "
-                    "execution journal routes. They still do not apply repair actions, "
-                    "roll back order state, "
-                    "execute reconciliation, mutate order/exchange state, or "
-                    "call Coinbase."
+                    "contract evidence now have backend proof record, no-live "
+                    "execution journal, and guarded local repair-result routes. "
+                    "They still do not roll back order state, execute "
+                    "reconciliation, mutate order/exchange state, or call "
+                    "Coinbase."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
@@ -8049,7 +8127,6 @@ class AdminApiReadService:
                 "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
             ],
             missing_contracts=[
-                "spot_recovery_state_repair_contract",
                 "spot_recovery_post_apply_reconciliation_completion",
             ],
             apply_review_contract_available=True,
@@ -8263,6 +8340,23 @@ class AdminApiReadService:
             )
         return hydrated
 
+    def _spot_recovery_repair_result_records(
+        self,
+        *,
+        client_order_id: str | None,
+    ) -> list[SpotRecoveryRepairResultRecordItem]:
+        if client_order_id:
+            records = self.spot_recovery_repair_result_store.read_for_client_order_id(
+                client_order_id,
+                limit=20,
+            )
+        else:
+            records = self.spot_recovery_repair_result_store.read_recent(limit=20)
+        return [
+            _spot_recovery_repair_result_item_from_record(record)
+            for record in records
+        ]
+
     def _spot_recovery_state_repair_taxonomy(
         self,
     ) -> list[SpotRecoveryStateRepairTaxonomyItem]:
@@ -8364,6 +8458,7 @@ class AdminApiReadService:
         candidates: list[SpotRecoveryContractCandidateItem],
         proof_records: list[SpotRecoveryProofRecordItem],
         execution_records: list[SpotRecoveryExecutionRecordItem],
+        repair_result_records: list[SpotRecoveryRepairResultRecordItem],
     ) -> tuple[
         list[SpotRecoveryRepairTargetItem],
         list[SpotRecoveryPreApplySnapshotItem],
@@ -8423,20 +8518,46 @@ class AdminApiReadService:
                 for record in proof_records
                 if record.client_order_id == client_order_id
             ]
-            target_id = _stable_read_id(
-                "spot-recovery-repair-target",
-                client_order_id,
-                candidate.candidate_type,
+            related_repair_results = [
+                record
+                for record in repair_result_records
+                if record.client_order_id == client_order_id
+            ]
+            target_id = next(
+                (
+                    record.repair_target_id
+                    for record in [*related_executions, *related_repair_results]
+                    if record.repair_target_id
+                ),
+                _stable_read_id(
+                    "spot-recovery-repair-target",
+                    client_order_id,
+                    candidate.candidate_type,
+                ),
             )
-            snapshot_id = _stable_read_id(
-                "spot-recovery-pre-apply-snapshot",
-                client_order_id,
-                target_id,
+            snapshot_id = next(
+                (
+                    record.pre_apply_snapshot_id
+                    for record in [*related_executions, *related_repair_results]
+                    if record.pre_apply_snapshot_id
+                ),
+                _stable_read_id(
+                    "spot-recovery-pre-apply-snapshot",
+                    client_order_id,
+                    target_id,
+                ),
             )
-            dry_run_plan_id = _stable_read_id(
-                "spot-recovery-dry-run-repair-plan",
-                client_order_id,
-                target_id,
+            dry_run_plan_id = next(
+                (
+                    record.dry_run_repair_plan_id
+                    for record in [*related_executions, *related_repair_results]
+                    if record.dry_run_repair_plan_id
+                ),
+                _stable_read_id(
+                    "spot-recovery-dry-run-repair-plan",
+                    client_order_id,
+                    target_id,
+                ),
             )
             latest_apply = next(
                 (
@@ -8462,8 +8583,20 @@ class AdminApiReadService:
                 record.post_apply_reconciliation_satisfied
                 for record in related_executions
             )
+            repair_result = next(
+                (record for record in related_repair_results if record.repair_applied),
+                None,
+            )
+            rollback_result = next(
+                (record for record in related_repair_results if record.rollback_applied),
+                None,
+            )
             state = SpotRecoveryCompletionState.REPAIR_BLOCKED
-            if latest_rollback is not None:
+            if rollback_result is not None:
+                state = SpotRecoveryCompletionState.ROLLBACK_APPLIED
+            elif repair_result is not None:
+                state = SpotRecoveryCompletionState.REPAIR_APPLIED
+            elif latest_rollback is not None:
                 state = SpotRecoveryCompletionState.ROLLBACK_APPLIED
             elif reconciliation_proof_satisfied:
                 state = (
@@ -8478,6 +8611,9 @@ class AdminApiReadService:
                 record.journal_id for record in related_executions
             ]
             proof_ids = [record.proof_id for record in related_proofs]
+            repair_result_ids = [
+                record.repair_result_id for record in related_repair_results
+            ]
             rollback_plan_ids = sorted({
                 record.rollback_plan_id
                 for record in related_executions
@@ -8513,6 +8649,7 @@ class AdminApiReadService:
                     source_route=candidate.source_route,
                     categories=list(dict.fromkeys(categories)),
                     execution_journal_ids=execution_journal_ids,
+                    repair_result_ids=repair_result_ids,
                     latest_apply_journal_id=(
                         latest_apply.journal_id if latest_apply else None
                     ),
@@ -8535,10 +8672,12 @@ class AdminApiReadService:
                     pre_apply_snapshot_id=snapshot_id,
                     dry_run_repair_plan_id=dry_run_plan_id,
                     completion_state=state,
+                    state_repair_available=bool(related_repair_results),
+                    state_repair_executed=bool(related_repair_results),
                     detail=(
                         "Repair target is backend-owned evidence keyed by "
-                        "client_order_id. It is not executable browser "
-                        "authority and does not use order_id."
+                        "client_order_id. Guarded local repair result evidence "
+                        "is backend-only and does not use order_id."
                     ),
                 )
             )
@@ -8549,6 +8688,7 @@ class AdminApiReadService:
                     client_order_id=client_order_id,
                     execution_journal_ids=execution_journal_ids,
                     proof_ids=proof_ids,
+                    repair_result_ids=repair_result_ids,
                     rollback_plan_ids=rollback_plan_ids,
                     audit_ids=audit_ids,
                     reconciliation_plan_ids=reconciliation_plan_ids,
@@ -8599,7 +8739,10 @@ class AdminApiReadService:
                     target_id=target_id,
                     state=state,
                     journal_accepted=latest_apply is not None,
-                    rollback_applied=latest_rollback is not None,
+                    repair_applied=repair_result is not None,
+                    rollback_applied=(
+                        latest_rollback is not None or rollback_result is not None
+                    ),
                     reconciliation_proof_satisfied=reconciliation_proof_satisfied,
                     fully_reconciled=False,
                     detail=(
@@ -8634,6 +8777,9 @@ class AdminApiReadService:
         persisted_proofs = self._spot_recovery_proof_records(
             client_order_id=client_order_id
         )
+        persisted_repair_results = self._spot_recovery_repair_result_records(
+            client_order_id=client_order_id
+        )
         (
             repair_targets,
             pre_apply_snapshots,
@@ -8643,6 +8789,7 @@ class AdminApiReadService:
             candidates=candidates,
             proof_records=persisted_proofs,
             execution_records=persisted_executions,
+            repair_result_records=persisted_repair_results,
         )
         latest_apply_journal_id = next(
             (
@@ -8692,19 +8839,27 @@ class AdminApiReadService:
             completion_states=completion_states,
             persisted_execution_count=len(persisted_executions),
             persisted_executions=persisted_executions,
+            persisted_repair_result_count=len(persisted_repair_results),
+            persisted_repair_results=persisted_repair_results,
             latest_apply_journal_id=latest_apply_journal_id,
+            latest_repair_result_id=(
+                persisted_repair_results[0].repair_result_id
+                if persisted_repair_results
+                else None
+            ),
             post_apply_reconciliation_satisfied_count=post_apply_satisfied_count,
             missing_contracts=[
-                "spot_recovery_state_repair_contract",
                 "spot_recovery_post_apply_reconciliation_completion",
             ],
+            state_repair_contract_available=True,
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
             detail=(
                 "Spot recovery apply review is a backend-owned contract evidence "
-                "route. It describes required gates and reads append-only apply "
-                "journal rows for candidate client_order_id values, but it does "
-                "not mutate order/exchange state, execute reconciliation, call "
-                "Coinbase, or authorize browser/BFF recovery."
+                "route. It describes required gates, guarded local repair "
+                "result evidence, and append-only apply journal rows for "
+                "candidate client_order_id values, but it does not mutate "
+                "order/exchange state, execute reconciliation, call Coinbase, "
+                "or authorize browser/BFF recovery."
             ),
         )
 
@@ -8731,6 +8886,9 @@ class AdminApiReadService:
         persisted_proofs = self._spot_recovery_proof_records(
             client_order_id=client_order_id
         )
+        persisted_repair_results = self._spot_recovery_repair_result_records(
+            client_order_id=client_order_id
+        )
         (
             repair_targets,
             pre_apply_snapshots,
@@ -8740,6 +8898,7 @@ class AdminApiReadService:
             candidates=candidates,
             proof_records=persisted_proofs,
             execution_records=persisted_executions,
+            repair_result_records=persisted_repair_results,
         )
         latest_rollback_journal_id = next(
             (
@@ -8787,17 +8946,23 @@ class AdminApiReadService:
             completion_states=completion_states,
             persisted_execution_count=len(persisted_executions),
             persisted_executions=persisted_executions,
+            persisted_repair_result_count=len(persisted_repair_results),
+            persisted_repair_results=persisted_repair_results,
             latest_rollback_journal_id=latest_rollback_journal_id,
-            missing_contracts=[
-                "spot_recovery_state_repair_contract",
-            ],
+            latest_repair_result_id=(
+                persisted_repair_results[0].repair_result_id
+                if persisted_repair_results
+                else None
+            ),
+            missing_contracts=[],
+            rollback_repair_contract_available=True,
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
             detail=(
                 "Spot recovery rollback-plan evidence is read-only. It describes "
-                "what the backend-owned rollback journal captures, but it does "
-                "not roll back order state, apply repairs, execute reconciliation, "
-                "mutate exchange state, call Coinbase, or authorize browser/BFF "
-                "rollback."
+                "what the backend-owned rollback journal and guarded local "
+                "repair-result contract capture, but it does not roll back "
+                "order state, execute reconciliation, mutate exchange state, "
+                "call Coinbase, or authorize browser/BFF rollback."
             ),
         )
 
@@ -8824,6 +8989,9 @@ class AdminApiReadService:
         persisted_executions = self._spot_recovery_execution_records(
             client_order_id=client_order_id
         )
+        persisted_repair_results = self._spot_recovery_repair_result_records(
+            client_order_id=client_order_id
+        )
         (
             repair_targets,
             pre_apply_snapshots,
@@ -8833,6 +9001,7 @@ class AdminApiReadService:
             candidates=candidates,
             proof_records=persisted_proofs,
             execution_records=persisted_executions,
+            repair_result_records=persisted_repair_results,
         )
         latest_exchange_state_proof_id = next(
             (
@@ -8911,10 +9080,17 @@ class AdminApiReadService:
             persisted_proofs=persisted_proofs,
             persisted_execution_count=len(persisted_executions),
             persisted_executions=persisted_executions,
+            persisted_repair_result_count=len(persisted_repair_results),
+            persisted_repair_results=persisted_repair_results,
             latest_exchange_state_proof_id=latest_exchange_state_proof_id,
             latest_reconciliation_proof_id=latest_reconciliation_proof_id,
             latest_apply_journal_id=latest_apply_journal_id,
             latest_rollback_journal_id=latest_rollback_journal_id,
+            latest_repair_result_id=(
+                persisted_repair_results[0].repair_result_id
+                if persisted_repair_results
+                else None
+            ),
             post_apply_reconciliation_required_count=post_apply_required_count,
             post_apply_reconciliation_satisfied_count=post_apply_satisfied_count,
             missing_contracts=[

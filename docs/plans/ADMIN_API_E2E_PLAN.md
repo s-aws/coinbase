@@ -42,8 +42,9 @@ dashboard WebSocket message
 
 This batch directly follows no-live recovery execution journals. Apply and
 rollback journal acceptance is now durable evidence, but local state repair
-semantics and post-apply reconciliation completion remain blocked. The batch
-may define and test backend-owned local repair contracts. It does not
+semantics are being closed through guarded local repair-result evidence while
+post-apply reconciliation completion remains blocked. The batch defines and
+tests backend-owned local repair contracts. It does not
 authorize live Coinbase execution, browser recovery authority, browser
 reconciliation authority, exchange reads, or unreviewed order/exchange-state
 mutation.

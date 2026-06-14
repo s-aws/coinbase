@@ -62,6 +62,7 @@ from .spot_recovery_execution_service import (
     SpotRecoveryExecutionError,
 )
 from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRecord
+from .spot_recovery_repair import FileSpotRecoveryRepairResultJournalStore
 from .spot_recovery_proof_service import (
     AdminApiSpotRecoveryProofService,
     SpotRecoveryProofError,
@@ -110,6 +111,10 @@ class AdminApiCommandDependencies:
         [],
         FileSpotRecoveryExecutionJournalStore,
     ] = FileSpotRecoveryExecutionJournalStore
+    spot_recovery_repair_result_store_getter: Callable[
+        [],
+        FileSpotRecoveryRepairResultJournalStore,
+    ] = FileSpotRecoveryRepairResultJournalStore
     audit_store_getter: Callable[[], FileAdminApiAuditStore] = FileAdminApiAuditStore
     spot_recovery_proof_service: AdminApiSpotRecoveryProofService = field(
         default_factory=AdminApiSpotRecoveryProofService
@@ -290,7 +295,7 @@ def _spot_recovery_execution_response_data(
         "proof_persisted": False,
         "repair_journal_persisted": True,
         "execution_journal_accepted": True,
-        "state_repair_executed": False,
+        "state_repair_executed": record.state_repair_executed,
         "exchange_state_proof_recorded": False,
         "reconciliation_proof_recorded": False,
         "browser_authority": "display_only",
@@ -1122,6 +1127,9 @@ class AdminApiCommandService:
             record = deps.spot_recovery_execution_service.record_apply_execution(
                 execution_store=deps.spot_recovery_execution_store_getter(),
                 proof_store=deps.spot_recovery_proof_store_getter(),
+                repair_result_store=(
+                    deps.spot_recovery_repair_result_store_getter()
+                ),
                 body=command.request,
                 admission_decision=command.admission_decision,
                 actor_id=command.envelope.actor.actor_id,
@@ -1189,6 +1197,9 @@ class AdminApiCommandService:
         try:
             record = deps.spot_recovery_execution_service.record_rollback_execution(
                 execution_store=deps.spot_recovery_execution_store_getter(),
+                repair_result_store=(
+                    deps.spot_recovery_repair_result_store_getter()
+                ),
                 body=command.request,
                 admission_decision=command.admission_decision,
                 actor_id=command.envelope.actor.actor_id,

@@ -56,9 +56,9 @@ Stop advancement to the next phase until fixed when any of these occur:
 ## Active Phases 1901-1920
 
 These phases continue M54 and address the next explicit architecture gap:
-append-only recovery execution journals now exist, but state repair semantics
-and post-apply reconciliation completion remain blocked. This batch may define
-and test the backend-owned local repair contract. It does not authorize live
+append-only recovery execution journals now exist, and this batch defines the
+backend-owned guarded local repair-result contract while post-apply
+reconciliation completion remains blocked. It does not authorize live
 Coinbase execution, browser recovery authority, browser reconciliation
 authority, exchange reads, or unreviewed order/exchange-state mutation.
 
@@ -301,8 +301,12 @@ evidence:
   backend evidence chain matches, otherwise `400` without journal persistence.
 - Added explicit `execution_journal_accepted`,
   `recovery_apply_journal_accepted`, `rollback_journal_accepted`, and
-  `state_repair_executed=false` evidence so journal acceptance is not mistaken
-  for state repair.
+  `state_repair_executed=false` evidence for plain journal acceptance so
+  journal acceptance is not mistaken for guarded repair-result evidence.
+  Guarded local repair-result records may set `state_repair_executed=true`,
+  but that means backend recovery-state evidence was accepted, not
+  order-state mutation, exchange-state mutation, reconciliation execution, or
+  Coinbase activity.
 - Exposed persisted execution journal readback through recovery apply-review,
   rollback-plan, and reconciliation-proof read models, and synchronized
   OpenAPI, route inventory, backend docs, frontend generated schema, mocks,

@@ -118,14 +118,15 @@ repair-target evidence, pre-apply snapshots, dry-run repair plans, and
 completion-state evidence. They close the read-contract gap only. POST
 contracts also exist for recovery apply
 execution, rollback execution, exchange-state proof recording, and
-reconciliation-proof recording. Apply and rollback remain fail-closed until
-backend state-repair executors, post-apply reconciliation completion, and
-reconciliation execution are implemented. The proof POST routes persist
-append-only backend local evidence
+reconciliation-proof recording. Apply and rollback remain fail-closed for
+order/exchange-state mutation, Coinbase activity, and reconciliation
+execution; guarded backend local repair-result journals are allowed only when
+the repair guard matches exactly. The proof POST routes persist append-only
+backend local evidence
 only after approval, admission audit, cap/guard, reconciliation plan,
 idempotency, and audit prerequisites match. The read routes and proof POST
-routes must not write repair rows, roll back state, execute reconciliation,
-mutate order/exchange state, call Coinbase, or authorize browser/BFF recovery.
+routes must not roll back order state, execute reconciliation, mutate
+order/exchange state, call Coinbase, or authorize browser/BFF recovery.
 Accepted checkpoint records also expose read-only reconciliation-plan link
 evidence to `GET /api/v1/admin/reconciliation/plans` and
 `GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage

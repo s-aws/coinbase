@@ -10,6 +10,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
+    SpotRecoveryCompletionState,
 )
 
 from .models import (
@@ -23,6 +24,11 @@ from .spot_recovery_execution import (
     SpotRecoveryExecutionRecord,
 )
 from .spot_recovery_proof import FileSpotRecoveryProofStore
+from .spot_recovery_repair import (
+    FileSpotRecoveryRepairResultJournalStore,
+    SpotRecoveryRepairResultRecord,
+    evaluate_spot_recovery_repair_guard,
+)
 
 
 APPLY_ROUTE = "/api/v1/spot/recovery/apply-executions"
@@ -45,6 +51,7 @@ class AdminApiSpotRecoveryExecutionService:
         *,
         execution_store: FileSpotRecoveryExecutionJournalStore,
         proof_store: FileSpotRecoveryProofStore,
+        repair_result_store: FileSpotRecoveryRepairResultJournalStore,
         body: SpotRecoveryApplyExecutionRequest,
         admission_decision: AdminLiveAdmissionDecisionEvidence,
         actor_id: str,
@@ -107,6 +114,33 @@ class AdminApiSpotRecoveryExecutionService:
             raise SpotRecoveryExecutionError(
                 "Spot recovery execution journal already exists."
             )
+        guard = evaluate_spot_recovery_repair_guard(
+            client_order_id=body.client_order_id,
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+            ),
+            rollback_plan_id=body.rollback_plan_id,
+            evidence_id=body.exchange_state_proof_id,
+            reconciliation_plan_id=body.reconciliation_plan_id,
+            state_repair_requested=body.state_repair_requested,
+            repair_target_id=body.repair_target_id,
+            pre_apply_snapshot_id=body.pre_apply_snapshot_id,
+            dry_run_repair_plan_id=body.dry_run_repair_plan_id,
+            execution_journal_accepted=True,
+            exchange_state_proof_present=True,
+            approval_snapshot_present=True,
+            admission_audit_present=True,
+            cap_guard_present=True,
+            reconciliation_plan_present=True,
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=payload_hash,
+        )
+        if body.state_repair_requested and not guard.guard_passed:
+            raise SpotRecoveryExecutionError(
+                "Spot recovery repair guard rejected apply repair: "
+                + ", ".join(guard.guard_failures)
+            )
 
         record = SpotRecoveryExecutionRecord(
             journal_id=journal_id,
@@ -131,6 +165,19 @@ class AdminApiSpotRecoveryExecutionService:
             dry_run=body.dry_run,
             operator_reason=body.operator_reason,
             manual_live_acknowledgement=body.manual_live_acknowledgement,
+            state_repair_requested=body.state_repair_requested,
+            repair_guard_status=guard.guard_status,
+            repair_guard_passed=guard.guard_passed,
+            repair_guard_failures=guard.guard_failures,
+            repair_guard_required_chain=guard.required_guard_chain,
+            repair_target_id=body.repair_target_id,
+            expected_repair_target_id=guard.expected_repair_target_id,
+            pre_apply_snapshot_id=body.pre_apply_snapshot_id,
+            expected_pre_apply_snapshot_id=guard.expected_pre_apply_snapshot_id,
+            dry_run_repair_plan_id=body.dry_run_repair_plan_id,
+            expected_dry_run_repair_plan_id=guard.expected_dry_run_repair_plan_id,
+            repair_result_id=(guard.repair_result_id if guard.guard_passed else None),
+            repair_result_journal_persisted=guard.guard_passed,
             execution_journal_accepted=True,
             recovery_apply_journal_accepted=True,
             rollback_journal_accepted=False,
@@ -138,14 +185,24 @@ class AdminApiSpotRecoveryExecutionService:
             rollback_executed=False,
             post_apply_reconciliation_required=True,
             post_apply_reconciliation_satisfied=False,
+            state_repair_executed=guard.guard_passed,
         )
         execution_store.append(record)
+        if guard.guard_passed:
+            _append_repair_result(
+                store=repair_result_store,
+                record=record,
+                completion_state=SpotRecoveryCompletionState.REPAIR_APPLIED,
+                repair_applied=True,
+                rollback_applied=False,
+            )
         return record
 
     def record_rollback_execution(
         self,
         *,
         execution_store: FileSpotRecoveryExecutionJournalStore,
+        repair_result_store: FileSpotRecoveryRepairResultJournalStore,
         body: SpotRecoveryRollbackExecutionRequest,
         admission_decision: AdminLiveAdmissionDecisionEvidence,
         actor_id: str,
@@ -216,6 +273,33 @@ class AdminApiSpotRecoveryExecutionService:
             raise SpotRecoveryExecutionError(
                 "Spot recovery execution journal already exists."
             )
+        guard = evaluate_spot_recovery_repair_guard(
+            client_order_id=body.client_order_id,
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+            ),
+            rollback_plan_id=body.rollback_plan_id,
+            evidence_id=body.recovery_apply_audit_id,
+            reconciliation_plan_id=body.reconciliation_plan_id,
+            state_repair_requested=body.state_repair_requested,
+            repair_target_id=body.repair_target_id,
+            pre_apply_snapshot_id=body.pre_apply_snapshot_id,
+            dry_run_repair_plan_id=body.dry_run_repair_plan_id,
+            execution_journal_accepted=True,
+            exchange_state_proof_present=bool(apply_record.exchange_state_proof_id),
+            approval_snapshot_present=True,
+            admission_audit_present=True,
+            cap_guard_present=True,
+            reconciliation_plan_present=True,
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=payload_hash,
+        )
+        if body.state_repair_requested and not guard.guard_passed:
+            raise SpotRecoveryExecutionError(
+                "Spot recovery repair guard rejected rollback repair: "
+                + ", ".join(guard.guard_failures)
+            )
 
         record = SpotRecoveryExecutionRecord(
             journal_id=journal_id,
@@ -244,6 +328,19 @@ class AdminApiSpotRecoveryExecutionService:
             dry_run=body.dry_run,
             operator_reason=body.operator_reason,
             manual_live_acknowledgement=body.manual_live_acknowledgement,
+            state_repair_requested=body.state_repair_requested,
+            repair_guard_status=guard.guard_status,
+            repair_guard_passed=guard.guard_passed,
+            repair_guard_failures=guard.guard_failures,
+            repair_guard_required_chain=guard.required_guard_chain,
+            repair_target_id=body.repair_target_id,
+            expected_repair_target_id=guard.expected_repair_target_id,
+            pre_apply_snapshot_id=body.pre_apply_snapshot_id,
+            expected_pre_apply_snapshot_id=guard.expected_pre_apply_snapshot_id,
+            dry_run_repair_plan_id=body.dry_run_repair_plan_id,
+            expected_dry_run_repair_plan_id=guard.expected_dry_run_repair_plan_id,
+            repair_result_id=(guard.repair_result_id if guard.guard_passed else None),
+            repair_result_journal_persisted=guard.guard_passed,
             execution_journal_accepted=True,
             recovery_apply_journal_accepted=False,
             rollback_journal_accepted=True,
@@ -253,8 +350,17 @@ class AdminApiSpotRecoveryExecutionService:
             post_apply_reconciliation_satisfied=(
                 apply_record.post_apply_reconciliation_satisfied
             ),
+            state_repair_executed=guard.guard_passed,
         )
         execution_store.append(record)
+        if guard.guard_passed:
+            _append_repair_result(
+                store=repair_result_store,
+                record=record,
+                completion_state=SpotRecoveryCompletionState.ROLLBACK_APPLIED,
+                repair_applied=False,
+                rollback_applied=True,
+            )
         return record
 
     @staticmethod
@@ -362,6 +468,61 @@ def _stable_id(
 ) -> str:
     material = "|".join([prefix, route, client_order_id, idempotency_key, payload_hash])
     return f"{prefix}:{uuid.uuid5(uuid.NAMESPACE_URL, material)}"
+
+
+def _append_repair_result(
+    *,
+    store: FileSpotRecoveryRepairResultJournalStore,
+    record: SpotRecoveryExecutionRecord,
+    completion_state: SpotRecoveryCompletionState,
+    repair_applied: bool,
+    rollback_applied: bool,
+) -> str:
+    if record.repair_result_id is None:
+        raise SpotRecoveryExecutionError("Repair result id is missing.")
+    if record.repair_target_id is None:
+        raise SpotRecoveryExecutionError("Repair target id is missing.")
+    if record.pre_apply_snapshot_id is None:
+        raise SpotRecoveryExecutionError("Pre-apply snapshot id is missing.")
+    if record.dry_run_repair_plan_id is None:
+        raise SpotRecoveryExecutionError("Dry-run repair plan id is missing.")
+    if store.find_by_repair_result_id(record.repair_result_id) is not None:
+        raise SpotRecoveryExecutionError("Spot recovery repair result already exists.")
+    result = SpotRecoveryRepairResultRecord(
+        repair_result_id=record.repair_result_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        completion_state=completion_state,
+        client_order_id=record.client_order_id,
+        journal_id=record.journal_id,
+        audit_id=record.audit_id,
+        rollback_plan_id=record.rollback_plan_id,
+        recovery_apply_audit_id=record.recovery_apply_audit_id,
+        recovery_apply_journal_id=record.recovery_apply_journal_id,
+        exchange_state_proof_id=record.exchange_state_proof_id,
+        reconciliation_proof_id=record.reconciliation_proof_id,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        repair_target_id=record.repair_target_id,
+        pre_apply_snapshot_id=record.pre_apply_snapshot_id,
+        dry_run_repair_plan_id=record.dry_run_repair_plan_id,
+        guard_passed=record.repair_guard_passed,
+        guard_failures=record.repair_guard_failures,
+        state_repair_executed=record.state_repair_executed,
+        repair_applied=repair_applied,
+        rollback_applied=rollback_applied,
+    )
+    return store.append(result)
 
 
 def _normalize_now(now: datetime | None) -> datetime:

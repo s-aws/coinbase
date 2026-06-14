@@ -12461,6 +12461,25 @@ components:
           type: string
           minLength: 1
           title: Exchange State Proof Id
+        state_repair_requested:
+          type: boolean
+          title: State Repair Requested
+          default: false
+        repair_target_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Repair Target Id
+        pre_apply_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pre Apply Snapshot Id
+        dry_run_repair_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dry Run Repair Plan Id
         dry_run:
           type: boolean
           title: Dry Run
@@ -12569,11 +12588,26 @@ components:
             $ref: '#/components/schemas/SpotRecoveryExecutionRecordItem'
           type: array
           title: Persisted Executions
+        persisted_repair_result_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Repair Result Count
+          default: 0
+        persisted_repair_results:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairResultRecordItem'
+          type: array
+          title: Persisted Repair Results
         latest_apply_journal_id:
           anyOf:
           - type: string
           - type: 'null'
           title: Latest Apply Journal Id
+        latest_repair_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Repair Result Id
         execution_journal_available:
           type: boolean
           title: Execution Journal Available
@@ -12597,6 +12631,10 @@ components:
         state_repair_contract_available:
           type: boolean
           title: State Repair Contract Available
+          description: True when the guarded local repair-result contract is available
+            for apply-review evidence. This is backend-owned evidence only, not browser
+            authority, Coinbase activity, order-state mutation, or exchange-state
+            mutation.
           default: false
         missing_contracts:
           items:
@@ -12904,22 +12942,28 @@ components:
         state_repair_executed:
           type: boolean
           title: State Repair Executed
+          description: Dry-run plans never execute repair. This remains false until
+            a separate guarded local repair-result record is accepted.
           default: false
         order_state_mutated:
           type: boolean
           title: Order State Mutated
+          description: Dry-run repair plans do not mutate backend order state.
           default: false
         exchange_state_mutated:
           type: boolean
           title: Exchange State Mutated
+          description: Dry-run repair plans do not mutate exchange state.
           default: false
         reconciliation_executed:
           type: boolean
           title: Reconciliation Executed
+          description: Dry-run repair plans do not execute reconciliation.
           default: false
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
+          description: Dry-run repair plans do not submit Coinbase orders.
           default: false
         backend_owned:
           type: boolean
@@ -13104,6 +13148,66 @@ components:
           type: boolean
           title: Repair Journal Persisted
           default: true
+        state_repair_requested:
+          type: boolean
+          title: State Repair Requested
+          default: false
+        repair_guard_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        repair_guard_passed:
+          type: boolean
+          title: Repair Guard Passed
+          default: false
+        repair_guard_failures:
+          items:
+            type: string
+          type: array
+          title: Repair Guard Failures
+        repair_guard_required_chain:
+          items:
+            type: string
+          type: array
+          title: Repair Guard Required Chain
+        repair_target_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Repair Target Id
+        expected_repair_target_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Repair Target Id
+        pre_apply_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pre Apply Snapshot Id
+        expected_pre_apply_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Pre Apply Snapshot Id
+        dry_run_repair_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dry Run Repair Plan Id
+        expected_dry_run_repair_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Dry Run Repair Plan Id
+        repair_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Repair Result Id
+        repair_result_journal_persisted:
+          type: boolean
+          title: Repair Result Journal Persisted
+          default: false
         execution_journal_accepted:
           type: boolean
           title: Execution Journal Accepted
@@ -13128,14 +13232,16 @@ components:
           title: Recovery Apply Executed
           description: Legacy compatibility flag for recovery apply journal acceptance
             only. This does not mean state repair executed; prefer execution_journal_accepted,
-            recovery_apply_journal_accepted, and state_repair_executed.
+            recovery_apply_journal_accepted, repair_result_journal_persisted, and
+            mutation flags.
           default: false
         rollback_executed:
           type: boolean
           title: Rollback Executed
           description: Legacy compatibility flag for rollback journal acceptance only.
             This does not mean rollback mutated order or exchange state; prefer execution_journal_accepted,
-            rollback_journal_accepted, and state_repair_executed.
+            rollback_journal_accepted, repair_result_journal_persisted, and mutation
+            flags.
           default: false
         post_apply_reconciliation_required:
           type: boolean
@@ -13152,8 +13258,11 @@ components:
         state_repair_executed:
           type: boolean
           title: State Repair Executed
-          description: True only when backend state repair actually executed. Current
-            no-live recovery journals must leave this false.
+          description: True only when the guarded local repair-result contract was
+            accepted for backend recovery-state evidence. This is not order-state
+            mutation, exchange-state mutation, reconciliation execution, Coinbase
+            REST reads, or Coinbase order submission; check the explicit mutation
+            and Coinbase flags for those.
           default: false
         order_state_mutated:
           type: boolean
@@ -13259,6 +13368,11 @@ components:
             type: string
           type: array
           title: Proof Ids
+        repair_result_ids:
+          items:
+            type: string
+          type: array
+          title: Repair Result Ids
         rollback_plan_ids:
           items:
             type: string
@@ -13603,15 +13717,16 @@ components:
           title: Recovery Apply Executed
           description: Legacy compatibility flag for recovery apply journal/proof
             acceptance only. This field does not mean state repair executed; prefer
-            execution_journal_accepted, recovery_apply_journal_accepted, and state_repair_executed
-            when available.
+            execution_journal_accepted, recovery_apply_journal_accepted, repair-result
+            readback, and explicit mutation flags when available.
           default: false
         rollback_executed:
           type: boolean
           title: Rollback Executed
           description: Legacy compatibility flag for rollback journal/proof acceptance
             only. This field does not mean rollback mutated order or exchange state;
-            prefer rollback_journal_accepted and state_repair_executed when available.
+            prefer rollback_journal_accepted, repair-result readback, and explicit
+            mutation flags when available.
           default: false
         reconciliation_executed:
           type: boolean
@@ -13854,6 +13969,16 @@ components:
             $ref: '#/components/schemas/SpotRecoveryExecutionRecordItem'
           type: array
           title: Persisted Executions
+        persisted_repair_result_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Repair Result Count
+          default: 0
+        persisted_repair_results:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairResultRecordItem'
+          type: array
+          title: Persisted Repair Results
         latest_exchange_state_proof_id:
           anyOf:
           - type: string
@@ -13874,6 +13999,11 @@ components:
           - type: string
           - type: 'null'
           title: Latest Rollback Journal Id
+        latest_repair_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Repair Result Id
         post_apply_reconciliation_required_count:
           type: integer
           minimum: 0.0
@@ -13971,6 +14101,201 @@ components:
       - reconciliation_completion_mark
       title: SpotRecoveryRepairCategory
       description: Allowed local repair categories for Spot recovery evidence.
+    SpotRecoveryRepairResultRecordItem:
+      properties:
+        repair_result_id:
+          type: string
+          title: Repair Result Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        completion_state:
+          $ref: '#/components/schemas/SpotRecoveryCompletionState'
+        client_order_id:
+          type: string
+          title: Client Order Id
+        journal_id:
+          type: string
+          title: Journal Id
+        audit_id:
+          type: string
+          title: Audit Id
+        rollback_plan_id:
+          type: string
+          title: Rollback Plan Id
+        recovery_apply_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Apply Audit Id
+        recovery_apply_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Apply Journal Id
+        exchange_state_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange State Proof Id
+        reconciliation_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Proof Id
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        repair_target_id:
+          type: string
+          title: Repair Target Id
+        pre_apply_snapshot_id:
+          type: string
+          title: Pre Apply Snapshot Id
+        dry_run_repair_plan_id:
+          type: string
+          title: Dry Run Repair Plan Id
+        guard_passed:
+          type: boolean
+          title: Guard Passed
+          default: true
+        guard_failures:
+          items:
+            type: string
+          type: array
+          title: Guard Failures
+        state_repair_executed:
+          type: boolean
+          title: State Repair Executed
+          description: True for guarded local repair-result records accepted into
+            backend recovery-state evidence. This does not imply order-state mutation,
+            exchange-state mutation, reconciliation execution, Coinbase REST reads,
+            or Coinbase order submission.
+          default: true
+        repair_applied:
+          type: boolean
+          title: Repair Applied
+          description: True when this local repair-result record represents the apply
+            side of the recovery-state contract, not an order/exchange state mutation.
+          default: false
+        rollback_applied:
+          type: boolean
+          title: Rollback Applied
+          description: True when this local repair-result record represents the rollback
+            side of the recovery-state contract, not an order/exchange state mutation.
+          default: false
+        post_apply_reconciliation_completed:
+          type: boolean
+          title: Post Apply Reconciliation Completed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - repair_result_id
+      - recorded_at
+      - mutation_family
+      - completion_state
+      - client_order_id
+      - journal_id
+      - audit_id
+      - rollback_plan_id
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - repair_target_id
+      - pre_apply_snapshot_id
+      - dry_run_repair_plan_id
+      - detail
+      title: SpotRecoveryRepairResultRecordItem
+      description: Read-only Spot recovery guarded local repair result evidence.
     SpotRecoveryRepairTargetItem:
       properties:
         target_id:
@@ -14002,6 +14327,11 @@ components:
             type: string
           type: array
           title: Execution Journal Ids
+        repair_result_ids:
+          items:
+            type: string
+          type: array
+          title: Repair Result Ids
         latest_apply_journal_id:
           anyOf:
           - type: string
@@ -14048,22 +14378,31 @@ components:
         state_repair_available:
           type: boolean
           title: State Repair Available
+          description: True when backend recovery-state repair evidence can be derived
+            for this target.
           default: false
         state_repair_executed:
           type: boolean
           title: State Repair Executed
+          description: True only when guarded local repair-result evidence exists
+            for this target. This does not mean order-state mutation, exchange-state
+            mutation, reconciliation execution, Coinbase REST reads, or Coinbase order
+            submission occurred.
           default: false
         order_state_mutated:
           type: boolean
           title: Order State Mutated
+          description: True only when backend order state was actually mutated.
           default: false
         exchange_state_mutated:
           type: boolean
           title: Exchange State Mutated
+          description: True only when backend exchange state was actually mutated.
           default: false
         reconciliation_executed:
           type: boolean
           title: Reconciliation Executed
+          description: True only when backend reconciliation execution actually ran.
           default: false
         backend_owned:
           type: boolean
@@ -14124,6 +14463,25 @@ components:
           type: string
           minLength: 1
           title: Reconciliation Plan Id
+        state_repair_requested:
+          type: boolean
+          title: State Repair Requested
+          default: false
+        repair_target_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Repair Target Id
+        pre_apply_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pre Apply Snapshot Id
+        dry_run_repair_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dry Run Repair Plan Id
         dry_run:
           type: boolean
           title: Dry Run
@@ -14228,11 +14586,26 @@ components:
             $ref: '#/components/schemas/SpotRecoveryExecutionRecordItem'
           type: array
           title: Persisted Executions
+        persisted_repair_result_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Repair Result Count
+          default: 0
+        persisted_repair_results:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairResultRecordItem'
+          type: array
+          title: Persisted Repair Results
         latest_rollback_journal_id:
           anyOf:
           - type: string
           - type: 'null'
           title: Latest Rollback Journal Id
+        latest_repair_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Repair Result Id
         execution_journal_available:
           type: boolean
           title: Execution Journal Available
@@ -14256,6 +14629,10 @@ components:
         rollback_repair_contract_available:
           type: boolean
           title: Rollback Repair Contract Available
+          description: True when the guarded local repair-result contract is available
+            for rollback-plan evidence. This is backend-owned evidence only, not browser
+            authority, Coinbase activity, order-state mutation, or exchange-state
+            mutation.
           default: false
         missing_contracts:
           items:

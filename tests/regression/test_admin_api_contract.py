@@ -63,6 +63,10 @@ from application.admin_api.spot_recovery_proof import (
     FileSpotRecoveryProofStore,
     SpotRecoveryProofRecord,
 )
+from application.admin_api.spot_recovery_repair import (
+    FileSpotRecoveryRepairResultJournalStore,
+    build_spot_recovery_repair_ids,
+)
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -181,11 +185,17 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     spot_recovery_execution_store = FileSpotRecoveryExecutionJournalStore(
         store_dir / "spot_recovery_execution_journal.jsonl"
     )
+    spot_recovery_repair_result_store = FileSpotRecoveryRepairResultJournalStore(
+        store_dir / "spot_recovery_repair_results.jsonl"
+    )
     order_command_service = AdminApiCommandService(
         AdminApiCommandDependencies(
             spot_recovery_proof_store_getter=lambda: spot_recovery_proof_store,
             spot_recovery_execution_store_getter=lambda: (
                 spot_recovery_execution_store
+            ),
+            spot_recovery_repair_result_store_getter=lambda: (
+                spot_recovery_repair_result_store
             ),
             audit_store_getter=lambda: audit_store,
         )
@@ -242,6 +252,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         spot_routes.AdminApiReadService(
             spot_recovery_proof_store=spot_recovery_proof_store,
             spot_recovery_execution_store=spot_recovery_execution_store,
+            spot_recovery_repair_result_store=spot_recovery_repair_result_store,
         )
     )
     client = TestClient(app)
@@ -255,6 +266,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
     client.admin_api_test_spot_recovery_execution_store = (
         spot_recovery_execution_store
+    )
+    client.admin_api_test_spot_recovery_repair_result_store = (
+        spot_recovery_repair_result_store
     )
     return client
 
@@ -2703,7 +2717,7 @@ def test_admin_api_openapi_recovery_execution_legacy_flags_are_described():
     assert "does not mean rollback mutated order or exchange state" in (
         execution_properties["rollback_executed"]["description"]
     )
-    assert "True only when backend state repair actually executed" in (
+    assert "guarded local repair-result contract was accepted" in (
         execution_properties["state_repair_executed"]["description"]
     )
     assert "journal/proof acceptance only" in proof_properties[
@@ -4473,7 +4487,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "spot_recovery_reconciliation_proof_writer_contract" not in recovery_gap[
         "missing_contracts"
     ]
-    assert "spot_recovery_state_repair_contract" in recovery_gap[
+    assert "spot_recovery_state_repair_contract" not in recovery_gap[
         "missing_contracts"
     ]
     assert "spot_recovery_post_apply_reconciliation_completion" in recovery_gap[
@@ -6322,7 +6336,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "spot_recovery_apply_contract" not in recovery_preview_payload[
         "missing_contracts"
     ]
-    assert "spot_recovery_state_repair_contract" in recovery_preview_payload[
+    assert "spot_recovery_state_repair_contract" not in recovery_preview_payload[
         "missing_contracts"
     ]
     assert "spot_recovery_post_apply_reconciliation_completion" in (
@@ -6586,9 +6600,10 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
     assert "spot_recovery_post_apply_reconciliation_completion" in (
         apply_review.missing_contracts
     )
-    assert "spot_recovery_state_repair_contract" in (
+    assert "spot_recovery_state_repair_contract" not in (
         apply_review.missing_contracts
     )
+    assert apply_review.state_repair_contract_available is True
     assert {gate.name for gate in apply_review.contract_gate_evidence} >= {
         "approval_snapshot",
         "admission_audit",
@@ -6599,9 +6614,8 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
     assert rollback_plan.type == "spot_recovery_rollback_plan"
     assert rollback_plan.rollback_plan_contract_available is True
     assert rollback_plan.rollback_execution_available is True
-    assert "spot_recovery_state_repair_contract" in (
-        rollback_plan.missing_contracts
-    )
+    assert rollback_plan.rollback_repair_contract_available is True
+    assert rollback_plan.missing_contracts == []
     assert reconciliation_proof.type == "spot_recovery_reconciliation_proof"
     assert reconciliation_proof.reconciliation_proof_contract_available is True
     assert reconciliation_proof.exchange_state_proof_writer_available is True
@@ -6887,6 +6901,121 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
         apply_payload["data"]["journal_id"]
     )
 
+    rejected_repair_body = {
+        **apply_body,
+        "rollback_plan_id": "rollback-plan-apply-repair-bad",
+        "reconciliation_plan_id": "reconciliation-plan-apply-repair-bad",
+        "state_repair_requested": True,
+        "repair_target_id": "wrong-repair-target",
+        "pre_apply_snapshot_id": "wrong-snapshot",
+        "dry_run_repair_plan_id": "wrong-dry-run-plan",
+    }
+    rejected_repair_idempotency_key = "spot-recovery-apply-repair-bad"
+    rejected_repair_payload_hash = _spot_recovery_execution_payload_hash(
+        endpoint=f"POST {apply_path}",
+        body=rejected_repair_body,
+        model=SpotRecoveryApplyExecutionRequest,
+    )
+    _append_spot_recovery_execution_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=apply_path,
+        service_method="execute_spot_recovery_apply",
+        client_order_id=client_order_id,
+        idempotency_key=rejected_repair_idempotency_key,
+        operator_intent="spot_recovery_contract_review",
+        payload_hash=rejected_repair_payload_hash,
+        approval_snapshot_id=rejected_repair_body["approval_snapshot_id"],
+        admission_audit_id=rejected_repair_body["admission_audit_id"],
+        cap_guard_decision_id=rejected_repair_body["cap_guard_decision_id"],
+        reconciliation_plan_id=rejected_repair_body["reconciliation_plan_id"],
+    )
+    rejected_repair = client.post(
+        apply_path,
+        json=rejected_repair_body,
+        headers=_headers(
+            idempotency_key=rejected_repair_idempotency_key,
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert rejected_repair.status_code == 400
+    assert rejected_repair.json()["failure_stage"] == "execution_prerequisite"
+    assert "repair guard rejected" in rejected_repair.json()["message"]
+
+    guarded_apply_body = {
+        **apply_body,
+        "rollback_plan_id": "rollback-plan-apply-repair-001",
+        "reconciliation_plan_id": "reconciliation-plan-apply-repair-001",
+        "approval_snapshot_id": "approval-apply-repair-001",
+        "admission_audit_id": "admission-audit-apply-repair-001",
+        "cap_guard_decision_id": "cap-guard-apply-repair-001",
+        "state_repair_requested": True,
+    }
+    repair_ids = build_spot_recovery_repair_ids(
+        client_order_id=client_order_id,
+        mutation_family=(
+            AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+        ),
+        rollback_plan_id=guarded_apply_body["rollback_plan_id"],
+        evidence_id=guarded_apply_body["exchange_state_proof_id"],
+        reconciliation_plan_id=guarded_apply_body["reconciliation_plan_id"],
+    )
+    guarded_apply_body.update(
+        {
+            "repair_target_id": repair_ids.repair_target_id,
+            "pre_apply_snapshot_id": repair_ids.pre_apply_snapshot_id,
+            "dry_run_repair_plan_id": repair_ids.dry_run_repair_plan_id,
+        }
+    )
+    guarded_apply_idempotency_key = "spot-recovery-apply-repair-001"
+    guarded_apply_payload_hash = _spot_recovery_execution_payload_hash(
+        endpoint=f"POST {apply_path}",
+        body=guarded_apply_body,
+        model=SpotRecoveryApplyExecutionRequest,
+    )
+    _append_spot_recovery_execution_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=apply_path,
+        service_method="execute_spot_recovery_apply",
+        client_order_id=client_order_id,
+        idempotency_key=guarded_apply_idempotency_key,
+        operator_intent="spot_recovery_contract_review",
+        payload_hash=guarded_apply_payload_hash,
+        approval_snapshot_id=guarded_apply_body["approval_snapshot_id"],
+        admission_audit_id=guarded_apply_body["admission_audit_id"],
+        cap_guard_decision_id=guarded_apply_body["cap_guard_decision_id"],
+        reconciliation_plan_id=guarded_apply_body["reconciliation_plan_id"],
+    )
+    guarded_apply_response = client.post(
+        apply_path,
+        json=guarded_apply_body,
+        headers=_headers(
+            idempotency_key=guarded_apply_idempotency_key,
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert guarded_apply_response.status_code == 200
+    guarded_apply_payload = guarded_apply_response.json()
+    assert guarded_apply_payload["data"]["repair_guard_passed"] is True
+    assert guarded_apply_payload["data"]["repair_guard_failures"] == []
+    assert guarded_apply_payload["data"]["repair_result_journal_persisted"] is True
+    assert guarded_apply_payload["data"]["repair_result_id"] == (
+        repair_ids.repair_result_id
+    )
+    assert guarded_apply_payload["data"]["state_repair_executed"] is True
+    assert guarded_apply_payload["data"]["order_state_mutated"] is False
+    assert guarded_apply_payload["data"]["exchange_state_mutated"] is False
+    assert guarded_apply_payload["data"]["reconciliation_executed"] is False
+    assert guarded_apply_payload["data"]["coinbase_order_submitted"] is False
+    assert guarded_apply_payload["data"]["coinbase_rest_read_ran"] is False
+
     rollback_body = {
         "client_order_id": client_order_id,
         "rollback_plan_id": "rollback-plan-rollback-001",
@@ -6965,13 +7094,13 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
         )
         and row.request_id == "corr-001"
     ]
-    assert len(recovery_audit_rows) == 3
+    assert len(recovery_audit_rows) == 5
     accepted_rows = [
         row
         for row in recovery_audit_rows
         if row.status == AdminApiCommandStatus.ACCEPTED
     ]
-    assert len(accepted_rows) == 2
+    assert len(accepted_rows) == 3
     assert all(row.coinbase_order_id is None for row in recovery_audit_rows)
     assert all(
         row.admission_decision is not None and row.admission_decision.allowed is False
@@ -6980,11 +7109,20 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
     journal_records = client.admin_api_test_spot_recovery_execution_store.read_recent(
         limit=20
     )
-    assert len(journal_records) == 2
+    assert len(journal_records) == 3
     assert {record.audit_id for record in journal_records} == {
         apply_payload["audit_id"],
+        guarded_apply_payload["audit_id"],
         rollback_payload["audit_id"],
     }
+    repair_result_records = (
+        client.admin_api_test_spot_recovery_repair_result_store.read_recent(limit=20)
+    )
+    assert len(repair_result_records) == 1
+    assert repair_result_records[0].repair_result_id == repair_ids.repair_result_id
+    assert repair_result_records[0].state_repair_executed is True
+    assert repair_result_records[0].order_state_mutated is False
+    assert repair_result_records[0].exchange_state_mutated is False
     readback = client.get(
         "/api/v1/spot/recovery/reconciliation-proof",
         params={"client_order_id": client_order_id},
@@ -6993,12 +7131,16 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
     assert readback.status_code == 200
     readback_payload = readback.json()
     assert readback_payload["execution_journal_available"] is True
-    assert readback_payload["persisted_execution_count"] == 2
-    assert readback_payload["latest_apply_journal_id"] == apply_payload["data"]["journal_id"]
+    assert readback_payload["persisted_execution_count"] == 3
+    assert readback_payload["persisted_repair_result_count"] == 1
+    assert readback_payload["latest_repair_result_id"] == repair_ids.repair_result_id
+    assert readback_payload["latest_apply_journal_id"] == (
+        guarded_apply_payload["data"]["journal_id"]
+    )
     assert readback_payload["latest_rollback_journal_id"] == (
         rollback_payload["data"]["journal_id"]
     )
-    assert readback_payload["post_apply_reconciliation_required_count"] == 1
+    assert readback_payload["post_apply_reconciliation_required_count"] == 2
     assert readback_payload["repair_target_model_available"] is True
     assert readback_payload["pre_apply_snapshot_required"] is True
     assert readback_payload["dry_run_repair_plan_available"] is True
@@ -7012,7 +7154,8 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
     assert rollback_payload["data"]["journal_id"] in (
         readback_target["execution_journal_ids"]
     )
-    assert readback_target["state_repair_executed"] is False
+    assert repair_ids.repair_result_id in readback_target["repair_result_ids"]
+    assert readback_target["state_repair_executed"] is True
     assert readback_target["order_state_mutated"] is False
     assert readback_target["exchange_state_mutated"] is False
     assert readback_payload["pre_apply_snapshots"]
@@ -7023,6 +7166,7 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
         readback_payload["dry_run_repair_plans"][0]["rejected_mutations"]
     )
     assert readback_payload["completion_states"]
+    assert readback_payload["completion_states"][0]["repair_applied"] is True
     assert readback_payload["completion_states"][0]["rollback_applied"] is True
     assert readback_payload["completion_states"][0]["fully_reconciled"] is False
 
