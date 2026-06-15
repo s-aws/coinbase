@@ -211,6 +211,66 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteAdmissionContextItem(BaseModel):
+    """One command-envelope field required before stealth admission lookup."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field_name: AdminApiStealthAdmissionContextField
+    source: str
+    required: bool = True
+    present: bool = False
+    blocking: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class StealthCommandAdmissionContextEvidence(BaseModel):
+    """Exact command-envelope context evidence for stealth command responses."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_command_admission_context"
+    mutation_family: AdminApiMutationFamilyType
+    route: str
+    method: str
+    module_id: str
+    identity_key: str = "stealth_order_id"
+    identity_value: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    required_context_count: int
+    present_context_count: int
+    missing_context_count: int = 0
+    missing_context: list[str] = Field(default_factory=list)
+    context_requirements: list[StealthCommandSuiteAdmissionContextItem] = Field(
+        default_factory=list
+    )
+    exact_context_present: bool = True
+    resolver_lookup_allowed: bool = True
+    resolver_lookup_ran: bool = True
+    proof_resolution_attempted: bool = True
+    admission_decision_attached: bool = True
+    admission_allowed: bool = False
+    executable: bool = False
+    live_enabled: bool = False
+    coinbase_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class ManualOrderRequest(BaseModel):
     """Manual order request shape for future enterprise placement."""
 
@@ -1286,6 +1346,7 @@ class AdminApiCommandResponse(BaseModel):
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    stealth_admission_context: StealthCommandAdmissionContextEvidence | None = None
     guard: FlexibleDict | None = None
     data: Any | None = None
     failure_stage: str | None = None
@@ -3995,23 +4056,6 @@ class StealthCommandSuiteAdmissionRequirementItem(BaseModel):
     identity_key: str
     command_identity_key: str = "stealth_order_id"
     status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
-    required: bool = True
-    present: bool = False
-    blocking: bool = True
-    backend_owned: bool = True
-    route_bound: bool = True
-    browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
-    detail: str
-
-
-class StealthCommandSuiteAdmissionContextItem(BaseModel):
-    """One command-envelope field required before stealth admission lookup."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    field_name: AdminApiStealthAdmissionContextField
-    source: str
     required: bool = True
     present: bool = False
     blocking: bool = True

@@ -6878,6 +6878,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
           - type: 'null'
+        stealth_admission_context:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandAdmissionContextEvidence'
+          - type: 'null'
         guard:
           anyOf:
           - additionalProperties: true
@@ -18174,6 +18178,151 @@ components:
       type: object
       title: StealthCancelRequest
       description: Stealth cancel request body keyed by path ``stealth_order_id``.
+    StealthCommandAdmissionContextEvidence:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_command_admission_context
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value:
+          type: string
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        required_context_count:
+          type: integer
+          title: Required Context Count
+        present_context_count:
+          type: integer
+          title: Present Context Count
+        missing_context_count:
+          type: integer
+          title: Missing Context Count
+          default: 0
+        missing_context:
+          items:
+            type: string
+          type: array
+          title: Missing Context
+        context_requirements:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteAdmissionContextItem'
+          type: array
+          title: Context Requirements
+        exact_context_present:
+          type: boolean
+          title: Exact Context Present
+          default: true
+        resolver_lookup_allowed:
+          type: boolean
+          title: Resolver Lookup Allowed
+          default: true
+        resolver_lookup_ran:
+          type: boolean
+          title: Resolver Lookup Ran
+          default: true
+        proof_resolution_attempted:
+          type: boolean
+          title: Proof Resolution Attempted
+          default: true
+        admission_decision_attached:
+          type: boolean
+          title: Admission Decision Attached
+          default: true
+        admission_allowed:
+          type: boolean
+          title: Admission Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        coinbase_read_ran:
+          type: boolean
+          title: Coinbase Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - route
+      - method
+      - module_id
+      - identity_value
+      - action_class
+      - required_permission
+      - service_method
+      - required_context_count
+      - present_context_count
+      - detail
+      title: StealthCommandAdmissionContextEvidence
+      description: Exact command-envelope context evidence for stealth command responses.
     StealthCommandSuiteAdmissionContextItem:
       properties:
         field_name:

@@ -241,6 +241,14 @@ metadata is present, but exact command-envelope fields remain missing:
 `stealth_order_id`, `actor_id`, `idempotency_key`, `operator_intent`, and
 `payload_hash`. Until those fields come from the backend mutating command
 path, resolver lookup and proof resolution remain disabled.
+Concrete live-disabled stealth command responses may include
+`stealth_admission_context`. That response echo is different from the
+read-only command-suite row: the command path has route, identity, actor,
+idempotency, operator-intent, and payload-hash context, so resolver/proof
+lookup evidence can report that exact context was present. It is still
+display evidence only and does not approve admission, enable execution, read
+Coinbase, submit/cancel orders, cancel/replace active placements, execute
+reconciliation, mutate state, or grant browser/BFF authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

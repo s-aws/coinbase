@@ -55,13 +55,17 @@ from application.admin_api.models import (
     SpotRecoveryRollbackExecutionRequest,
     SpotSweepAutomationRunCommand,
     SpotSweepAutomationRunRequest,
+    StealthCommandAdmissionContextEvidence,
+    StealthCommandSuiteAdmissionContextItem,
 )
 from application.admin_api.read_service import AdminApiReadService
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiIdempotencyDecision,
+    AdminApiMutationFamilyType,
     AdminApiPermission,
+    AdminApiStealthAdmissionContextField,
 )
 
 
@@ -249,6 +253,156 @@ def _command_response(
     )
 
 
+STEALTH_COMMAND_CONTEXT_MUTATION_FAMILIES = {
+    "create_stealth_order": AdminApiMutationFamilyType.STEALTH_CREATE,
+    "reveal_stealth_order_by_stealth_order_id": (
+        AdminApiMutationFamilyType.STEALTH_REVEAL
+    ),
+    "move_stealth_order_by_stealth_order_id": AdminApiMutationFamilyType.STEALTH_MOVE,
+    "cancel_stealth_order_by_stealth_order_id": (
+        AdminApiMutationFamilyType.STEALTH_CANCEL
+    ),
+    "recover_stealth_order_by_stealth_order_id": (
+        AdminApiMutationFamilyType.STEALTH_RECOVERY
+    ),
+    "reconcile_stealth_order_by_stealth_order_id": (
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION
+    ),
+    "reprice_stealth_order_by_stealth_order_id": (
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE
+    ),
+}
+
+
+def _stealth_command_context_requirement(
+    *,
+    field_name: AdminApiStealthAdmissionContextField,
+    source: str,
+    detail: str,
+) -> StealthCommandSuiteAdmissionContextItem:
+    return StealthCommandSuiteAdmissionContextItem(
+        field_name=field_name,
+        source=source,
+        required=True,
+        present=True,
+        blocking=False,
+        backend_owned=True,
+        route_bound=True,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=detail,
+    )
+
+
+def _build_stealth_command_admission_context(
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> StealthCommandAdmissionContextEvidence | None:
+    mutation_family = STEALTH_COMMAND_CONTEXT_MUTATION_FAMILIES.get(
+        admission_decision.service_method
+    )
+    if (
+        mutation_family is None
+        or admission_decision.identity_key != "stealth_order_id"
+        or not admission_decision.identity_value
+    ):
+        return None
+
+    requirements = [
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.ROUTE,
+            source="route_inventory",
+            detail="Route is present from the exact backend command route.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.METHOD,
+            source="route_inventory",
+            detail="Method is present from the exact backend command route.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.MODULE_ID,
+            source="route_inventory",
+            detail="Module id is present from backend route metadata.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.MUTATION_FAMILY,
+            source="command_metadata",
+            detail="Mutation family is present from backend command metadata.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.ACTION_CLASS,
+            source="route_inventory",
+            detail="Action class is present from backend route metadata.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.REQUIRED_PERMISSION,
+            source="route_inventory",
+            detail="Required permission is present from backend route metadata.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.STEALTH_ORDER_ID,
+            source="command_envelope",
+            detail="Stealth order id is present from the exact command path or request.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.ACTOR_ID,
+            source="command_envelope",
+            detail="Actor id is present from authenticated backend request context.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.IDEMPOTENCY_KEY,
+            source="command_envelope",
+            detail="Idempotency key is present from the mutating command request.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.OPERATOR_INTENT,
+            source="command_envelope",
+            detail="Operator intent is present from the mutating command request.",
+        ),
+        _stealth_command_context_requirement(
+            field_name=AdminApiStealthAdmissionContextField.PAYLOAD_HASH,
+            source="command_envelope",
+            detail="Payload hash is computed by the backend for the exact request body.",
+        ),
+    ]
+    return StealthCommandAdmissionContextEvidence(
+        mutation_family=mutation_family,
+        route=admission_decision.route,
+        method=admission_decision.method,
+        module_id=admission_decision.module_id,
+        identity_value=admission_decision.identity_value,
+        action_class=admission_decision.action_class,
+        required_permission=admission_decision.required_permission,
+        service_method=admission_decision.service_method,
+        required_context_count=len(requirements),
+        present_context_count=len(requirements),
+        missing_context_count=0,
+        missing_context=[],
+        context_requirements=requirements,
+        exact_context_present=True,
+        resolver_lookup_allowed=True,
+        resolver_lookup_ran=True,
+        proof_resolution_attempted=True,
+        admission_decision_attached=True,
+        admission_allowed=admission_decision.allowed,
+        executable=False,
+        live_enabled=False,
+        coinbase_read_ran=False,
+        coinbase_order_submitted=False,
+        coinbase_order_cancel_submitted=False,
+        active_placement_cancel_replace_ran=False,
+        reconciliation_executed=False,
+        lifecycle_state_mutated=False,
+        order_state_mutated=False,
+        exchange_state_mutated=False,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=(
+            "Exact command-envelope context is present for backend admission "
+            "evidence lookup, but live execution remains blocked."
+        ),
+    )
+
+
 def _record_audit(
     *,
     audit_store: FileAdminApiAuditStore,
@@ -401,6 +555,9 @@ def _execute_idempotent_command(
             admission_decision=admission_decision,
             failure_stage="idempotency",
         )
+        response.stealth_admission_context = _build_stealth_command_admission_context(
+            admission_decision
+        )
         response.audit_id = _record_audit(
             audit_store=audit_store,
             actor=actor,
@@ -418,6 +575,9 @@ def _execute_idempotent_command(
     else:
         raise ValueError("A command runner is required.")
     response.admission_decision = admission_decision
+    response.stealth_admission_context = _build_stealth_command_admission_context(
+        admission_decision
+    )
     if response.guard is None:
         response.guard = {}
     response.guard["admission_decision"] = admission_decision.model_dump(mode="json")

@@ -87,6 +87,12 @@ for traceability, while exact command-envelope fields remain missing:
 `stealth_order_id`, `actor_id`, `idempotency_key`, `operator_intent`, and
 `payload_hash`. Resolver lookup and proof resolution must stay false until a
 backend command path provides that exact context.
+Live-disabled stealth command responses can provide that concrete command
+context as `stealth_admission_context`. The read model should still show the
+missing-envelope state; only the command response can echo exact context from
+the request. The echo is display-only evidence and does not read Coinbase,
+submit/cancel orders, cancel/replace active placements, reconcile, mutate
+stealth/order/exchange state, or grant browser/BFF command authority.
 
 ## Detail Audit Semantics
 

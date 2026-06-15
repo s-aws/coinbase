@@ -103,6 +103,14 @@ Those rows also report command-envelope context requirements. Static route
 metadata is present, but `stealth_order_id`, `actor_id`, `idempotency_key`,
 `operator_intent`, and `payload_hash` are missing in the read-only response,
 so resolver lookup and proof resolution remain disabled.
+When a live-disabled stealth command is dry-submitted through the backend
+command path, the response may include `stealth_admission_context`. That echo
+uses the concrete request envelope to report exact route, identity, actor,
+idempotency, operator-intent, and payload-hash context plus resolver/proof
+lookup posture. The echo is not a guard result or approval source; command
+workflow surfaces may display it only and must not use it to execute, call
+Coinbase, cancel/replace placements, reconcile, mutate state, or broaden BFF
+authority.
 
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires

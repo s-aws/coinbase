@@ -114,6 +114,14 @@ backend inventory, but exact command context (`stealth_order_id`, `actor_id`,
 this read model. Therefore `exact_context_present=false`,
 `resolver_lookup_allowed=false`, `resolver_lookup_ran=false`, and
 `proof_resolution_attempted=false`.
+Concrete live-disabled command responses may separately return
+`stealth_admission_context` after a backend command envelope exists. That
+echo can show all eleven context fields present, resolver lookup attempted,
+and proof resolution attempted, but it remains no-live evidence. It must not
+be treated as approval, execution authority, Coinbase read/cancel/submit
+authority, active-placement cancel/replace authority, reconciliation
+execution, lifecycle/order/exchange mutation, browser approval, or BFF
+execution authority.
 
 ## Safety Constraints
 

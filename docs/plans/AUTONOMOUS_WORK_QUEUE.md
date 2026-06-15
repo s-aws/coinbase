@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2321-2340**.
+- Approved phase range: **2341-2360**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,97 +53,127 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2321-2340
+## Active Phases 2341-2360
 
-These phases continue M55 after the command-suite admission-readiness ledger.
-The next explicit architecture gap is command-envelope context: a fresh
-maintainer must see that route metadata alone is not enough to resolve proof
-records. This range may add enum-backed context fields and per-command
-context requirements to `GET /api/v1/stealth/command-suite`, then sync
-OpenAPI, frontend schema, mocks, and display-only UI. It must not perform
-resolver lookup, approve admission, execute commands, reconcile, read
-Coinbase, call `StealthOrderManager`, cancel/replace placements, mutate
-lifecycle/order/exchange state, or grant browser/BFF command authority.
+These phases continue M55 by aligning the actual live-disabled stealth
+command dry-submit responses with the command-suite admission context ledger.
+The command-suite read model correctly reports missing exact command context
+because it has no request envelope. A concrete command response does have
+route, identity, actor, idempotency, operator-intent, and payload-hash
+context, so it should echo that context as backend-owned evidence while still
+remaining blocked/no-live. This range may add a typed
+`stealth_admission_context` response field for stealth create, reveal, move,
+cancel, recovery, reconciliation, and movement reprice dry-submit responses,
+then sync OpenAPI, frontend schema, mocks, and dry-submit evidence rows. It
+must not approve admission, execute commands, reconcile, read Coinbase, call
+`StealthOrderManager`, cancel/replace placements, mutate lifecycle/order/
+exchange state, or grant browser/BFF command authority.
 
-### Phase 2321 - Advance Active Queue Range
+### Phase 2341 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2301-2320 to active phases 2321-2340 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2321-2340 to active phases 2341-2360 while preserving no-live defaults and cap policy.
 
-### Phase 2322 - Admission Context Scope
+### Phase 2342 - Command Response Context Scope
 
-- Define stealth admission context as read-only command-envelope prerequisite evidence, not a resolver, preflight endpoint, approval path, or execution path.
+- Define command-response admission context as backend-owned evidence over an exact command envelope, not approval, preflight success, proof creation, or execution authority.
 
-### Phase 2323 - Context Field Enum And Models
+### Phase 2343 - Backend Context Echo Model
 
-- Add enum-backed context field names plus typed context requirement fields on per-command admission-readiness rows.
+- Add typed command-response context evidence fields for stealth command dry-submit responses using enum-backed field names and no-live authority flags.
 
-### Phase 2324 - Backend Context Builder
+### Phase 2344 - Backend Context Echo Builder
 
-- Derive context rows from existing command metadata and route inventory without reading proof stores or invoking command admission.
+- Build context rows from the existing command envelope, route metadata, action class, permission, actor, idempotency key, operator intent, and payload hash without adding a parallel resolver path.
 
-### Phase 2325 - Static Context Presence
+### Phase 2345 - Stealth Create/Reveal/Move/Cancel Echo
 
-- Mark route, method, module id, mutation family, action class, and required permission as present route-inventory context.
+- Attach exact-context evidence to live-disabled stealth create, reveal, move, and cancel responses while preserving all existing rejected/not-implemented behavior.
 
-### Phase 2326 - Command Envelope Missing Context
+### Phase 2346 - Stealth Recovery/Reconciliation Echo
 
-- Mark exact `stealth_order_id`, actor id, idempotency key, operator intent, and payload hash as missing command-envelope context on the read-only command suite.
+- Attach exact-context evidence to live-disabled stealth recovery and reconciliation responses without executing repair, rollback, proof writing, reconciliation, or Coinbase reads.
 
-### Phase 2327 - Resolver Lookup Blockers
+### Phase 2347 - Movement Reprice Echo
 
-- Report exact context absent, resolver lookup not allowed, resolver lookup not run, and proof resolution not attempted for every row.
+- Attach exact-context evidence to movement reprice dry-submit responses because it is the stealth reprice command-suite row, while preserving cooldown, claim, and cancel/replace no-authority boundaries.
 
-### Phase 2328 - OpenAPI And Generated Artifacts
+### Phase 2348 - No-Live Authority Flags
 
-- Regenerate backend OpenAPI and route inventory artifacts after the command-suite schema changes.
+- Prove the context echo reports no Coinbase submission, no cancel/replace, no `StealthOrderManager`, no lifecycle/order/exchange mutation, and no browser/BFF execution authority.
 
-### Phase 2329 - Backend Focused Tests
+### Phase 2349 - OpenAPI And Route Inventory
 
-- Cover context counts, missing context names, present static context, resolver lookup blockers, no proof resolution, and no live authority.
+- Regenerate backend OpenAPI and route inventory artifacts after the command response schema changes.
 
-### Phase 2330 - Frontend Schema Sync
+### Phase 2350 - Backend Focused Tests
+
+- Cover exact context present, resolver evidence remains backend-owned, command responses stay blocked/no-live, and command-suite read rows still report missing context.
+
+### Phase 2351 - Frontend Schema Sync
 
 - Regenerate frontend TypeScript schema from backend OpenAPI and keep generated files unedited by hand.
 
-### Phase 2331 - Frontend Mock Runtime Sync
+### Phase 2352 - Frontend Mock Runtime Sync
 
-- Update frontend mock command-suite data to include admission context rows and resolver lookup blockers.
+- Update mock dry-submit responses for stealth create, reveal, move, cancel, recovery, reconciliation, and movement reprice with command-context echo evidence.
 
-### Phase 2332 - Frontend Adapter Mapping
+### Phase 2353 - Dry-Submit Evidence Mapping
 
-- Map admission context requirements into the stealth command-suite view model through the existing backend adapter.
+- Render command-response context rows through the existing dry-submit evidence path without adding inputs, controls, proof writers, or execution authority.
 
-### Phase 2333 - Frontend Read-Only Rendering
+### Phase 2354 - UI Authority Guard
 
-- Render missing command-envelope context and resolver lookup blockers in the stealth read model without controls or BFF execution authority.
+- Verify command workflow UI labels the context echo as backend evidence only and continues to require matched live-disabled backend capability evidence before dry-submit.
 
-### Phase 2334 - Runtime And Quality Range Sync
+### Phase 2355 - Runtime And Quality Range Sync
 
-- Update release, deployment, runtime, autonomous, and quality artifacts to use phases 2321-2340 and require the new command-suite context evidence.
+- Update release, deployment, runtime, autonomous, and quality artifacts to use phases 2341-2360 and require command-response context echo evidence.
 
-### Phase 2335 - Documentation Update
+### Phase 2356 - Documentation Update
 
-- Update Admin API, command workflow, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for admission context evidence.
+- Update Admin API, command workflows, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for the distinction between command-suite missing context and command-response exact context.
 
-### Phase 2336 - Drift Scan
+### Phase 2357 - Drift Scan
 
-- Search for stale 2301-2320 active-range text and wording that implies admission-readiness rows perform resolver lookup.
+- Search for stale 2321-2340 active-range text and wording that implies the context echo approves or executes commands.
 
-### Phase 2337 - Blind Contextless Review
+### Phase 2358 - Blind Contextless Review
 
-- Run a contextless review asking whether a fresh agent can explain why exact command context is missing and why proof lookup cannot run.
+- Run a contextless review asking whether a fresh agent can explain why command-suite reads show missing context while dry-submit responses can show exact context without live authority.
 
-### Phase 2338 - Backend Full Regression
+### Phase 2359 - Focused Gate Prep
 
-- Run backend regression after focused tests and generated artifacts pass.
+- Run backend focused tests, frontend focused tests, and resolve any schema or roadmap drift before the final gate phase.
 
-### Phase 2339 - Frontend Release Gate
+### Phase 2360 - Full Gates, Push, And Next Range
 
-- Run frontend `npm run release:gate` after schema, mocks, UI, tests, and artifacts are synced.
+- Run backend full regression, frontend `npm run release:gate`, confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
 
-### Phase 2340 - Full Gates, Push, And Next Range
+## Completed Phases 2321-2340
 
-- Confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+These phases completed backend-owned command-envelope context requirements on
+the existing `GET /api/v1/stealth/command-suite` response. Static route
+context is present, but exact command context (`stealth_order_id`, actor id,
+idempotency key, operator intent, and payload hash) remains missing on the
+read-only command suite. Resolver lookup is not allowed, resolver lookup did
+not run, and proof resolution was not attempted. The range synced backend
+models, OpenAPI, frontend schema, mocks, read-only rendering, docs, focused
+tests, full gates, and contextless review. It did not approve, execute,
+reconcile, read Coinbase, call `StealthOrderManager`, cancel/replace active
+placements, mutate state, or grant browser/BFF command authority.
+
+Completion evidence:
+
+- Backend commit: `356fd42`.
+- Frontend commit: `169504c`.
+- Backend focused tests passed: 3 tests, 1 warning.
+- Backend full regression passed: `831 passed, 1 warning`.
+- Frontend focused tests passed for mock/runtime/stealth read-model paths.
+- Frontend `npm run release:gate` passed with `225` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed with no release-blocking ambiguity.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 2301-2320
 

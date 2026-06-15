@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2321-2340",
+  "approved_phase_range": "2341-2360",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -351,6 +351,35 @@ envelope. Route fields are present for display, but `stealth_order_id`,
 `actor_id`, `idempotency_key`, `operator_intent`, and `payload_hash` are
 missing in the read-only command-suite response. That keeps resolver lookup
 and proof resolution disabled.
+After a live-disabled stealth command is dry-submitted, the command response
+may include a separate `stealth_admission_context` object. In that object the
+same fields can be present because the backend has a concrete command
+envelope:
+
+```json
+{
+  "stealth_admission_context": {
+    "type": "stealth_command_admission_context",
+    "mutation_family": "stealth_cancel",
+    "identity_key": "stealth_order_id",
+    "required_context_count": 11,
+    "present_context_count": 11,
+    "missing_context_count": 0,
+    "exact_context_present": true,
+    "resolver_lookup_allowed": true,
+    "proof_resolution_attempted": true,
+    "admission_allowed": false,
+    "executable": false,
+    "live_enabled": false,
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution"
+  }
+}
+```
+
+That response echo is still no-live evidence. It does not approve, execute,
+read Coinbase, submit/cancel orders, cancel/replace active placements,
+reconcile, mutate state, or grant browser/BFF authority.
 For per-order active-placement evidence, read
 `GET /api/v1/stealth/orders/{stealth_order_id}` and inspect
 `active_placement_audit`. That detail payload reports local active placement
