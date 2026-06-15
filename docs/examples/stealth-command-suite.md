@@ -171,7 +171,37 @@ live-disabled create workflow:
     "stealth_create_reconciliation_plan",
     "stealth_create_lifecycle_write_guard_proof",
     "stealth_create_lifecycle_write_execution_contract"
-  ]
+  ],
+  "execution_contract": {
+    "execution_contract_available": false,
+    "execution_allowed": false,
+    "exact_command_context_present": false,
+    "missing_context_fields": [
+      "route",
+      "method",
+      "stealth_order_id",
+      "actor_id",
+      "idempotency_key",
+      "operator_intent",
+      "payload_hash"
+    ],
+    "missing_prerequisites": [
+      "approval_snapshot",
+      "admission_audit",
+      "cap_guard_decision",
+      "reconciliation_plan",
+      "lifecycle_write_guard_proof",
+      "live_execution_service",
+      "live_execution_adapter",
+      "post_write_reconciliation"
+    ],
+    "manager_invocation_ran": false,
+    "stealth_row_write_ran": false,
+    "order_parent_write_ran": false,
+    "coinbase_order_submit_ran": false,
+    "live_coinbase_read_ran": false,
+    "reconciliation_executed": false
+  }
 }
 ```
 
@@ -213,6 +243,13 @@ Those lifecycle-write guard proof records are append-only local evidence. They
 do not invoke `StealthOrderManager`, write stealth or `order_parent` rows,
 dispatch lifecycle events, submit/read Coinbase, execute reconciliation, or
 grant browser/BFF execution authority.
+
+`create_lifecycle_write_audit.execution_contract` is also evidence only. It
+lists missing exact command context and prerequisites in command-suite
+readback. The live-disabled create draft can return the same shape as
+`stealth_lifecycle_execution_contract` after the backend has exact command
+context, but it remains blocked until every approval, audit, cap, guard,
+reconciliation, live-adapter, and post-write prerequisite is resolved.
 
 These records remain local evidence. They do not read Coinbase, cancel or
 replace active placements, execute reconciliation, mutate lifecycle state, or

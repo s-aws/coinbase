@@ -191,6 +191,9 @@ from .stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
     StealthCreateLifecycleWriteGuardProofRecord,
 )
+from .stealth_lifecycle_execution import (
+    build_stealth_create_lifecycle_write_execution_contract,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -1572,6 +1575,10 @@ def _stealth_create_lifecycle_write_audit(
         blockers=blockers,
         required_gate_chain=list(required_gate_chain),
         missing_gate_chain=list(missing_gate_chain),
+        execution_contract=build_stealth_create_lifecycle_write_execution_contract(
+            stealth_order_id=None,
+            exact_command_context_present=False,
+        ),
         proof_route_count=len(proof_routes),
         blocking_proof_route_count=sum(1 for route in proof_routes if route.blocking),
         proof_routes=proof_routes,
@@ -4960,6 +4967,7 @@ class AdminApiReadService:
                 backend_contract_refs=[
                     "api/v1/routes/stealth.py::create_stealth_order",
                     "application/admin_api/command_service.py::create_stealth_order",
+                    "application/admin_api/stealth_lifecycle_execution.py::build_stealth_create_lifecycle_write_execution_contract",
                     "core/stealth_order_manager.py::create_stealth_order",
                 ],
                 frontend_contract_refs=[
@@ -4967,12 +4975,15 @@ class AdminApiReadService:
                 ],
                 documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
                 required_next_contract=(
-                    "Backend lifecycle-write contract with planning guards, "
-                    "approval, cap/guard, audit, reconciliation, and recovery "
-                    "evidence before StealthOrderManager can be invoked."
+                    "Backend lifecycle-write execution contract with exact "
+                    "command context, planning guards, approval, cap/guard, "
+                    "audit, reconciliation, live adapter, and post-write "
+                    "recovery evidence before StealthOrderManager can be "
+                    "invoked."
                 ),
                 blockers=[
-                    "lifecycle_write_guard_missing",
+                    "stealth_create_lifecycle_write_guard_proof_missing",
+                    "stealth_create_lifecycle_write_execution_contract_missing",
                     "reconciliation_plan_missing",
                     "stealth_manager_invocation_disabled",
                 ],
@@ -6629,6 +6640,7 @@ class AdminApiReadService:
                 backend_contract_refs=[
                     "api/v1/routes/stealth.py::create_stealth_order",
                     "application/admin_api/command_service.py::create_stealth_order",
+                    "application/admin_api/stealth_lifecycle_execution.py::build_stealth_create_lifecycle_write_execution_contract",
                     "core/stealth_order_manager.py::create_stealth_order",
                 ],
                 frontend_contract_refs=[
@@ -6639,12 +6651,14 @@ class AdminApiReadService:
                     "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
                 ],
                 required_next_contract=(
-                    "Lifecycle-write gate that proves planning guards, approval, "
-                    "cap/guard, audit, reconciliation, and recovery handling "
-                    "before invoking StealthOrderManager."
+                    "Lifecycle-write execution contract that proves exact "
+                    "command context, planning guards, approval, cap/guard, "
+                    "audit, reconciliation, live adapter, and post-write "
+                    "recovery handling before invoking StealthOrderManager."
                 ),
                 blockers=[
-                    "lifecycle_write_guard_missing",
+                    "stealth_create_lifecycle_write_guard_proof_missing",
+                    "stealth_create_lifecycle_write_execution_contract_missing",
                     "reconciliation_plan_missing",
                     "stealth_manager_invocation_disabled",
                 ],

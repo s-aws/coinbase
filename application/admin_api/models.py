@@ -1389,6 +1389,9 @@ class AdminApiCommandResponse(BaseModel):
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     stealth_admission_context: StealthCommandAdmissionContextEvidence | None = None
+    stealth_lifecycle_execution_contract: (
+        StealthCreateLifecycleWriteExecutionContractEvidence | None
+    ) = None
     guard: FlexibleDict | None = None
     data: Any | None = None
     failure_stage: str | None = None
@@ -4284,6 +4287,61 @@ class StealthCommandSuiteAdmissionReadinessItem(BaseModel):
     detail: str
 
 
+class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
+    """No-live execution-contract boundary evidence for stealth create."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType = AdminApiMutationFamilyType.STEALTH_CREATE
+    command_route: str = "/api/v1/stealth/orders"
+    service_method: str = "create_stealth_order"
+    manager_method: str = "core/stealth_order_manager.py::create_stealth_order"
+    identity_key: str = "stealth_order_id"
+    stealth_order_id: str | None = None
+    accepted_command_identity_keys: list[str] = Field(default_factory=list)
+    rejected_command_identity_keys: list[str] = Field(default_factory=list)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    execution_contract_boundary_configured: bool = True
+    execution_contract_available: bool = False
+    execution_allowed: bool = False
+    exact_command_context_present: bool = False
+    required_context_fields: list[str] = Field(default_factory=list)
+    missing_context_fields: list[str] = Field(default_factory=list)
+    required_prerequisites: list[str] = Field(default_factory=list)
+    missing_prerequisites: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    lifecycle_write_guard_proof_required: bool = True
+    lifecycle_write_guard_proof_resolved: bool = False
+    lifecycle_write_guard_proof_lookup_ran: bool = False
+    approval_snapshot_required: bool = True
+    admission_audit_required: bool = True
+    cap_guard_required: bool = True
+    reconciliation_plan_required: bool = True
+    live_execution_service_required: bool = True
+    live_execution_adapter_required: bool = True
+    post_write_reconciliation_required: bool = True
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    stealth_row_write_allowed: bool = False
+    stealth_row_write_ran: bool = False
+    order_parent_write_allowed: bool = False
+    order_parent_write_ran: bool = False
+    lifecycle_event_dispatch_allowed: bool = False
+    lifecycle_event_dispatch_ran: bool = False
+    local_lifecycle_mutation_allowed: bool = False
+    local_lifecycle_mutation_ran: bool = False
+    coinbase_order_submit_allowed: bool = False
+    coinbase_order_submit_ran: bool = False
+    live_coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class StealthCreateLifecycleWriteAuditEvidence(BaseModel):
     """Read-only lifecycle-write evidence for stealth create readiness."""
 
@@ -4323,6 +4381,7 @@ class StealthCreateLifecycleWriteAuditEvidence(BaseModel):
     blockers: list[str] = Field(default_factory=list)
     required_gate_chain: list[str] = Field(default_factory=list)
     missing_gate_chain: list[str] = Field(default_factory=list)
+    execution_contract: StealthCreateLifecycleWriteExecutionContractEvidence | None = None
     proof_route_count: int = 0
     blocking_proof_route_count: int = 0
     proof_routes: list[StealthCommandSuiteProofRouteItem] = Field(default_factory=list)

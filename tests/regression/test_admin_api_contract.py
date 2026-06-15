@@ -139,6 +139,8 @@ from core.enums import (
     StealthMutationKind,
     StealthExchangeTruthEvidenceSource,
     StealthLifecycleWriteGuardEvidenceSource,
+    StealthCreateLifecycleExecutionBlocker,
+    StealthCreateLifecycleExecutionPrerequisite,
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
@@ -1797,7 +1799,29 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
+    assert "stealth_lifecycle_execution_contract" in command_response_schema[
+        "properties"
+    ]
     assert "AdminLiveAdmissionDecisionEvidence" in written["components"]["schemas"]
+    assert "StealthCreateLifecycleWriteExecutionContractEvidence" in written[
+        "components"
+    ]["schemas"]
+    execution_contract_schema = written["components"]["schemas"][
+        "StealthCreateLifecycleWriteExecutionContractEvidence"
+    ]
+    assert "execution_contract_boundary_configured" in execution_contract_schema[
+        "properties"
+    ]
+    assert "execution_contract_available" in execution_contract_schema["properties"]
+    assert "execution_allowed" in execution_contract_schema["properties"]
+    assert "exact_command_context_present" in execution_contract_schema["properties"]
+    assert "missing_prerequisites" in execution_contract_schema["properties"]
+    assert "manager_invocation_ran" in execution_contract_schema["properties"]
+    assert "stealth_row_write_ran" in execution_contract_schema["properties"]
+    assert "order_parent_write_ran" in execution_contract_schema["properties"]
+    assert "coinbase_order_submit_ran" in execution_contract_schema["properties"]
+    assert "live_coinbase_read_ran" in execution_contract_schema["properties"]
+    assert "reconciliation_executed" in execution_contract_schema["properties"]
     stealth_create_request_schema = written["components"]["schemas"][
         "StealthCreateRequest"
     ]
@@ -1844,6 +1868,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]
     assert "required_gate_chain" in create_lifecycle_write_audit_schema["properties"]
     assert "missing_gate_chain" in create_lifecycle_write_audit_schema["properties"]
+    assert "execution_contract" in create_lifecycle_write_audit_schema["properties"]
     assert "proof_routes" in create_lifecycle_write_audit_schema["properties"]
     assert "proof_records_created" in create_lifecycle_write_audit_schema[
         "properties"
@@ -3004,7 +3029,42 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
         module_id="stealth_orders",
         identity_value="stealth-create-abc",
     )
+    execution_contract = payload["stealth_lifecycle_execution_contract"]
+    assert execution_contract["stealth_order_id"] == "stealth-create-abc"
+    assert execution_contract["identity_key"] == "stealth_order_id"
+    assert execution_contract["accepted_command_identity_keys"] == [
+        "stealth_order_id"
+    ]
+    assert "order_id" in execution_contract["rejected_command_identity_keys"]
+    assert execution_contract["status"] == AdminApiGateStatus.BLOCKED.value
+    assert execution_contract["execution_contract_boundary_configured"] is True
+    assert execution_contract["execution_contract_available"] is False
+    assert execution_contract["execution_allowed"] is False
+    assert execution_contract["exact_command_context_present"] is True
+    assert execution_contract["missing_context_fields"] == []
+    assert StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value in (
+        execution_contract["missing_prerequisites"]
+    )
+    assert StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING.value in (
+        execution_contract["blockers"]
+    )
+    assert execution_contract["manager_invocation_allowed"] is False
+    assert execution_contract["manager_invocation_ran"] is False
+    assert execution_contract["stealth_row_write_allowed"] is False
+    assert execution_contract["stealth_row_write_ran"] is False
+    assert execution_contract["order_parent_write_allowed"] is False
+    assert execution_contract["order_parent_write_ran"] is False
+    assert execution_contract["lifecycle_event_dispatch_ran"] is False
+    assert execution_contract["local_lifecycle_mutation_ran"] is False
+    assert execution_contract["coinbase_order_submit_ran"] is False
+    assert execution_contract["live_coinbase_read_ran"] is False
+    assert execution_contract["reconciliation_executed"] is False
     assert payload["data"]["identity_key"] == "stealth_order_id"
+    assert payload["data"]["execution_contract_available"] is False
+    assert payload["data"]["execution_allowed"] is False
+    assert StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING.value in (
+        payload["data"]["execution_contract_blockers"]
+    )
     assert payload["data"]["product_id"] == "BTC-USDC"
     assert payload["data"]["side"] == "BUY"
     assert payload["data"]["stealth_manager_invoked"] is False
@@ -6017,6 +6077,49 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert "live_execution_disabled" in create_lifecycle_write_audit[
         "missing_gate_chain"
     ]
+    execution_contract = create_lifecycle_write_audit["execution_contract"]
+    assert execution_contract["stealth_order_id"] is None
+    assert execution_contract["identity_key"] == "stealth_order_id"
+    assert execution_contract["accepted_command_identity_keys"] == [
+        "stealth_order_id"
+    ]
+    assert "order_id" in execution_contract["rejected_command_identity_keys"]
+    assert execution_contract["status"] == AdminApiGateStatus.BLOCKED.value
+    assert execution_contract["execution_contract_boundary_configured"] is True
+    assert execution_contract["execution_contract_available"] is False
+    assert execution_contract["execution_allowed"] is False
+    assert execution_contract["exact_command_context_present"] is False
+    assert set(execution_contract["missing_context_fields"]) == {
+        AdminApiStealthAdmissionContextField.ROUTE.value,
+        AdminApiStealthAdmissionContextField.METHOD.value,
+        AdminApiStealthAdmissionContextField.STEALTH_ORDER_ID.value,
+        AdminApiStealthAdmissionContextField.ACTOR_ID.value,
+        AdminApiStealthAdmissionContextField.IDEMPOTENCY_KEY.value,
+        AdminApiStealthAdmissionContextField.OPERATOR_INTENT.value,
+        AdminApiStealthAdmissionContextField.PAYLOAD_HASH.value,
+    }
+    assert StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value in (
+        execution_contract["missing_prerequisites"]
+    )
+    assert StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING.value in (
+        execution_contract["blockers"]
+    )
+    assert StealthCreateLifecycleExecutionBlocker.EXACT_COMMAND_CONTEXT_MISSING.value in (
+        execution_contract["blockers"]
+    )
+    assert execution_contract["manager_invocation_allowed"] is False
+    assert execution_contract["manager_invocation_ran"] is False
+    assert execution_contract["stealth_row_write_allowed"] is False
+    assert execution_contract["stealth_row_write_ran"] is False
+    assert execution_contract["order_parent_write_allowed"] is False
+    assert execution_contract["order_parent_write_ran"] is False
+    assert execution_contract["lifecycle_event_dispatch_ran"] is False
+    assert execution_contract["local_lifecycle_mutation_ran"] is False
+    assert execution_contract["coinbase_order_submit_ran"] is False
+    assert execution_contract["live_coinbase_read_ran"] is False
+    assert execution_contract["reconciliation_executed"] is False
+    assert execution_contract["browser_authority"] == "display_only"
+    assert execution_contract["bff_authority"] == "forward_only_no_execution"
     assert create_lifecycle_write_audit["proof_route_count"] == 6
     assert create_lifecycle_write_audit["blocking_proof_route_count"] == 6
     proof_routes = create_lifecycle_write_audit["proof_routes"]
@@ -8204,6 +8307,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert stealth_create_inventory["live_designated"] is False
     assert "POST /api/v1/stealth/orders" in stealth_create_inventory["command_routes"]
     assert "stealth_order_id" in stealth_create_inventory["identity_keys"]
+    assert (
+        "application/admin_api/stealth_lifecycle_execution.py::build_stealth_create_lifecycle_write_execution_contract"
+        in stealth_create_inventory["backend_contract_refs"]
+    )
+    assert "stealth_create_lifecycle_write_execution_contract_missing" in (
+        stealth_create_inventory["blockers"]
+    )
     stealth_reveal_inventory = inventory_by_id["stealth.reveal_command_draft"]
     assert stealth_reveal_inventory["workflow_type"] == (
         AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
@@ -8241,6 +8351,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     assert "POST /api/v1/stealth/orders" in stealth_create_taxonomy["command_surfaces"]
     assert "stealth_manager_invocation_disabled" in stealth_create_taxonomy["blockers"]
+    assert "stealth_create_lifecycle_write_execution_contract_missing" in (
+        stealth_create_taxonomy["blockers"]
+    )
+    assert (
+        "application/admin_api/stealth_lifecycle_execution.py::build_stealth_create_lifecycle_write_execution_contract"
+        in stealth_create_taxonomy["backend_contract_refs"]
+    )
     stealth_move_taxonomy = taxonomy_by_id["stealth.move"]
     assert stealth_move_taxonomy["mutation_family"] == (
         AdminApiMutationFamilyType.STEALTH_MOVE.value

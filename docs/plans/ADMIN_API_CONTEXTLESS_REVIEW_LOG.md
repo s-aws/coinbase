@@ -173,6 +173,51 @@ Status:
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
 
+## M55 Create Lifecycle Execution-Contract Boundary Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewer was not given chat history.
+
+Reviewer tasks:
+
+- trace how a user or smaller agent would create a stealth order through the
+  enterprise admin path
+- verify `POST /api/v1/stealth/orders` remains live-disabled
+- verify `create_lifecycle_write_audit.execution_contract` and
+  `stealth_lifecycle_execution_contract` are evidence only
+- verify the evidence cannot be mistaken for manager invocation, DB write,
+  Coinbase submit/read, reconciliation, browser authority, or BFF authority
+
+Findings:
+
+- Blind/contextless review passed with no blockers.
+- The reviewer traced the frontend dry-submit wrapper to
+  `BackendApiClient.createStealthOrder`, the backend stealth route, and
+  `AdminApiCommandService.create_stealth_order`.
+- The reviewer confirmed the backend command response remains HTTP 501 /
+  `not_implemented`, sets `allow_live_execution=False`, reports
+  `live_exchange_submitted=false`, and does not invoke
+  `StealthOrderManager.create_stealth_order`.
+- The reviewer confirmed the execution-contract builder rejects
+  `client_order_id`, active-placement ids, exchange ids, and `order_id`, and
+  reports no manager invocation, no stealth/order-parent/lifecycle writes, no
+  Coinbase read/submit, and no reconciliation.
+
+Status:
+
+- Backend focused execution-contract checks passed.
+- Backend full regression passed with `832 passed, 1 warning`.
+- Frontend focused schema/type/lint/mock/dry-submit/UI checks passed.
+- Frontend full `npm run release:gate` passed with `231` unit tests and `3`
+  Playwright tests after increasing the existing exhaustive `AdminShell`
+  unit-test timeout from `45s` to `90s`; the test had passed alone but timed
+  out under full-suite concurrency.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Spot Command Suite Coverage Gap Review - Phases 1641-1660
 
 Review scope:

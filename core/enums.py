@@ -312,6 +312,36 @@ class AdminApiStealthAdmissionContextField(str, Enum):
     PAYLOAD_HASH = "payload_hash"
 
 
+class StealthCreateLifecycleExecutionPrerequisite(str, Enum):
+    """Prerequisites required before stealth create lifecycle writes may execute."""
+
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    ADMISSION_AUDIT = "admission_audit"
+    CAP_GUARD_DECISION = "cap_guard_decision"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    LIFECYCLE_WRITE_GUARD_PROOF = "lifecycle_write_guard_proof"
+    LIVE_EXECUTION_SERVICE = "live_execution_service"
+    LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
+    POST_WRITE_RECONCILIATION = "post_write_reconciliation"
+
+
+class StealthCreateLifecycleExecutionBlocker(str, Enum):
+    """Fail-closed blockers for stealth create lifecycle-write execution."""
+
+    EXECUTION_CONTRACT_MISSING = (
+        "stealth_create_lifecycle_write_execution_contract_missing"
+    )
+    LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+    STEALTH_MANAGER_INVOCATION_DISABLED = "stealth_manager_invocation_disabled"
+    STEALTH_ROW_WRITE_DISABLED = "stealth_row_write_disabled"
+    ORDER_PARENT_WRITE_DISABLED = "order_parent_write_disabled"
+    LIFECYCLE_EVENT_DISPATCH_DISABLED = "lifecycle_event_dispatch_disabled"
+    COINBASE_ORDER_SUBMIT_DISABLED = "coinbase_order_submit_disabled"
+    COINBASE_READ_DISABLED = "coinbase_read_disabled"
+    POST_WRITE_RECONCILIATION_MISSING = "post_write_reconciliation_missing"
+    EXACT_COMMAND_CONTEXT_MISSING = "exact_command_context_missing"
+
+
 class AdminApiSpotCommandSuiteGapFamily(str, Enum):
     """Spot command-suite families that still require admin contract work."""
 

@@ -237,6 +237,14 @@ proof evidence only after backend admission prerequisites match. It does not
 invoke `StealthOrderManager`, write `stealth_orders` or `order_parent` rows,
 dispatch lifecycle events, submit or read Coinbase, execute reconciliation, or
 authorize browser/BFF lifecycle-write authority.
+The stealth command-suite `create_lifecycle_write_audit` also includes an
+`execution_contract` object for the future create execution boundary. The
+live-disabled `POST /api/v1/stealth/orders` response may include the same
+evidence as `stealth_lifecycle_execution_contract` with exact command context
+present. Both shapes are blocked evidence only: they report required
+prerequisites, missing prerequisites, blockers, accepted/rejected identity
+keys, and proof that no manager invocation, row write, Coinbase call, or
+reconciliation execution ran.
 The same command-suite response now includes `admission_readiness` rows that
 bind each stealth command route to the backend-owned evidence required before
 execution can ever be considered: approval request/decision, admission audit,

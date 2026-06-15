@@ -252,6 +252,14 @@ They also expose `context_requirements` to separate static route metadata from
 the exact command envelope needed for future proof lookup. Missing
 `stealth_order_id`, actor, idempotency, operator-intent, and payload-hash
 context keeps resolver lookup blocked.
+The create lifecycle-write audit also exposes a nested `execution_contract`.
+In command-suite readback, that contract has no exact command context and
+stays blocked. In the live-disabled create draft response, the same evidence
+appears as `stealth_lifecycle_execution_contract` with exact command context
+present. Neither form is executable: both are no-live/no-write evidence that
+the manager was not invoked, stealth and `order_parent` rows were not written,
+lifecycle events were not dispatched, Coinbase was not read or submitted to,
+and reconciliation did not run.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute

@@ -111,6 +111,9 @@ from .stealth_lifecycle_write_service import (
     AdminApiStealthLifecycleWriteGuardService,
     StealthLifecycleWriteGuardError,
 )
+from .stealth_lifecycle_execution import (
+    build_stealth_create_lifecycle_write_execution_contract,
+)
 
 
 def _noop_log(_level: str, _message: str) -> None:
@@ -1062,6 +1065,10 @@ class AdminApiCommandService:
 
         gate = evaluate_live_execution_gate(allow_live_execution=False)
         request = command.request
+        execution_contract = build_stealth_create_lifecycle_write_execution_contract(
+            stealth_order_id=request.stealth_order_id,
+            exact_command_context_present=True,
+        )
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.NOT_IMPLEMENTED,
             action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
@@ -1077,10 +1084,16 @@ class AdminApiCommandService:
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
             live_exchange_submitted=False,
+            stealth_lifecycle_execution_contract=execution_contract,
             guard=gate.model_dump(),
             data={
                 "stealth_order_id": request.stealth_order_id,
                 "identity_key": "stealth_order_id",
+                "execution_contract_available": (
+                    execution_contract.execution_contract_available
+                ),
+                "execution_allowed": execution_contract.execution_allowed,
+                "execution_contract_blockers": execution_contract.blockers,
                 "product_id": request.product_id,
                 "side": request.side.value if isinstance(request.side, OrderSide) else str(request.side),
                 "total_size": request.total_size,

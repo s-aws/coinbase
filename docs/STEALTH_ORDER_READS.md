@@ -94,6 +94,19 @@ the request. The echo is display-only evidence and does not read Coinbase,
 submit/cancel orders, cancel/replace active placements, reconcile, mutate
 stealth/order/exchange state, or grant browser/BFF command authority.
 
+The command-suite `create_lifecycle_write_audit.execution_contract` block
+reports the backend-owned stealth create execution-contract boundary without
+executing it. It lists exact-context requirements, missing prerequisite
+evidence, rejected `order_id` and `client_order_id` command identities,
+blockers, and no-live/no-write proof flags. Live-disabled create command
+responses may also return the same evidence as
+`stealth_lifecycle_execution_contract` with exact request context present.
+Both surfaces remain evidence only: they do not resolve proof records as
+authority, invoke `StealthOrderManager`, write `stealth_orders` or
+`order_parent` rows, dispatch lifecycle events, read/submit/cancel Coinbase,
+execute reconciliation, mutate exchange state, or grant browser/BFF execution
+authority.
+
 ## Detail Audit Semantics
 
 `GET /api/v1/stealth/orders/{stealth_order_id}` may include
