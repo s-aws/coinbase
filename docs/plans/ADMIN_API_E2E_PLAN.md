@@ -38,97 +38,126 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Active-Placement Exchange-Truth Evidence Batch - Phases 2281-2300
+## Active M55 Admission Readiness Binding Batch - Phases 2301-2320
 
-These phases continue M55 after live-disabled recovery/reconciliation command
-contracts. The next explicit architecture gap is backend-owned active-placement
-exchange-truth evidence for stealth cancel, move, recovery, reconciliation, and
-movement repricing. This range may add append-only snapshot/proof evidence
-contracts, route inventory, OpenAPI, command-suite metadata, frontend schema,
-mocks, and display-only readback. It must not run Coinbase reads,
-cancel/replace active placements, execute reconciliation, mark exchange truth
-verified, mutate stealth/order/exchange state, or grant browser/BFF command
-authority.
+These phases continue M55 after backend-owned active-placement exchange-truth
+evidence records. The next explicit architecture gap is a single
+command-suite admission-readiness map that binds every stealth command route
+to its backend-owned proof requirements: approval request/decision, admission
+audit, cap/guard decision, reconciliation plan, active-placement exchange
+truth or lifecycle-write guard, disabled live adapter, and post-live
+reconciliation. This range may extend the existing
+`GET /api/v1/stealth/command-suite` read contract, OpenAPI, frontend schema,
+mocks, and display-only UI. It must not approve, execute, reconcile, read
+Coinbase, call `StealthOrderManager`, cancel/replace placements, mutate
+lifecycle/order/exchange state, or grant browser/BFF command authority.
 
-### Phase 2281 - Advance Active Queue Range
+### Phase 2301 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2261-2280 to active phases 2281-2300 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2281-2300 to active phases 2301-2320 while preserving no-live defaults and cap policy.
 
-### Phase 2282 - Active-Placement Evidence Scope
+### Phase 2302 - Admission Readiness Scope
 
-- Define stealth active-placement exchange-truth evidence as backend-owned append-only local evidence only, not Coinbase truth, cancel/replace execution, reconciliation execution, or lifecycle mutation.
+- Define stealth command admission readiness as backend-owned read-only evidence on the existing command-suite response, not an approval, executor, reconciler, Coinbase reader, or lifecycle mutation path.
 
-### Phase 2283 - Backend Permission And Family Audit
+### Phase 2303 - Evidence Name Enum And Models
 
-- Add enum-backed permission and mutation-family identifiers for stealth exchange-truth snapshot/proof recording without granting them to normal trader/operator roles.
+- Add enum-backed admission evidence names plus typed requirement/readiness response models for per-command stealth admission prerequisites.
 
-### Phase 2284 - Snapshot Request Contract
+### Phase 2304 - Backend Command-Suite Binding
 
-- Add a typed active-placement exchange-truth snapshot request and command model keyed by path `stealth_order_id`, with active placement ids as evidence only.
+- Derive readiness rows from existing command metadata, proof routes, exchange-truth checks, route inventory, and disabled live-enablement posture.
 
-### Phase 2285 - Proof Request Contract
+### Phase 2305 - Active-Placement Mapping
 
-- Add a typed active-placement exchange-truth proof request and command model keyed by path `stealth_order_id`, requiring a prior snapshot reference while keeping `exchange_truth_verified=false`.
+- Mark create/reveal as lifecycle-write-guard-gated and cancel/move/recovery/reconciliation/reprice as active-placement-exchange-truth-gated without changing command authority.
 
-### Phase 2286 - Append-Only Evidence Stores
+### Phase 2306 - No-Live Safety Flags
 
-- Add thread-safe JSONL stores for active-placement snapshot/proof records with readback by `stealth_order_id` and stable duplicate rejection.
+- Ensure every readiness row reports admission/execution/manager/live-adapter/browser/BFF authority as blocked or false and reports Coinbase/reconciliation/state mutation as not run.
 
-### Phase 2287 - Evidence Service Validation
+### Phase 2307 - OpenAPI And Generated Artifacts
 
-- Add a service boundary that validates route inventory, approval snapshot, admission audit, cap/guard, reconciliation plan, actor, idempotency, payload hash, no-live status, and route identity before persisting records.
+- Regenerate backend OpenAPI and route inventory artifacts after the command-suite schema changes.
 
-### Phase 2288 - Snapshot Route Adapter
+### Phase 2308 - Backend Focused Tests
 
-- Add `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+- Cover command-suite readiness counts, evidence names, active-placement/lifecycle mapping, false live flags, rejected `order_id`, and no browser/BFF authority.
 
-### Phase 2289 - Proof Route Adapter
+### Phase 2309 - Frontend Schema Sync
 
-- Add `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+- Regenerate frontend TypeScript schema from backend OpenAPI and keep generated files unedited by hand.
 
-### Phase 2290 - Readback Evidence Route
+### Phase 2310 - Frontend Mock Runtime Sync
 
-- Add `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof` as read-only evidence that never calls Coinbase and never marks exchange truth verified.
+- Update frontend mock command-suite data to include admission-readiness rows and active-placement exchange-truth readback evidence.
 
-### Phase 2291 - Command-Suite Evidence Linkage
+### Phase 2311 - Frontend Adapter Mapping
 
-- Link the new readback route into stealth command-suite exchange-truth checks and active-placement coverage gaps without removing live-disabled blockers.
+- Map admission readiness into the stealth command-suite view model through the existing backend adapter.
 
-### Phase 2292 - Capability And Readiness Evidence
+### Phase 2312 - Frontend Read-Only Rendering
 
-- Ensure admin capabilities, enterprise readiness, and live-enablement evidence include the new routes without changing live-enabled counts or live eligibility.
+- Render the admission-readiness ledger as display-only evidence in the stealth read model without adding controls or BFF execution authority.
 
-### Phase 2293 - Route Inventory And OpenAPI Artifacts
+### Phase 2313 - Runtime And Quality Range Sync
 
-- Update route inventory markdown/JSON and generated OpenAPI for the new routes and request/read models without hand-maintaining generated schema.
+- Update release, deployment, runtime, autonomous, and quality artifacts to use phases 2301-2320 and require the new command-suite evidence.
 
-### Phase 2294 - Backend Focused Tests
+### Phase 2314 - Frontend Focused Tests
 
-- Cover RBAC, idempotency replay/conflict posture, response fields, route inventory, OpenAPI, readback, audit persistence, no-live flags, and rejected `order_id` body identity.
+- Cover mock/runtime/adapter/UI rendering for admission readiness and no-live posture.
 
-### Phase 2295 - Frontend Schema Sync
+### Phase 2315 - Documentation Update
 
-- Regenerate frontend schema from backend OpenAPI and keep generated files unedited by hand.
+- Update Admin API, command workflow, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for admission-readiness evidence.
 
-### Phase 2296 - Frontend API Client And Mock Routes
+### Phase 2316 - Drift Scan
 
-- Add frontend client/mock support for the active-placement snapshot/proof/readback contracts without broadening BFF mutation authority beyond backend-owned routes.
+- Search for stale 2281-2300 active-range text and recovery/reconciliation-only wording that conflicts with the current M55 scope.
 
-### Phase 2297 - Frontend Command-Suite Rendering
+### Phase 2317 - Blind Contextless Review
 
-- Render active-placement exchange-truth evidence, persisted records, required permissions, blocked gate chains, and no-live flags as display-only evidence.
+- Run a contextless review asking whether a fresh agent can explain how a stealth command would be admitted and why the current path cannot execute.
 
-### Phase 2298 - Frontend Focused Tests
+### Phase 2318 - Backend Full Regression
 
-- Cover UI rendering, mock/runtime contracts, no-live posture, no action controls beyond the approved backend route surface, and role hint boundaries.
+- Run backend regression after focused tests and generated artifacts pass.
 
-### Phase 2299 - Documentation, Gates, And Review
+### Phase 2319 - Frontend Release Gate
 
-- Update Admin API, stealth command-suite, command-workflow, route-inventory, examples, maintainer handoff, agent state, and roadmap docs; run API freshness, autonomous queue, ownership, command-security, and blind/contextless review.
+- Run frontend `npm run release:gate` after schema, mocks, UI, tests, and artifacts are synced.
 
-### Phase 2300 - Full Gates, Push, And Next Range
+### Phase 2320 - Full Gates, Push, And Next Range
 
-- Run backend regression and frontend release gate, confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+- Confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed M55 Active-Placement Exchange-Truth Evidence Batch - Phases 2281-2300
+
+These phases completed backend-owned append-only active-placement
+exchange-truth evidence records for stealth cancel, move, recovery,
+reconciliation, and movement repricing. They added typed snapshot/proof
+requests, enum-backed permission and mutation-family identifiers,
+thread-safe JSONL stores, a validation service, POST snapshot/proof routes,
+GET readback, route inventory, OpenAPI, command-suite linkage, frontend
+schema/mocks/API wrappers/dry-submit support, read-only UI evidence, docs,
+focused tests, full gates, and contextless review. They did not run Coinbase
+reads, cancel/replace active placements, execute reconciliation, mark
+exchange truth verified, mutate stealth/order/exchange state, or grant
+browser/BFF command authority.
+
+Completion evidence:
+
+- Backend focused command-suite and exchange-truth tests passed.
+- Backend full regression passed: `831 passed, 1 warning`.
+- Frontend focused tests passed for affected mock/runtime/read-model paths.
+- Frontend `npm run release:gate` passed with `225` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed after a frontend handoff doc drift was fixed.
+- Backend commit: `ab36657`.
+- Frontend commit: `e87ff59`.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed M55 Recovery/Reconciliation Command Contract Batch - Phases 2261-2280
 

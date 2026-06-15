@@ -39,6 +39,7 @@ from core.enums import (
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     OrderSide,
@@ -149,6 +150,8 @@ from .models import (
     SpotRecoveryRollbackPlanResponse,
     SpotRecoveryStateRepairTaxonomyItem,
     StealthCommandSuiteCommandItem,
+    StealthCommandSuiteAdmissionReadinessItem,
+    StealthCommandSuiteAdmissionRequirementItem,
     StealthCommandSuiteCoverageGapEvidenceRouteItem,
     StealthCommandSuiteCoverageGapItem,
     StealthCommandSuiteExchangeTruthItem,
@@ -185,7 +188,7 @@ from .stealth_exchange_truth import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2281-2300"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2301-2320"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -8697,6 +8700,13 @@ class AdminApiReadService:
                 "docs/STEALTH_ORDER_READS.md",
                 "docs/COMMAND_WORKFLOWS.md",
             ],
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+                "exchange-truth-proof"
+            ): [
+                "README.stealth-exchange-truth-proofs.md",
+                "docs/examples/stealth-exchange-truth-proofs.md",
+            ],
             "GET /api/v1/admin/recovery-gate": [
                 "README.admin-api.md",
                 "docs/COMMAND_WORKFLOWS.md",
@@ -8954,6 +8964,217 @@ class AdminApiReadService:
                 )
             )
 
+        proof_route_evidence_names = {
+            "create_approval_request": AdminApiStealthAdmissionEvidence.APPROVAL_REQUEST,
+            "decide_approval_request": AdminApiStealthAdmissionEvidence.APPROVAL_DECISION,
+            "record_admission_audit": AdminApiStealthAdmissionEvidence.ADMISSION_AUDIT,
+            "record_cap_guard_decision": AdminApiStealthAdmissionEvidence.CAP_GUARD_DECISION,
+            "record_reconciliation_plan": AdminApiStealthAdmissionEvidence.RECONCILIATION_PLAN,
+        }
+
+        def admission_requirement_from_surface(
+            *,
+            surface: str,
+            evidence_name: AdminApiStealthAdmissionEvidence,
+            source: str,
+            identity_key: str,
+            detail: str,
+            bff_authority: str = "forward_only_no_execution",
+        ) -> StealthCommandSuiteAdmissionRequirementItem:
+            inventory_item = inventory_by_surface[surface]
+            method, route = _surface_method_and_path(inventory_item.surface)
+            return StealthCommandSuiteAdmissionRequirementItem(
+                evidence_name=evidence_name,
+                source=source,
+                route=route,
+                method=method,
+                action_class=inventory_item.action_class,
+                required_permission=inventory_item.permission,
+                shared_method=inventory_item.shared_method,
+                identity_key=identity_key,
+                command_identity_key="stealth_order_id",
+                status=AdminApiGateStatus.BLOCKED,
+                required=True,
+                present=False,
+                blocking=True,
+                backend_owned=True,
+                route_bound=True,
+                browser_authority="display_only",
+                bff_authority=bff_authority,
+                detail=detail,
+            )
+
+        admission_readiness: list[StealthCommandSuiteAdmissionReadinessItem] = []
+        exchange_truth_checks_by_route = {
+            check.route: check for check in exchange_truth_checks
+        }
+        active_exchange_truth_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-proof"
+        )
+        for command in commands:
+            requirements: list[StealthCommandSuiteAdmissionRequirementItem] = []
+            for proof_route in command.proof_routes:
+                evidence_name = proof_route_evidence_names[proof_route.shared_method]
+                requirements.append(
+                    StealthCommandSuiteAdmissionRequirementItem(
+                        evidence_name=evidence_name,
+                        source="proof_route",
+                        route=proof_route.route,
+                        method=proof_route.method,
+                        action_class=proof_route.action_class,
+                        required_permission=proof_route.required_permission,
+                        shared_method=proof_route.shared_method,
+                        identity_key=proof_route.identity_key,
+                        command_identity_key=proof_route.command_identity_key,
+                        status=AdminApiGateStatus.BLOCKED,
+                        required=True,
+                        present=False,
+                        blocking=True,
+                        backend_owned=True,
+                        route_bound=True,
+                        browser_authority="display_only",
+                        bff_authority="forward_only_no_execution",
+                        detail=proof_route.detail,
+                    )
+                )
+            if command.active_placement_evidence_required:
+                requirements.append(
+                    admission_requirement_from_surface(
+                        surface=active_exchange_truth_surface,
+                        evidence_name=(
+                            AdminApiStealthAdmissionEvidence.ACTIVE_PLACEMENT_EXCHANGE_TRUTH
+                        ),
+                        source="exchange_truth_readback",
+                        identity_key="stealth_order_id",
+                        bff_authority="read_only_forward",
+                        detail=(
+                            "Read active-placement exchange-truth snapshot/proof "
+                            "records for the exact stealth_order_id. These records "
+                            "remain local evidence only and do not verify Coinbase truth."
+                        ),
+                    )
+                )
+            else:
+                requirements.append(
+                    admission_requirement_from_surface(
+                        surface="GET /api/v1/stealth/command-suite",
+                        evidence_name=AdminApiStealthAdmissionEvidence.LIFECYCLE_WRITE_GUARD,
+                        source="lifecycle_write_readiness",
+                        identity_key="stealth_order_id",
+                        bff_authority="read_only_forward",
+                        detail=(
+                            "Read lifecycle-write readiness evidence for the exact "
+                            "stealth command. This does not invoke StealthOrderManager "
+                            "or mutate lifecycle state."
+                        ),
+                    )
+                )
+            requirements.append(
+                StealthCommandSuiteAdmissionRequirementItem(
+                    evidence_name=AdminApiStealthAdmissionEvidence.LIVE_EXECUTION_ADAPTER,
+                    source="disabled_live_execution_service",
+                    route=command.route,
+                    method=command.method,
+                    action_class=command.action_class,
+                    required_permission=command.required_permission,
+                    shared_method=command.shared_method,
+                    identity_key=command.identity_key,
+                    command_identity_key="stealth_order_id",
+                    status=AdminApiGateStatus.BLOCKED,
+                    required=True,
+                    present=False,
+                    blocking=True,
+                    backend_owned=True,
+                    route_bound=True,
+                    browser_authority="display_only",
+                    bff_authority="forward_only_no_execution",
+                    detail=(
+                        "A backend live adapter must remain disabled until all "
+                        "route-bound approval, audit, cap/guard, reconciliation, "
+                        "and exchange-truth evidence is present."
+                    ),
+                )
+            )
+            requirements.append(
+                admission_requirement_from_surface(
+                    surface="POST /api/v1/admin/reconciliation/plans",
+                    evidence_name=AdminApiStealthAdmissionEvidence.POST_LIVE_RECONCILIATION,
+                    source="post_live_reconciliation_contract",
+                    identity_key="stealth_order_id",
+                    detail=(
+                        "Post-live reconciliation proof must be planned before "
+                        "execution and recorded after execution before a stealth "
+                        "state transition can be considered complete."
+                    ),
+                )
+            )
+            truth_check = exchange_truth_checks_by_route[command.route]
+            missing_evidence = [
+                requirement.evidence_name.value
+                for requirement in requirements
+                if requirement.blocking
+            ]
+            admission_readiness.append(
+                StealthCommandSuiteAdmissionReadinessItem(
+                    mutation_family=command.mutation_family,
+                    route=command.route,
+                    method=command.method,
+                    identity_key=command.identity_key,
+                    command_identity_key="stealth_order_id",
+                    action_class=command.action_class,
+                    required_permission=command.required_permission,
+                    shared_method=command.shared_method,
+                    status=AdminApiGateStatus.BLOCKED,
+                    live_execution_status=command.live_execution_status,
+                    admission_allowed=False,
+                    executable=False,
+                    live_enabled=False,
+                    live_adapter_invocation_allowed=False,
+                    manager_invocation_allowed=False,
+                    route_local_execution_allowed=False,
+                    browser_authority="display_only",
+                    bff_authority="forward_only_no_execution",
+                    accepted_command_identity_keys=["stealth_order_id"],
+                    rejected_command_identity_keys=[
+                        "client_order_id",
+                        "active_placement_client_order_id",
+                        "exchange_order_id",
+                        "order_id",
+                    ],
+                    required_evidence_count=len(requirements),
+                    present_evidence_count=0,
+                    missing_evidence_count=len(missing_evidence),
+                    missing_evidence=missing_evidence,
+                    requirements=requirements,
+                    active_placement_exchange_truth_required=(
+                        truth_check.active_placement_evidence_required
+                    ),
+                    exchange_truth_verified=False,
+                    lifecycle_write_guard_required=(
+                        not truth_check.active_placement_evidence_required
+                    ),
+                    coinbase_read_ran=False,
+                    coinbase_order_submitted=False,
+                    coinbase_order_cancel_submitted=False,
+                    active_placement_cancel_replace_ran=False,
+                    reconciliation_executed=False,
+                    lifecycle_state_mutated=False,
+                    order_state_mutated=False,
+                    exchange_state_mutated=False,
+                    evidence=[
+                        "Derived from existing command metadata, proof routes, exchange-truth checks, and disabled live-enablement posture.",
+                        "All requirements are backend-owned and route-bound before execution can ever be considered.",
+                        "This read model does not approve, execute, reconcile, read Coinbase, or mutate stealth state.",
+                    ],
+                    detail=(
+                        "Stealth command admission remains blocked until every "
+                        "listed requirement is present for the exact route, "
+                        "payload, actor, idempotency key, and stealth_order_id."
+                    ),
+                )
+            )
+
         coverage_gaps = [
             StealthCommandSuiteCoverageGapItem(
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
@@ -9199,6 +9420,13 @@ class AdminApiReadService:
                 if check.active_placement_evidence_required
             ),
             exchange_truth_checks=exchange_truth_checks,
+            admission_readiness_count=len(admission_readiness),
+            blocking_admission_readiness_count=sum(
+                1
+                for readiness in admission_readiness
+                if readiness.status == AdminApiGateStatus.BLOCKED
+            ),
+            admission_readiness=admission_readiness,
             commands=commands,
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,

@@ -7289,6 +7289,20 @@ components:
       - spot_reconciliation_workflow
       title: AdminApiSpotCommandSuiteGapFamily
       description: Spot command-suite families that still require admin contract work.
+    AdminApiStealthAdmissionEvidence:
+      type: string
+      enum:
+      - approval_request
+      - approval_decision
+      - admission_audit
+      - cap_guard_decision
+      - reconciliation_plan
+      - active_placement_exchange_truth
+      - lifecycle_write_guard
+      - live_execution_adapter
+      - post_live_reconciliation
+      title: AdminApiStealthAdmissionEvidence
+      description: Evidence names required before a stealth admin command may execute.
     AdminApiStealthCommandSuiteGapFamily:
       type: string
       enum:
@@ -18143,6 +18157,247 @@ components:
       type: object
       title: StealthCancelRequest
       description: Stealth cancel request body keyed by path ``stealth_order_id``.
+    StealthCommandSuiteAdmissionReadinessItem:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+        command_identity_key:
+          type: string
+          title: Command Identity Key
+          default: stealth_order_id
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        admission_allowed:
+          type: boolean
+          title: Admission Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        live_adapter_invocation_allowed:
+          type: boolean
+          title: Live Adapter Invocation Allowed
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        route_local_execution_allowed:
+          type: boolean
+          title: Route Local Execution Allowed
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        accepted_command_identity_keys:
+          items:
+            type: string
+          type: array
+          title: Accepted Command Identity Keys
+        rejected_command_identity_keys:
+          items:
+            type: string
+          type: array
+          title: Rejected Command Identity Keys
+        required_evidence_count:
+          type: integer
+          title: Required Evidence Count
+          default: 0
+        present_evidence_count:
+          type: integer
+          title: Present Evidence Count
+          default: 0
+        missing_evidence_count:
+          type: integer
+          title: Missing Evidence Count
+          default: 0
+        missing_evidence:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence
+        requirements:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteAdmissionRequirementItem'
+          type: array
+          title: Requirements
+        active_placement_exchange_truth_required:
+          type: boolean
+          title: Active Placement Exchange Truth Required
+          default: true
+        exchange_truth_verified:
+          type: boolean
+          title: Exchange Truth Verified
+          default: false
+        lifecycle_write_guard_required:
+          type: boolean
+          title: Lifecycle Write Guard Required
+          default: false
+        coinbase_read_ran:
+          type: boolean
+          title: Coinbase Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - route
+      - method
+      - identity_key
+      - action_class
+      - required_permission
+      - shared_method
+      - detail
+      title: StealthCommandSuiteAdmissionReadinessItem
+      description: Per-command admission readiness map before stealth execution can
+        run.
+    StealthCommandSuiteAdmissionRequirementItem:
+      properties:
+        evidence_name:
+          $ref: '#/components/schemas/AdminApiStealthAdmissionEvidence'
+        source:
+          type: string
+          title: Source
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        identity_key:
+          type: string
+          title: Identity Key
+        command_identity_key:
+          type: string
+          title: Command Identity Key
+          default: stealth_order_id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        present:
+          type: boolean
+          title: Present
+          default: false
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - evidence_name
+      - source
+      - route
+      - method
+      - action_class
+      - required_permission
+      - shared_method
+      - identity_key
+      - detail
+      title: StealthCommandSuiteAdmissionRequirementItem
+      description: One backend-owned evidence requirement for a stealth command admission.
     StealthCommandSuiteCommandItem:
       properties:
         mutation_family:
@@ -18714,6 +18969,19 @@ components:
             $ref: '#/components/schemas/StealthCommandSuiteExchangeTruthItem'
           type: array
           title: Exchange Truth Checks
+        admission_readiness_count:
+          type: integer
+          title: Admission Readiness Count
+          default: 0
+        blocking_admission_readiness_count:
+          type: integer
+          title: Blocking Admission Readiness Count
+          default: 0
+        admission_readiness:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteAdmissionReadinessItem'
+          type: array
+          title: Admission Readiness
         commands:
           items:
             $ref: '#/components/schemas/StealthCommandSuiteCommandItem'

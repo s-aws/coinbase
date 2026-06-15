@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2281-2300",
+  "approved_phase_range": "2301-2320",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -31,6 +31,8 @@ Expected posture:
   "exchange_truth_check_count": 7,
   "blocking_exchange_truth_check_count": 7,
   "active_placement_exchange_truth_required_count": 5,
+  "admission_readiness_count": 7,
+  "blocking_admission_readiness_count": 7,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
   "submitted_notional_usdc": "0",
@@ -240,6 +242,7 @@ metadata:
   "route": "/api/v1/stealth/orders/{stealth_order_id}/move",
   "current_read_evidence_routes": [
     "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
+    "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
     "GET /api/v1/stealth/command-suite"
   ],
   "current_read_evidence": [
@@ -249,6 +252,16 @@ metadata:
       "action_class": "read_only",
       "required_permission": "audit:read",
       "shared_method": "build_movement_repricing_stealth_detail",
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "read_only_forward"
+    },
+    {
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
+      "method": "GET",
+      "action_class": "read_only",
+      "required_permission": "audit:read",
+      "shared_method": "build_stealth_active_placement_exchange_truth",
       "backend_owned": true,
       "browser_authority": "display_only",
       "bff_authority": "read_only_forward"
@@ -270,6 +283,55 @@ metadata:
 These rows do not run Coinbase reads, prove active-placement exchange truth,
 cancel/replace placements, reveal orders, execute reconciliation, mutate
 state, or authorize browser/BFF command execution.
+
+The `admission_readiness` array binds each command route to the backend-owned
+evidence required before execution can ever be considered. A blocked cancel
+row has this shape:
+
+```json
+{
+  "mutation_family": "stealth_cancel",
+  "route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+  "method": "POST",
+  "identity_key": "stealth_order_id",
+  "command_identity_key": "stealth_order_id",
+  "status": "blocked",
+  "live_execution_status": "live_disabled",
+  "admission_allowed": false,
+  "executable": false,
+  "live_enabled": false,
+  "active_placement_exchange_truth_required": true,
+  "exchange_truth_verified": false,
+  "lifecycle_write_guard_required": false,
+  "missing_evidence": [
+    "approval_request",
+    "approval_decision",
+    "admission_audit",
+    "cap_guard_decision",
+    "reconciliation_plan",
+    "active_placement_exchange_truth",
+    "live_execution_adapter",
+    "post_live_reconciliation"
+  ],
+  "coinbase_read_ran": false,
+  "coinbase_order_submitted": false,
+  "coinbase_order_cancel_submitted": false,
+  "active_placement_cancel_replace_ran": false,
+  "reconciliation_executed": false,
+  "lifecycle_state_mutated": false,
+  "order_state_mutated": false,
+  "exchange_state_mutated": false,
+  "browser_authority": "display_only",
+  "bff_authority": "forward_only_no_execution"
+}
+```
+
+Create and reveal rows use `lifecycle_write_guard` instead of
+`active_placement_exchange_truth`. Cancel, move, recovery, reconciliation,
+and reprice rows require `active_placement_exchange_truth`. The ledger does
+not approve commands, execute commands, read Coinbase, call
+`StealthOrderManager`, cancel/replace placements, execute reconciliation,
+mutate state, or grant browser/BFF authority.
 For per-order active-placement evidence, read
 `GET /api/v1/stealth/orders/{stealth_order_id}` and inspect
 `active_placement_audit`. That detail payload reports local active placement
@@ -333,6 +395,7 @@ backend read-only route evidence only:
     "current_read_evidence_routes": [
       "GET /api/v1/admin/recovery-gate",
       "GET /api/v1/stealth/orders/{stealth_order_id}",
+      "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
       "GET /api/v1/stealth/command-suite"
     ],
     "current_read_evidence": [
@@ -357,6 +420,16 @@ backend read-only route evidence only:
         "bff_authority": "read_only_forward"
       },
       {
+        "route": "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "audit:read",
+        "shared_method": "build_stealth_active_placement_exchange_truth",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      },
+      {
         "route": "/api/v1/stealth/command-suite",
         "method": "GET",
         "action_class": "read_only",
@@ -374,6 +447,7 @@ backend read-only route evidence only:
     "current_read_evidence_routes": [
       "GET /api/v1/admin/reconciliation/plans",
       "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+      "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
       "GET /api/v1/stealth/command-suite"
     ],
     "current_read_evidence": [
@@ -393,6 +467,16 @@ backend read-only route evidence only:
         "action_class": "read_only",
         "required_permission": "reconciliation:read",
         "shared_method": "get_reconciliation_plan",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      },
+      {
+        "route": "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "audit:read",
+        "shared_method": "build_stealth_active_placement_exchange_truth",
         "backend_owned": true,
         "browser_authority": "display_only",
         "bff_authority": "read_only_forward"

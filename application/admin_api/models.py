@@ -42,6 +42,7 @@ from core.enums import (
     AdminApiRole,
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     AdminFuturesPositionSide,
@@ -3978,6 +3979,80 @@ class StealthCommandSuiteExchangeTruthItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteAdmissionRequirementItem(BaseModel):
+    """One backend-owned evidence requirement for a stealth command admission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_name: AdminApiStealthAdmissionEvidence
+    source: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    identity_key: str
+    command_identity_key: str = "stealth_order_id"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    present: bool = False
+    blocking: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class StealthCommandSuiteAdmissionReadinessItem(BaseModel):
+    """Per-command admission readiness map before stealth execution can run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    route: str
+    method: str
+    identity_key: str
+    command_identity_key: str = "stealth_order_id"
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    live_execution_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    admission_allowed: bool = False
+    executable: bool = False
+    live_enabled: bool = False
+    live_adapter_invocation_allowed: bool = False
+    manager_invocation_allowed: bool = False
+    route_local_execution_allowed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    accepted_command_identity_keys: list[str] = Field(default_factory=list)
+    rejected_command_identity_keys: list[str] = Field(default_factory=list)
+    required_evidence_count: int = 0
+    present_evidence_count: int = 0
+    missing_evidence_count: int = 0
+    missing_evidence: list[str] = Field(default_factory=list)
+    requirements: list[StealthCommandSuiteAdmissionRequirementItem] = Field(
+        default_factory=list
+    )
+    active_placement_exchange_truth_required: bool = True
+    exchange_truth_verified: bool = False
+    lifecycle_write_guard_required: bool = False
+    coinbase_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class StealthCreateLifecycleWriteAuditEvidence(BaseModel):
     """Read-only lifecycle-write evidence for stealth create readiness."""
 
@@ -4051,6 +4126,11 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     blocking_exchange_truth_check_count: int = 0
     active_placement_exchange_truth_required_count: int = 0
     exchange_truth_checks: list[StealthCommandSuiteExchangeTruthItem] = Field(
+        default_factory=list
+    )
+    admission_readiness_count: int = 0
+    blocking_admission_readiness_count: int = 0
+    admission_readiness: list[StealthCommandSuiteAdmissionReadinessItem] = Field(
         default_factory=list
     )
     commands: list[StealthCommandSuiteCommandItem] = Field(default_factory=list)

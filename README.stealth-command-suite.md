@@ -26,6 +26,11 @@ The route requires Admin API authentication and `analytics:read`. It returns
   `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   plus backend-owned snapshot/proof writer contracts for route-bound local
   evidence
+- `admission_readiness` rows that bind each command route to required
+  backend proof evidence: approval request, approval decision, admission
+  audit, cap/guard decision, reconciliation plan, active-placement exchange
+  truth or lifecycle-write guard, disabled live adapter, and post-live
+  reconciliation
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -93,6 +98,11 @@ Active-placement exchange-truth snapshot/proof writer routes persist local
 evidence only after backend admission prerequisites match. They do not verify
 exchange truth, read Coinbase, cancel/replace active placements, execute
 reconciliation, mutate lifecycle state, or grant browser/BFF proof authority.
+Admission-readiness rows are blocked read evidence over the same backend proof
+chain. They do not approve admission, execute commands, read Coinbase, invoke
+`StealthOrderManager`, cancel/replace active placements, execute
+reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
+authority.
 
 ## Safety Constraints
 
@@ -126,6 +136,10 @@ reconciliation, mutate lifecycle state, or grant browser/BFF proof authority.
   only. They keep `exchange_truth_verified=false` and must not be converted
   into Coinbase read authority, cancel/replace behavior, reconciliation
   execution, lifecycle mutation, or browser/BFF exchange-truth authority.
+- `admission_readiness` is blocked read evidence only. It must not be
+  converted into approval, execution, reconciliation, Coinbase reads,
+  `StealthOrderManager` invocation, active-placement cancel/replace behavior,
+  lifecycle/order/exchange-state mutation, or browser/BFF authority.
 - `reveal_trigger_audit` is detail-route evidence only. It does not evaluate
   triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
   Coinbase orders, mutate lifecycle state, or authorize browser/BFF reveal

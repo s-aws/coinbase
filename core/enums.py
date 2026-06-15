@@ -278,6 +278,20 @@ class AdminApiMutationFamilyType(str, Enum):
     LEGACY_DASHBOARD_CANCEL = "legacy_dashboard_cancel"
 
 
+class AdminApiStealthAdmissionEvidence(str, Enum):
+    """Evidence names required before a stealth admin command may execute."""
+
+    APPROVAL_REQUEST = "approval_request"
+    APPROVAL_DECISION = "approval_decision"
+    ADMISSION_AUDIT = "admission_audit"
+    CAP_GUARD_DECISION = "cap_guard_decision"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
+    LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
+    LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
+    POST_LIVE_RECONCILIATION = "post_live_reconciliation"
+
+
 class AdminApiSpotCommandSuiteGapFamily(str, Enum):
     """Spot command-suite families that still require admin contract work."""
 

@@ -128,6 +128,7 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRole,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     StealthMutationKind,
@@ -5419,7 +5420,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2281-2300"
+    assert payload["approved_phase_range"] == "2301-2320"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -5428,6 +5429,8 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["exchange_truth_check_count"] == 7
     assert payload["blocking_exchange_truth_check_count"] == 7
     assert payload["active_placement_exchange_truth_required_count"] == 5
+    assert payload["admission_readiness_count"] == 7
+    assert payload["blocking_admission_readiness_count"] == 7
     assert payload["exchange_truth_required"] is True
     assert payload["browser_authority"] == "display_only"
     assert payload["bff_authority"] == "forward_only_no_execution"
@@ -5704,6 +5707,112 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert "active_placement_exchange_truth" in exchange_truth_checks[route][
             "required_gate_chain"
         ]
+    admission_readiness = {
+        item["route"]: item for item in payload["admission_readiness"]
+    }
+    assert set(admission_readiness) == set(command_routes)
+    for route, readiness in admission_readiness.items():
+        command = command_routes[route]
+        assert readiness["mutation_family"] == command["mutation_family"]
+        assert readiness["method"] == command["method"]
+        assert readiness["identity_key"] == "stealth_order_id"
+        assert readiness["command_identity_key"] == "stealth_order_id"
+        assert readiness["status"] == AdminApiGateStatus.BLOCKED.value
+        assert readiness["live_execution_status"] == (
+            AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        )
+        assert readiness["admission_allowed"] is False
+        assert readiness["executable"] is False
+        assert readiness["live_enabled"] is False
+        assert readiness["live_adapter_invocation_allowed"] is False
+        assert readiness["manager_invocation_allowed"] is False
+        assert readiness["route_local_execution_allowed"] is False
+        assert readiness["browser_authority"] == "display_only"
+        assert readiness["bff_authority"] == "forward_only_no_execution"
+        assert readiness["accepted_command_identity_keys"] == ["stealth_order_id"]
+        assert "order_id" in readiness["rejected_command_identity_keys"]
+        assert readiness["required_evidence_count"] == 8
+        assert readiness["present_evidence_count"] == 0
+        assert readiness["missing_evidence_count"] == 8
+        assert readiness["required_evidence_count"] == len(readiness["requirements"])
+        assert set(readiness["missing_evidence"]) == {
+            requirement["evidence_name"]
+            for requirement in readiness["requirements"]
+            if requirement["blocking"]
+        }
+        assert AdminApiStealthAdmissionEvidence.APPROVAL_REQUEST.value in readiness[
+            "missing_evidence"
+        ]
+        assert AdminApiStealthAdmissionEvidence.APPROVAL_DECISION.value in readiness[
+            "missing_evidence"
+        ]
+        assert AdminApiStealthAdmissionEvidence.ADMISSION_AUDIT.value in readiness[
+            "missing_evidence"
+        ]
+        assert AdminApiStealthAdmissionEvidence.CAP_GUARD_DECISION.value in readiness[
+            "missing_evidence"
+        ]
+        assert AdminApiStealthAdmissionEvidence.RECONCILIATION_PLAN.value in readiness[
+            "missing_evidence"
+        ]
+        assert AdminApiStealthAdmissionEvidence.LIVE_EXECUTION_ADAPTER.value in readiness[
+            "missing_evidence"
+        ]
+        assert AdminApiStealthAdmissionEvidence.POST_LIVE_RECONCILIATION.value in (
+            readiness["missing_evidence"]
+        )
+        assert readiness["exchange_truth_verified"] is False
+        assert readiness["coinbase_read_ran"] is False
+        assert readiness["coinbase_order_submitted"] is False
+        assert readiness["coinbase_order_cancel_submitted"] is False
+        assert readiness["active_placement_cancel_replace_ran"] is False
+        assert readiness["reconciliation_executed"] is False
+        assert readiness["lifecycle_state_mutated"] is False
+        assert readiness["order_state_mutated"] is False
+        assert readiness["exchange_state_mutated"] is False
+        for requirement in readiness["requirements"]:
+            assert requirement["status"] == AdminApiGateStatus.BLOCKED.value
+            assert requirement["required"] is True
+            assert requirement["present"] is False
+            assert requirement["blocking"] is True
+            assert requirement["backend_owned"] is True
+            assert requirement["route_bound"] is True
+            assert requirement["browser_authority"] == "display_only"
+            assert requirement["identity_key"]
+            assert requirement["command_identity_key"] == "stealth_order_id"
+            assert requirement["required_permission"]
+            assert requirement["shared_method"]
+    for route in (
+        "/api/v1/stealth/orders",
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+    ):
+        assert admission_readiness[route]["active_placement_exchange_truth_required"] is False
+        assert admission_readiness[route]["lifecycle_write_guard_required"] is True
+        assert (
+            AdminApiStealthAdmissionEvidence.LIFECYCLE_WRITE_GUARD.value
+            in admission_readiness[route]["missing_evidence"]
+        )
+        assert (
+            AdminApiStealthAdmissionEvidence.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+            not in admission_readiness[route]["missing_evidence"]
+        )
+    for route in (
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        "/api/v1/stealth/orders/{stealth_order_id}/move",
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+    ):
+        assert admission_readiness[route]["active_placement_exchange_truth_required"] is True
+        assert admission_readiness[route]["lifecycle_write_guard_required"] is False
+        assert (
+            AdminApiStealthAdmissionEvidence.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+            in admission_readiness[route]["missing_evidence"]
+        )
+        assert (
+            AdminApiStealthAdmissionEvidence.LIFECYCLE_WRITE_GUARD.value
+            not in admission_readiness[route]["missing_evidence"]
+        )
     create_truth_evidence = {
         f"{item['method']} {item['route']}": item
         for item in exchange_truth_checks["/api/v1/stealth/orders"][
@@ -6831,7 +6940,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2281-2300"
+    assert live_payload["approved_phase_range"] == "2301-2320"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -7394,7 +7503,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2281-2300"
+    assert enterprise_payload["approved_phase_range"] == "2301-2320"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -7977,7 +8086,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2281-2300"
+    assert recovery_preview_payload["approved_phase_range"] == "2301-2320"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

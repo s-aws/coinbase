@@ -91,6 +91,14 @@ prerequisites. They do not run Coinbase reads, prove active placement exchange
 truth, cancel/replace placements, reveal orders, satisfy missing backend
 contracts, execute reconciliation, mutate state, or grant browser/BFF
 execution authority.
+Stealth `admission_readiness` rows bind each command route to its exact
+backend-owned proof requirements: approval request/decision, admission audit,
+cap/guard decision, reconciliation plan, active-placement exchange truth or
+lifecycle-write guard, disabled live adapter, and post-live reconciliation.
+They remain blocked display evidence. They do not approve commands, execute
+commands, read Coinbase, invoke `StealthOrderManager`, cancel/replace
+placements, execute reconciliation, mutate state, or grant browser/BFF
+execution authority.
 
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires
@@ -222,6 +230,12 @@ contracts that return fail-closed no-live evidence only; they must not execute
 recovery repair, rollback, reconciliation, proof writers, Coinbase reads,
 Coinbase orders, `StealthOrderManager` mutations, local lifecycle mutations,
 exchange-state mutations, or browser/BFF command authority.
+The response also exposes `admission_readiness` rows for the same seven
+routes. Those rows aggregate proof-route requirements, active-placement or
+lifecycle-write requirements, disabled live-adapter evidence, and post-live
+reconciliation requirements so operators can see why a command remains
+blocked. They are not a preflight endpoint, gate evaluator, proof writer,
+Coinbase reader, executor, reconciler, or browser/BFF authority source.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute

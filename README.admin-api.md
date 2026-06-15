@@ -227,6 +227,15 @@ evidence only after backend admission prerequisites match. They do not read
 Coinbase, verify exchange truth, cancel/replace active placements, execute
 reconciliation, mutate order/exchange/lifecycle state, or authorize browser/BFF
 proof authority.
+The same command-suite response now includes `admission_readiness` rows that
+bind each stealth command route to the backend-owned evidence required before
+execution can ever be considered: approval request/decision, admission audit,
+cap/guard decision, reconciliation plan, active-placement exchange truth or
+lifecycle-write guard, disabled live adapter, and post-live reconciliation.
+Those rows are blocked read evidence only. They do not approve commands,
+execute commands, read Coinbase, invoke `StealthOrderManager`,
+cancel/replace active placements, execute reconciliation, mutate state, or
+grant browser/BFF command authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

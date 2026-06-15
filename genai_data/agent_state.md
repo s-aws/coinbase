@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-14
 - Updated by: Codex
 - Branch: main
-- Commit (optional):
+- Commit (optional): pending commit for active range `2301-2320`
 
 ## Current Objective
 
@@ -36,37 +36,38 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2261-2280`.
-- Latest completed milestone slice: M55 - Stealth Recovery/Reconciliation
-  Command Contract Foundation.
-- Completed files: route-bound, live-disabled stealth recovery and
-  reconciliation command contracts, command-service fail-closed responses,
-  route inventory, OpenAPI, command-suite metadata, frontend schema/mocks,
-  dry-submit display evidence, docs/tests, full gates, and contextless review.
+- Latest completed autonomous range: `2281-2300`.
+- Latest completed milestone slice: M55 - Active-Placement Exchange-Truth
+  Evidence Foundation.
+- Completed files: backend-owned append-only active-placement exchange-truth
+  snapshot/proof evidence, readback keyed by `stealth_order_id`, command-suite
+  linkage, route inventory, OpenAPI, frontend schema/mocks/read-only UI,
+  docs/tests, full gates, and contextless review.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M55 2261-2280 added live-disabled stealth recovery/reconciliation command
-  contracts keyed by `stealth_order_id`. It did not execute recovery repair,
-  rollback, reconciliation, proof writers, Coinbase reads, Coinbase orders,
-  `StealthOrderManager` mutations, local stealth/order lifecycle mutations,
-  exchange-state mutations, browser command authority, BFF execution
-  authority, add a live switch, or create a parallel command path.
+- M55 2281-2300 added backend-owned append-only active-placement
+  exchange-truth snapshot/proof evidence and readback keyed by
+  `stealth_order_id`. It did not run Coinbase reads, cancel/replace active
+  placements, execute reconciliation, mark exchange truth verified, mutate
+  stealth/order/exchange state, grant browser/BFF command authority, add a
+  live switch, or create a parallel command path.
 
 ## Active Scope
 
-- Active autonomous range: `2281-2300`.
-- Active milestone: M55 - Active-Placement Exchange-Truth Evidence
-  Foundation.
-- Current direction: add backend-owned append-only stealth active-placement
-  exchange-truth snapshot/proof evidence and readback keyed by
-  `stealth_order_id`, then sync frontend schema, mocks, read views, docs, and
-  release gates. Do not run Coinbase reads, cancel/replace active placements,
-  execute reconciliation, mark exchange truth verified, mutate
-  stealth/order/exchange state, grant browser/BFF command authority, or run
-  live commands.
+- Active autonomous range: `2301-2320`.
+- Active milestone: M55 - Stealth Command Admission Readiness Binding.
+- Current direction: add a backend-owned `admission_readiness` ledger to the
+  existing `GET /api/v1/stealth/command-suite` response, then sync frontend
+  schema, mocks, read views, docs, and release gates. Each readiness row binds
+  a stealth command route to required approval, admission-audit, cap/guard,
+  reconciliation, active-placement exchange-truth or lifecycle-write, disabled
+  live adapter, and post-live reconciliation evidence. Do not approve,
+  execute, reconcile, read Coinbase, cancel/replace active placements, call
+  `StealthOrderManager`, mutate stealth/order/exchange state, grant
+  browser/BFF command authority, or run live commands.
 
 ## Decisions (Durable)
 
@@ -354,51 +355,51 @@ Keep it short. Keep it factual.
 
 - Last backend focused Admin API/readiness run: 2026-06-14
   `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_stealth_command_suite_is_read_only_backend_evidence tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch -q --tb=short --basetemp=runtime_state\pytest_tmp`
-- Result: Passed for M55 focused checks, 3 tests, 1 warning.
+- Result: Passed for M55 admission-readiness focused checks, 3 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-14
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M55 completed range `2261-2280` passed. Live Coinbase execution
+- Result: M55 active range `2301-2320` passed. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-14
   `python -m pytest tests\regression\ -v --tb=short --basetemp=runtime_state\pytest_tmp`
-- Result: Passed, 828 tests, 1 warning.
+- Result: Passed, 831 tests, 1 warning.
 - Last frontend focused run: 2026-06-14
-  `npm run typecheck`, `npm run api:check`, `npm run autonomous:check`,
-  `npm run security:commands`, `npm run lint`, and focused Vitest.
-- Result: Passed focused M55 frontend checks after rendering exchange-truth
-  read-evidence rows. Full frontend release gate passed with 215 unit tests
-  and 3 Playwright tests.
+  `npm run autonomous:check`, `npm run api:check`, `npm run typecheck`, and
+  `npm run test -- --run tests/unit/mockBackend.test.ts tests/unit/backendRuntime.test.ts tests/unit/StealthOrdersReadModel.test.tsx`.
+- Result: Passed focused M55 frontend checks after rendering
+  admission-readiness rows. Full frontend `npm run release:gate` passed with
+  225 unit tests and 3 Playwright tests.
 - Last blind/contextless M55 review: 2026-06-14
-- Result: Passed with no blockers. Reviewer confirmed backend exchange-truth
-  read-evidence linkage is read-only, frontend rendering is display-only, no
-  manager/lifecycle/Coinbase/reconciliation/proof-store authority was added,
-  and generated/mock/UI docs align with the durable no-live objective.
+- Result: Passed after fixing stale `README.stealth-command-suite.md`
+  admission-readiness docs. Reviewer confirmed the feature README now
+  documents the ledger and blocked read-only/no-authority constraints.
 - Live Coinbase execution for M55: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Complete synchronized M55 active-placement exchange-truth evidence
-   foundation for active range `2281-2300`, then rerun focused backend/frontend
-   checks, blind/contextless review, full backend regression, and frontend
-   release gate.
-2. Preserve the new active-placement evidence routes as backend-owned no-live
-   local evidence only, without Coinbase reads, cancel/replace execution,
-   reconciliation execution, exchange-truth verification, lifecycle writes,
-   Coinbase calls, browser authority, BFF execution authority, or unapproved
-   live execution.
+1. Complete synchronized M55 stealth command admission-readiness binding for
+   active range `2301-2320`, then rerun focused backend/frontend checks,
+   blind/contextless review, full backend regression, and frontend release
+   gate.
+2. Preserve the new admission-readiness rows as backend-owned no-live
+   read evidence only, without approvals, execution, Coinbase reads,
+   cancel/replace execution, reconciliation execution, exchange-truth
+   verification, lifecycle writes, Coinbase calls, browser authority, BFF
+   execution authority, or unapproved live execution.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
 
 ## Handoff Notes
 
-- What is done through M55 2261-2280: backend and frontend expose
-  route-bound, live-disabled stealth recovery/reconciliation command contracts
-  keyed by `stealth_order_id`. They remain fail-closed and do not execute
-  recovery repair, rollback, reconciliation, proof writing, Coinbase reads,
-  Coinbase orders, manager invocation, lifecycle writes, exchange-state
-  mutation, browser authority, or BFF execution authority.
+- What is done through M55 2281-2300: backend and frontend expose
+  backend-owned append-only active-placement exchange-truth snapshot/proof
+  evidence and readback keyed by `stealth_order_id`. The records remain local
+  evidence only and do not run Coinbase reads, cancel/replace active
+  placements, execute reconciliation, mark exchange truth verified, mutate
+  lifecycle/order/exchange state, grant browser authority, or grant BFF
+  execution authority.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard,
@@ -407,9 +408,9 @@ Keep it short. Keep it factual.
   display evidence only. No command controls, guard evaluator, audit storage,
   approval storage, reconciliation execution, BFF mutation broadening,
   Coinbase call, browser approval, or reconciliation behavior is allowed.
-- What is in progress: M55 active-placement exchange-truth evidence foundation
-  for active approved range `2281-2300`.
+- What is in progress: M55 stealth command admission-readiness binding for
+  active approved range `2301-2320`.
 - What is blocked: Nothing currently known.
-- Exact next command: finish backend/frontend sync for the 2281-2300
-  active-placement exchange-truth snapshot/proof/readback contracts, resolve
-  drift, run blind/contextless review, then full gates before commit/push.
+- Exact next command: finish backend/frontend sync for the 2301-2320
+  admission-readiness command-suite contract, resolve drift, run
+  blind/contextless review, then full gates before commit/push.

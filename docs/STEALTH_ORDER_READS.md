@@ -72,6 +72,17 @@ active-placement exchange truth, cancel/replace placements, reveal orders,
 execute reconciliation, mutate stealth/order/exchange state, create proof
 records, or authorize browser/BFF execution.
 
+The command-suite response also reports `admission_readiness` rows. This
+ledger binds each stealth command route to the backend evidence that must
+exist before execution can ever be considered: approval request, approval
+decision, admission audit, cap/guard decision, reconciliation plan,
+active-placement exchange-truth or lifecycle-write guard, disabled live
+adapter, and post-live reconciliation. These rows are read evidence only. They
+do not approve admission, execute commands, read Coinbase, invoke
+`StealthOrderManager`, cancel/replace active placements, execute
+reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
+authority.
+
 ## Detail Audit Semantics
 
 `GET /api/v1/stealth/orders/{stealth_order_id}` may include
