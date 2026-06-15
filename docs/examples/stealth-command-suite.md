@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2441-2460",
+  "approved_phase_range": "2461-2480",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -534,6 +534,11 @@ safely observable runtime mutation-claim snapshot state, active claim count,
 required move/reprice claim contracts, missing claim contracts, and no-live
 Coinbase flags. It is evidence only: it does not acquire, release, clear, or
 prove claims, and command workflows must not use it as mutation authority.
+Mutation-claim proof persistence and resolver examples live in
+[Stealth Mutation-Claim Snapshot Proof Examples](stealth-mutation-claim-proofs.md).
+The resolver reads the latest proof for the same `stealth_order_id` and fails
+closed if that latest proof is unsafe, stale, or bound to different guarded
+command context, even when an older proof would have matched.
 The same detail payload may include `reveal_trigger_audit`. That panel reports
 local reveal-condition presence, condition type/payload, required
 reveal-trigger guard contracts, missing contracts, and no-live Coinbase flags.

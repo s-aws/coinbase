@@ -38,101 +38,115 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Active-Placement Proof Resolver Batch - Phases 2441-2460
+## Active M55 Mutation-Claim Proof Resolver Batch - Phases 2461-2480
 
-These phases continue M55 after typed non-create stealth command execution
-posture. The next explicit gap is resolver-backed active-placement
-exchange-truth proof evidence for non-create stealth commands. The Admin API
-may resolve only the `active_placement_exchange_truth` prerequisite from the
-existing append-only backend proof store when a safe same-`stealth_order_id`
-proof record exists. It must keep reveal-trigger evidence, mutation-claim
-snapshots, recovery proof, and reconciliation proof missing until real
-backend-owned proof stores or contracts exist. This range must remain no-live
-and no-write. It must not invoke `StealthOrderManager`, call
-`reveal_order_slice`, build or execute stealth move plans, clear repricing
-cooldowns, write lifecycle rows, submit/read or cancel Coinbase, replace active
-placements, execute reconciliation, mutate stealth/order/exchange state,
-approve live admission, or grant browser/BFF execution authority.
+These phases continue M55 after resolver-backed active-placement
+exchange-truth proof evidence. The next explicit gap is backend-owned
+mutation-claim snapshot proof evidence for move and movement/reprice command
+posture. The Admin API may persist and read append-only no-live proof records,
+then resolve only the `mutation_claim_snapshot` prerequisite from the latest
+safe exact-context record. It must keep reveal-trigger, recovery-proof, and
+reconciliation-proof prerequisites missing until real backend-owned proof
+stores or contracts exist. This range must remain no-live and no-write. It
+must not invoke `StealthOrderManager`, acquire or release mutation claims,
+build or execute stealth move plans, clear repricing cooldowns, cancel/replace
+active placements, submit/read/cancel Coinbase, execute reconciliation, mutate
+stealth/order/exchange state, approve live admission, or grant browser/BFF
+execution authority.
 
-### Phase 2441 - Advance Active Queue Range
+### Phase 2461 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2421-2440 to active phases 2441-2460 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2441-2460 to active phases 2461-2480 while preserving no-live defaults and cap policy.
 
-### Phase 2442 - Resolver Scope
+### Phase 2462 - Mutation-Claim Proof Scope
 
-- Define resolver-backed command-specific proof evidence as read-only lookup over existing backend proof stores, not execution approval or proof creation.
+- Define mutation-claim snapshot proof evidence as backend-owned append-only local evidence, not runtime claim acquisition, claim release, manager invocation, or execution approval.
 
-### Phase 2443 - Proof Store Injection
+### Phase 2463 - Proof Store Contract
 
-- Route the existing stealth active-placement exchange-truth proof store into the shared command execution-posture builder without creating a new store path.
+- Add a single JSONL proof store for route-bound mutation-claim snapshot records keyed by `stealth_order_id`, guarded command context, and proof id.
 
-### Phase 2444 - Safe Proof Matching
+### Phase 2464 - Route Inventory And RBAC
 
-- Resolve active-placement exchange-truth only from same-`stealth_order_id` proof records that prove no Coinbase read, no Coinbase order, no cancel/replace, no reconciliation execution, and no state mutation ran.
+- Add readback and proof-recording routes, route inventory rows, permission wiring, and idempotent command envelope handling without creating a route-local execution path.
 
-### Phase 2445 - Missing And Invalid Statuses
+### Phase 2465 - Proof Service Validation
 
-- Return explicit missing, unavailable, blocked-by-dependency, or stale/invalid resolver rows when proof lookup cannot safely resolve the prerequisite.
+- Validate guarded command route, service method, mutation kind, exact admission prerequisites, zero active claims, duplicate proof ids, and no-live/no-write posture before persisting proof evidence.
 
-### Phase 2446 - Route Wrapper Linkage
+### Phase 2466 - Readback Contract
 
-- Keep normal, conflict, and stored response behavior on the central idempotent command wrapper without duplicating route-local resolver logic.
+- Expose read-only mutation-claim proof readback evidence with persisted records, latest proof id, missing contracts, no-live flags, and no manager/claim/Coinbase/reconciliation activity.
 
-### Phase 2447 - Non-Resolved Prerequisites
+### Phase 2467 - Command-Suite Linkage
 
-- Keep reveal-trigger, mutation-claim, recovery-proof, and reconciliation-proof prerequisites missing until approved backend-owned evidence stores exist.
+- Link the mutation-claim proof route into command-suite proof-route evidence for move and movement/reprice only.
 
-### Phase 2448 - Response Data Linkage
+### Phase 2468 - Resolver Store Injection
 
-- Reflect resolved and missing non-create command execution prerequisites in command response data without changing fail-closed status codes.
+- Route the mutation-claim proof store into the shared command execution-posture builder through the existing idempotent command wrapper.
 
-### Phase 2449 - Reprice Alignment
+### Phase 2469 - Exact-Context Resolution
 
-- Apply the same active-placement proof resolver to movement/reprice command posture while leaving M56 movement/repricing execution gaps open.
+- Resolve `mutation_claim_snapshot` only when the latest same-`stealth_order_id` proof record exactly matches route, method, service method, actor, operator intent, idempotency key, and payload hash.
 
-### Phase 2450 - Backend Contract Tests
+### Phase 2470 - Unsafe Proof Fail-Closed
 
-- Cover safe proof resolution, invalid/missing proof behavior, no manager invocation, no Coinbase read/submit/cancel, no lifecycle writes, and no execution authority.
+- Treat latest unsafe, stale, claim-active, manager-touched, Coinbase-touched, reconciliation-touched, or state-mutating proof records as missing/stale prerequisite evidence.
 
-### Phase 2451 - Backend Artifact Sync
+### Phase 2471 - Reprice Alignment
 
-- Regenerate OpenAPI and route/readiness artifacts if schema or inventory output changes; otherwise prove schema remains stable.
+- Apply the same mutation-claim proof resolver to movement/reprice command posture while leaving M56 movement/repricing execution gaps open.
 
-### Phase 2452 - Frontend Range Sync
+### Phase 2472 - Backend Contract Tests
 
-- Update frontend generated schema checks, mocks, runtime evidence, and active range references for phases 2441-2460.
+- Cover proof route rejection/acceptance/replay, readback, resolver success, resolver fail-closed behavior, no manager invocation, no claim acquisition/release, no Coinbase activity, and no execution authority.
 
-### Phase 2453 - Frontend Mock Resolver Evidence
+### Phase 2473 - Backend Artifact Sync
 
-- Add mock command evidence that includes a resolved active-placement proof row while still rendering command execution as blocked.
+- Regenerate OpenAPI and route/readiness artifacts for the new models and routes, and verify route inventory remains the authority source.
 
-### Phase 2454 - Frontend Rendering Tests
+### Phase 2474 - Frontend Schema Sync
 
-- Cover resolved active-placement proof rows, remaining missing prerequisites, disabled service/adapter rows, and no-live/no-write authority.
+- Regenerate frontend API schema and update generated-client checks, mocks, runtime evidence, and active range references for phases 2461-2480.
 
-### Phase 2455 - Documentation Update
+### Phase 2475 - Frontend Mock Readback
 
-- Update Admin API, command workflows, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for resolver-backed active-placement proof evidence.
+- Add frontend mock readback and route fixtures for mutation-claim proof evidence with no-live/no-write flags and missing execution contracts.
 
-### Phase 2456 - Validator Sync
+### Phase 2476 - Frontend Dry-Submit Rendering
 
-- Update backend and frontend autonomous, release, deployment, runtime, and quality validators to require phases 2441-2460 and resolver-backed active-placement proof evidence.
+- Render resolved mutation-claim prerequisite rows for move/reprice dry-submit evidence while keeping command execution blocked.
 
-### Phase 2457 - Drift Scan
+### Phase 2477 - Documentation Update
 
-- Search for stale active-range text and wording that implies local proof evidence verifies Coinbase, approves execution, invokes managers, mutates lifecycle state, or bypasses reconciliation.
+- Update Admin API, command workflows, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for mutation-claim snapshot proof evidence.
 
-### Phase 2458 - Blind Contextless Review
+### Phase 2478 - Validator And Drift Scan
 
-- Run a contextless review asking whether a fresh agent can explain how active-placement proof resolution works and why commands still cannot execute.
+- Update backend and frontend validators to require phases 2461-2480, then scan for stale active-range text or wording that implies proof evidence approves execution or acquires runtime claims.
 
-### Phase 2459 - Focused And Full Gates
+### Phase 2479 - Blind Contextless Review
 
-- Run focused Admin API tests, backend autonomous check, backend full regression, frontend focused tests, API check, autonomous check, and frontend release gate.
+- Run a contextless review asking whether a fresh agent can explain mutation-claim proof recording, resolver behavior, and why commands still cannot execute.
 
-### Phase 2460 - Full Gates, Push, And Next Range
+### Phase 2480 - Full Gates, Push, And Next Range
 
-- Push synchronized repos after gates and contextless review pass, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+- Run focused and full backend/frontend gates, push synchronized repos after they pass, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed M55 Active-Placement Proof Resolver Batch - Phases 2441-2460
+
+These phases added resolver-backed active-placement exchange-truth proof
+evidence to non-create stealth command responses using only the existing
+append-only backend proof store. The resolver may remove only the
+`active_placement_exchange_truth` missing prerequisite when the latest
+same-`stealth_order_id` proof record is safe no-live, no-Coinbase,
+no-cancel/replace, no-reconciliation, no-state-mutation evidence. Latest
+unsafe proof records fail closed as missing/stale. The resolver does not
+verify Coinbase, resolve reveal-trigger evidence, mutation-claim snapshots,
+recovery proof, or reconciliation proof, approve admission, execute commands,
+call `StealthOrderManager`, cancel/replace active placements, mutate state,
+grant browser/BFF authority, or run live commands.
 
 ## Completed M55 Non-Create Execution Posture Batch - Phases 2421-2440
 

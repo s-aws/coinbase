@@ -21,6 +21,10 @@ from .stealth_exchange_truth import (
     FileStealthExchangeTruthProofStore,
     StealthActivePlacementExchangeTruthProofRecord,
 )
+from .stealth_mutation_claim import (
+    FileStealthMutationClaimProofStore,
+    StealthMutationClaimSnapshotProofRecord,
+)
 
 
 REQUIRED_STEALTH_COMMAND_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = tuple(
@@ -186,6 +190,7 @@ def build_stealth_command_execution_contract(
     admission_decision: AdminLiveAdmissionDecisionEvidence,
     *,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
+    stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
 ) -> StealthCommandExecutionContractEvidence | None:
     """Build no-live execution posture evidence for eligible stealth commands."""
 
@@ -201,6 +206,7 @@ def build_stealth_command_execution_contract(
         metadata=metadata,
         admission_decision=admission_decision,
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+        stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
     )
     resolved = sorted(
         item.prerequisite.value
@@ -282,6 +288,7 @@ def _build_prerequisite_resolution(
     metadata: StealthCommandExecutionMetadata,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None,
+    stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None,
 ) -> list[StealthCommandExecutionPrerequisiteResolverItem]:
     approval = _resolver_item_from_flag(
         prerequisite=StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT,
@@ -341,6 +348,7 @@ def _build_prerequisite_resolution(
             admission_decision=admission_decision,
             common_resolved=common_resolved,
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+            stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
         )
         for prerequisite in metadata.prerequisites
         if prerequisite not in COMMON_PREREQUISITES
@@ -398,6 +406,7 @@ def _command_specific_prerequisite(
     admission_decision: AdminLiveAdmissionDecisionEvidence,
     common_resolved: bool,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None,
+    stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None,
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE:
         return _resolver_item(
@@ -458,6 +467,12 @@ def _command_specific_prerequisite(
             metadata=metadata,
             admission_decision=admission_decision,
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+        )
+    if prerequisite == StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT:
+        return _resolve_mutation_claim_snapshot(
+            metadata=metadata,
+            admission_decision=admission_decision,
+            stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
         )
     return _resolver_item(
         prerequisite=prerequisite,
@@ -543,6 +558,128 @@ def _find_latest_active_placement_exchange_truth_proof(
 ) -> StealthActivePlacementExchangeTruthProofRecord | None:
     records = store.read_for_stealth_order_id(stealth_order_id, limit=1)
     return records[0] if records else None
+
+
+def _resolve_mutation_claim_snapshot(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None,
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    prerequisite = StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT
+    if stealth_mutation_claim_proof_store is None or not admission_decision.identity_value:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="mutation_claim_proof_store_unavailable",
+            detail="Mutation-claim proof store was not available.",
+        )
+
+    record = _find_latest_mutation_claim_snapshot_proof(
+        store=stealth_mutation_claim_proof_store,
+        stealth_order_id=admission_decision.identity_value,
+    )
+    if record is not None and not _is_safe_mutation_claim_snapshot_proof(
+        record,
+        admission_decision=admission_decision,
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            missing_reason="mutation_claim_snapshot_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest mutation-claim proof was found but is not safe "
+                "exact-context no-live/no-mutation evidence for command execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=_source_for_command_specific_prerequisite(prerequisite),
+        lookup_status=(
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCommandExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.mutation_claim_proof_id if record is not None else None
+        ),
+        missing_reason=(
+            None if record is not None else "no_matching_mutation_claim_snapshot_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned mutation-claim snapshot proof lookup is read-only "
+            "and does not acquire claims, mutate state, verify Coinbase, or "
+            "authorize execution."
+        ),
+    )
+
+
+def _find_latest_mutation_claim_snapshot_proof(
+    *,
+    store: FileStealthMutationClaimProofStore,
+    stealth_order_id: str,
+) -> StealthMutationClaimSnapshotProofRecord | None:
+    records = store.read_for_stealth_order_id(stealth_order_id, limit=1)
+    return records[0] if records else None
+
+
+def _is_safe_mutation_claim_snapshot_proof(
+    record: StealthMutationClaimSnapshotProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        _mutation_claim_proof_matches_admission(record, admission_decision)
+        and record.proof_persisted is True
+        and record.runtime_claims_observed is True
+        and record.active_claim_count == 0
+        and record.manager_invocation_ran is False
+        and record.claim_acquire_ran is False
+        and record.claim_release_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
+def _mutation_claim_proof_matches_admission(
+    record: StealthMutationClaimSnapshotProofRecord,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == admission_decision.route
+        and record.guarded_command_method == admission_decision.method
+        and record.guarded_service_method == admission_decision.service_method
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+    )
 
 
 def _is_safe_active_placement_exchange_truth_proof(

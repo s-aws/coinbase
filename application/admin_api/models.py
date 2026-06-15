@@ -65,6 +65,7 @@ from core.enums import (
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
     StealthLifecycleWriteGuardEvidenceSource,
+    StealthMutationClaimEvidenceSource,
     StealthMutationKind,
     TargetMovementType,
     TimeInForce,
@@ -421,6 +422,36 @@ class StealthCreateLifecycleWriteGuardProofRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class StealthMutationClaimSnapshotProofRequest(BaseModel):
+    """Stealth mutation-claim snapshot proof keyed by path id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str = Field(min_length=1)
+    guarded_command_route: str = Field(min_length=1)
+    guarded_command_method: str = "POST"
+    guarded_service_method: str = Field(min_length=1)
+    guarded_actor_id: str = Field(min_length=1)
+    guarded_operator_intent: str = Field(min_length=1)
+    guarded_idempotency_key: str = Field(min_length=1)
+    guarded_payload_hash: str = Field(min_length=64, max_length=64)
+    mutation_kind: StealthMutationKind
+    claim_reader_source: str = Field(min_length=1)
+    runtime_claims_observed: bool = False
+    runtime_claim_count: int = Field(default=0, ge=0)
+    active_claim_count: int = Field(default=0, ge=0)
+    evidence_source: StealthMutationClaimEvidenceSource
+    snapshot_evidence_ref: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    mutation_claim_proof_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class StealthCreateRequest(BaseModel):
     """Stealth create request shape for future gated lifecycle writes."""
 
@@ -728,6 +759,18 @@ class StealthCreateLifecycleWriteGuardProofCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthCreateLifecycleWriteGuardProofRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class StealthMutationClaimSnapshotProofCommand(BaseModel):
+    """Shared service command for mutation-claim snapshot proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthMutationClaimSnapshotProofRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
@@ -2042,6 +2085,70 @@ class StealthCreateLifecycleWriteGuardProofRecordItem(BaseModel):
     detail: str
 
 
+class StealthMutationClaimSnapshotProofRecordItem(BaseModel):
+    """Read-only persisted stealth mutation-claim snapshot proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_claim_proof_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    stealth_order_id: str
+    guarded_command_route: str
+    guarded_command_method: str
+    guarded_service_method: str
+    guarded_actor_id: str
+    guarded_operator_intent: str
+    guarded_idempotency_key: str
+    guarded_payload_hash: str
+    mutation_kind: StealthMutationKind
+    claim_reader_source: str
+    runtime_claims_observed: bool = False
+    runtime_claim_count: int = Field(default=0, ge=0)
+    active_claim_count: int = Field(default=0, ge=0)
+    evidence_source: StealthMutationClaimEvidenceSource
+    snapshot_evidence_ref: str
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_stealth_mutation_claim_snapshot_proof_log"
+    proof_persisted: bool = True
+    mutation_claim_snapshot_verified: bool = False
+    manager_invocation_ran: bool = False
+    claim_acquire_ran: bool = False
+    claim_release_ran: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminMutationClaimEvidence(BaseModel):
     """Runtime claim evidence for repeatable stealth mutations."""
 
@@ -2966,6 +3073,52 @@ class StealthCreateLifecycleWriteGuardReadResponse(AdminApiReadPayload):
     reconciliation_required: bool = True
     reconciliation_executed: bool = False
     post_write_reconciliation_satisfied: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
+class StealthMutationClaimSnapshotReadResponse(AdminApiReadPayload):
+    """Read-only stealth mutation-claim snapshot proof readback."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_mutation_claim_snapshot"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    mutation_claim_snapshot_verified: bool = False
+    persisted_proof_count: int = Field(default=0, ge=0)
+    persisted_proofs: list[StealthMutationClaimSnapshotProofRecordItem] = (
+        Field(default_factory=list)
+    )
+    latest_mutation_claim_proof_id: str | None = None
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    route_bound: bool = True
+    proof_records_created: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    claim_acquire_allowed: bool = False
+    claim_acquire_ran: bool = False
+    claim_release_allowed: bool = False
+    claim_release_ran: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_required: bool = True
+    reconciliation_executed: bool = False
     order_state_mutated: bool = False
     lifecycle_state_mutated: bool = False
     exchange_state_mutated: bool = False

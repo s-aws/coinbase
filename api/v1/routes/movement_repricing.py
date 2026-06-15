@@ -218,6 +218,9 @@ def reprice_stealth_order_by_stealth_order_id(
         stealth_exchange_truth_proof_store=(
             service.dependencies.stealth_exchange_truth_proof_store_getter()
         ),
+        stealth_mutation_claim_proof_store=(
+            service.dependencies.stealth_mutation_claim_proof_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reprice_stealth_order_by_stealth_order_id(
             MovementRepriceCommand(

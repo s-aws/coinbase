@@ -147,6 +147,7 @@ class AdminApiPermission(str, Enum):
     SPOT_RECOVERY_RECORD = "spot_recovery:record"
     STEALTH_EXCHANGE_TRUTH_RECORD = "stealth_exchange_truth:record"
     STEALTH_LIFECYCLE_WRITE_RECORD = "stealth_lifecycle_write:record"
+    STEALTH_MUTATION_CLAIM_RECORD = "stealth_mutation_claim:record"
     STEALTH_RECOVERY_EXECUTE = "stealth_recovery:execute"
     STEALTH_RECONCILIATION_EXECUTE = "stealth_reconciliation:execute"
     CONFIG_UPDATE = "config:update"
@@ -274,6 +275,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_CREATE_LIFECYCLE_WRITE_GUARD_PROOF = (
         "stealth_create_lifecycle_write_guard_proof"
     )
+    STEALTH_MUTATION_CLAIM_SNAPSHOT_PROOF = (
+        "stealth_mutation_claim_snapshot_proof"
+    )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
@@ -292,6 +296,7 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     RECONCILIATION_PLAN = "reconciliation_plan"
     ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
     LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
+    MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
     POST_LIVE_RECONCILIATION = "post_live_reconciliation"
 
@@ -446,6 +451,14 @@ class StealthLifecycleWriteGuardEvidenceSource(str, Enum):
     LIVE_COINBASE_DISABLED = "live_coinbase_disabled"
 
 
+class StealthMutationClaimEvidenceSource(str, Enum):
+    """Source posture for stealth mutation-claim snapshot proof evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    RUNTIME_SNAPSHOT_REVIEW = "runtime_snapshot_review"
+
+
 class AdminApiApprovalLifecycleStatus(str, Enum):
     """Lifecycle state for backend-owned approval records."""
 
@@ -518,6 +531,7 @@ class AdminApiLivePreflightCategory(str, Enum):
     AUDIT = "audit"
     RECONCILIATION = "reconciliation"
     LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
+    MUTATION_CLAIM = "mutation_claim"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     BROWSER_AUTHORITY = "browser_authority"
 

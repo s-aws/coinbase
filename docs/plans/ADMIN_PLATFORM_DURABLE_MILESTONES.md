@@ -2640,14 +2640,22 @@ Current backend evidence:
   stealth command execution posture on reveal, cancel, move, recovery,
   reconciliation, and movement/reprice responses without manager invocation,
   active-placement cancel/replace, Coinbase access, reconciliation execution,
-  state mutation, or browser/BFF execution authority. It now advances to
-  phases 2441-2460 for resolver-backed active-placement exchange-truth proof
-  evidence on non-create command responses using only the existing append-only
-  backend proof store. The resolver may remove only the
+  state mutation, or browser/BFF execution authority. It completed phases
+  2441-2460 for resolver-backed active-placement exchange-truth proof evidence
+  on non-create command responses using only the existing append-only backend
+  proof store. That resolver may remove only the
   `active_placement_exchange_truth` missing prerequisite when a safe
   same-`stealth_order_id` proof record exists; it does not verify Coinbase,
   resolve reveal-trigger evidence, mutation-claim snapshots, recovery proof,
   or reconciliation proof, execute commands, or grant browser/BFF authority.
+  It now advances to phases 2461-2480 for backend-owned mutation-claim
+  snapshot proof records, readback, command-suite proof-route linkage, and
+  exact-context resolver evidence for move and movement/reprice posture. The
+  resolver may remove only the `mutation_claim_snapshot` missing prerequisite
+  when the latest safe same-`stealth_order_id` proof record exactly matches
+  the command context; it must not acquire or release runtime claims, invoke
+  `StealthOrderManager`, cancel/replace active placements, call Coinbase,
+  execute reconciliation, mutate state, or grant browser/BFF authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
