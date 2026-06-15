@@ -8,8 +8,9 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-15
 - Updated by: Codex
 - Branch: main
-- Commit (optional): backend `4372a40`, frontend `7c911c9` for completed
-  range `2401-2420`; pending commit for active range `2421-2440`
+- Commit (optional): backend `ea1aff7`, frontend `0ab54bf` for completed
+  range `2421-2440`; active range `2441-2460` validated and pending
+  commit/push.
 
 ## Current Objective
 
@@ -37,12 +38,11 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2401-2420`.
-- Latest completed milestone slice: M55 - Stealth Create Execution-Prerequisite
-  Resolver Boundary.
-- Completed files: backend-owned stealth create execution-prerequisite resolver
-  evidence, command-suite/readback linkage, command-response linkage, OpenAPI,
-  frontend schema/mocks/runtime/read model, docs/tests, full gates, and
+- Latest completed autonomous range: `2441-2460` pending commit/push.
+- Latest completed milestone slice: M55 - Active-Placement Proof Resolver.
+- Completed files: backend-owned resolver-backed active-placement
+  exchange-truth proof evidence for non-create stealth command responses,
+  frontend schema/mocks/dry-submit rendering, docs/tests, full gates, and
   contextless review.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
@@ -100,21 +100,36 @@ Keep it short. Keep it factual.
   `StealthOrderManager`, write stealth/order rows, mutate state, grant browser
   authority, or grant BFF execution authority. The batch completed in backend
   commit `4372a40` and frontend commit `7c911c9`.
+- M55 2421-2440 added backend-owned non-create stealth command execution
+  posture evidence for reveal, cancel, move, recovery, reconciliation, and
+  movement/reprice responses. The evidence reports exact command context,
+  common admission prerequisites, command-specific missing prerequisites,
+  disabled live service/adapter posture, blockers, and no-live/no-write
+  flags. It did not invoke `StealthOrderManager`, call `reveal_order_slice`,
+  build or execute stealth move plans, clear repricing cooldowns, write
+  lifecycle rows, submit/read/cancel Coinbase, replace active placements,
+  execute reconciliation, mutate stealth/order/exchange state, approve live
+  admission, or grant browser/BFF execution authority. The batch completed in
+  backend commit `ea1aff7` and frontend commit `0ab54bf`.
+- M55 2441-2460 added resolver-backed active-placement exchange-truth proof
+  evidence to non-create stealth command execution responses. The resolver may
+  remove only the `active_placement_exchange_truth` missing prerequisite when
+  the latest same-`stealth_order_id` proof-store record is safe no-live,
+  no-Coinbase, no-cancel/replace, no-reconciliation, no-state-mutation
+  evidence. Latest unsafe proof records fail closed as missing/stale. The
+  resolver does not verify Coinbase, resolve reveal-trigger evidence,
+  mutation-claim snapshots, recovery proof, or reconciliation proof, approve
+  admission, execute commands, call `StealthOrderManager`, cancel/replace
+  active placements, mutate state, grant browser/BFF authority, or run live
+  commands.
 
 ## Active Scope
 
-- Active autonomous range: `2421-2440`.
+- Active autonomous range: `2441-2460`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add typed backend-owned non-create stealth command
-  execution posture evidence for reveal, cancel, move, recovery,
-  reconciliation, and movement/reprice command responses. The evidence may
-  report exact command context, common admission prerequisites,
-  command-specific prerequisites, disabled live service/adapter posture,
-  blockers, and no-live/no-write flags, but it must not approve, execute,
-  reconcile, read Coinbase, submit/cancel Coinbase orders, cancel/replace
-  active placements, call `StealthOrderManager`, write lifecycle rows, mutate
-  stealth/order/exchange state, grant browser/BFF command authority, or run
-  live commands unless a future phase explicitly approves it.
+- Current direction: phase-close commit/push for validated 2441-2460, then
+  select the next milestone-linked M55 gap only if it directly advances full
+  stealth command-suite completion without adding unrelated scope.
 
 ## Decisions (Durable)
 
@@ -401,39 +416,35 @@ Keep it short. Keep it factual.
 ## Validation Status
 
 - Last backend focused Admin API/readiness run: 2026-06-15
-  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_stealth_create_contract_is_fail_closed_and_no_live tests\regression\test_admin_api_contract.py::test_admin_api_stealth_create_execution_contract_resolves_local_prerequisites tests\regression\test_admin_api_contract.py::test_admin_api_stealth_command_suite_is_read_only_backend_evidence -v --tb=short --basetemp=runtime_state\pytest_tmp`
-- Result: Passed for M55 execution-prerequisite resolver checks, 4 tests,
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_stealth_move_execution_contract_resolves_exchange_truth_proof tests\regression\test_admin_api_contract.py::test_admin_api_stealth_move_contract_is_fail_closed_and_no_live tests\regression\test_admin_api_contract.py::test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id tests\regression\test_admin_api_contract.py::test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch -v --tb=short --basetemp=runtime_state\pytest_tmp`
+- Result: Passed for M55 active-placement proof resolver checks, 6 tests,
   1 warning.
 - Last backend autonomous queue check: 2026-06-15
   `python tools\run_autonomous_work_queue_check.py`
-- Result: M55 range `2401-2420` passed. Live Coinbase execution `not_run`,
+- Result: M55 range `2441-2460` passed. Live Coinbase execution `not_run`,
   submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-15
   `python -m pytest tests\regression\ -v --tb=short --basetemp=runtime_state\pytest_tmp`
-- Result: Passed, 833 tests, 1 warning.
+- Result: Passed, 834 tests, 1 warning.
 - Last frontend focused run: 2026-06-15
   `npx vitest run tests/unit/mockBackend.test.ts tests/unit/commandDrySubmit.test.ts tests/unit/StealthOrdersReadModel.test.tsx`, `npm run lint`, `npm run typecheck`, `npm run api:check`, and `npm run autonomous:check`.
-- Result: Passed focused M55 resolver frontend checks with 31 tests; lint,
-  typecheck, API drift, and autonomous checks passed. Full frontend
-  `npm run release:gate` passed with 231 unit tests and 3 Playwright tests.
+- Result: Passed focused M55 resolver frontend checks with 28 tests; lint,
+  typecheck, API drift, deployment readiness, release readiness, and
+  autonomous checks passed. Full frontend `npm run release:gate` passed with
+  232 unit tests and 3 Playwright tests.
 - Last blind/contextless M55 review: 2026-06-15
-- Result: Passed. Reviewer confirmed enterprise Admin API stealth create is
-  not live/executable and resolver evidence is read-only/no-live/no-write.
-  Remediated clarity risks around `create_stealth_order` naming,
-  `dry-submit` terminology, and stale frontend nav copy.
+- Result: Passed. Reviewer confirmed active-placement proof resolution reads
+  only the latest safe same-`stealth_order_id` backend proof-store row, fails
+  closed on latest unsafe proof records, and remains read-only/no-live/no-write
+  with no Coinbase verification or browser/BFF execution authority.
 - Live Coinbase execution for M55: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Complete active M55 2421-2440 non-create stealth command execution posture
-   and keep it tied to the enterprise admin objective rather than adding
-   unrelated scope.
-2. Preserve all stealth execution-posture evidence as backend-owned
-   no-live/no-write response evidence, without proof lookup authority,
-   approvals, execution, Coinbase reads, Coinbase orders, cancel/replace
-   execution, reconciliation execution, lifecycle writes, browser authority,
-   BFF execution authority, or unapproved live execution.
+1. Commit and push validated M55 2441-2460 changes in both repos.
+2. Create the next milestone-linked M55 phase range only for a concrete
+   remaining stealth command-suite gap; do not add unrelated scope.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
@@ -464,13 +475,14 @@ Keep it short. Keep it factual.
   approve admission, execute commands, reconcile, read Coinbase, submit/cancel
   Coinbase orders, call `StealthOrderManager`, write stealth/order rows,
   mutate state, grant browser authority, or grant BFF execution authority.
-- What is in progress: active M55 2421-2440 adds typed backend-owned
-  non-create stealth command execution posture evidence for reveal, cancel,
-  move, recovery, reconciliation, and movement/reprice responses. It remains
-  no-live/no-write and must not invoke manager methods, cancel/replace active
-  placements, call Coinbase, execute reconciliation, mutate state, or grant
-  browser/BFF execution authority.
+- What is done through M55 2441-2460: backend and frontend expose
+  resolver-backed active-placement exchange-truth proof evidence on
+  non-create stealth command responses. It resolves only from the latest safe
+  same-`stealth_order_id` backend proof-store row, fails closed on latest
+  unsafe proof rows, and remains local readback evidence only. It does not
+  invoke manager methods, cancel/replace active placements, call Coinbase,
+  execute reconciliation, mutate state, or grant browser/BFF execution
+  authority.
 - What is blocked: Nothing currently known.
-- Exact next command: finish docs, run focused checks, run full backend
-  regression, run frontend release gate, perform blind/contextless review,
-  then commit and push both repos.
+- Exact next command: commit and push both repos, then select the next
+  concrete milestone-linked M55 gap.

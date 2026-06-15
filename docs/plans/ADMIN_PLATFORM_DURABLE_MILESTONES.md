@@ -2636,11 +2636,18 @@ Current backend evidence:
   lifecycle-write execution-contract boundary as no-live readiness evidence.
   It completed phases 2401-2420 for the missing stealth create
   execution-prerequisite resolver boundary as exact-context read evidence only.
-  It now advances to phases 2421-2440 for typed backend-owned non-create
+  It completed phases 2421-2440 for typed backend-owned non-create
   stealth command execution posture on reveal, cancel, move, recovery,
   reconciliation, and movement/reprice responses without manager invocation,
   active-placement cancel/replace, Coinbase access, reconciliation execution,
-  state mutation, or browser/BFF execution authority.
+  state mutation, or browser/BFF execution authority. It now advances to
+  phases 2441-2460 for resolver-backed active-placement exchange-truth proof
+  evidence on non-create command responses using only the existing append-only
+  backend proof store. The resolver may remove only the
+  `active_placement_exchange_truth` missing prerequisite when a safe
+  same-`stealth_order_id` proof record exists; it does not verify Coinbase,
+  resolve reveal-trigger evidence, mutation-claim snapshots, recovery proof,
+  or reconciliation proof, execute commands, or grant browser/BFF authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

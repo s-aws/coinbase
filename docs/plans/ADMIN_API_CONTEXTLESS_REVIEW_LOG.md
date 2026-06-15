@@ -173,6 +173,49 @@ Status:
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
 
+## M55 Active-Placement Proof Resolver Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewer was not given chat history.
+
+Reviewer tasks:
+
+- explain how resolver-backed `active_placement_exchange_truth` evidence works
+  for non-create stealth command responses
+- verify the resolver cannot execute Coinbase reads/orders, cancel/replace
+  active placements, reconciliation, manager methods, or state writes
+- verify frontend mocks, dry-submit evidence, and docs present the proof as
+  backend local proof-store readback rather than Coinbase verification,
+  browser authority, or BFF authority
+- identify file/line issues that must be fixed before commit
+
+Findings:
+
+- PASS: blind/contextless review found no blockers. It traced
+  `application/admin_api/stealth_command_execution.py` and confirmed the
+  resolver reads only the latest same-`stealth_order_id` proof-store record.
+- PASS: the reviewer confirmed the latest proof must be safe no-live,
+  no-Coinbase, no-cancel/replace, no-reconciliation, no-state-mutation
+  evidence before `active_placement_exchange_truth` resolves.
+- PASS: the reviewer confirmed latest unsafe proof records fail closed as
+  missing/stale and do not fall back to older safe records.
+- PASS: the reviewer confirmed frontend mocks and docs describe the resolver as
+  local backend proof-store readback, not Coinbase verification or browser/BFF
+  execution authority.
+
+Status:
+
+- Backend focused resolver checks passed with `6` tests and `1` warning.
+- Backend full regression passed with `834 passed, 1 warning`.
+- Frontend focused mock/dry-submit checks passed with `28` tests.
+- Frontend full `npm run release:gate` passed with `232` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## M55 Execution-Prerequisite Resolver Review
 
 Review scope:

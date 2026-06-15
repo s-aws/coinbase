@@ -27,6 +27,9 @@ from application.admin_api.live_execution import (
     get_disabled_live_execution_service,
 )
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
+from application.admin_api.stealth_exchange_truth import (
+    FileStealthExchangeTruthProofStore,
+)
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiCommandEnvelope,
@@ -409,10 +412,15 @@ def _build_stealth_command_admission_context(
 def _attach_stealth_execution_posture(
     response: AdminApiCommandResponse,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
+    *,
+    stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
 ) -> None:
     """Attach typed no-live execution posture for eligible stealth commands."""
 
-    contract = build_stealth_command_execution_contract(admission_decision)
+    contract = build_stealth_command_execution_contract(
+        admission_decision,
+        stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+    )
     response.stealth_command_execution_contract = contract
     if contract is None or not isinstance(response.data, dict):
         return
@@ -533,6 +541,7 @@ def _execute_idempotent_command(
     cap_guard_store: FileAdminApiCapGuardStore,
     reconciliation_store: FileAdminApiReconciliationStore,
     live_execution_service: AdminApiLiveExecutionService,
+    stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     command_runner: Callable[[], AdminApiCommandResponse] | None = None,
     command_runner_with_admission: Callable[
         [AdminLiveAdmissionDecisionEvidence],
@@ -586,7 +595,11 @@ def _execute_idempotent_command(
         response.stealth_admission_context = _build_stealth_command_admission_context(
             admission_decision
         )
-        _attach_stealth_execution_posture(response, admission_decision)
+        _attach_stealth_execution_posture(
+            response,
+            admission_decision,
+            stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+        )
         response.audit_id = _record_audit(
             audit_store=audit_store,
             actor=actor,
@@ -607,7 +620,11 @@ def _execute_idempotent_command(
     response.stealth_admission_context = _build_stealth_command_admission_context(
         admission_decision
     )
-    _attach_stealth_execution_posture(response, admission_decision)
+    _attach_stealth_execution_posture(
+        response,
+        admission_decision,
+        stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+    )
     if response.guard is None:
         response.guard = {}
     response.guard["admission_decision"] = admission_decision.model_dump(mode="json")

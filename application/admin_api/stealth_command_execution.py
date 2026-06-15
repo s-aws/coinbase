@@ -17,6 +17,10 @@ from .models import (
     StealthCommandExecutionContractEvidence,
     StealthCommandExecutionPrerequisiteResolverItem,
 )
+from .stealth_exchange_truth import (
+    FileStealthExchangeTruthProofStore,
+    StealthActivePlacementExchangeTruthProofRecord,
+)
 
 
 REQUIRED_STEALTH_COMMAND_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = tuple(
@@ -180,6 +184,8 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
 
 def build_stealth_command_execution_contract(
     admission_decision: AdminLiveAdmissionDecisionEvidence,
+    *,
+    stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
 ) -> StealthCommandExecutionContractEvidence | None:
     """Build no-live execution posture evidence for eligible stealth commands."""
 
@@ -194,6 +200,7 @@ def build_stealth_command_execution_contract(
     resolution = _build_prerequisite_resolution(
         metadata=metadata,
         admission_decision=admission_decision,
+        stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
     )
     resolved = sorted(
         item.prerequisite.value
@@ -274,6 +281,7 @@ def _build_prerequisite_resolution(
     *,
     metadata: StealthCommandExecutionMetadata,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
+    stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None,
 ) -> list[StealthCommandExecutionPrerequisiteResolverItem]:
     approval = _resolver_item_from_flag(
         prerequisite=StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT,
@@ -332,6 +340,7 @@ def _build_prerequisite_resolution(
             metadata=metadata,
             admission_decision=admission_decision,
             common_resolved=common_resolved,
+            stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         )
         for prerequisite in metadata.prerequisites
         if prerequisite not in COMMON_PREREQUISITES
@@ -388,6 +397,7 @@ def _command_specific_prerequisite(
     metadata: StealthCommandExecutionMetadata,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
     common_resolved: bool,
+    stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None,
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE:
         return _resolver_item(
@@ -443,6 +453,12 @@ def _command_specific_prerequisite(
                 "cap/guard, and reconciliation evidence first."
             ),
         )
+    if prerequisite == StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH:
+        return _resolve_active_placement_exchange_truth(
+            metadata=metadata,
+            admission_decision=admission_decision,
+            stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+        )
     return _resolver_item(
         prerequisite=prerequisite,
         metadata=metadata,
@@ -451,6 +467,103 @@ def _command_specific_prerequisite(
         lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
         missing_reason=f"{prerequisite.value}_not_resolved",
         detail="Command-specific proof prerequisite is missing and no execution ran.",
+    )
+
+
+def _resolve_active_placement_exchange_truth(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None,
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    prerequisite = StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH
+    if stealth_exchange_truth_proof_store is None or not admission_decision.identity_value:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="active_placement_exchange_truth_proof_store_unavailable",
+            detail="Active-placement exchange-truth proof store was not available.",
+        )
+
+    record = _find_latest_active_placement_exchange_truth_proof(
+        store=stealth_exchange_truth_proof_store,
+        stealth_order_id=admission_decision.identity_value,
+    )
+    if record is not None and not _is_safe_active_placement_exchange_truth_proof(record):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            missing_reason="active_placement_exchange_truth_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest active-placement proof was found but is not safe "
+                "no-live/no-mutation evidence for command execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=_source_for_command_specific_prerequisite(prerequisite),
+        lookup_status=(
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCommandExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.exchange_truth_proof_id if record is not None else None
+        ),
+        missing_reason=(
+            None
+            if record is not None
+            else "no_matching_active_placement_exchange_truth_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned active-placement exchange-truth proof lookup is "
+            "read-only and does not verify Coinbase or authorize execution."
+        ),
+    )
+
+
+def _find_latest_active_placement_exchange_truth_proof(
+    *,
+    store: FileStealthExchangeTruthProofStore,
+    stealth_order_id: str,
+) -> StealthActivePlacementExchangeTruthProofRecord | None:
+    records = store.read_for_stealth_order_id(stealth_order_id, limit=1)
+    return records[0] if records else None
+
+
+def _is_safe_active_placement_exchange_truth_proof(
+    record: StealthActivePlacementExchangeTruthProofRecord,
+) -> bool:
+    return (
+        record.proof_persisted is True
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
     )
 
 
@@ -489,6 +602,7 @@ def _resolver_item(
     resolved_evidence_id: str | None = None,
     missing_reason: str | None = None,
     stale_or_invalid: bool = False,
+    proof_lookup_authority: str = "none",
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     return StealthCommandExecutionPrerequisiteResolverItem(
         prerequisite=prerequisite,
@@ -501,5 +615,6 @@ def _resolver_item(
         resolved_evidence_id=resolved_evidence_id,
         missing_reason=missing_reason,
         stale_or_invalid=stale_or_invalid,
+        proof_lookup_authority=proof_lookup_authority,
         detail=detail,
     )

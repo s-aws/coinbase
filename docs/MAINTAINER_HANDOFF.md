@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2421-2440`.
+- Active autonomous range: `2441-2460`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -287,12 +287,20 @@ notional, retained inventory, reconciliation result, and audit ids.
   `order_parent` rows, dispatch lifecycle events, submit/read/cancel
   Coinbase, replace active placements, execute reconciliation, mutate
   stealth/order/exchange state, approve live admission, use proof lookup as
-  execution authority, or grant browser/BFF execution authority. The active
-  2421-2440 range adds typed backend-owned non-create stealth command
+  execution authority, or grant browser/BFF execution authority. The completed
+  2421-2440 range added typed backend-owned non-create stealth command
   execution posture on reveal, cancel, move, recovery, reconciliation, and
   movement/reprice responses without invoking managers, canceling/replacing
   active placements, calling Coinbase, executing reconciliation, mutating
   lifecycle/order/exchange state, or granting browser/BFF execution authority.
+  The validated 2441-2460 range adds resolver-backed active-placement
+  exchange-truth proof evidence to those command responses using only the
+  existing append-only backend proof store. It resolves only
+  `active_placement_exchange_truth` for the latest safe
+  same-`stealth_order_id` proof record, fails closed on latest unsafe proof
+  records, and must not verify Coinbase, resolve reveal-trigger/
+  mutation-claim/recovery/reconciliation proof, execute commands, or grant
+  browser/BFF authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

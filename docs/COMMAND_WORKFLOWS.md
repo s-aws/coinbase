@@ -281,6 +281,11 @@ separate from the create lifecycle-write contract and must not invoke manager
 methods, cancel/replace active placements, call Coinbase, execute
 reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
 execution authority.
+For active-placement-sensitive commands, the contract may resolve only
+`active_placement_exchange_truth` from the existing backend append-only proof
+store when a safe same-`stealth_order_id` record exists. The resolver is local
+proof readback only; it is not Coinbase verification, manager invocation,
+cancel/replace execution, or reconciliation authority.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute

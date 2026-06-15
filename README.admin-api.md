@@ -283,6 +283,12 @@ service/adapter posture, blockers, and no-live/no-write flags. It is response
 evidence only: no stealth manager method is invoked, no active placement is
 cancelled or replaced, no Coinbase order is submitted/cancelled/read, no
 reconciliation runs, and no lifecycle/order/exchange state is mutated.
+For commands that require active-placement exchange truth, the contract may
+resolve that single prerequisite from the existing append-only backend proof
+store when a safe same-`stealth_order_id` proof record exists. That resolver
+does not verify Coinbase, resolve reveal-trigger or mutation-claim evidence,
+resolve recovery/reconciliation proof, approve execution, or grant browser/BFF
+authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

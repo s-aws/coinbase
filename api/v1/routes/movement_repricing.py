@@ -215,6 +215,9 @@ def reprice_stealth_order_by_stealth_order_id(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        stealth_exchange_truth_proof_store=(
+            service.dependencies.stealth_exchange_truth_proof_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reprice_stealth_order_by_stealth_order_id(
             MovementRepriceCommand(

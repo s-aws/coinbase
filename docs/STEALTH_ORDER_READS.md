@@ -98,9 +98,13 @@ Those same non-create command responses may include
 reconciliation, and movement/reprice. It is command-response evidence, not a
 read-model prerequisite evaluator. It may display missing prerequisites,
 disabled live service/adapter posture, no-manager/no-Coinbase/no-reconciliation
-flags, and browser/BFF authority strings, but it does not prove active-placement
-exchange truth, run manager code, cancel/replace live placements, execute
-reconciliation, mutate local or exchange state, or authorize the frontend.
+flags, and browser/BFF authority strings. It may resolve the
+`active_placement_exchange_truth` prerequisite from the existing append-only
+backend proof store when a safe same-`stealth_order_id` proof exists, but that
+is local proof readback only. It does not verify Coinbase, resolve reveal
+trigger or mutation-claim evidence, resolve recovery/reconciliation proof, run
+manager code, cancel/replace live placements, execute reconciliation, mutate
+local or exchange state, or authorize the frontend.
 
 The command-suite `create_lifecycle_write_audit.execution_contract` block
 reports the backend-owned stealth create execution-contract boundary without
