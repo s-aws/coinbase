@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2501-2520`.
+- Active autonomous range: `2521-2540`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -314,13 +314,20 @@ notional, retained inventory, reconciliation result, and audit ids.
   latest safe same-`stealth_order_id` proof record and must not repair state,
   roll back state, invoke managers, call Coinbase, cancel/replace placements,
   execute reconciliation, mutate state, or grant browser/BFF authority. The
-  active 2501-2520 range adds backend-owned reveal-trigger proof records,
+  completed 2501-2520 range added backend-owned reveal-trigger proof records,
   readback, command-suite proof-route linkage, and exact-context resolver
   evidence for stealth reveal posture only. It may resolve only
   `reveal_trigger_evidence` from the latest safe same-`stealth_order_id`
   proof record and must not evaluate triggers, call `should_trigger_reveal`,
   call `reveal_order_slice`, invoke managers, call Coinbase, execute
-  reconciliation, mutate state, or grant browser/BFF authority.
+  reconciliation, mutate state, or grant browser/BFF authority. The active
+  2521-2540 range adds backend-owned reconciliation proof records, readback,
+  proof-route linkage, and exact-context resolver evidence for stealth
+  reconciliation posture only. It may resolve only `reconciliation_proof`
+  from the latest safe same-`stealth_order_id` proof record and must not run
+  reconciliation, build reconciliation plans, invoke managers, call Coinbase,
+  cancel/replace active placements, mutate state, or grant browser/BFF
+  authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

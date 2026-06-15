@@ -33,6 +33,10 @@ from .stealth_reveal_trigger_proof import (
     FileStealthRevealTriggerProofStore,
     StealthRevealTriggerProofRecord,
 )
+from .stealth_reconciliation_proof import (
+    FileStealthReconciliationProofStore,
+    StealthReconciliationProofRecord,
+)
 
 
 REQUIRED_STEALTH_COMMAND_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = tuple(
@@ -203,6 +207,9 @@ def build_stealth_command_execution_contract(
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
     ) = None,
+    stealth_reconciliation_proof_store: (
+        FileStealthReconciliationProofStore | None
+    ) = None,
 ) -> StealthCommandExecutionContractEvidence | None:
     """Build no-live execution posture evidence for eligible stealth commands."""
 
@@ -221,6 +228,7 @@ def build_stealth_command_execution_contract(
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
+        stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
     )
     resolved = sorted(
         item.prerequisite.value
@@ -287,6 +295,15 @@ def build_stealth_command_execution_contract(
         reconciliation_proof_resolved=(
             StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF.value in resolved
         ),
+        reconciliation_proof_id=next(
+            (
+                item.resolved_evidence_id
+                for item in resolution
+                if item.prerequisite
+                == StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF
+            ),
+            None,
+        ),
         evidence=[
             "Execution posture is backend-owned and no-live.",
             "Prerequisite rows are read-only and no-authority.",
@@ -305,6 +322,7 @@ def _build_prerequisite_resolution(
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None,
     stealth_reveal_trigger_proof_store: FileStealthRevealTriggerProofStore | None,
+    stealth_reconciliation_proof_store: FileStealthReconciliationProofStore | None,
 ) -> list[StealthCommandExecutionPrerequisiteResolverItem]:
     approval = _resolver_item_from_flag(
         prerequisite=StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT,
@@ -367,6 +385,7 @@ def _build_prerequisite_resolution(
             stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
             stealth_recovery_proof_store=stealth_recovery_proof_store,
             stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
+            stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
         )
         for prerequisite in metadata.prerequisites
         if prerequisite not in COMMON_PREREQUISITES
@@ -427,6 +446,7 @@ def _command_specific_prerequisite(
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None,
     stealth_reveal_trigger_proof_store: FileStealthRevealTriggerProofStore | None,
+    stealth_reconciliation_proof_store: FileStealthReconciliationProofStore | None,
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE:
         return _resolver_item(
@@ -505,6 +525,12 @@ def _command_specific_prerequisite(
             metadata=metadata,
             admission_decision=admission_decision,
             stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
+        )
+    if prerequisite == StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF:
+        return _resolve_reconciliation_proof(
+            metadata=metadata,
+            admission_decision=admission_decision,
+            stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
         )
     return _resolver_item(
         prerequisite=prerequisite,
@@ -824,6 +850,90 @@ def _find_latest_reveal_trigger_proof(
     return records[0] if records else None
 
 
+def _resolve_reconciliation_proof(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    stealth_reconciliation_proof_store: (
+        FileStealthReconciliationProofStore | None
+    ),
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    prerequisite = StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF
+    if (
+        stealth_reconciliation_proof_store is None
+        or not admission_decision.identity_value
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="reconciliation_proof_store_unavailable",
+            detail="Reconciliation proof store was not available.",
+        )
+
+    record = _find_latest_reconciliation_proof(
+        store=stealth_reconciliation_proof_store,
+        stealth_order_id=admission_decision.identity_value,
+    )
+    if record is not None and not _is_safe_reconciliation_proof(
+        record,
+        admission_decision=admission_decision,
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            missing_reason="reconciliation_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest reconciliation proof was found but is not safe "
+                "exact-context no-live/no-mutation evidence for command "
+                "execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=_source_for_command_specific_prerequisite(prerequisite),
+        lookup_status=(
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCommandExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.reconciliation_proof_id if record is not None else None
+        ),
+        missing_reason=(
+            None if record is not None else "no_matching_reconciliation_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned reconciliation proof lookup is read-only and does "
+            "not execute reconciliation, invoke managers, cancel or replace "
+            "active placements, mutate exchange state, verify Coinbase, or "
+            "authorize execution."
+        ),
+    )
+
+
+def _find_latest_reconciliation_proof(
+    *,
+    store: FileStealthReconciliationProofStore,
+    stealth_order_id: str,
+) -> StealthReconciliationProofRecord | None:
+    records = store.read_for_stealth_order_id(stealth_order_id, limit=1)
+    return records[0] if records else None
+
+
 def _is_safe_mutation_claim_snapshot_proof(
     record: StealthMutationClaimSnapshotProofRecord,
     *,
@@ -914,6 +1024,35 @@ def _is_safe_reveal_trigger_proof(
     )
 
 
+def _is_safe_reconciliation_proof(
+    record: StealthReconciliationProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        _reconciliation_proof_matches_admission(record, admission_decision)
+        and record.proof_persisted is True
+        and record.reconciliation_proof_verified is False
+        and record.manager_invocation_ran is False
+        and record.reconciliation_plan_built is False
+        and record.reconciliation_execution_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
 def _mutation_claim_proof_matches_admission(
     record: StealthMutationClaimSnapshotProofRecord,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
@@ -946,6 +1085,21 @@ def _recovery_proof_matches_admission(
 
 def _reveal_trigger_proof_matches_admission(
     record: StealthRevealTriggerProofRecord,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == admission_decision.route
+        and record.guarded_command_method == admission_decision.method
+        and record.guarded_service_method == admission_decision.service_method
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+    )
+
+
+def _reconciliation_proof_matches_admission(
+    record: StealthReconciliationProofRecord,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
 ) -> bool:
     return (

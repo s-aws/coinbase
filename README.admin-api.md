@@ -330,6 +330,17 @@ store when a safe same-`stealth_order_id` proof record exists. That resolver
 does not verify Coinbase, resolve reveal-trigger or mutation-claim evidence,
 resolve recovery/reconciliation proof, approve execution, or grant browser/BFF
 authority.
+For stealth reconciliation, the same contract may resolve
+`reconciliation_proof` from
+`GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and
+`POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs` proof
+records when the latest same-`stealth_order_id` record exactly matches route,
+method, service method, actor, operator intent, idempotency key, and payload
+hash. The writer requires `stealth_reconciliation:record` and persists
+append-only local evidence only. It does not execute reconciliation, invoke
+managers, build plans, read Coinbase, submit/cancel orders, cancel/replace
+active placements, mutate order/exchange/lifecycle state, or authorize
+browser/BFF proof authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -852,6 +863,8 @@ and rotation policy without disclosing a token value.
 - [Stealth Mutation-Claim Snapshot Proof Examples](docs/examples/stealth-mutation-claim-proofs.md)
 - [Stealth Recovery Proofs](README.stealth-recovery-proofs.md)
 - [Stealth Recovery Proof Examples](docs/examples/stealth-recovery-proofs.md)
+- [Stealth Reconciliation Proofs](README.stealth-reconciliation-proofs.md)
+- [Stealth Reconciliation Proof Examples](docs/examples/stealth-reconciliation-proofs.md)
 - [Movement And Repricing](README.movement-repricing.md)
 - [Futures/Perpetuals Admin Reads](README.futures-perpetuals.md)
 - [Guard/Risk Policy Admin Reads](README.guard-risk-policy.md)

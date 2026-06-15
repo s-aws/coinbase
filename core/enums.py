@@ -150,6 +150,7 @@ class AdminApiPermission(str, Enum):
     STEALTH_MUTATION_CLAIM_RECORD = "stealth_mutation_claim:record"
     STEALTH_REVEAL_TRIGGER_RECORD = "stealth_reveal_trigger:record"
     STEALTH_RECOVERY_RECORD = "stealth_recovery:record"
+    STEALTH_RECONCILIATION_RECORD = "stealth_reconciliation:record"
     STEALTH_RECOVERY_EXECUTE = "stealth_recovery:execute"
     STEALTH_RECONCILIATION_EXECUTE = "stealth_reconciliation:execute"
     CONFIG_UPDATE = "config:update"
@@ -282,6 +283,7 @@ class AdminApiMutationFamilyType(str, Enum):
     )
     STEALTH_REVEAL_TRIGGER_PROOF = "stealth_reveal_trigger_proof"
     STEALTH_RECOVERY_PROOF = "stealth_recovery_proof"
+    STEALTH_RECONCILIATION_PROOF = "stealth_reconciliation_proof"
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
@@ -303,6 +305,7 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
     REVEAL_TRIGGER_EVIDENCE = "reveal_trigger_evidence"
     RECOVERY_PROOF = "recovery_proof"
+    RECONCILIATION_PROOF = "reconciliation_proof"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
     POST_LIVE_RECONCILIATION = "post_live_reconciliation"
 
@@ -481,6 +484,14 @@ class StealthRecoveryProofEvidenceSource(str, Enum):
     RECOVERY_RUNBOOK_REVIEW = "recovery_runbook_review"
 
 
+class StealthReconciliationProofEvidenceSource(str, Enum):
+    """Source posture for stealth reconciliation proof evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    RECONCILIATION_RUNBOOK_REVIEW = "reconciliation_runbook_review"
+
+
 class AdminApiApprovalLifecycleStatus(str, Enum):
     """Lifecycle state for backend-owned approval records."""
 
@@ -556,6 +567,7 @@ class AdminApiLivePreflightCategory(str, Enum):
     MUTATION_CLAIM = "mutation_claim"
     REVEAL_TRIGGER = "reveal_trigger"
     RECOVERY_PROOF = "recovery_proof"
+    RECONCILIATION_PROOF = "reconciliation_proof"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     BROWSER_AUTHORITY = "browser_authority"
 

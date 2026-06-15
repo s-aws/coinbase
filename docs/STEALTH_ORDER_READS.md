@@ -11,6 +11,7 @@ platform, not the legacy dashboard command plane.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof`
 - `GET /api/v1/stealth/command-suite`
 
 The list/detail routes read local stealth lifecycle rows and report active
@@ -115,6 +116,13 @@ latest-safe rules. It does not verify Coinbase, evaluate triggers, call
 proof, run manager code, repair state, roll back state, cancel/replace live
 placements, execute reconciliation, mutate local or exchange state, or
 authorize the frontend.
+It may also resolve `reconciliation_proof` for reconciliation from the
+backend reconciliation proof store when the latest safe same-`stealth_order_id`
+proof exactly matches route, method, service method, actor, operator intent,
+idempotency key, and payload hash. That resolver is local proof readback only.
+It does not execute reconciliation, build reconciliation plans, invoke
+managers, read Coinbase, cancel/replace active placements, mutate local or
+exchange state, or authorize the frontend.
 
 Reveal-trigger proof evidence is exposed through
 `GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof` and
@@ -124,6 +132,16 @@ The writer route requires `stealth_reveal_trigger:record`, stores append-only
 backend local evidence only after exact admission prerequisites match, and
 does not evaluate triggers, invoke managers, call Coinbase, execute
 reconciliation, or mutate lifecycle/order/exchange state.
+
+Stealth reconciliation proof evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and
+persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs`.
+The writer route requires `stealth_reconciliation:record`, stores append-only
+backend local evidence only after exact admission prerequisites match, and
+does not execute reconciliation, invoke managers, build plans, read Coinbase,
+cancel/replace active placements, submit/cancel orders, or mutate lifecycle,
+order, or exchange state.
 
 The command-suite `create_lifecycle_write_audit.execution_contract` block
 reports the backend-owned stealth create execution-contract boundary without

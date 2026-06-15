@@ -172,6 +172,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_reconciliation_proof",
+        parity_test=(
+            "read-only reconciliation proof evidence; no reconciliation "
+            "execution, manager invocation, Coinbase call, active-placement "
+            "cancel/replace, exchange-state mutation, or lifecycle mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/command-suite",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -363,6 +379,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "does not evaluate triggers, call should_trigger_reveal, call "
             "reveal_order_slice, invoke managers, submit/read Coinbase, "
             "execute reconciliation, or mutate lifecycle state"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface="POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_RECONCILIATION_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for reconciliation proof admission",
+        audit="required",
+        shared_method="record_stealth_reconciliation_proof",
+        parity_test=(
+            "stealth_order_id identity; proof evidence remains no-live and "
+            "does not execute reconciliation, invoke managers, submit/read "
+            "Coinbase, cancel/replace active placements, mutate exchange "
+            "state, or mutate lifecycle state"
         ),
     ),
     AdminApiRouteInventoryItem(

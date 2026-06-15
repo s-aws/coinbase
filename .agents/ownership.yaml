@@ -69,7 +69,9 @@ owners:
       - README.spot-recovery-snapshots.md
       - README.spot-trading.md
       - README.stealth-command-suite.md
+      - README.stealth-exchange-truth-proofs.md
       - README.stealth-mutation-claim-proofs.md
+      - README.stealth-reconciliation-proofs.md
       - README.stealth-recovery-proofs.md
       - README.stealth-reveal-trigger-proofs.md
       - docs/PUBLIC_RELEASE_READINESS.md

@@ -303,6 +303,14 @@ payload hash. The resolver is local proof readback only; it is not trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase
 verification, exchange submission, state mutation, or reconciliation
 authority.
+For reconciliation commands, the same contract may resolve only
+`reconciliation_proof` from the backend append-only reconciliation proof store
+when the latest safe same-`stealth_order_id` record exactly matches route,
+method, service method, actor, operator intent, idempotency key, and payload
+hash. The resolver is local proof readback only; it is not reconciliation
+execution, reconciliation-plan building, Coinbase verification, manager
+invocation, cancel/replace execution, state mutation, or browser/BFF
+authority.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute
@@ -324,6 +332,7 @@ browser/BFF command execution.
 
 - [Admin API](../README.admin-api.md)
 - [Admin API Examples](examples/admin-api.md)
+- [Stealth Reconciliation Proof Examples](examples/stealth-reconciliation-proofs.md)
 - [Admin API Route Inventory](plans/ADMIN_API_ROUTE_INVENTORY.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
 - [Agent Invariants](agents/INVARIANTS.md)

@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2501-2520**.
+- Approved phase range: **2521-2540**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,101 +53,117 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2501-2520
+## Active Phases 2521-2540
 
-These phases continue M55 after resolver-backed recovery proof evidence. The
-next explicit gap is backend-owned reveal-trigger proof evidence for the
-stealth reveal command posture. The Admin API may persist and read append-only
-no-live proof records, then resolve only the `reveal_trigger_evidence`
-prerequisite for `/api/v1/stealth/orders/{stealth_order_id}/reveal` from the
-latest safe exact-context record. It must keep reconciliation-proof,
-submission-adapter, and live execution prerequisites missing until real
-backend-owned contracts exist. This range must remain no-live and no-write. It
-must not evaluate triggers, call `should_trigger_reveal`, call
-`reveal_order_slice`, invoke `StealthOrderManager`, submit/read/cancel
-Coinbase, cancel/replace active placements, execute reconciliation, mutate
+These phases continue M55 after resolver-backed reveal-trigger proof evidence.
+The next explicit gap is backend-owned reconciliation proof evidence for the
+stealth reconciliation command posture. The Admin API may persist and read
+append-only no-live proof records, then resolve only the
+`reconciliation_proof` prerequisite for
+`/api/v1/stealth/orders/{stealth_order_id}/reconciliation` from the latest
+safe exact-context record. It must keep live service, live adapter,
+post-write reconciliation, manager invocation, active-placement cancel/replace,
+Coinbase, and lifecycle/order/exchange mutation prerequisites missing until
+real backend-owned contracts exist. This range may persist local proof
+evidence only; it must not execute reconciliation, invoke managers, submit,
+read, or cancel Coinbase orders, cancel/replace active placements, mutate
 stealth/order/exchange state, approve live admission, or grant browser/BFF
 execution authority.
 
-### Phase 2501 - Advance Active Queue Range
+### Phase 2521 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2481-2500 to active phases 2501-2520 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2501-2520 to active phases 2521-2540 while preserving no-live defaults and cap policy.
 
-### Phase 2502 - Reveal-Trigger Proof Scope
+### Phase 2522 - Reconciliation Proof Scope
 
-- Define reveal-trigger proof evidence as backend-owned append-only local evidence, not trigger evaluation, reveal execution, exchange submission, manager invocation, or execution approval.
+- Define reconciliation proof evidence as backend-owned append-only local evidence, not reconciliation execution, manager invocation, active-placement cancel/replace, exchange verification, or execution approval.
 
-### Phase 2503 - Proof Store Contract
+### Phase 2523 - Proof Store Contract
 
-- Add a single JSONL proof store for route-bound stealth reveal-trigger proof records keyed by `stealth_order_id`, guarded command context, reveal-condition reference, trigger evidence reference, condition snapshot reference, and proof id.
+- Add a single JSONL proof store for route-bound stealth reconciliation proof records keyed by `stealth_order_id`, guarded command context, reconciliation evidence reference, reconciliation plan reference, active-placement evidence reference, and proof id.
 
-### Phase 2504 - Route Inventory And RBAC
+### Phase 2524 - Route Inventory And RBAC
 
-- Add readback and proof-recording routes, route inventory rows, permission wiring, and idempotent command envelope handling without creating a route-local reveal execution path.
+- Add readback and proof-recording routes, route inventory rows, permission wiring, and idempotent command envelope handling without creating a route-local reconciliation execution path.
 
-### Phase 2505 - Proof Service Validation
+### Phase 2525 - Proof Service Validation
 
-- Validate guarded reveal command route, service method, trigger evidence refs, exact admission prerequisites, duplicate proof ids, and no-live/no-write posture before persisting proof evidence.
+- Validate guarded reconciliation command route, service method, proof refs, exact admission prerequisites, duplicate proof ids, and no-live/no-execution posture before persisting proof evidence.
 
-### Phase 2506 - Readback Contract
+### Phase 2526 - Readback Contract
 
-- Expose read-only reveal-trigger proof readback evidence with persisted records, latest proof id, missing contracts, no-live flags, and no trigger/manager/Coinbase/reconciliation activity.
+- Expose read-only reconciliation proof readback evidence with persisted records, latest proof id, missing contracts, no-live flags, and no manager/Coinbase/cancel-replace/reconciliation-execution activity.
 
-### Phase 2507 - Command-Suite Linkage
+### Phase 2527 - Command-Suite Linkage
 
-- Link the reveal-trigger proof route into command-suite proof-route evidence for stealth reveal only.
+- Link the reconciliation proof route into command-suite proof-route evidence for stealth reconciliation only.
 
-### Phase 2508 - Resolver Store Injection
+### Phase 2528 - Resolver Store Injection
 
-- Route the reveal-trigger proof store into the shared command execution-posture builder through the existing idempotent command wrapper.
+- Route the reconciliation proof store into the shared command execution-posture builder through the existing idempotent command wrapper.
 
-### Phase 2509 - Exact-Context Resolution
+### Phase 2529 - Exact-Context Resolution
 
-- Resolve `reveal_trigger_evidence` only when the latest same-`stealth_order_id` proof record exactly matches route, method, service method, actor, operator intent, idempotency key, and payload hash.
+- Resolve `reconciliation_proof` only when the latest same-`stealth_order_id` proof record exactly matches route, method, service method, actor, operator intent, idempotency key, and payload hash.
 
-### Phase 2510 - Unsafe Proof Fail-Closed
+### Phase 2530 - Unsafe Proof Fail-Closed
 
-- Treat latest unsafe, stale, trigger-evaluated, manager-touched, Coinbase-touched, reconciliation-touched, or state-mutating proof records as missing/stale prerequisite evidence.
+- Treat latest unsafe, stale, manager-touched, Coinbase-touched, cancel-replace-touched, reconciliation-executed, or state-mutating proof records as missing/stale prerequisite evidence.
 
-### Phase 2511 - Reveal Command Alignment
+### Phase 2531 - Reconciliation Command Alignment
 
-- Apply the reveal-trigger proof resolver only to stealth reveal command posture while leaving exchange submission, post-write reconciliation, and live execution gaps open.
+- Apply the reconciliation proof resolver only to stealth reconciliation command posture while leaving live service, live adapter, post-write reconciliation, and execution gaps open.
 
-### Phase 2512 - Backend Contract Tests
+### Phase 2532 - Backend Contract Tests
 
-- Cover proof route rejection/acceptance/replay, readback, resolver success, resolver fail-closed behavior, no trigger evaluation, no reveal_order_slice call, no manager invocation, no Coinbase activity, and no execution authority.
+- Cover proof route rejection/acceptance/replay, readback, resolver success, resolver fail-closed behavior, no manager invocation, no active-placement cancel/replace, no Coinbase activity, no reconciliation execution, and no execution authority.
 
-### Phase 2513 - Backend Artifact Sync
+### Phase 2533 - Backend Artifact Sync
 
 - Regenerate OpenAPI and route/readiness artifacts for the new models and routes, and verify route inventory remains the authority source.
 
-### Phase 2514 - Frontend Schema Sync
+### Phase 2534 - Frontend Schema Sync
 
-- Regenerate frontend API schema and update generated-client checks, mocks, runtime evidence, and active range references for phases 2501-2520.
+- Regenerate frontend API schema and update generated-client checks, mocks, runtime evidence, and active range references for phases 2521-2540.
 
-### Phase 2515 - Frontend Mock Readback
+### Phase 2535 - Frontend Mock Readback
 
-- Add frontend mock readback and route fixtures for reveal-trigger proof evidence with no-live/no-write flags and missing execution contracts.
+- Add frontend mock readback and route fixtures for reconciliation proof evidence with no-live/no-execution flags and missing execution contracts.
 
-### Phase 2516 - Frontend Dry-Submit Rendering
+### Phase 2536 - Frontend Dry-Submit Rendering
 
-- Render resolved reveal-trigger prerequisite rows for reveal dry-submit evidence while keeping command execution blocked.
+- Render resolved reconciliation prerequisite rows for reconciliation dry-submit evidence while keeping command execution blocked.
 
-### Phase 2517 - Documentation Update
+### Phase 2537 - Documentation Update
 
-- Update Admin API, command workflows, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for reveal-trigger proof evidence.
+- Update Admin API, command workflows, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for reconciliation proof evidence.
 
-### Phase 2518 - Validator And Drift Scan
+### Phase 2538 - Validator And Drift Scan
 
-- Update backend and frontend validators to require phases 2501-2520, then scan for stale active-range text or wording that implies proof evidence approves execution or evaluates triggers.
+- Update backend and frontend validators to require phases 2521-2540, then scan for stale active-range text or wording that implies proof evidence approves execution or runs reconciliation.
 
-### Phase 2519 - Blind Contextless Review
+### Phase 2539 - Blind Contextless Review
 
-- Run a contextless review asking whether a fresh agent can explain reveal-trigger proof recording, resolver behavior, and why reveal commands still cannot execute.
+- Run a contextless review asking whether a fresh agent can explain reconciliation proof recording, resolver behavior, and why reconciliation commands still cannot execute.
 
-### Phase 2520 - Full Gates, Push, And Next Range
+### Phase 2540 - Full Gates, Push, And Next Range
 
 - Run focused and full backend/frontend gates, push synchronized repos after they pass, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed Phases 2501-2520
+
+These phases added resolver-backed reveal-trigger proof evidence for stealth
+reveal command posture. The resolver may remove only the
+`reveal_trigger_evidence` missing prerequisite when the latest same-
+`stealth_order_id` proof record exactly matches route, method, service method,
+actor, operator intent, idempotency key, and payload hash and is safe no-live,
+no-trigger-evaluation, no-should-trigger call, no-reveal-slice call,
+no-manager, no-Coinbase, no-reconciliation, and no-state-mutation evidence.
+Latest unsafe proof records fail closed as missing/stale. The resolver does
+not evaluate triggers, call `should_trigger_reveal`, call `reveal_order_slice`,
+invoke managers, submit/read/cancel Coinbase, cancel/replace active
+placements, execute reconciliation, mutate state, grant browser/BFF authority,
+or run live commands.
 
 ## Completed Phases 2481-2500
 

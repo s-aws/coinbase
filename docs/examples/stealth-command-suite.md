@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2501-2520",
+  "approved_phase_range": "2521-2540",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -544,6 +544,11 @@ Recovery proof persistence and resolver examples live in
 reads the latest proof for the same `stealth_order_id` and fails closed if
 that latest proof is unsafe, stale, or bound to different guarded recovery
 command context.
+Reconciliation proof persistence and resolver examples live in
+[Stealth Reconciliation Proof Examples](stealth-reconciliation-proofs.md). The
+resolver reads the latest proof for the same `stealth_order_id` and fails
+closed if that latest proof is unsafe, stale, or bound to different guarded
+reconciliation command context.
 The same detail payload may include `reveal_trigger_audit`. That panel reports
 local reveal-condition presence, condition type/payload, required
 reveal-trigger guard contracts, missing contracts, and no-live Coinbase flags.
