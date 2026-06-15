@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2381-2400**.
+- Approved phase range: **2401-2420**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,102 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2381-2400
+## Active Phases 2401-2420
+
+These phases continue M55 after the stealth create lifecycle-write
+execution-contract boundary. The next explicit gap is backend-owned
+execution-prerequisite resolver evidence for stealth create: the Admin API may
+show whether exact approval, admission-audit, cap/guard, reconciliation-plan,
+lifecycle-write guard proof, live-service, live-adapter, and post-write
+reconciliation prerequisites are resolved or missing for the exact command
+context. This range must remain no-live and no-write. It must not invoke
+`StealthOrderManager`, write `stealth_orders` or `order_parent` rows, dispatch
+lifecycle events, submit/read/cancel Coinbase, replace active placements,
+execute reconciliation, mutate stealth/order/exchange state, approve live
+admission, use proof lookup as execution authority, or grant browser/BFF
+execution authority.
+
+### Phase 2401 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2381-2400 to active phases 2401-2420 while preserving no-live defaults and cap policy.
+
+### Phase 2402 - Resolver Boundary Scope
+
+- Define the execution-prerequisite resolver boundary as backend-owned read evidence over exact command context, not execution approval, manager invocation, lifecycle mutation, or live adapter enablement.
+
+### Phase 2403 - Resolver Evidence Model
+
+- Add typed fields for prerequisite source, lookup status, resolved evidence id, missing reason, stale/invalid posture, and no-authority flags without replacing the existing execution-contract model.
+
+### Phase 2404 - Exact Context Binding
+
+- Bind resolver rows to route, method, `stealth_order_id`, actor id, idempotency key, operator intent, and payload hash, and keep `order_id`/`client_order_id` rejected as stealth create command identities.
+
+### Phase 2405 - Existing Proof Source Map
+
+- Map resolver rows to existing approval snapshot, admission audit, cap/guard decision, reconciliation plan, lifecycle-write guard proof, disabled live execution service, disabled live adapter, and post-write reconciliation evidence sources.
+
+### Phase 2406 - Read-Only Store Resolver Adapters
+
+- Use existing read-only resolver/store APIs for local proof evidence where available, with explicit no-write/no-Coinbase instrumentation and no new route-local proof store.
+
+### Phase 2407 - Create Command Response Resolver Linkage
+
+- Attach resolver results to the live-disabled create command response so the exact command context can explain which prerequisites remain unresolved while still returning fail-closed HTTP 501.
+
+### Phase 2408 - Command-Suite Resolver Readback
+
+- Update `GET /api/v1/stealth/command-suite` to explain resolver requirements and why exact prerequisite lookup is skipped when exact command context is absent.
+
+### Phase 2409 - Authority And Blocker Reconciliation
+
+- Keep execution blocked until every prerequisite resolves and the explicit live service/adapter/post-write reconciliation blockers are removed by a later approved execution phase.
+
+### Phase 2410 - Backend Resolver Tests
+
+- Cover resolved/missing prerequisite rows, exact context matching, stale/invalid evidence, rejected identities, no manager invocation, no DB lifecycle writes, no Coinbase access, and continued create-route fail-closed behavior.
+
+### Phase 2411 - Backend Generated Artifacts
+
+- Regenerate OpenAPI and route-inventory artifacts after resolver evidence model changes.
+
+### Phase 2412 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI without hand-editing generated files.
+
+### Phase 2413 - Frontend Mock And Runtime Sync
+
+- Update frontend mocks, runtime snapshots, and backend API contracts to consume resolver evidence without adding command controls.
+
+### Phase 2414 - Frontend Resolver Rendering
+
+- Render resolver evidence as display-only create lifecycle evidence with resolved/missing/stale/invalid rows clearly separated from execution authority.
+
+### Phase 2415 - Command Workflow Evidence Sync
+
+- Update dry-submit and command workflow evidence so stealth create explains prerequisite lookup results and why execution remains blocked.
+
+### Phase 2416 - Documentation Update
+
+- Update Admin API, stealth reads, command workflows, examples, maintainer handoff, agent state, and roadmap docs for resolver evidence.
+
+### Phase 2417 - Validator Sync
+
+- Update autonomous queue, release, deployment, runtime, and quality validators to require phases 2401-2420 and resolver readiness evidence.
+
+### Phase 2418 - Drift Scan
+
+- Search for stale active-range text and wording that implies proof lookup approves execution, invokes the manager, mutates lifecycle state, calls Coinbase, or bypasses reconciliation.
+
+### Phase 2419 - Blind Contextless Review
+
+- Run a contextless review asking whether a fresh agent can explain resolver evidence and why it still cannot execute stealth create.
+
+### Phase 2420 - Full Gates, Push, And Next Range
+
+- Push synchronized repos after gates and contextless review pass, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed Phases 2381-2400
 
 These phases continue M55 after lifecycle-write guard proof records. The next
 explicit gap is a backend-owned stealth create lifecycle-write execution

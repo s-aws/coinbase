@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2381-2400`.
+- Active autonomous range: `2401-2420`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -279,13 +279,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   grant browser/BFF authority. The completed 2361-2380 range added
   backend-owned stealth create lifecycle-write guard proof records, readback,
   command-suite proof-route linkage, OpenAPI/frontend sync, tests, and blind
-  review. The active 2381-2400 range advances to the missing stealth create
-  lifecycle-write execution-contract boundary as no-live readiness evidence.
-  It must not invoke `StealthOrderManager`, write `stealth_orders` or
+  review. The completed 2381-2400 range added stealth create lifecycle-write
+  execution-contract boundary evidence as no-live readiness. The active
+  2401-2420 range advances to the missing stealth create
+  execution-prerequisite resolver boundary as exact-context read evidence
+  only. It must not invoke `StealthOrderManager`, write `stealth_orders` or
   `order_parent` rows, dispatch lifecycle events, submit/read/cancel
   Coinbase, replace active placements, execute reconciliation, mutate
-  stealth/order/exchange state, approve live admission, or grant browser/BFF
-  execution authority.
+  stealth/order/exchange state, approve live admission, use proof lookup as
+  execution authority, or grant browser/BFF execution authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,
