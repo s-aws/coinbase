@@ -103,6 +103,8 @@ from application.admin_api.stealth_cancel_replace_proof import (
     StealthCancelReplaceProofRecord,
 )
 from application.admin_api.stealth_post_write_reconciliation import (
+    FileStealthPostWriteExecutionJournalStore,
+    StealthPostWriteExecutionJournalAcceptanceRecord,
     FileStealthPostWriteReconciliationProofStore,
     StealthPostWriteReconciliationProofRecord,
 )
@@ -146,6 +148,7 @@ from application.admin_api.models import (
     StealthCreateLifecycleWriteGuardProofRequest,
     StealthMoveRequest,
     StealthMutationClaimSnapshotProofRequest,
+    StealthPostWriteExecutionJournalRequest,
     StealthPostWriteReconciliationProofRequest,
     StealthRevealRequest,
     StealthRevealTriggerProofRequest,
@@ -309,6 +312,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             store_dir / "stealth_post_write_reconciliation_proofs.jsonl"
         )
     )
+    stealth_post_write_execution_journal_store = (
+        FileStealthPostWriteExecutionJournalStore(
+            store_dir / "stealth_post_write_execution_journals.jsonl"
+        )
+    )
     order_command_service = AdminApiCommandService(
         AdminApiCommandDependencies(
             spot_recovery_proof_store_getter=lambda: spot_recovery_proof_store,
@@ -348,6 +356,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             ),
             stealth_post_write_reconciliation_proof_store_getter=lambda: (
                 stealth_post_write_reconciliation_proof_store
+            ),
+            stealth_post_write_execution_journal_store_getter=lambda: (
+                stealth_post_write_execution_journal_store
             ),
             audit_store_getter=lambda: audit_store,
         )
@@ -424,6 +435,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             stealth_post_write_reconciliation_proof_store=(
                 stealth_post_write_reconciliation_proof_store
             ),
+            stealth_post_write_execution_journal_store=(
+                stealth_post_write_execution_journal_store
+            ),
         )
     )
     client = TestClient(app)
@@ -473,6 +487,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client.admin_api_test_stealth_post_write_reconciliation_proof_store = (
         stealth_post_write_reconciliation_proof_store
+    )
+    client.admin_api_test_stealth_post_write_execution_journal_store = (
+        stealth_post_write_execution_journal_store
     )
     return client
 
@@ -1098,6 +1115,26 @@ def _stealth_post_write_reconciliation_proof_payload_hash(
         "roles": roles or [AdminApiRole.ADMIN.value],
         "operator_intent": operator_intent,
         "body": StealthPostWriteReconciliationProofRequest.model_validate(
+            body
+        ).model_dump(mode="json"),
+        "path_params": {"stealth_order_id": stealth_order_id},
+    })
+
+
+def _stealth_post_write_execution_journal_payload_hash(
+    *,
+    endpoint: str,
+    stealth_order_id: str,
+    body: dict,
+    operator_intent: str = "stealth_post_write_execution_journal_contract_review",
+    roles: list[str] | None = None,
+) -> str:
+    return make_payload_hash({
+        "endpoint": endpoint,
+        "actor_id": "operator-001",
+        "roles": roles or [AdminApiRole.ADMIN.value],
+        "operator_intent": operator_intent,
+        "body": StealthPostWriteExecutionJournalRequest.model_validate(
             body
         ).model_dump(mode="json"),
         "path_params": {"stealth_order_id": stealth_order_id},
@@ -1967,6 +2004,48 @@ def _append_stealth_post_write_reconciliation_proof(
     return record
 
 
+def _append_stealth_post_write_execution_journal_acceptance(
+    *,
+    store: FileStealthPostWriteExecutionJournalStore,
+    proof_record: StealthPostWriteReconciliationProofRecord,
+    execution_journal_acceptance_id: str,
+) -> StealthPostWriteExecutionJournalAcceptanceRecord:
+    record = StealthPostWriteExecutionJournalAcceptanceRecord(
+        execution_journal_acceptance_id=execution_journal_acceptance_id,
+        post_write_reconciliation_proof_id=(
+            proof_record.post_write_reconciliation_proof_id
+        ),
+        stealth_order_id=proof_record.stealth_order_id,
+        guarded_command_route=proof_record.guarded_command_route,
+        guarded_command_method=proof_record.guarded_command_method,
+        guarded_service_method=proof_record.guarded_service_method,
+        guarded_mutation_family=proof_record.guarded_mutation_family,
+        guarded_actor_id=proof_record.guarded_actor_id,
+        guarded_operator_intent=proof_record.guarded_operator_intent,
+        guarded_idempotency_key=proof_record.guarded_idempotency_key,
+        guarded_payload_hash=proof_record.guarded_payload_hash,
+        post_write_execution_journal_ref=(
+            proof_record.post_write_execution_journal_ref
+        ),
+        evidence_source=proof_record.evidence_source,
+        reconciliation_plan_id=proof_record.reconciliation_plan_id,
+        approval_snapshot_id=proof_record.approval_snapshot_id,
+        admission_audit_id=proof_record.admission_audit_id,
+        cap_guard_decision_id=proof_record.cap_guard_decision_id,
+        actor_id="operator-001",
+        operator_intent="stealth_post_write_execution_journal_contract_review",
+        idempotency_key=f"idem-{execution_journal_acceptance_id}",
+        correlation_id=f"corr-{execution_journal_acceptance_id}",
+        payload_hash="8" * 64,
+        audit_id=f"audit-{execution_journal_acceptance_id}",
+        dry_run=True,
+        operator_reason="journal acceptance evidence only",
+        manual_live_acknowledgement=False,
+    )
+    store.append(record)
+    return record
+
+
 def _append_stealth_command_admission_chain(
     *,
     approval_store: FileAdminApiApprovalStore,
@@ -2519,11 +2598,47 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "properties"
     ]
     assert "execution_journal_accepted" in completion_verifier_schema["properties"]
+    assert "execution_journal_acceptance_id" in completion_verifier_schema[
+        "properties"
+    ]
+    assert "execution_journal_acceptance_found" in completion_verifier_schema[
+        "properties"
+    ]
+    assert "execution_journal_acceptance_safe" in completion_verifier_schema[
+        "properties"
+    ]
+    assert "execution_journal_acceptance_route" in completion_verifier_schema[
+        "properties"
+    ]
+    assert "execution_journal_acceptance_method" in completion_verifier_schema[
+        "properties"
+    ]
+    assert "execution_journal_acceptance_source" in completion_verifier_schema[
+        "properties"
+    ]
     assert "post_write_reconciliation_verified" in completion_verifier_schema[
         "properties"
     ]
     assert "missing_evidence" in completion_verifier_schema["properties"]
     assert "execution_allowed" in completion_verifier_schema["properties"]
+    assert "StealthPostWriteExecutionJournalRequest" in written["components"][
+        "schemas"
+    ]
+    assert "StealthPostWriteExecutionJournalReadResponse" in written["components"][
+        "schemas"
+    ]
+    assert "StealthPostWriteExecutionJournalRecordItem" in written["components"][
+        "schemas"
+    ]
+    assert (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals"
+        in written["paths"]
+    )
+    journal_path = written["paths"][
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals"
+    ]
+    assert "get" in journal_path
+    assert "post" in journal_path
     prerequisite_resolver_schema = written["components"]["schemas"][
         "StealthCreateLifecyclePrerequisiteResolverItem"
     ]
@@ -3788,6 +3903,7 @@ def _assert_stealth_post_write_completion_verifier(
     proof_id: str | None,
     exact_context_present: bool,
     proof_safe: bool = True,
+    journal_acceptance_id: str | None = None,
 ) -> None:
     assert verifier["boundary_type"] == (
         "stealth_post_write_reconciliation_completion_verifier"
@@ -3816,7 +3932,18 @@ def _assert_stealth_post_write_completion_verifier(
     assert verifier["post_write_proof_safe"] is proof_safe
     assert verifier["safe_post_write_proof_required"] is True
     assert verifier["execution_journal_required"] is True
-    assert verifier["execution_journal_accepted"] is False
+    journal_accepted = journal_acceptance_id is not None
+    assert verifier["execution_journal_accepted"] is journal_accepted
+    assert verifier["execution_journal_acceptance_id"] == journal_acceptance_id
+    assert verifier["execution_journal_acceptance_found"] is journal_accepted
+    assert verifier["execution_journal_acceptance_safe"] is journal_accepted
+    assert verifier["execution_journal_acceptance_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals"
+    )
+    assert verifier["execution_journal_acceptance_method"] == "POST"
+    assert verifier["execution_journal_acceptance_source"] == (
+        "admin_api_stealth_post_write_execution_journal_log"
+    )
     assert verifier["reconciliation_verification_required"] is True
     assert verifier["post_write_reconciliation_verified"] is False
     assert verifier["completion_proof_required"] is True
@@ -3826,10 +3953,9 @@ def _assert_stealth_post_write_completion_verifier(
         "accepted_execution_journal",
         "verified_post_write_reconciliation",
     ]
-    expected_missing = [
-        "accepted_execution_journal",
-        "verified_post_write_reconciliation",
-    ]
+    expected_missing = ["verified_post_write_reconciliation"]
+    if not journal_accepted:
+        expected_missing.insert(0, "accepted_execution_journal")
     if not proof_safe:
         expected_missing = [
             "safe_post_write_reconciliation_proof",
@@ -5980,7 +6106,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2861-2880"
+    assert readback_payload["approved_phase_range"] == "2881-2900"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -6194,7 +6320,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2861-2880"
+    assert readback_payload["approved_phase_range"] == "2881-2900"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7214,6 +7340,183 @@ def test_admin_api_stealth_post_write_reconciliation_proof_is_no_live_and_path_k
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_post_write_execution_journal_is_no_live_and_path_keyed(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-post-write-execution-journal-route-abc"
+    guarded_payload_hash = "a" * 64
+    proof_record = _append_stealth_post_write_reconciliation_proof(
+        store=client.admin_api_test_stealth_post_write_reconciliation_proof_store,
+        post_write_reconciliation_proof_id="stealth-post-write-proof-for-journal",
+        stealth_order_id=stealth_order_id,
+        guarded_command_route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+        guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+        guarded_operator_intent="guarded_reveal_post_write_journal",
+        guarded_idempotency_key="idem-guarded-reveal-post-write-journal",
+        guarded_payload_hash=guarded_payload_hash,
+        reconciliation_plan_id="stealth-post-write-journal-recon-plan",
+        approval_snapshot_id="stealth-post-write-journal-approval",
+        admission_audit_id="stealth-post-write-journal-admission-audit",
+        cap_guard_decision_id="stealth-post-write-journal-cap-guard",
+    )
+    journal_path = (
+        f"/api/v1/stealth/orders/{stealth_order_id}/"
+        "post-write-execution-journals"
+    )
+    journal_route = (
+        "/api/v1/stealth/orders/{stealth_order_id}/"
+        "post-write-execution-journals"
+    )
+    body = {
+        "stealth_order_id": stealth_order_id,
+        "post_write_reconciliation_proof_id": (
+            proof_record.post_write_reconciliation_proof_id
+        ),
+        "guarded_command_route": proof_record.guarded_command_route,
+        "guarded_command_method": proof_record.guarded_command_method,
+        "guarded_service_method": proof_record.guarded_service_method,
+        "guarded_mutation_family": proof_record.guarded_mutation_family.value,
+        "guarded_actor_id": proof_record.guarded_actor_id,
+        "guarded_operator_intent": proof_record.guarded_operator_intent,
+        "guarded_idempotency_key": proof_record.guarded_idempotency_key,
+        "guarded_payload_hash": proof_record.guarded_payload_hash,
+        "post_write_execution_journal_ref": (
+            proof_record.post_write_execution_journal_ref
+        ),
+        "evidence_source": proof_record.evidence_source.value,
+        "reconciliation_plan_id": proof_record.reconciliation_plan_id,
+        "approval_snapshot_id": proof_record.approval_snapshot_id,
+        "admission_audit_id": proof_record.admission_audit_id,
+        "cap_guard_decision_id": proof_record.cap_guard_decision_id,
+        "execution_journal_acceptance_id": (
+            "stealth-post-write-execution-journal-acceptance"
+        ),
+        "dry_run": True,
+        "operator_reason": "operator accepted append-only journal evidence",
+        "manual_live_acknowledgement": False,
+    }
+    idempotency_key = "idem-stealth-post-write-execution-journal"
+    operator_intent = "stealth_post_write_execution_journal_contract_review"
+    payload_hash = _stealth_post_write_execution_journal_payload_hash(
+        endpoint=f"POST {journal_path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        operator_intent=operator_intent,
+        roles=[AdminApiRole.ADMIN.value],
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=journal_route,
+        service_method="record_stealth_post_write_execution_journal",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.RECONCILIATION_RECORD,
+        approval_snapshot_id=proof_record.approval_snapshot_id,
+        admission_audit_id=proof_record.admission_audit_id,
+        cap_guard_decision_id=proof_record.cap_guard_decision_id,
+        reconciliation_plan_id=proof_record.reconciliation_plan_id,
+    )
+
+    response = client.post(
+        journal_path,
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["service_method"] == (
+        "record_stealth_post_write_execution_journal"
+    )
+    assert payload["required_permission"] == (
+        AdminApiPermission.RECONCILIATION_RECORD.value
+    )
+    assert payload["live_exchange_submitted"] is False
+    assert payload["data"]["journal_acceptance_persisted"] is True
+    assert payload["data"]["execution_journal_accepted"] is True
+    assert payload["data"]["post_write_reconciliation_verified"] is False
+    assert payload["data"]["post_write_reconciliation_proof_id"] == (
+        proof_record.post_write_reconciliation_proof_id
+    )
+    assert payload["data"]["guarded_mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value
+    )
+    assert payload["data"]["manager_invocation_ran"] is False
+    assert payload["data"]["reconciliation_execution_ran"] is False
+    assert payload["data"]["coinbase_rest_read_ran"] is False
+    assert payload["data"]["coinbase_order_submitted"] is False
+    assert payload["data"]["coinbase_order_cancel_submitted"] is False
+    assert payload["data"]["active_placement_cancel_replace_ran"] is False
+    assert payload["data"]["reconciliation_executed"] is False
+    assert payload["data"]["order_state_mutated"] is False
+    assert payload["data"]["lifecycle_state_mutated"] is False
+    assert payload["data"]["exchange_state_mutated"] is False
+    assert payload["data"]["live_coinbase_orders_ran"] is False
+    assert (
+        client.admin_api_test_stealth_post_write_execution_journal_store
+        .find_by_acceptance_id(
+            "stealth-post-write-execution-journal-acceptance"
+        )
+        is not None
+    )
+
+    readback = client.get(
+        journal_path,
+        headers=_headers(roles=AdminApiRole.ADMIN.value),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["type"] == "stealth_post_write_execution_journal"
+    assert readback_payload["stealth_order_id"] == stealth_order_id
+    assert readback_payload["persisted_acceptance_count"] == 1
+    assert readback_payload["accepted_execution_journal_count"] == 1
+    assert readback_payload["latest_execution_journal_acceptance_id"] == (
+        "stealth-post-write-execution-journal-acceptance"
+    )
+    assert readback_payload["latest_post_write_reconciliation_proof_id"] == (
+        proof_record.post_write_reconciliation_proof_id
+    )
+    assert readback_payload["execution_journal_accepted"] is True
+    assert readback_payload["post_write_reconciliation_verified"] is False
+    assert readback_payload["manager_invocation_ran"] is False
+    assert readback_payload["reconciliation_execution_ran"] is False
+    assert readback_payload["coinbase_rest_read_ran"] is False
+    assert readback_payload["coinbase_order_submitted"] is False
+    assert readback_payload["coinbase_order_cancel_submitted"] is False
+    assert readback_payload["reconciliation_executed"] is False
+    assert readback_payload["order_state_mutated"] is False
+    assert readback_payload["lifecycle_state_mutated"] is False
+    assert readback_payload["exchange_state_mutated"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["persisted_acceptances"][0][
+        "execution_journal_acceptance_id"
+    ] == "stealth-post-write-execution-journal-acceptance"
+
+    proof_readback = client.get(
+        (
+            f"/api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-reconciliation-proof"
+        ),
+        headers=_headers(roles=AdminApiRole.ADMIN.value),
+    )
+    assert proof_readback.status_code == 200
+    assert proof_readback.json()["execution_journal_accepted"] is True
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_cancel_replace_execution_contract_resolves_proof(
     monkeypatch,
 ):
@@ -7633,6 +7936,18 @@ def test_admin_api_stealth_reconciliation_execution_contract_resolves_proof(
             manual_live_acknowledgement=False,
         )
     )
+    post_write_proof_record = (
+        client.admin_api_test_stealth_post_write_reconciliation_proof_store
+        .find_by_proof_id("post-write-proof-reconciliation-exact-context")
+    )
+    assert post_write_proof_record is not None
+    _append_stealth_post_write_execution_journal_acceptance(
+        store=client.admin_api_test_stealth_post_write_execution_journal_store,
+        proof_record=post_write_proof_record,
+        execution_journal_acceptance_id=(
+            "post-write-journal-acceptance-reconciliation-exact-context"
+        ),
+    )
 
     response = client.post(
         path,
@@ -7707,6 +8022,9 @@ def test_admin_api_stealth_reconciliation_execution_contract_resolves_proof(
         identity_value=stealth_order_id,
         proof_id="post-write-proof-reconciliation-exact-context",
         exact_context_present=True,
+        journal_acceptance_id=(
+            "post-write-journal-acceptance-reconciliation-exact-context"
+        ),
     )
     assert (
         StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
@@ -8494,7 +8812,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2861-2880"
+    assert readback_payload["approved_phase_range"] == "2881-2900"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -8709,7 +9027,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2861-2880"
+    assert readback_payload["approved_phase_range"] == "2881-2900"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10936,7 +11254,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2861-2880"
+    assert payload["approved_phase_range"] == "2881-2900"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -12758,7 +13076,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2861-2880"
+    assert live_payload["approved_phase_range"] == "2881-2900"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -13321,7 +13639,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2861-2880"
+    assert enterprise_payload["approved_phase_range"] == "2881-2900"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -13919,7 +14237,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2861-2880"
+    assert recovery_preview_payload["approved_phase_range"] == "2881-2900"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

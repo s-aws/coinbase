@@ -40,6 +40,8 @@ Current route adapters:
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 - `POST /api/v1/stealth/orders`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move`
@@ -128,6 +130,19 @@ Current behavior:
   invoke `StealthOrderManager`, does not execute reconciliation, does not
   cancel/replace placements, does not mutate order/exchange/lifecycle state,
   and does not make the command live-executable.
+- `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
+  exposes read-only persisted post-write execution-journal acceptance evidence
+  keyed by `stealth_order_id`. It is readback only and does not execute or
+  verify reconciliation, invoke managers, call Coinbase, cancel/replace active
+  placements, mutate order/exchange/lifecycle state, or satisfy live execution
+  prerequisites.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
+  persists append-only local execution-journal acceptance evidence only when
+  it matches a safe post-write reconciliation proof and exact guarded command
+  context. The path `stealth_order_id` is the command identity. The route does
+  not execute or verify reconciliation, call Coinbase, invoke
+  `StealthOrderManager`, cancel/replace placements, mutate
+  order/exchange/lifecycle state, or make the command live-executable.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

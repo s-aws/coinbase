@@ -9,7 +9,8 @@ Keep it short. Keep it factual.
 - Updated by: Codex
 - Branch: main
 - Commit (optional): backend/frontend commit hashes pending for active range
-  `2861-2880`; completed range `2841-2860` is backend `b773dc42`,
+  `2881-2900`; completed range `2861-2880` is pending current commit,
+  completed range `2841-2860` is backend `b773dc42`,
   frontend `89971e8`.
 
 ## Current Objective
@@ -221,15 +222,15 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2861-2880`.
+- Active autonomous range: `2881-2900`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add explicit post-write completion verifier evidence to
-  create and non-create stealth execution contracts. A found proof id remains
-  insufficient until accepted execution-journal evidence and verified
-  post-write reconciliation are present. This must not run live Coinbase
-  reads/execution/cancels, invoke managers, mutate stealth/order/exchange
-  state, execute reconciliation, accept journals, verify reconciliation, or
-  grant frontend/BFF authority.
+- Current direction: add backend-owned post-write execution-journal
+  acceptance evidence to create and non-create stealth execution contracts. A
+  safe matching journal acceptance can satisfy only the accepted-journal part
+  of the completion verifier; verified post-write reconciliation remains
+  missing. This must not run live Coinbase reads/execution/cancels, invoke
+  managers, mutate stealth/order/exchange state, execute reconciliation,
+  verify reconciliation, or grant frontend/BFF authority.
 
 ## Decisions (Durable)
 
@@ -544,9 +545,9 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Finish backend/frontend `2861-2880` post-write completion verifier
-   contracts, display, docs, gates, and contextless reviews.
-2. Commit and push the synchronized backend/frontend 2861-2880 verifier work,
+1. Finish backend/frontend `2881-2900` post-write execution-journal
+   acceptance contracts, display, docs, gates, and contextless reviews.
+2. Commit and push the synchronized backend/frontend 2881-2900 journal work,
    then pause for user restart as requested.
 3. Keep contextless blind review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
@@ -692,11 +693,15 @@ Keep it short. Keep it factual.
   evidence remains backend-store read-only and cannot accept execution
   journals, verify reconciliation, execute Coinbase actions, invoke managers,
   mutate state, or grant browser/BFF authority.
-- What is active for M55 2861-2880: backend and frontend add explicit
+- What is completed for M55 2861-2880: backend and frontend added explicit
   post-write completion verifier evidence that reports proof id/safety,
-  missing accepted execution-journal evidence, missing verified
-  reconciliation, no-run flags, and display-only/forward-only authority while
-  keeping execution prerequisites unresolved.
+  accepted execution-journal requirements, missing verified reconciliation,
+  no-run flags, and display-only/forward-only authority while keeping
+  execution prerequisites unresolved.
+- What is active for M55 2881-2900: backend and frontend add
+  backend-owned execution-journal acceptance read/write evidence and display a
+  safe matching acceptance as evidence only while verified reconciliation and
+  execution prerequisites remain unresolved.
 - What is blocked: Nothing currently known.
-- Exact next command: finish backend/frontend 2861-2880 verifier gates, run
+- Exact next command: finish backend/frontend 2881-2900 journal gates, run
   contextless reviews, commit and push both repos, then pause for user restart.

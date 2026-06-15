@@ -262,14 +262,23 @@ post-write proof store for an exact command-context record. A found record is
 reported as evidence with `resolved_evidence_id`,
 `proof_lookup_authority=backend_store_read_only_no_execution`, and
 `missing_reason=post_write_reconciliation_proof_not_sufficient`; the
-prerequisite remains missing until a separately approved phase accepts the
-execution journal and verifies post-write reconciliation.
+prerequisite remains missing until accepted execution-journal evidence and
+verified post-write reconciliation are both present.
+The backend can now persist post-write execution-journal acceptance evidence
+through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
+and read it through the same path with `GET`. The writer is path-keyed by
+`stealth_order_id`, requires `reconciliation:record`, idempotency, operator
+intent, admission/audit/cap prerequisites, exact guarded command context, and
+no-live posture. It does not execute reconciliation, verify reconciliation,
+invoke managers, call Coinbase, cancel/replace placements, mutate
+lifecycle/order/exchange state, or authorize browser/BFF execution.
 Both exact create and non-create contracts may also include
 `post_write_completion_verifier_contract`. Workflows may display proof id,
-proof safety, missing `accepted_execution_journal`, missing
+proof safety, matching journal acceptance id when present, missing
 `verified_post_write_reconciliation`, no-run flags, state-mutation flags, and
-display/forward-only authority. The verifier is not journal acceptance,
-reconciliation verification, command enablement, Coinbase authority, manager
+display/forward-only authority. The verifier is not reconciliation
+verification, command enablement, Coinbase authority, manager
 authority, state-mutation authority, or BFF execution authority.
 Both contracts also include a nested `live_execution_adapter_contract` from
 the shared live-execution adapter evidence builder. Workflows may display its

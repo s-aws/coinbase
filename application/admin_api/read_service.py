@@ -134,6 +134,8 @@ from .models import (
     StealthMutationClaimSnapshotReadResponse,
     StealthCancelReplaceProofReadResponse,
     StealthCancelReplaceProofRecordItem,
+    StealthPostWriteExecutionJournalReadResponse,
+    StealthPostWriteExecutionJournalRecordItem,
     StealthPostWriteReconciliationProofReadResponse,
     StealthPostWriteReconciliationProofRecordItem,
     StealthRevealTriggerProofReadResponse,
@@ -239,15 +241,19 @@ from .stealth_cancel_replace_proof import (
     StealthCancelReplaceProofRecord,
 )
 from .stealth_post_write_reconciliation import (
+    FileStealthPostWriteExecutionJournalStore,
+    StealthPostWriteExecutionJournalAcceptanceRecord,
     FileStealthPostWriteReconciliationProofStore,
     StealthPostWriteReconciliationProofRecord,
+    is_safe_stealth_post_write_execution_journal_record,
+    post_write_execution_journal_matches_proof,
 )
 
 
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2861-2880"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2881-2900"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3528,6 +3534,79 @@ def _stealth_post_write_reconciliation_proof_item_from_record(
     )
 
 
+def _stealth_post_write_execution_journal_item_from_record(
+    record: StealthPostWriteExecutionJournalAcceptanceRecord,
+) -> StealthPostWriteExecutionJournalRecordItem:
+    return StealthPostWriteExecutionJournalRecordItem(
+        execution_journal_acceptance_id=record.execution_journal_acceptance_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        post_write_reconciliation_proof_id=(
+            record.post_write_reconciliation_proof_id
+        ),
+        stealth_order_id=record.stealth_order_id,
+        guarded_command_route=record.guarded_command_route,
+        guarded_command_method=record.guarded_command_method,
+        guarded_service_method=record.guarded_service_method,
+        guarded_mutation_family=record.guarded_mutation_family,
+        guarded_actor_id=record.guarded_actor_id,
+        guarded_operator_intent=record.guarded_operator_intent,
+        guarded_idempotency_key=record.guarded_idempotency_key,
+        guarded_payload_hash=record.guarded_payload_hash,
+        post_write_execution_journal_ref=record.post_write_execution_journal_ref,
+        evidence_source=record.evidence_source,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        journal_acceptance_persisted=record.journal_acceptance_persisted,
+        execution_journal_accepted=record.execution_journal_accepted,
+        post_write_reconciliation_verified=(
+            record.post_write_reconciliation_verified
+        ),
+        manager_invocation_ran=record.manager_invocation_ran,
+        reconciliation_execution_ran=record.reconciliation_execution_ran,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth post-write execution-journal acceptance is backend-owned "
+            "append-only evidence only. It accepts the recorded journal "
+            "reference for the exact proof context without invoking managers, "
+            "calling Coinbase, mutating lifecycle/order/exchange state, or "
+            "executing reconciliation."
+        ),
+    )
+
+
 def _spot_recovery_execution_item_from_record(
     record: SpotRecoveryExecutionRecord,
 ) -> SpotRecoveryExecutionRecordItem:
@@ -3751,6 +3830,9 @@ class AdminApiReadService:
         stealth_post_write_reconciliation_proof_store: (
             FileStealthPostWriteReconciliationProofStore | None
         ) = None,
+        stealth_post_write_execution_journal_store: (
+            FileStealthPostWriteExecutionJournalStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -3803,6 +3885,10 @@ class AdminApiReadService:
         self.stealth_post_write_reconciliation_proof_store = (
             stealth_post_write_reconciliation_proof_store
             or FileStealthPostWriteReconciliationProofStore()
+        )
+        self.stealth_post_write_execution_journal_store = (
+            stealth_post_write_execution_journal_store
+            or FileStealthPostWriteExecutionJournalStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -7960,6 +8046,65 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals",
+                mutation_id="stealth.post_write_execution_journal",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_POST_WRITE_EXECUTION_JOURNAL,
+                workflow_id="stealth.post_write_execution_journal_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth post-write execution-journal acceptance is "
+                    "append-only local evidence keyed by stealth_order_id, "
+                    "safe post-write proof id, and guarded command context; "
+                    "it does not verify reconciliation, execute "
+                    "reconciliation, invoke managers, call Coinbase, cancel "
+                    "or replace placements, mutate exchange state, or mutate "
+                    "lifecycle state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_post_write_execution_journal",
+                    "application/admin_api/command_service.py::record_stealth_post_write_execution_journal",
+                    "application/admin_api/stealth_post_write_reconciliation_service.py",
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthPostWriteExecutionJournal",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/examples/stealth-command-suite.md",
+                ],
+                required_next_contract=(
+                    "Future executable stealth command paths must still prove "
+                    "verified post-write reconciliation and completion; this "
+                    "journal acceptance route is local admission evidence only."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "post_write_reconciliation_not_verified",
+                    "reconciliation_execution_disabled",
+                    "completion_verifier_missing",
+                    "post-write reconciliation prerequisite unsatisfied",
+                ],
+                frontend_boundary=(
+                    "Do not use browser journal records as reconciliation "
+                    "verification, command enablement, manager authority, "
+                    "active-placement cancel/replace authority, Coinbase "
+                    "authority, or lifecycle mutation input."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard "
+                    "evidence; stealth post-write execution-journal "
+                    "acceptance is not sell authority or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -9620,15 +9765,31 @@ class AdminApiReadService:
     ) -> StealthPostWriteReconciliationProofReadResponse:
         """Return persisted no-live post-write reconciliation proof evidence."""
 
+        proof_records = (
+            self.stealth_post_write_reconciliation_proof_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=20,
+            )
+        )
         proofs = [
             _stealth_post_write_reconciliation_proof_item_from_record(record)
-            for record in (
-                self.stealth_post_write_reconciliation_proof_store.read_for_stealth_order_id(
-                    stealth_order_id,
-                    limit=20,
-                )
-            )
+            for record in proof_records
         ]
+        journal_records = (
+            self.stealth_post_write_execution_journal_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=100,
+            )
+        )
+        matching_journal_accepted = any(
+            is_safe_stealth_post_write_execution_journal_record(journal_record)
+            and post_write_execution_journal_matches_proof(
+                journal_record,
+                proof_record,
+            )
+            for proof_record in proof_records
+            for journal_record in journal_records
+        )
         latest_proof_id = (
             proofs[0].post_write_reconciliation_proof_id if proofs else None
         )
@@ -9657,7 +9818,7 @@ class AdminApiReadService:
             reconciliation_plan_build_allowed=False,
             reconciliation_plan_built=False,
             execution_journal_required=True,
-            execution_journal_accepted=False,
+            execution_journal_accepted=matching_journal_accepted,
             completion_proof_required=True,
             completion_proof_recorded=proof_records_created,
             reconciliation_execution_allowed=False,
@@ -9684,6 +9845,87 @@ class AdminApiReadService:
                 "journal, and completion references but do not invoke managers, "
                 "call Coinbase, mutate lifecycle/order/exchange state, execute "
                 "reconciliation, or satisfy the execution prerequisite yet."
+            ),
+        )
+
+    def build_stealth_post_write_execution_journals(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthPostWriteExecutionJournalReadResponse:
+        """Return persisted no-live post-write execution-journal acceptances."""
+
+        records = (
+            self.stealth_post_write_execution_journal_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=20,
+            )
+        )
+        acceptances = [
+            _stealth_post_write_execution_journal_item_from_record(record)
+            for record in records
+        ]
+        safe_acceptance_count = sum(
+            1
+            for record in records
+            if is_safe_stealth_post_write_execution_journal_record(record)
+        )
+        latest_acceptance_id = (
+            acceptances[0].execution_journal_acceptance_id
+            if acceptances
+            else None
+        )
+        latest_proof_id = (
+            acceptances[0].post_write_reconciliation_proof_id
+            if acceptances
+            else None
+        )
+        missing_contracts = [
+            "stealth_post_write_reconciliation_execution_executor",
+            "stealth_post_write_reconciliation_verification_record",
+        ]
+        return StealthPostWriteExecutionJournalReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            persisted_acceptance_count=len(acceptances),
+            accepted_execution_journal_count=safe_acceptance_count,
+            persisted_acceptances=acceptances,
+            latest_execution_journal_acceptance_id=latest_acceptance_id,
+            latest_post_write_reconciliation_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            execution_journal_required=True,
+            execution_journal_accepted=safe_acceptance_count > 0,
+            post_write_reconciliation_verified=False,
+            manager_invocation_allowed=False,
+            manager_invocation_ran=False,
+            reconciliation_execution_allowed=False,
+            reconciliation_execution_ran=False,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            active_placement_cancel_replace_ran=False,
+            reconciliation_required=True,
+            reconciliation_executed=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth post-write execution-journal acceptances are "
+                "backend-owned append-only evidence only. They accept a journal "
+                "reference for a stored proof context but do not invoke managers, "
+                "call Coinbase, mutate lifecycle/order/exchange state, execute "
+                "reconciliation, or verify post-write reconciliation."
             ),
         )
 

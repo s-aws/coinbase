@@ -38,97 +38,101 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Post-Write Completion Verifier Batch - Phases 2861-2880
+## Active M55 Execution-Journal Acceptance Batch - Phases 2881-2900
 
-These phases continue M55 after resolver awareness by adding an explicit
-backend-owned post-write completion verifier. The verifier must show that a
-found post-write proof id is not completion authority until an accepted
-execution journal and verified post-write reconciliation are separately
-present. This batch remains no-live and no-execution: no execution-journal
-acceptance, no reconciliation verification, no Coinbase submit/read/cancel,
-no manager invocation, no active-placement cancel/replace, no lifecycle/order/
-exchange state mutation, no browser/BFF authority, and no execution
-prerequisite satisfaction from proof evidence alone.
+These phases continue M55 by adding backend-owned append-only post-write
+execution-journal acceptance evidence. A safe journal acceptance may clear only
+`accepted_execution_journal` in the completion verifier. It must not verify
+post-write reconciliation, satisfy the execution prerequisite, call Coinbase,
+invoke managers, mutate lifecycle/order/exchange state, or give browser/BFF
+layers execution authority.
 
-### Phase 2861 - Advance Active Queue Range
+### Phase 2881 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2841-2860 to active phases 2861-2880 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2861-2880 to active phases 2881-2900 while preserving no-live defaults and cap policy.
 
-### Phase 2862 - Prior Range Completion Evidence
+### Phase 2882 - Prior Range Completion Evidence
 
-- Record phases 2841-2860 as completed resolver-awareness work with found proof evidence still blocked, unresolved, and no-authority.
+- Record phases 2861-2880 as completed verifier work with accepted journal and verified reconciliation evidence still missing.
 
-### Phase 2863 - Completion Verifier Model
+### Phase 2883 - Journal Acceptance Model
 
-- Add a typed post-write completion verifier contract that names safe proof, accepted execution journal, and verified reconciliation as required evidence.
+- Add typed journal acceptance request, command, record, readback, and enum contracts.
 
-### Phase 2864 - Shared Proof Safety Predicate
+### Phase 2884 - Journal Store And Safety Predicate
 
-- Centralize post-write proof no-live/no-mutation safety checks so create and non-create paths use one predicate.
+- Add a separate append-only journal acceptance store and safety predicate while preserving proof safety semantics.
 
-### Phase 2865 - Completion Verifier Builder
+### Phase 2885 - Journal Writer Service
 
-- Build fail-closed verifier evidence from exact command context and optional proof records without accepting journals, verifying reconciliation, or mutating state.
+- Add guarded journal writer validation against a safe exact post-write proof and existing admission prerequisites.
 
-### Phase 2866 - Non-Create Contract Wiring
+### Phase 2886 - Journal Route Inventory
 
-- Attach the verifier to non-create stealth execution contracts while keeping `post_write_reconciliation` unresolved.
+- Register GET/POST journal routes with route inventory permissions, idempotency, audit, and no-live parity.
 
-### Phase 2867 - Create Contract Wiring
+### Phase 2887 - Journal HTTP Routes
 
-- Attach the verifier to stealth create lifecycle-write execution contracts while keeping create execution blocked.
+- Add read and write route adapters through existing read and idempotent command services.
 
-### Phase 2868 - Missing Evidence Semantics
+### Phase 2888 - Verifier Journal Resolver
 
-- Report missing `accepted_execution_journal` and `verified_post_write_reconciliation` even when a safe proof id is found.
+- Resolve `accepted_execution_journal` only when a safe journal acceptance matches the exact proof context.
 
-### Phase 2869 - No-Live Authority Flags
+### Phase 2889 - Non-Create Contract Wiring
 
-- Expose verifier no-run flags for managers, Coinbase submit/cancel/read, cancel/replace, reconciliation execution, and state mutation.
+- Wire journal-store lookup into non-create stealth command execution contracts while keeping reconciliation unresolved.
 
-### Phase 2870 - OpenAPI Contract Sync
+### Phase 2890 - Create Contract Wiring
 
-- Regenerate and assert the Admin API OpenAPI schema includes the verifier model and nested contract fields.
+- Wire journal-store lookup into stealth create lifecycle execution contracts while keeping create blocked.
 
-### Phase 2871 - Backend Regression Coverage
+### Phase 2891 - Backend Readback Semantics
 
-- Cover create and non-create exact-context proof scenarios so the verifier remains blocked and proof evidence cannot satisfy execution.
+- Expose journal acceptance readback and proof-readback journal acceptance status without verified reconciliation.
 
-### Phase 2872 - Frontend Schema Sync
+### Phase 2892 - OpenAPI Contract Sync
 
-- Regenerate frontend API types from the backend OpenAPI artifact without hand-editing generated code.
+- Regenerate and assert OpenAPI plus route inventory artifacts for the new journal contracts and verifier fields.
 
-### Phase 2873 - Frontend Mock Contract Intake
+### Phase 2893 - Backend Regression Coverage
 
-- Update frontend mock create and non-create contracts with the completion verifier shape.
+- Cover journal POST/GET, exact verifier matching, unsafe/missing evidence, no-live flags, and unresolved reconciliation semantics.
 
-### Phase 2874 - Dry-Submit Verifier Display
+### Phase 2894 - Frontend Schema Sync
 
-- Render completion verifier status, missing evidence, journal/verification status, no-run proof, mutation flags, and authority.
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated code.
 
-### Phase 2875 - Frontend Unit Coverage
+### Phase 2895 - Frontend Client And Mock Intake
 
-- Cover verifier display and mock contract semantics in focused unit tests.
+- Add canonical wrappers, route metadata, mocks, and generated-contract tests for journal routes.
 
-### Phase 2876 - Documentation And Handoff Sync
+### Phase 2896 - Frontend Display
 
-- Update Admin API, command workflow, frontend API/mock docs, handoff, roadmap, and agent-state docs for completion verifier semantics.
+- Display journal acceptance id/found/safe/route/method/source and journal readback evidence.
 
-### Phase 2877 - Artifact And Validator Sync
+### Phase 2897 - Frontend Unit And Smoke Coverage
 
-- Update release readiness, deployment readiness, autonomous queue artifacts, examples, and tests for phases 2861-2880.
+- Cover frontend client, mocks, display, route coverage, and no-live release artifacts.
 
-### Phase 2878 - Focused Gates
+### Phase 2898 - Documentation And Handoff Sync
 
-- Run focused backend and frontend tests for verifier contracts, generated schema, mocks, rendering, and autonomous validators.
+- Update Admin API docs, examples, command workflow docs, stealth read docs, handoff, roadmap, and agent state.
 
-### Phase 2879 - Blind Contextless Reviews
+### Phase 2899 - Focused Gates And Blind Reviews
 
-- Run blind/contextless backend and frontend reviews asking whether a fresh agent can explain why the verifier stays blocked until accepted journal plus verified reconciliation.
+- Run focused backend/frontend gates and blind/contextless reviews for proof, journal acceptance, and verified reconciliation roles.
 
-### Phase 2880 - Full Gates, Commit, Push, And Pause
+### Phase 2900 - Full Gates, Commit, Push, And Pause
 
 - Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless review remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then pause for user restart.
+
+## Completed M55 Post-Write Completion Verifier Batch - Phases 2861-2880
+
+These phases added the explicit backend-owned post-write completion verifier.
+The verifier shows that a found post-write proof id is not completion authority
+until an accepted execution journal and verified post-write reconciliation are
+separately present. The batch stayed no-live and no-execution.
 
 ## Completed M55 Post-Write Resolver Awareness Batch - Phases 2841-2860
 

@@ -34,10 +34,12 @@ from .stealth_lifecycle_write import (
     StealthCreateLifecycleWriteGuardProofRecord,
 )
 from .stealth_post_write_reconciliation import (
+    FileStealthPostWriteExecutionJournalStore,
     FileStealthPostWriteReconciliationProofStore,
     StealthPostWriteReconciliationProofRecord,
     build_stealth_post_write_completion_verifier_contract,
     build_stealth_post_write_reconciliation_boundary,
+    find_matching_post_write_execution_journal_acceptance,
     is_safe_stealth_post_write_reconciliation_proof_record,
 )
 
@@ -126,6 +128,9 @@ def build_stealth_create_lifecycle_write_execution_contract(
     post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
     ) = None,
+    post_write_execution_journal_store: (
+        FileStealthPostWriteExecutionJournalStore | None
+    ) = None,
     resolved_prerequisites: list[str] | None = None,
 ) -> StealthCreateLifecycleWriteExecutionContractEvidence:
     """Build blocked execution-contract evidence for stealth create."""
@@ -172,6 +177,15 @@ def build_stealth_create_lifecycle_write_execution_contract(
         if post_write_reconciliation_proof_store is not None
         and stealth_order_id
         and admission_decision is not None
+        else None
+    )
+    post_write_execution_journal_record = (
+        find_matching_post_write_execution_journal_acceptance(
+            store=post_write_execution_journal_store,
+            proof_record=post_write_reconciliation_proof_record,
+        )
+        if post_write_execution_journal_store is not None
+        and post_write_reconciliation_proof_record is not None
         else None
     )
 
@@ -290,6 +304,7 @@ def build_stealth_create_lifecycle_write_execution_contract(
                 stealth_order_id=stealth_order_id,
                 admission_decision=admission_decision,
                 proof_record=post_write_reconciliation_proof_record,
+                execution_journal_record=post_write_execution_journal_record,
             )
         ),
         canonical_execution_path=[

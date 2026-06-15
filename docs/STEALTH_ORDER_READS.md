@@ -163,6 +163,15 @@ blocked after a proof id is found unless accepted execution-journal evidence
 and verified post-write reconciliation are separately present. It is
 display-only evidence and grants no command, Coinbase, reconciliation, state
 mutation, browser, or BFF authority.
+Post-write execution-journal acceptance evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
+and persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`.
+The writer stores backend-owned append-only evidence only when it matches a
+safe post-write reconciliation proof and exact guarded command context. It
+does not execute or verify reconciliation, invoke managers, call Coinbase,
+cancel/replace active placements, mutate lifecycle/order/exchange state, or
+authorize browser/BFF execution.
 Post-write reconciliation proof records are exposed through
 `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`
 and persisted through

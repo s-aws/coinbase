@@ -223,6 +223,25 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface=(
+            "GET /api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-execution-journals"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_post_write_execution_journals",
+        parity_test=(
+            "read-only post-write execution-journal acceptance evidence; no "
+            "manager invocation, Coinbase call, state mutation, or "
+            "reconciliation execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/command-suite",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -246,6 +265,25 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test=(
             "stealth_order_id identity; no reveal placement or lifecycle "
             "mutation until exchange-submission gates are complete"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-execution-journals"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.RECONCILIATION_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for accepted execution-journal evidence",
+        audit="required",
+        shared_method="record_stealth_post_write_execution_journal",
+        parity_test=(
+            "stealth_order_id identity; append-only journal acceptance only, "
+            "no manager invocation, Coinbase activity, reconciliation execution, "
+            "or lifecycle/order/exchange mutation"
         ),
     ),
     AdminApiRouteInventoryItem(

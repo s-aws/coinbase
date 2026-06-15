@@ -2718,21 +2718,22 @@ Current backend evidence:
   for the existing nested post-write boundary. The completed phases 2841-2860
   made create and non-create execution prerequisite resolvers aware of
   exact-context post-write proof records while keeping the prerequisite
-  unresolved. It now advances to phases 2861-2880 to add an explicit
-  post-write completion verifier that names accepted execution-journal
-  evidence and verified post-write reconciliation as separate missing gates.
+  unresolved. The completed phases 2861-2880 added an explicit post-write
+  completion verifier that names accepted execution-journal evidence and
+  verified post-write reconciliation as separate missing gates. It now advances
+  to phases 2881-2900 to add append-only backend-owned execution-journal
+  acceptance evidence that can clear only `accepted_execution_journal`.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Post-write completion verifier evidence is the active 2861-2880 slice. This
-  evidence may display exact-context proof ids, proof safety, missing accepted
-  execution-journal evidence, and missing verified post-write reconciliation,
-  but it must not satisfy execution prerequisites, accept execution journals,
-  verify reconciliation, resolve proof authority through the frontend, read
-  Coinbase, submit or cancel Coinbase orders, write `stealth_orders` or
-  `order_parent`, dispatch lifecycle events, invoke managers, mutate state,
-  execute reconciliation, resolve disabled live prerequisites, or grant
-  browser/BFF authority.
+- Execution-journal acceptance evidence is the active 2881-2900 slice. This
+  evidence may display exact-context proof ids, proof safety, accepted journal
+  ids, and remaining missing verified post-write reconciliation, but it must
+  not satisfy execution prerequisites, verify reconciliation, resolve proof or
+  journal authority through the frontend, read Coinbase, submit or cancel
+  Coinbase orders, write `stealth_orders` or `order_parent`, dispatch lifecycle
+  events, invoke managers, mutate state, execute reconciliation, resolve
+  disabled live prerequisites, or grant browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
   and post-write reconciliation execution remain blocked.

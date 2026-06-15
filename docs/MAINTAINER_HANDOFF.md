@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2861-2880`.
+- Active autonomous range: `2881-2900`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -369,12 +369,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   reconciliation proof evidence and readback. The completed 2841-2860 range
   made create and non-create execution prerequisite resolvers aware of
   exact-context post-write proof records while keeping
-  `post_write_reconciliation` missing. The active 2861-2880 range adds an
-  explicit post-write completion verifier that keeps proof ids insufficient
-  until accepted execution-journal evidence and verified post-write
-  reconciliation are present. It must not satisfy execution prerequisites,
-  resolve proof authority through the frontend, read or submit Coinbase
-  orders, invoke managers, write lifecycle rows, execute recovery or
+  `post_write_reconciliation` missing. The completed 2861-2880 range added an
+  explicit post-write completion verifier. The active 2881-2900 range adds
+  backend-owned post-write execution-journal acceptance evidence that can
+  satisfy only the journal-acceptance part of the verifier while verified
+  post-write reconciliation remains missing. It must not satisfy execution
+  prerequisites, resolve proof authority through the frontend, read or submit
+  Coinbase orders, invoke managers, write lifecycle rows, execute recovery or
   reconciliation, mutate state, or grant browser/BFF authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports

@@ -46,6 +46,9 @@ from application.admin_api.models import (
     StealthCreateRequest,
     StealthMoveCommand,
     StealthMoveRequest,
+    StealthPostWriteExecutionJournalCommand,
+    StealthPostWriteExecutionJournalReadResponse,
+    StealthPostWriteExecutionJournalRequest,
     StealthPostWriteReconciliationProofCommand,
     StealthPostWriteReconciliationProofReadResponse,
     StealthPostWriteReconciliationProofRequest,
@@ -236,6 +239,12 @@ def create_stealth_order(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        stealth_post_write_reconciliation_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
+        ),
+        stealth_post_write_execution_journal_store=(
+            service.dependencies.stealth_post_write_execution_journal_store_getter()
+        ),
         stealth_order_id=body.stealth_order_id,
         command_runner_with_admission=lambda admission_decision: service.create_stealth_order(
             StealthCreateCommand(
@@ -444,6 +453,28 @@ def get_stealth_post_write_reconciliation_proof(
 
 
 @router.get(
+    "/stealth/orders/{stealth_order_id}/post-write-execution-journals",
+    response_model=StealthPostWriteExecutionJournalReadResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth post-write execution-journal acceptance evidence by stealth_order_id",
+)
+def get_stealth_post_write_execution_journals(
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read post-write execution-journal acceptance evidence without execution."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_model_response(
+        StealthPostWriteExecutionJournalReadResponse,
+        service.build_stealth_post_write_execution_journals(
+            stealth_order_id=stealth_order_id
+        ),
+    )
+
+
+@router.get(
     "/stealth/command-suite",
     response_model=StealthCommandSuiteResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
@@ -539,6 +570,9 @@ def reveal_stealth_order_by_stealth_order_id(
         stealth_post_write_reconciliation_proof_store=(
             service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
         ),
+        stealth_post_write_execution_journal_store=(
+            service.dependencies.stealth_post_write_execution_journal_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reveal_stealth_order_by_stealth_order_id(
             StealthRevealCommand(
@@ -627,6 +661,9 @@ def move_stealth_order_by_stealth_order_id(
         stealth_post_write_reconciliation_proof_store=(
             service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
         ),
+        stealth_post_write_execution_journal_store=(
+            service.dependencies.stealth_post_write_execution_journal_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.move_stealth_order_by_stealth_order_id(
             StealthMoveCommand(
@@ -714,6 +751,9 @@ def cancel_stealth_order_by_stealth_order_id(
         ),
         stealth_post_write_reconciliation_proof_store=(
             service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
+        ),
+        stealth_post_write_execution_journal_store=(
+            service.dependencies.stealth_post_write_execution_journal_store_getter()
         ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.cancel_stealth_order_by_stealth_order_id(
@@ -806,6 +846,9 @@ def recover_stealth_order_by_stealth_order_id(
         stealth_post_write_reconciliation_proof_store=(
             service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
         ),
+        stealth_post_write_execution_journal_store=(
+            service.dependencies.stealth_post_write_execution_journal_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.recover_stealth_order_by_stealth_order_id(
             StealthRecoveryCommand(
@@ -893,6 +936,9 @@ def reconcile_stealth_order_by_stealth_order_id(
         ),
         stealth_post_write_reconciliation_proof_store=(
             service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
+        ),
+        stealth_post_write_execution_journal_store=(
+            service.dependencies.stealth_post_write_execution_journal_store_getter()
         ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reconcile_stealth_order_by_stealth_order_id(
@@ -1618,6 +1664,88 @@ def record_stealth_post_write_reconciliation_proof(
         command_runner_with_admission=lambda admission_decision: (
             service.record_stealth_post_write_reconciliation_proof(
                 StealthPostWriteReconciliationProofCommand(
+                    envelope=envelope,
+                    stealth_order_id=stealth_order_id,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
+        ),
+    )
+
+
+@router.post(
+    "/stealth/orders/{stealth_order_id}/post-write-execution-journals",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Record stealth post-write execution-journal acceptance evidence",
+)
+def record_stealth_post_write_execution_journal(
+    request: Request,
+    body: StealthPostWriteExecutionJournalRequest,
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for backend-owned no-live execution-journal acceptances."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope: AdminApiCommandEnvelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+        path_params={"stealth_order_id": stealth_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.RECONCILIATION_RECORD,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method="record_stealth_post_write_execution_journal",
+        route_template=(
+            "/api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-execution-journals"
+        ),
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        stealth_order_id=stealth_order_id,
+        command_runner_with_admission=lambda admission_decision: (
+            service.record_stealth_post_write_execution_journal(
+                StealthPostWriteExecutionJournalCommand(
                     envelope=envelope,
                     stealth_order_id=stealth_order_id,
                     request=body,

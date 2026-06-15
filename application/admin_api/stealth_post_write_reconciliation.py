@@ -41,6 +41,14 @@ POST_WRITE_RECONCILIATION_COMPLETION_REQUIRED_EVIDENCE: tuple[str, ...] = (
     "verified_post_write_reconciliation",
 )
 
+POST_WRITE_EXECUTION_JOURNAL_ROUTE = (
+    "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals"
+)
+POST_WRITE_EXECUTION_JOURNAL_METHOD = "POST"
+POST_WRITE_EXECUTION_JOURNAL_SOURCE = (
+    "admin_api_stealth_post_write_execution_journal_log"
+)
+
 
 class StealthPostWriteReconciliationProofRecord(BaseModel):
     """Append-only backend stealth post-write reconciliation proof evidence."""
@@ -94,6 +102,71 @@ class StealthPostWriteReconciliationProofRecord(BaseModel):
     completion_proof_recorded: bool = True
     manager_invocation_ran: bool = False
     reconciliation_plan_built: bool = False
+    reconciliation_execution_ran: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+
+
+class StealthPostWriteExecutionJournalAcceptanceRecord(BaseModel):
+    """Append-only backend acceptance evidence for a post-write journal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    execution_journal_acceptance_id: str = Field(min_length=1)
+    recorded_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    mutation_family: AdminApiMutationFamilyType = (
+        AdminApiMutationFamilyType.STEALTH_POST_WRITE_EXECUTION_JOURNAL
+    )
+    post_write_reconciliation_proof_id: str = Field(min_length=1)
+    stealth_order_id: str = Field(min_length=1)
+    guarded_command_route: str = Field(min_length=1)
+    guarded_command_method: str = "POST"
+    guarded_service_method: str = Field(min_length=1)
+    guarded_mutation_family: AdminApiMutationFamilyType
+    guarded_actor_id: str = Field(min_length=1)
+    guarded_operator_intent: str = Field(min_length=1)
+    guarded_idempotency_key: str = Field(min_length=1)
+    guarded_payload_hash: str = Field(min_length=64, max_length=64)
+    post_write_execution_journal_ref: str = Field(min_length=1)
+    evidence_source: StealthPostWriteReconciliationEvidenceSource
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    route: str = POST_WRITE_EXECUTION_JOURNAL_ROUTE
+    method: str = POST_WRITE_EXECUTION_JOURNAL_METHOD
+    module_id: str = "stealth_orders"
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission = AdminApiPermission.RECONCILIATION_RECORD
+    service_method: str = "record_stealth_post_write_execution_journal"
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    correlation_id: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str = Field(min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = POST_WRITE_EXECUTION_JOURNAL_SOURCE
+    journal_acceptance_persisted: bool = True
+    execution_journal_accepted: bool = True
+    post_write_reconciliation_verified: bool = False
+    manager_invocation_ran: bool = False
     reconciliation_execution_ran: bool = False
     coinbase_read_attempted: bool = False
     coinbase_read_succeeded: bool = False
@@ -182,6 +255,89 @@ class FileStealthPostWriteReconciliationProofStore:
         """Return recent post-write reconciliation proofs for one stealth order id."""
 
         records: list[StealthPostWriteReconciliationProofRecord] = []
+        for record in self.read_recent(limit=500):
+            if record.stealth_order_id != stealth_order_id:
+                continue
+            records.append(record)
+            if len(records) >= max(1, min(limit, 500)):
+                break
+        return records
+
+
+class FileStealthPostWriteExecutionJournalStore:
+    """Append-only JSONL stealth post-write execution-journal store."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get(
+                "COINBASE_ADMIN_API_STEALTH_POST_WRITE_EXECUTION_JOURNAL_LOG_PATH"
+            )
+            or Path("runtime_state")
+            / "admin_api_stealth_post_write_execution_journals.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(
+        self,
+        record: StealthPostWriteExecutionJournalAcceptanceRecord,
+    ) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.execution_journal_acceptance_id
+
+    def read_recent(
+        self,
+        *,
+        limit: int = 100,
+    ) -> list[StealthPostWriteExecutionJournalAcceptanceRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[StealthPostWriteExecutionJournalAcceptanceRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(
+                    StealthPostWriteExecutionJournalAcceptanceRecord.model_validate_json(
+                        line
+                    )
+                )
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def find_by_acceptance_id(
+        self,
+        execution_journal_acceptance_id: str,
+    ) -> StealthPostWriteExecutionJournalAcceptanceRecord | None:
+        """Return the latest execution-journal acceptance record for the id."""
+
+        for record in self.read_recent(limit=500):
+            if (
+                record.execution_journal_acceptance_id
+                == execution_journal_acceptance_id
+            ):
+                return record
+        return None
+
+    def read_for_stealth_order_id(
+        self,
+        stealth_order_id: str,
+        *,
+        limit: int = 100,
+    ) -> list[StealthPostWriteExecutionJournalAcceptanceRecord]:
+        """Return recent post-write journal acceptances for one stealth order id."""
+
+        records: list[StealthPostWriteExecutionJournalAcceptanceRecord] = []
         for record in self.read_recent(limit=500):
             if record.stealth_order_id != stealth_order_id:
                 continue
@@ -283,6 +439,77 @@ def is_safe_stealth_post_write_reconciliation_proof_record(
     )
 
 
+def is_safe_stealth_post_write_execution_journal_record(
+    record: StealthPostWriteExecutionJournalAcceptanceRecord,
+) -> bool:
+    """Return whether a journal acceptance is no-live/no-mutation evidence."""
+
+    return (
+        record.journal_acceptance_persisted is True
+        and record.execution_journal_accepted is True
+        and record.post_write_reconciliation_verified is False
+        and record.manager_invocation_ran is False
+        and record.reconciliation_execution_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
+def post_write_execution_journal_matches_proof(
+    record: StealthPostWriteExecutionJournalAcceptanceRecord,
+    proof_record: StealthPostWriteReconciliationProofRecord,
+) -> bool:
+    """Return whether an acceptance record is bound to the exact proof context."""
+
+    return (
+        record.post_write_reconciliation_proof_id
+        == proof_record.post_write_reconciliation_proof_id
+        and record.stealth_order_id == proof_record.stealth_order_id
+        and record.guarded_command_route == proof_record.guarded_command_route
+        and record.guarded_command_method == proof_record.guarded_command_method
+        and record.guarded_service_method == proof_record.guarded_service_method
+        and record.guarded_mutation_family == proof_record.guarded_mutation_family
+        and record.guarded_actor_id == proof_record.guarded_actor_id
+        and record.guarded_operator_intent == proof_record.guarded_operator_intent
+        and record.guarded_idempotency_key == proof_record.guarded_idempotency_key
+        and record.guarded_payload_hash == proof_record.guarded_payload_hash
+        and record.post_write_execution_journal_ref
+        == proof_record.post_write_execution_journal_ref
+        and record.reconciliation_plan_id == proof_record.reconciliation_plan_id
+        and record.approval_snapshot_id == proof_record.approval_snapshot_id
+        and record.admission_audit_id == proof_record.admission_audit_id
+        and record.cap_guard_decision_id == proof_record.cap_guard_decision_id
+    )
+
+
+def find_matching_post_write_execution_journal_acceptance(
+    *,
+    store: FileStealthPostWriteExecutionJournalStore,
+    proof_record: StealthPostWriteReconciliationProofRecord,
+) -> StealthPostWriteExecutionJournalAcceptanceRecord | None:
+    """Return the latest acceptance record for an exact post-write proof."""
+
+    for record in store.read_for_stealth_order_id(
+        proof_record.stealth_order_id,
+        limit=500,
+    ):
+        if post_write_execution_journal_matches_proof(record, proof_record):
+            return record
+    return None
+
+
 def build_stealth_post_write_completion_verifier_contract(
     *,
     mutation_family: AdminApiMutationFamilyType,
@@ -291,6 +518,9 @@ def build_stealth_post_write_completion_verifier_contract(
     stealth_order_id: str | None,
     admission_decision: AdminLiveAdmissionDecisionEvidence | None,
     proof_record: StealthPostWriteReconciliationProofRecord | None,
+    execution_journal_record: (
+        StealthPostWriteExecutionJournalAcceptanceRecord | None
+    ) = None,
 ) -> StealthPostWriteReconciliationCompletionVerifierEvidence:
     """Build fail-closed completion verifier evidence for post-write reconciliation."""
 
@@ -299,10 +529,21 @@ def build_stealth_post_write_completion_verifier_contract(
         proof_record is not None
         and is_safe_stealth_post_write_reconciliation_proof_record(proof_record)
     )
+    execution_journal_safe = (
+        execution_journal_record is not None
+        and proof_record is not None
+        and post_write_execution_journal_matches_proof(
+            execution_journal_record,
+            proof_record,
+        )
+        and is_safe_stealth_post_write_execution_journal_record(
+            execution_journal_record
+        )
+    )
     missing_evidence: list[str] = []
     if not proof_safe:
         missing_evidence.append("safe_post_write_reconciliation_proof")
-    if proof_record is None or proof_record.execution_journal_accepted is False:
+    if not execution_journal_safe:
         missing_evidence.append("accepted_execution_journal")
     if (
         proof_record is None
@@ -341,10 +582,18 @@ def build_stealth_post_write_completion_verifier_contract(
         ),
         post_write_proof_found=proof_record is not None,
         post_write_proof_safe=proof_safe,
-        execution_journal_accepted=(
-            proof_record.execution_journal_accepted
-            if proof_record is not None
-            else False
+        execution_journal_accepted=execution_journal_safe,
+        execution_journal_acceptance_id=(
+            execution_journal_record.execution_journal_acceptance_id
+            if execution_journal_record is not None
+            else None
+        ),
+        execution_journal_acceptance_found=execution_journal_record is not None,
+        execution_journal_acceptance_safe=execution_journal_safe,
+        execution_journal_acceptance_route=POST_WRITE_EXECUTION_JOURNAL_ROUTE,
+        execution_journal_acceptance_method=POST_WRITE_EXECUTION_JOURNAL_METHOD,
+        execution_journal_acceptance_source=(
+            POST_WRITE_EXECUTION_JOURNAL_SOURCE
         ),
         post_write_reconciliation_verified=(
             proof_record.post_write_reconciliation_verified
