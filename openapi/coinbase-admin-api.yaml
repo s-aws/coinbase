@@ -19998,6 +19998,159 @@ components:
       - detail
       title: StealthCommandSuiteAdmissionRequirementItem
       description: One backend-owned evidence requirement for a stealth command admission.
+    StealthCommandSuiteCancelReplaceBoundaryItem:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        command_identity_key:
+          type: string
+          title: Command Identity Key
+          default: stealth_order_id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        cancel_replace_required:
+          type: boolean
+          title: Cancel Replace Required
+          default: true
+        cancel_replace_allowed:
+          type: boolean
+          title: Cancel Replace Allowed
+          default: false
+        cancel_replace_ran:
+          type: boolean
+          title: Cancel Replace Ran
+          default: false
+        active_placement_exchange_truth_required:
+          type: boolean
+          title: Active Placement Exchange Truth Required
+          default: true
+        active_placement_exchange_truth_resolved:
+          type: boolean
+          title: Active Placement Exchange Truth Resolved
+          default: false
+        accepted_command_identity_keys:
+          items:
+            type: string
+          type: array
+          title: Accepted Command Identity Keys
+        rejected_command_identity_keys:
+          items:
+            type: string
+          type: array
+          title: Rejected Command Identity Keys
+        active_placement_client_order_id_authority:
+          type: string
+          title: Active Placement Client Order Id Authority
+          default: evidence_only
+        exchange_order_id_authority:
+          type: string
+          title: Exchange Order Id Authority
+          default: evidence_only
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        required_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Contracts
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        canonical_behavior_path:
+          items:
+            type: string
+          type: array
+          title: Canonical Behavior Path
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        coinbase_cancel_ran:
+          type: boolean
+          title: Coinbase Cancel Ran
+          default: false
+        coinbase_submit_ran:
+          type: boolean
+          title: Coinbase Submit Ran
+          default: false
+        coinbase_read_ran:
+          type: boolean
+          title: Coinbase Read Ran
+          default: false
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - route
+      - method
+      - detail
+      title: StealthCommandSuiteCancelReplaceBoundaryItem
+      description: Backend-owned cancel/replace prerequisite boundary for revealed
+        placements.
     StealthCommandSuiteCommandItem:
       properties:
         mutation_family:
@@ -20569,6 +20722,19 @@ components:
             $ref: '#/components/schemas/StealthCommandSuiteExchangeTruthItem'
           type: array
           title: Exchange Truth Checks
+        cancel_replace_boundary_count:
+          type: integer
+          title: Cancel Replace Boundary Count
+          default: 0
+        blocking_cancel_replace_boundary_count:
+          type: integer
+          title: Blocking Cancel Replace Boundary Count
+          default: 0
+        cancel_replace_boundaries:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteCancelReplaceBoundaryItem'
+          type: array
+          title: Cancel Replace Boundaries
         admission_readiness_count:
           type: integer
           title: Admission Readiness Count

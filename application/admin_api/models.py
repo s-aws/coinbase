@@ -4807,6 +4807,48 @@ class StealthCommandSuiteExchangeTruthItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteCancelReplaceBoundaryItem(BaseModel):
+    """Backend-owned cancel/replace prerequisite boundary for revealed placements."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    route: str
+    method: str
+    identity_key: str = "stealth_order_id"
+    command_identity_key: str = "stealth_order_id"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    cancel_replace_required: bool = True
+    cancel_replace_allowed: bool = False
+    cancel_replace_ran: bool = False
+    active_placement_exchange_truth_required: bool = True
+    active_placement_exchange_truth_resolved: bool = False
+    accepted_command_identity_keys: list[str] = Field(default_factory=list)
+    rejected_command_identity_keys: list[str] = Field(default_factory=list)
+    active_placement_client_order_id_authority: str = "evidence_only"
+    exchange_order_id_authority: str = "evidence_only"
+    required_gate_chain: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    canonical_behavior_path: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    coinbase_cancel_ran: bool = False
+    coinbase_submit_ran: bool = False
+    coinbase_read_ran: bool = False
+    reconciliation_required: bool = True
+    reconciliation_executed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class StealthCommandSuiteAdmissionRequirementItem(BaseModel):
     """One backend-owned evidence requirement for a stealth command admission."""
 
@@ -5154,6 +5196,11 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     active_placement_exchange_truth_required_count: int = 0
     exchange_truth_checks: list[StealthCommandSuiteExchangeTruthItem] = Field(
         default_factory=list
+    )
+    cancel_replace_boundary_count: int = 0
+    blocking_cancel_replace_boundary_count: int = 0
+    cancel_replace_boundaries: list[StealthCommandSuiteCancelReplaceBoundaryItem] = (
+        Field(default_factory=list)
     )
     admission_readiness_count: int = 0
     blocking_admission_readiness_count: int = 0

@@ -26,6 +26,10 @@ The route requires Admin API authentication and `analytics:read`. It returns
   `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   plus backend-owned snapshot/proof writer contracts for route-bound local
   evidence
+- `cancel_replace_boundaries` rows for cancel, move, and reprice that name
+  the canonical future backend behavior path, required proof contracts,
+  accepted/rejected identities, and no-live/no-mutation flags without
+  invoking managers or Coinbase
 - `admission_readiness` rows that bind each command route to required
   backend proof evidence: approval request, approval decision, admission
   audit, cap/guard decision, reconciliation plan, active-placement exchange
@@ -103,6 +107,12 @@ Active-placement exchange-truth snapshot/proof writer routes persist local
 evidence only after backend admission prerequisites match. They do not verify
 exchange truth, read Coinbase, cancel/replace active placements, execute
 reconciliation, mutate lifecycle state, or grant browser/BFF proof authority.
+Cancel/replace boundary rows are blocked read evidence for cancel, move, and
+reprice. They name the single future backend path that must be used after
+approval, admission-audit, cap/guard, reconciliation-plan, and active-placement
+proofs exist. They do not call Coinbase, invoke `StealthOrderManager`, build
+or execute move/reprice plans, cancel/replace placements, mutate lifecycle,
+order, or exchange state, or grant browser/BFF authority.
 Admission-readiness rows are blocked read evidence over the same backend proof
 chain. They do not approve admission, execute commands, read Coinbase, invoke
 `StealthOrderManager`, cancel/replace active placements, execute
@@ -157,6 +167,11 @@ execution authority.
   only. They keep `exchange_truth_verified=false` and must not be converted
   into Coinbase read authority, cancel/replace behavior, reconciliation
   execution, lifecycle mutation, or browser/BFF exchange-truth authority.
+- `cancel_replace_boundaries` is traceability evidence only. It does not close
+  missing cancel/replace proof contracts and must not be converted into
+  Coinbase cancel/submit/read authority, manager invocation, move/reprice
+  execution, lifecycle/order/exchange-state mutation, reconciliation
+  execution, command enablement, or BFF execution authority.
 - `admission_readiness` is blocked read evidence only. It must not be
   converted into approval, execution, reconciliation, Coinbase reads,
   `StealthOrderManager` invocation, active-placement cancel/replace behavior,

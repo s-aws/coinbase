@@ -2392,6 +2392,18 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "exchange_truth_required" in stealth_command_suite_schema["properties"]
     assert "exchange_truth_checks" in stealth_command_suite_schema["properties"]
     assert "exchange_truth_check_count" in stealth_command_suite_schema["properties"]
+    assert "cancel_replace_boundaries" in stealth_command_suite_schema["properties"]
+    assert "cancel_replace_boundary_count" in stealth_command_suite_schema["properties"]
+    assert "StealthCommandSuiteCancelReplaceBoundaryItem" in written["components"][
+        "schemas"
+    ]
+    cancel_replace_boundary_schema = written["components"]["schemas"][
+        "StealthCommandSuiteCancelReplaceBoundaryItem"
+    ]
+    assert "canonical_behavior_path" in cancel_replace_boundary_schema["properties"]
+    assert "coinbase_cancel_ran" in cancel_replace_boundary_schema["properties"]
+    assert "manager_invocation_allowed" in cancel_replace_boundary_schema["properties"]
+    assert "lifecycle_state_mutated" in cancel_replace_boundary_schema["properties"]
     movement_item_schema = written["components"]["schemas"][
         "AdminMovementRepricingEvidenceItem"
     ]
@@ -8785,6 +8797,8 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["exchange_truth_check_count"] == 7
     assert payload["blocking_exchange_truth_check_count"] == 7
     assert payload["active_placement_exchange_truth_required_count"] == 5
+    assert payload["cancel_replace_boundary_count"] == 3
+    assert payload["blocking_cancel_replace_boundary_count"] == 3
     assert payload["admission_readiness_count"] == 7
     assert payload["blocking_admission_readiness_count"] == 7
     assert payload["exchange_truth_required"] is True
@@ -9133,6 +9147,70 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert "active_placement_exchange_truth" in exchange_truth_checks[route][
             "required_gate_chain"
         ]
+    cancel_replace_boundaries = {
+        item["route"]: item for item in payload["cancel_replace_boundaries"]
+    }
+    assert set(cancel_replace_boundaries) == {
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        "/api/v1/stealth/orders/{stealth_order_id}/move",
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+    }
+    expected_cancel_replace_contract = {
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel": (
+            AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+            "stealth_cancel_active_placement_cancel_proof",
+        ),
+        "/api/v1/stealth/orders/{stealth_order_id}/move": (
+            AdminApiMutationFamilyType.STEALTH_MOVE.value,
+            "stealth_move_active_placement_cancel_replace_proof",
+        ),
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice": (
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+            "stealth_reprice_active_placement_cancel_replace_proof",
+        ),
+    }
+    for route, boundary in cancel_replace_boundaries.items():
+        mutation_family, required_contract = expected_cancel_replace_contract[route]
+        assert boundary["mutation_family"] == mutation_family
+        assert boundary["identity_key"] == "stealth_order_id"
+        assert boundary["command_identity_key"] == "stealth_order_id"
+        assert boundary["status"] == AdminApiGateStatus.BLOCKED.value
+        assert boundary["cancel_replace_required"] is True
+        assert boundary["cancel_replace_allowed"] is False
+        assert boundary["cancel_replace_ran"] is False
+        assert boundary["active_placement_exchange_truth_required"] is True
+        assert boundary["active_placement_exchange_truth_resolved"] is False
+        assert boundary["accepted_command_identity_keys"] == ["stealth_order_id"]
+        assert "client_order_id" in boundary["rejected_command_identity_keys"]
+        assert "active_placement_client_order_id" in boundary[
+            "rejected_command_identity_keys"
+        ]
+        assert "exchange_order_id" in boundary["rejected_command_identity_keys"]
+        assert "order_id" in boundary["rejected_command_identity_keys"]
+        assert boundary["active_placement_client_order_id_authority"] == "evidence_only"
+        assert boundary["exchange_order_id_authority"] == "evidence_only"
+        assert "active_placement_exchange_truth" in boundary["required_gate_chain"]
+        assert "cancel_replace_proof" in boundary["required_gate_chain"]
+        assert "post_live_reconciliation" in boundary["required_gate_chain"]
+        assert required_contract in boundary["required_contracts"]
+        assert boundary["required_contracts"] == boundary["missing_contracts"]
+        assert boundary["canonical_behavior_path"]
+        assert boundary["backend_owned"] is True
+        assert boundary["route_bound"] is True
+        assert boundary["browser_authority"] == "display_only"
+        assert boundary["bff_authority"] == "forward_only_no_execution"
+        assert boundary["manager_invocation_allowed"] is False
+        assert boundary["manager_invocation_ran"] is False
+        assert boundary["coinbase_cancel_ran"] is False
+        assert boundary["coinbase_submit_ran"] is False
+        assert boundary["coinbase_read_ran"] is False
+        assert boundary["reconciliation_required"] is True
+        assert boundary["reconciliation_executed"] is False
+        assert boundary["lifecycle_state_mutated"] is False
+        assert boundary["order_state_mutated"] is False
+        assert boundary["exchange_state_mutated"] is False
+        assert boundary["documentation_refs"]
+        assert "boundary evidence only" in boundary["detail"]
     admission_readiness = {
         item["route"]: item for item in payload["admission_readiness"]
     }

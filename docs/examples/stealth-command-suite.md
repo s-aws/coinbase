@@ -31,6 +31,8 @@ Expected posture:
   "exchange_truth_check_count": 7,
   "blocking_exchange_truth_check_count": 7,
   "active_placement_exchange_truth_required_count": 5,
+  "cancel_replace_boundary_count": 3,
+  "blocking_cancel_replace_boundary_count": 3,
   "admission_readiness_count": 7,
   "blocking_admission_readiness_count": 7,
   "browser_authority": "display_only",
@@ -489,6 +491,73 @@ and reprice rows require `active_placement_exchange_truth`. The ledger does
 not approve commands, execute commands, read Coinbase, call
 `StealthOrderManager`, cancel/replace placements, execute reconciliation,
 mutate state, or grant browser/BFF authority.
+
+The `cancel_replace_boundaries` array gives cancel, move, and reprice one
+shared blocked evidence shape. It is not a cancel/replace executor:
+
+```json
+{
+  "mutation_family": "stealth_move",
+  "route": "/api/v1/stealth/orders/{stealth_order_id}/move",
+  "method": "POST",
+  "identity_key": "stealth_order_id",
+  "command_identity_key": "stealth_order_id",
+  "status": "blocked",
+  "cancel_replace_required": true,
+  "cancel_replace_allowed": false,
+  "cancel_replace_ran": false,
+  "active_placement_exchange_truth_required": true,
+  "active_placement_exchange_truth_resolved": false,
+  "accepted_command_identity_keys": ["stealth_order_id"],
+  "rejected_command_identity_keys": [
+    "client_order_id",
+    "active_placement_client_order_id",
+    "exchange_order_id",
+    "order_id"
+  ],
+  "required_gate_chain": [
+    "idempotency",
+    "operator_intent",
+    "payload_hash",
+    "approval_snapshot",
+    "admission_audit",
+    "cap_guard_decision",
+    "reconciliation_plan",
+    "active_placement_exchange_truth",
+    "cancel_replace_proof",
+    "post_live_reconciliation"
+  ],
+  "missing_contracts": [
+    "stealth_active_placement_exchange_truth_proof_contract",
+    "stealth_move_mutation_claim_snapshot_contract",
+    "stealth_move_active_placement_cancel_replace_proof",
+    "stealth_move_reconciliation_proof"
+  ],
+  "canonical_behavior_path": [
+    "api/v1/routes/stealth.py::move_stealth_order_by_stealth_order_id",
+    "application/admin_api/command_service.py::move_stealth_order_by_stealth_order_id",
+    "core/stealth_order_manager.py::build_stealth_move_plan",
+    "core/stealth_order_manager.py::execute_stealth_move",
+    "existing cancel/replace path only after mutation claim and active-placement proof"
+  ],
+  "manager_invocation_allowed": false,
+  "manager_invocation_ran": false,
+  "coinbase_cancel_ran": false,
+  "coinbase_submit_ran": false,
+  "coinbase_read_ran": false,
+  "reconciliation_executed": false,
+  "lifecycle_state_mutated": false,
+  "order_state_mutated": false,
+  "exchange_state_mutated": false,
+  "browser_authority": "display_only",
+  "bff_authority": "forward_only_no_execution"
+}
+```
+
+These rows only describe the future backend-owned boundary. They do not call
+Coinbase, invoke `StealthOrderManager`, build or execute move/reprice plans,
+cancel/replace active placements, mutate state, execute reconciliation, or
+grant browser/BFF authority.
 `context_requirements` separates static route metadata from the exact command
 envelope. Route fields are present for display, but `stealth_order_id`,
 `actor_id`, `idempotency_key`, `operator_intent`, and `payload_hash` are
