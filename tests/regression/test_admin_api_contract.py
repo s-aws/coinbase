@@ -79,6 +79,7 @@ from application.admin_api.stealth_exchange_truth import (
 )
 from application.admin_api.stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
+    StealthCreateLifecycleWriteGuardProofRecord,
 )
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -106,6 +107,7 @@ from application.admin_api.models import (
     SpotRecoveryRollbackExecutionRequest,
     StealthActivePlacementExchangeTruthProofRequest,
     StealthActivePlacementExchangeTruthSnapshotRequest,
+    StealthCreateRequest,
     StealthCreateLifecycleWriteGuardProofRequest,
 )
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
@@ -141,6 +143,7 @@ from core.enums import (
     StealthLifecycleWriteGuardEvidenceSource,
     StealthCreateLifecycleExecutionBlocker,
     StealthCreateLifecycleExecutionPrerequisite,
+    StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
@@ -1486,6 +1489,156 @@ def _append_stealth_lifecycle_write_guard_admission_chain(
     return approval, audit_event, cap_guard, reconciliation
 
 
+def _append_stealth_create_admission_chain(
+    *,
+    approval_store: FileAdminApiApprovalStore,
+    audit_store: FileAdminApiAuditStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
+    reconciliation_store: FileAdminApiReconciliationStore,
+    stealth_order_id: str,
+    idempotency_key: str,
+    operator_intent: str,
+    payload_hash: str,
+    approval_snapshot_id: str,
+    admission_audit_id: str,
+    cap_guard_decision_id: str,
+    reconciliation_plan_id: str,
+) -> tuple[AdminApiApprovalRecord, AdminApiAuditEvent, CapGuardDecisionRecord, ReconciliationPlanRecord]:
+    now = datetime.now(timezone.utc)
+    route = "/api/v1/stealth/orders"
+    service_method = "create_stealth_order"
+    approval = AdminApiApprovalRecord(
+        approval_id=approval_snapshot_id,
+        expires_at=now + timedelta(minutes=5),
+        approved_by_actor_id="approver-001",
+        requested_by_actor_id="operator-001",
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        cap_guard_decision_ref=cap_guard_decision_id,
+        reconciliation_plan_ref=reconciliation_plan_id,
+    )
+    approval_store.append(approval)
+    admission_decision = AdminLiveAdmissionDecisionEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        allowed=False,
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method=service_method,
+        actor_id="operator-001",
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_required=True,
+        approval_store_required=True,
+        admission_audit_required=True,
+        cap_guard_required=True,
+        reconciliation_required=True,
+        approval_snapshot_present=True,
+        approval_snapshot_id=approval_snapshot_id,
+        approval_snapshot_source="approval_store",
+        approval_snapshot_approved_by_actor_id=approval.approved_by_actor_id,
+        approval_snapshot_requested_by_actor_id=approval.requested_by_actor_id,
+        approval_snapshot_expires_at=approval.expires_at.isoformat(),
+        admission_audit_present=False,
+        cap_guard_present=False,
+        reconciliation_plan_present=False,
+        browser_authority="rejected",
+        live_exchange_submitted=False,
+        blockers=[
+            AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+            AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+        ],
+        evidence=["prior append-only stealth create admission audit"],
+        detail="Prior backend-owned stealth create admission audit.",
+    )
+    audit_event = AdminApiAuditEvent(
+        audit_id=admission_audit_id,
+        actor_id="operator-001",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        endpoint=f"POST {route}",
+        request_id="corr-stealth-create-admission",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        approval_id=approval_snapshot_id,
+        stealth_order_id=stealth_order_id,
+        status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+        failure_stage="approval",
+        message="Prior stealth create admission audit.",
+        admission_decision=admission_decision,
+    )
+    audit_store.append(audit_event)
+    cap_guard = CapGuardDecisionRecord(
+        decision_id=cap_guard_decision_id,
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method=service_method,
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        approval_snapshot_id=approval_snapshot_id,
+        admission_audit_id=admission_audit_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        cap_policy_ref="stealth_create_cap:local_only",
+        guard_policy_ref="stealth_create_prerequisites",
+        product_scope="stealth create command scope",
+        max_submitted_notional_usdc="0",
+        max_executed_notional_usdc="0",
+        reason="Exact backend-owned stealth create cap/guard evidence.",
+    )
+    cap_guard_store.append(cap_guard)
+    reconciliation = ReconciliationPlanRecord(
+        plan_id=reconciliation_plan_id,
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method=service_method,
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        approval_snapshot_id=approval_snapshot_id,
+        admission_audit_id=admission_audit_id,
+        cap_guard_decision_id=cap_guard_decision_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        reconciliation_policy_ref="stealth_create_reconciliation",
+        product_scope="stealth create command scope",
+        exchange_submission_required=False,
+        post_submit_reconciliation_required=False,
+        retained_inventory_required=True,
+        max_submitted_notional_usdc="0",
+        max_executed_notional_usdc="0",
+        reason="Exact backend-owned stealth create reconciliation plan.",
+    )
+    reconciliation_store.append(reconciliation)
+    return approval, audit_event, cap_guard, reconciliation
+
+
 def _append_spot_recovery_apply_audit(
     *,
     audit_store: FileAdminApiAuditStore,
@@ -1816,12 +1969,26 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "execution_allowed" in execution_contract_schema["properties"]
     assert "exact_command_context_present" in execution_contract_schema["properties"]
     assert "missing_prerequisites" in execution_contract_schema["properties"]
+    assert "resolved_prerequisites" in execution_contract_schema["properties"]
+    assert "prerequisite_resolver_lookup_ran" in execution_contract_schema[
+        "properties"
+    ]
+    assert "prerequisite_resolution" in execution_contract_schema["properties"]
     assert "manager_invocation_ran" in execution_contract_schema["properties"]
     assert "stealth_row_write_ran" in execution_contract_schema["properties"]
     assert "order_parent_write_ran" in execution_contract_schema["properties"]
     assert "coinbase_order_submit_ran" in execution_contract_schema["properties"]
     assert "live_coinbase_read_ran" in execution_contract_schema["properties"]
     assert "reconciliation_executed" in execution_contract_schema["properties"]
+    assert "StealthCreateLifecyclePrerequisiteResolverItem" in written[
+        "components"
+    ]["schemas"]
+    prerequisite_resolver_schema = written["components"]["schemas"][
+        "StealthCreateLifecyclePrerequisiteResolverItem"
+    ]
+    assert "lookup_status" in prerequisite_resolver_schema["properties"]
+    assert "resolved_evidence_id" in prerequisite_resolver_schema["properties"]
+    assert "authority" in prerequisite_resolver_schema["properties"]
     stealth_create_request_schema = written["components"]["schemas"][
         "StealthCreateRequest"
     ]
@@ -3042,6 +3209,33 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
     assert execution_contract["execution_allowed"] is False
     assert execution_contract["exact_command_context_present"] is True
     assert execution_contract["missing_context_fields"] == []
+    resolution_by_prerequisite = {
+        row["prerequisite"]: row
+        for row in execution_contract["prerequisite_resolution"]
+    }
+    assert set(resolution_by_prerequisite) == {
+        prerequisite.value
+        for prerequisite in StealthCreateLifecycleExecutionPrerequisite
+    }
+    approval_resolution = resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.APPROVAL_SNAPSHOT.value
+    ]
+    assert approval_resolution["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert approval_resolution["lookup_ran"] is True
+    assert approval_resolution["resolved"] is False
+    assert approval_resolution["authority"] == "read_only_no_execution"
+    assert approval_resolution["writes_ran"] is False
+    assert approval_resolution["live_coinbase_read_ran"] is False
+    assert resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
+    ]["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY.value
+    )
+    assert execution_contract["prerequisite_resolver_available"] is True
+    assert execution_contract["prerequisite_resolver_lookup_ran"] is True
+    assert execution_contract["resolved_prerequisites"] == []
     assert StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value in (
         execution_contract["missing_prerequisites"]
     )
@@ -3062,6 +3256,10 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["execution_contract_available"] is False
     assert payload["data"]["execution_allowed"] is False
+    assert payload["data"]["resolved_execution_prerequisites"] == []
+    assert StealthCreateLifecycleExecutionPrerequisite.APPROVAL_SNAPSHOT.value in (
+        payload["data"]["missing_execution_prerequisites"]
+    )
     assert StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING.value in (
         payload["data"]["execution_contract_blockers"]
     )
@@ -3071,6 +3269,143 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
     assert payload["data"]["local_state_mutated"] is False
     assert payload["data"]["coinbase_order_submitted"] is False
     assert payload["data"]["exchange_order_id_evidence_only"] is True
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisites(monkeypatch):
+    from api.v1.routes.orders import _idempotency_payload_hash
+
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-create-resolved"
+    idempotency_key = "idem-stealth-create-resolved"
+    operator_intent = "stealth_create_resolver_review"
+    body = {
+        "stealth_order_id": stealth_order_id,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "total_size": "0.001",
+        "limit_price": "50000",
+        "reveal_condition": {"type": "time_delay", "delay_seconds": 60},
+        "sizing_strategy": {"type": "fixed"},
+        "target_movement": "0.002",
+        "target_movement_type": "P",
+        "manual_live_acknowledgement": True,
+    }
+    payload_hash = _idempotency_payload_hash(
+        endpoint="POST /api/v1/stealth/orders",
+        actor=AdminApiActor(
+            actor_id="operator-001",
+            roles=[AdminApiRole.TRADER],
+        ),
+        operator_intent=operator_intent,
+        body=StealthCreateRequest.model_validate(body).model_dump(mode="json"),
+    )
+    _append_stealth_create_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_id="approval-stealth-create-resolved",
+        admission_audit_id="audit-stealth-create-resolved",
+        cap_guard_decision_id="cap-stealth-create-resolved",
+        reconciliation_plan_id="recon-stealth-create-resolved",
+    )
+    client.admin_api_test_stealth_lifecycle_write_guard_proof_store.append(
+        StealthCreateLifecycleWriteGuardProofRecord(
+            lifecycle_write_guard_proof_id="life-write-proof-create-resolved",
+            stealth_order_id=stealth_order_id,
+            guarded_actor_id="operator-001",
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            product_id="BTC-USDC",
+            side="BUY",
+            total_size="0.001",
+            limit_price="50000",
+            evidence_source=StealthLifecycleWriteGuardEvidenceSource.TEST_EVIDENCE,
+            guard_evidence_ref="stealth-create-resolved-guard",
+            approval_snapshot_id="approval-stealth-create-resolved",
+            admission_audit_id="audit-stealth-create-resolved",
+            cap_guard_decision_id="cap-stealth-create-resolved",
+            reconciliation_plan_id="recon-stealth-create-resolved",
+            route=(
+                "/api/v1/stealth/orders/{stealth_order_id}/"
+                "lifecycle-write-guard-proofs"
+            ),
+            method="POST",
+            service_method="record_stealth_create_lifecycle_write_guard_proof",
+            actor_id="operator-001",
+            operator_intent="record_stealth_lifecycle_write_guard",
+            idempotency_key="idem-life-write-proof-create-resolved",
+            correlation_id="corr-life-write-proof-create-resolved",
+            payload_hash=payload_hash,
+            audit_id="audit-life-write-proof-create-resolved",
+        )
+    )
+
+    response = client.post(
+        "/api/v1/stealth/orders",
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["live_exchange_submitted"] is False
+    execution_contract = payload["stealth_lifecycle_execution_contract"]
+    resolved = set(execution_contract["resolved_prerequisites"])
+    assert {
+        StealthCreateLifecycleExecutionPrerequisite.APPROVAL_SNAPSHOT.value,
+        StealthCreateLifecycleExecutionPrerequisite.ADMISSION_AUDIT.value,
+        StealthCreateLifecycleExecutionPrerequisite.CAP_GUARD_DECISION.value,
+        StealthCreateLifecycleExecutionPrerequisite.RECONCILIATION_PLAN.value,
+        StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value,
+    } <= resolved
+    assert {
+        StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
+        StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
+    } <= set(execution_contract["missing_prerequisites"])
+    resolution_by_prerequisite = {
+        row["prerequisite"]: row
+        for row in execution_contract["prerequisite_resolution"]
+    }
+    assert resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.APPROVAL_SNAPSHOT.value
+    ]["resolved_evidence_id"] == "approval-stealth-create-resolved"
+    assert resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
+    ]["resolved_evidence_id"] == "life-write-proof-create-resolved"
+    assert resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
+    ]["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
+    ]["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.DISABLED.value
+    )
+    assert execution_contract["lifecycle_write_guard_proof_resolved"] is True
+    assert execution_contract["lifecycle_write_guard_proof_lookup_ran"] is True
+    assert execution_contract["execution_allowed"] is False
+    assert execution_contract["manager_invocation_ran"] is False
+    assert execution_contract["stealth_row_write_ran"] is False
+    assert execution_contract["order_parent_write_ran"] is False
+    assert execution_contract["coinbase_order_submit_ran"] is False
+    assert execution_contract["live_coinbase_read_ran"] is False
+    assert execution_contract["reconciliation_executed"] is False
+    assert payload["data"]["resolved_execution_prerequisites"] == (
+        execution_contract["resolved_prerequisites"]
+    )
 
 
 @pytest.mark.regression
@@ -6098,6 +6433,26 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         AdminApiStealthAdmissionContextField.OPERATOR_INTENT.value,
         AdminApiStealthAdmissionContextField.PAYLOAD_HASH.value,
     }
+    suite_resolution_by_prerequisite = {
+        row["prerequisite"]: row
+        for row in execution_contract["prerequisite_resolution"]
+    }
+    assert set(suite_resolution_by_prerequisite) == {
+        prerequisite.value
+        for prerequisite in StealthCreateLifecycleExecutionPrerequisite
+    }
+    assert execution_contract["prerequisite_resolver_available"] is True
+    assert execution_contract["prerequisite_resolver_lookup_ran"] is False
+    assert execution_contract["resolved_prerequisites"] == []
+    assert all(
+        row["lookup_status"]
+        == StealthCreateLifecycleExecutionPrerequisiteLookupStatus.NOT_CHECKED.value
+        for row in suite_resolution_by_prerequisite.values()
+    )
+    assert all(
+        row["missing_reason"] == "exact_command_context_missing"
+        for row in suite_resolution_by_prerequisite.values()
+    )
     assert StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value in (
         execution_contract["missing_prerequisites"]
     )

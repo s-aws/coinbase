@@ -173,6 +173,54 @@ Status:
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
 
+## M55 Execution-Prerequisite Resolver Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewer was not given chat history.
+
+Reviewer tasks:
+
+- trace stealth create through the enterprise Admin API/frontend path
+- verify `POST /api/v1/stealth/orders` is not live/executable
+- verify prerequisite resolver evidence is read-only/no-live/no-write
+- identify contextless clarity gaps
+
+Findings:
+
+- Blind/contextless review passed the safety question. Enterprise Admin API
+  stealth create returns a live-disabled command contract and does not invoke
+  the legacy/engine `StealthOrderManager.create_stealth_order` path, create
+  local lifecycle state, or submit Coinbase orders.
+- The reviewer confirmed the resolver evidence is understandable from repo
+  docs and code as display/readback evidence with no manager invocation,
+  no row writes, no lifecycle events, no Coinbase reads/submissions, no
+  reconciliation execution, and no browser/BFF authority.
+- The reviewer flagged clarity risks around duplicate `create_stealth_order`
+  names, `dry-submit` terminology, and stale frontend nav wording.
+
+Resolution:
+
+- Backend Admin API docs now explicitly distinguish the live-disabled Admin API
+  wrapper from the legacy dashboard/engine manager path.
+- Backend and frontend docs now define dry-submit as an audited/idempotent
+  backend POST that may create backend evidence, not Coinbase live execution.
+- Frontend nav copy now describes stealth create/reveal/move/cancel drafts as
+  live-disabled instead of mentioning only cancel.
+
+Status:
+
+- Backend focused resolver checks passed with `4` tests and `1` warning.
+- Backend full regression passed with `833 passed, 1 warning`.
+- Frontend focused mock/dry-submit/UI checks, lint, typecheck, API drift, and
+  autonomous checks passed.
+- Frontend full `npm run release:gate` passed with `231` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## M55 Create Lifecycle Execution-Contract Boundary Review
 
 Review scope:

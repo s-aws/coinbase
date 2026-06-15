@@ -325,6 +325,17 @@ class StealthCreateLifecycleExecutionPrerequisite(str, Enum):
     POST_WRITE_RECONCILIATION = "post_write_reconciliation"
 
 
+class StealthCreateLifecycleExecutionPrerequisiteLookupStatus(str, Enum):
+    """Read-only lookup status for stealth create execution prerequisites."""
+
+    NOT_CHECKED = "not_checked"
+    RESOLVED = "resolved"
+    MISSING = "missing"
+    BLOCKED_BY_DEPENDENCY = "blocked_by_dependency"
+    DISABLED = "disabled"
+    UNAVAILABLE = "unavailable"
+
+
 class StealthCreateLifecycleExecutionBlocker(str, Enum):
     """Fail-closed blockers for stealth create lifecycle-write execution."""
 

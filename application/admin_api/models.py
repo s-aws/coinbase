@@ -59,6 +59,8 @@ from core.enums import (
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthExchangeTruthEvidenceSource,
+    StealthCreateLifecycleExecutionPrerequisite,
+    StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
     StealthLifecycleWriteGuardEvidenceSource,
     StealthMutationKind,
     TargetMovementType,
@@ -643,6 +645,7 @@ class StealthCreateCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: StealthCreateRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 
@@ -4287,6 +4290,30 @@ class StealthCommandSuiteAdmissionReadinessItem(BaseModel):
     detail: str
 
 
+class StealthCreateLifecyclePrerequisiteResolverItem(BaseModel):
+    """Read-only prerequisite lookup evidence for stealth create execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    prerequisite: StealthCreateLifecycleExecutionPrerequisite
+    source: str = Field(min_length=1)
+    route: str = "/api/v1/stealth/orders"
+    method: str = "POST"
+    identity_key: str = "stealth_order_id"
+    identity_value: str | None = None
+    lookup_status: StealthCreateLifecycleExecutionPrerequisiteLookupStatus
+    lookup_ran: bool = False
+    resolved: bool = False
+    resolved_evidence_id: str | None = None
+    missing_reason: str | None = None
+    stale_or_invalid: bool = False
+    authority: str = "read_only_no_execution"
+    proof_lookup_authority: str = "none"
+    writes_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     """No-live execution-contract boundary evidence for stealth create."""
 
@@ -4309,6 +4336,13 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     missing_context_fields: list[str] = Field(default_factory=list)
     required_prerequisites: list[str] = Field(default_factory=list)
     missing_prerequisites: list[str] = Field(default_factory=list)
+    resolved_prerequisites: list[str] = Field(default_factory=list)
+    prerequisite_resolver_available: bool = True
+    prerequisite_resolver_lookup_ran: bool = False
+    prerequisite_resolver_authority: str = "read_only_no_execution"
+    prerequisite_resolution: list[
+        StealthCreateLifecyclePrerequisiteResolverItem
+    ] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
     lifecycle_write_guard_proof_required: bool = True
     lifecycle_write_guard_proof_resolved: bool = False

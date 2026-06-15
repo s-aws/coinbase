@@ -1068,6 +1068,10 @@ class AdminApiCommandService:
         execution_contract = build_stealth_create_lifecycle_write_execution_contract(
             stealth_order_id=request.stealth_order_id,
             exact_command_context_present=True,
+            admission_decision=command.admission_decision,
+            lifecycle_write_guard_proof_store=(
+                self.dependencies.stealth_lifecycle_write_guard_proof_store_getter()
+            ),
         )
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.NOT_IMPLEMENTED,
@@ -1094,6 +1098,12 @@ class AdminApiCommandService:
                 ),
                 "execution_allowed": execution_contract.execution_allowed,
                 "execution_contract_blockers": execution_contract.blockers,
+                "resolved_execution_prerequisites": (
+                    execution_contract.resolved_prerequisites
+                ),
+                "missing_execution_prerequisites": (
+                    execution_contract.missing_prerequisites
+                ),
                 "product_id": request.product_id,
                 "side": request.side.value if isinstance(request.side, OrderSide) else str(request.side),
                 "total_size": request.total_size,

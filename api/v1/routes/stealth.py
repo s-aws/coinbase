@@ -219,8 +219,12 @@ def create_stealth_order(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
         stealth_order_id=body.stealth_order_id,
-        command_runner=lambda: service.create_stealth_order(
-            StealthCreateCommand(envelope=envelope, request=body)
+        command_runner_with_admission=lambda admission_decision: service.create_stealth_order(
+            StealthCreateCommand(
+                envelope=envelope,
+                request=body,
+                admission_decision=admission_decision,
+            )
         ),
     )
 

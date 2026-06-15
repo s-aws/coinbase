@@ -9,6 +9,11 @@ cap/guard, reconciliation, and campaign workflows. The backend remains the only
 authority for trading behavior, wallet checks, guard checks, approval state,
 reconciliation state, live adapter execution, and Coinbase calls.
 
+Dry-submit means an audited, idempotent command-shaped Admin API POST may be
+sent to the backend and may create backend audit/idempotency evidence. It is
+still no-live: the expected command result is live-disabled or prerequisite
+rejection evidence, not Coinbase submission.
+
 ## Current Contract
 
 - Backend route inventory is the source of command route identity, action class,
@@ -260,6 +265,13 @@ present. Neither form is executable: both are no-live/no-write evidence that
 the manager was not invoked, stealth and `order_parent` rows were not written,
 lifecycle events were not dispatched, Coinbase was not read or submitted to,
 and reconciliation did not run.
+The contract also exposes `resolved_prerequisites`,
+`prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
+`prerequisite_resolution` rows. Those rows are backend-owned read evidence
+only. They may show exact-context-bound local lookup results and missing
+reasons, but they do not create approvals, write proof records, invoke live
+execution services, call adapters, read Coinbase, execute reconciliation, or
+grant frontend/BFF execution authority.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute

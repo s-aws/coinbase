@@ -19464,6 +19464,108 @@ components:
       - approved_phase_range
       title: StealthCommandSuiteResponse
       description: Read-only M55 stealth command-suite readiness evidence.
+    StealthCreateLifecycleExecutionPrerequisite:
+      type: string
+      enum:
+      - approval_snapshot
+      - admission_audit
+      - cap_guard_decision
+      - reconciliation_plan
+      - lifecycle_write_guard_proof
+      - live_execution_service
+      - live_execution_adapter
+      - post_write_reconciliation
+      title: StealthCreateLifecycleExecutionPrerequisite
+      description: Prerequisites required before stealth create lifecycle writes may
+        execute.
+    StealthCreateLifecycleExecutionPrerequisiteLookupStatus:
+      type: string
+      enum:
+      - not_checked
+      - resolved
+      - missing
+      - blocked_by_dependency
+      - disabled
+      - unavailable
+      title: StealthCreateLifecycleExecutionPrerequisiteLookupStatus
+      description: Read-only lookup status for stealth create execution prerequisites.
+    StealthCreateLifecyclePrerequisiteResolverItem:
+      properties:
+        prerequisite:
+          $ref: '#/components/schemas/StealthCreateLifecycleExecutionPrerequisite'
+        source:
+          type: string
+          minLength: 1
+          title: Source
+        route:
+          type: string
+          title: Route
+          default: /api/v1/stealth/orders
+        method:
+          type: string
+          title: Method
+          default: POST
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
+        lookup_status:
+          $ref: '#/components/schemas/StealthCreateLifecycleExecutionPrerequisiteLookupStatus'
+        lookup_ran:
+          type: boolean
+          title: Lookup Ran
+          default: false
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        resolved_evidence_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Evidence Id
+        missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Missing Reason
+        stale_or_invalid:
+          type: boolean
+          title: Stale Or Invalid
+          default: false
+        authority:
+          type: string
+          title: Authority
+          default: read_only_no_execution
+        proof_lookup_authority:
+          type: string
+          title: Proof Lookup Authority
+          default: none
+        writes_ran:
+          type: boolean
+          title: Writes Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - prerequisite
+      - source
+      - lookup_status
+      - detail
+      title: StealthCreateLifecyclePrerequisiteResolverItem
+      description: Read-only prerequisite lookup evidence for stealth create execution.
     StealthCreateLifecycleWriteAuditEvidence:
       properties:
         mutation_family:
@@ -19734,6 +19836,28 @@ components:
             type: string
           type: array
           title: Missing Prerequisites
+        resolved_prerequisites:
+          items:
+            type: string
+          type: array
+          title: Resolved Prerequisites
+        prerequisite_resolver_available:
+          type: boolean
+          title: Prerequisite Resolver Available
+          default: true
+        prerequisite_resolver_lookup_ran:
+          type: boolean
+          title: Prerequisite Resolver Lookup Ran
+          default: false
+        prerequisite_resolver_authority:
+          type: string
+          title: Prerequisite Resolver Authority
+          default: read_only_no_execution
+        prerequisite_resolution:
+          items:
+            $ref: '#/components/schemas/StealthCreateLifecyclePrerequisiteResolverItem'
+          type: array
+          title: Prerequisite Resolution
         blockers:
           items:
             type: string

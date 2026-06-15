@@ -242,9 +242,16 @@ The stealth command-suite `create_lifecycle_write_audit` also includes an
 live-disabled `POST /api/v1/stealth/orders` response may include the same
 evidence as `stealth_lifecycle_execution_contract` with exact command context
 present. Both shapes are blocked evidence only: they report required
-prerequisites, missing prerequisites, blockers, accepted/rejected identity
-keys, and proof that no manager invocation, row write, Coinbase call, or
-reconciliation execution ran.
+prerequisites, resolved and missing prerequisites, read-only prerequisite
+resolver rows, blockers, accepted/rejected identity keys, and proof that no
+manager invocation, row write, Coinbase call, or reconciliation execution ran.
+The resolver rows can report local exact-context-bound lookups for approval,
+admission audit, cap/guard, reconciliation, and lifecycle-write guard proof
+evidence, but they never create proof records, run live service/adapter code,
+read Coinbase, execute reconciliation, or grant browser/BFF authority.
+The Admin API service method name `create_stealth_order` is a live-disabled
+command wrapper. It is intentionally distinct from the legacy dashboard/engine
+manager path that can create local stealth lifecycle state.
 The same command-suite response now includes `admission_readiness` rows that
 bind each stealth command route to the backend-owned evidence required before
 execution can ever be considered: approval request/decision, admission audit,
@@ -564,6 +571,10 @@ The platform/module split is documented in
   only when safely observable through the existing manager/engine state; if
   unavailable, the response says so instead of treating the database as proof
   that no runtime claim exists.
+- Dry-submit means an audited, idempotent backend command POST may run and
+  return backend evidence. It does not mean Coinbase live execution, and it may
+  still produce audit/idempotency records before the live-disabled or
+  prerequisite-rejected response is returned.
 - Movement repricing command draft:
   `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
   is live-disabled and keyed by `stealth_order_id`. It does not clear

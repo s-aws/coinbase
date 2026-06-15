@@ -101,6 +101,11 @@ evidence, rejected `order_id` and `client_order_id` command identities,
 blockers, and no-live/no-write proof flags. Live-disabled create command
 responses may also return the same evidence as
 `stealth_lifecycle_execution_contract` with exact request context present.
+The same block exposes read-only prerequisite resolver evidence:
+`resolved_prerequisites`, `prerequisite_resolver_lookup_ran`,
+`prerequisite_resolver_authority`, and per-prerequisite lookup rows with
+status, resolved evidence id or missing reason, no-write flags, and no-Coinbase
+read flags.
 Both surfaces remain evidence only: they do not resolve proof records as
 authority, invoke `StealthOrderManager`, write `stealth_orders` or
 `order_parent` rows, dispatch lifecycle events, read/submit/cancel Coinbase,

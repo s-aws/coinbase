@@ -195,6 +195,46 @@ live-disabled create workflow:
       "live_execution_adapter",
       "post_write_reconciliation"
     ],
+    "resolved_prerequisites": [],
+    "prerequisite_resolver_available": true,
+    "prerequisite_resolver_lookup_ran": false,
+    "prerequisite_resolver_authority": "read_only_no_execution",
+    "prerequisite_resolution": [
+      {
+        "prerequisite": "approval_snapshot",
+        "source": "approval_store",
+        "route": "/api/v1/stealth/orders",
+        "method": "POST",
+        "identity_key": "stealth_order_id",
+        "identity_value": null,
+        "lookup_status": "not_checked",
+        "lookup_ran": false,
+        "resolved": false,
+        "resolved_evidence_id": null,
+        "missing_reason": "exact_command_context_missing",
+        "authority": "read_only_no_execution",
+        "proof_lookup_authority": "none",
+        "writes_ran": false,
+        "live_coinbase_read_ran": false
+      },
+      {
+        "prerequisite": "lifecycle_write_guard_proof",
+        "source": "lifecycle_write_guard_proof_store",
+        "route": "/api/v1/stealth/orders",
+        "method": "POST",
+        "identity_key": "stealth_order_id",
+        "identity_value": null,
+        "lookup_status": "not_checked",
+        "lookup_ran": false,
+        "resolved": false,
+        "resolved_evidence_id": null,
+        "missing_reason": "exact_command_context_missing",
+        "authority": "read_only_no_execution",
+        "proof_lookup_authority": "none",
+        "writes_ran": false,
+        "live_coinbase_read_ran": false
+      }
+    ],
     "manager_invocation_ran": false,
     "stealth_row_write_ran": false,
     "order_parent_write_ran": false,
@@ -250,6 +290,10 @@ readback. The live-disabled create draft can return the same shape as
 `stealth_lifecycle_execution_contract` after the backend has exact command
 context, but it remains blocked until every approval, audit, cap, guard,
 reconciliation, live-adapter, and post-write prerequisite is resolved.
+`prerequisite_resolution` rows are read-only lookup evidence. They can report
+`not_checked`, `missing`, `blocked_by_dependency`, `resolved`, or `disabled`
+for each prerequisite, but they never write proof records, call Coinbase,
+invoke live adapters, execute reconciliation, or grant browser/BFF authority.
 
 These records remain local evidence. They do not read Coinbase, cancel or
 replace active placements, execute reconciliation, mutate lifecycle state, or
