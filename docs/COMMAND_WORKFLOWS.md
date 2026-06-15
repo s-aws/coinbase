@@ -351,6 +351,14 @@ evidence. This resolver does not build cancel/replace plans, invoke managers,
 call Coinbase, cancel/replace active placements, execute reconciliation, or
 grant browser/BFF authority. Unsafe latest records stay missing/stale instead
 of falling back to older proof evidence.
+Those same exact command responses may expose a nested
+`active_placement_cancel_replace_contract`. It is built from the same
+backend-owned helper as command-suite `cancel_replace_boundaries`, so the
+command-suite read model and exact command response share one boundary
+contract. Workflows may display its proof-resolution state, rejected
+identities, missing contracts, and no-run flags only. It is not a manager path,
+Coinbase caller, cancel/replace executor, reconciliation executor, state
+mutation path, or browser/BFF authority source.
 For recovery commands, the same contract may resolve only `recovery_proof`
 from the backend append-only recovery proof store when the latest safe
 same-`stealth_order_id` record exactly matches route, method, service method,

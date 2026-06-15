@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2701-2720**.
+- Approved phase range: **2721-2740**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,100 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2701-2720
+## Active Phases 2721-2740
+
+These phases continue M55 after nested live execution intent contract evidence.
+The next explicit gap is making active-placement cancel/replace execution
+boundaries typed and nested on exact stealth command execution responses for
+the cancel/replace-shaped paths: stealth cancel, stealth move, and movement
+reprice. This range must reuse the same backend-owned boundary builder used
+by command-suite `cancel_replace_boundaries`; it must not create a second
+cancel/replace model, execute cancel/replace, build move/reprice plans, call
+Coinbase, invoke `StealthOrderManager`, record reconciliation plans, execute
+reconciliation, mutate stealth/order/exchange state, approve live admission,
+or grant browser/BFF execution authority.
+
+### Phase 2721 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2701-2720 to active phases 2721-2740 while preserving no-live defaults and cap policy.
+
+### Phase 2722 - Prior Range Completion Evidence
+
+- Record phases 2701-2720 as completed nested live intent contract evidence with no live Coinbase execution, no command-suite intent fabrication, and no state mutation.
+
+### Phase 2723 - Shared Cancel/Replace Boundary Builder
+
+- Extract command-suite cancel/replace boundary construction into a shared backend helper so exact command responses and command-suite reads use one contract source.
+
+### Phase 2724 - Cancel/Replace Boundary Model Fields
+
+- Add proof-resolution fields needed by exact command responses without changing no-live defaults or command-suite read-only posture.
+
+### Phase 2725 - Exact Command Boundary Attachment
+
+- Attach nested `active_placement_cancel_replace_contract` evidence only to exact cancel/replace-shaped stealth command execution contracts.
+
+### Phase 2726 - Non-Cancel/Replace Null Boundary
+
+- Keep create, reveal, recovery, and reconciliation execution evidence from fabricating cancel/replace boundary objects when that command path does not require cancel/replace proof.
+
+### Phase 2727 - Resolved Proof Projection
+
+- Project resolved active-placement exchange-truth and cancel/replace proof ids into the nested boundary as read-only evidence without allowing execution.
+
+### Phase 2728 - Backend Regression Coverage
+
+- Assert the nested boundary is backend-owned, route-bound, blocked, non-executable, display/forward-only, rejects `client_order_id` and `order_id` command identity, and reports no manager, Coinbase, reconciliation, or state mutation.
+
+### Phase 2729 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after the nested cancel/replace contract shape change.
+
+### Phase 2730 - Frontend Schema Intake
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2731 - Frontend Mock Boundary Sync
+
+- Update frontend mocks to expose the nested boundary only where the backend command contract supplies it.
+
+### Phase 2732 - Dry-Submit Boundary Rows
+
+- Display cancel/replace boundary status, route, proof ids, rejected identities, missing contracts, no-run flags, and browser/BFF authority as evidence only.
+
+### Phase 2733 - Runtime Fixture Type Safety
+
+- Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
+### Phase 2734 - Documentation Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested cancel/replace boundary contract.
+
+### Phase 2735 - Validator Range Sync
+
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2721-2740.
+
+### Phase 2736 - No-Live Drift Scan
+
+- Search for wording or code implying the boundary executes cancel/replace, invokes managers, calls Coinbase, mutates state, records plans, executes reconciliation, or enables browser/BFF authority.
+
+### Phase 2737 - Blind Contextless Backend Review
+
+- Run a blind/contextless backend review asking whether a fresh agent can explain the nested cancel/replace boundary without inventing execution authority.
+
+### Phase 2738 - Blind Contextless Frontend Review
+
+- Run a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and generated-contract source.
+
+### Phase 2739 - Focused And Full Gates
+
+- Run focused backend/frontend tests, schema checks, autonomous checks, backend full regression, and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional.
+
+### Phase 2740 - Commit, Push, And Next Range
+
+- Commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed Phases 2701-2720
 
 These phases continue M55 after nested live execution service boundary
 evidence. The next explicit gap is making the disabled live execution intent

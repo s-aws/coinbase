@@ -20217,6 +20217,10 @@ components:
           - type: string
           - type: 'null'
           title: Cancel Replace Proof Id
+        active_placement_cancel_replace_contract:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteCancelReplaceBoundaryItem'
+          - type: 'null'
         live_execution_service_required:
           type: boolean
           title: Live Execution Service Required
@@ -20894,6 +20898,19 @@ components:
           type: boolean
           title: Cancel Replace Ran
           default: false
+        cancel_replace_proof_required:
+          type: boolean
+          title: Cancel Replace Proof Required
+          default: true
+        cancel_replace_proof_resolved:
+          type: boolean
+          title: Cancel Replace Proof Resolved
+          default: false
+        cancel_replace_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Replace Proof Id
         active_placement_exchange_truth_required:
           type: boolean
           title: Active Placement Exchange Truth Required

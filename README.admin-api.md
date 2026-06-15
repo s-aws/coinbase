@@ -396,6 +396,14 @@ payload hash, and mutation family. A resolved proof does not resolve
 active-placement exchange truth, mutation claims, live service, live adapter,
 or post-write reconciliation. Unsafe latest proof evidence remains
 missing/stale and does not fall back to older records.
+Those exact command responses also expose
+`active_placement_cancel_replace_contract`, a nested projection of the same
+backend-owned cancel/replace boundary used by command-suite
+`cancel_replace_boundaries`. It may show route, method, mutation family,
+resolved local proof ids, rejected command identities, missing contracts, and
+no-run flags. It is display evidence only; it does not invoke managers, call
+Coinbase, build cancel/replace plans, execute reconciliation, mutate state, or
+grant browser/BFF authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

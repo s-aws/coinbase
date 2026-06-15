@@ -51,6 +51,9 @@ from .stealth_cancel_replace_proof import (
     FileStealthCancelReplaceProofStore,
     StealthCancelReplaceProofRecord,
 )
+from .stealth_cancel_replace_boundary import (
+    build_stealth_active_placement_cancel_replace_contract,
+)
 from .stealth_post_write_reconciliation import (
     build_stealth_post_write_reconciliation_boundary,
 )
@@ -342,6 +345,30 @@ def build_stealth_command_execution_contract(
                 == StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF
             ),
             None,
+        ),
+        active_placement_cancel_replace_contract=(
+            build_stealth_active_placement_cancel_replace_contract(
+                mutation_family=metadata.mutation_family,
+                route=metadata.route,
+                method=admission_decision.method,
+                active_placement_exchange_truth_resolved=(
+                    StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+                    in resolved
+                ),
+                cancel_replace_proof_resolved=(
+                    StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value
+                    in resolved
+                ),
+                cancel_replace_proof_id=next(
+                    (
+                        item.resolved_evidence_id
+                        for item in resolution
+                        if item.prerequisite
+                        == StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF
+                    ),
+                    None,
+                ),
+            )
         ),
         live_execution_service_source=(
             admission_decision.live_execution_service_source

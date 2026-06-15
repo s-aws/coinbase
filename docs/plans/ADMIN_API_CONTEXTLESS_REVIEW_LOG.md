@@ -2,6 +2,61 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## M55 Active Placement Cancel/Replace Contract Review - Phases 2721-2740
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers were not given chat history.
+
+Reviewer tasks:
+
+- trace nested `active_placement_cancel_replace_contract` evidence on exact
+  stealth cancel, stealth move, and movement/reprice command execution
+  contracts
+- verify command-suite `cancel_replace_boundaries` and exact command responses
+  share one backend helper/contract source
+- verify create, reveal, recovery, and reconciliation do not fabricate the
+  nested boundary
+- verify no live enablement, Coinbase call, `StealthOrderManager`
+  invocation, cancel/replace execution, reconciliation execution, state
+  mutation, browser authority, BFF authority, or ID-invariant weakening was
+  introduced
+
+Findings and resolution:
+
+- PASS: backend blind/contextless review found no blockers. It confirmed the
+  shared helper is used by both command-suite reads and exact command
+  responses, scope is limited to stealth cancel/move/reprice families,
+  no-live/no-write flags remain explicit, `stealth_order_id` remains the
+  command identity, and `client_order_id`/`order_id` remain rejected command
+  identities.
+- FAIL, resolved: frontend blind/contextless review found missing
+  movement/reprice dry-submit coverage, missing negative tests for unrelated
+  commands, and stale cancel/replace proof docs/examples.
+- Resolution: focused frontend tests now assert movement/reprice nested
+  boundary rendering, movement/reprice mock boundary shape, and null/absent
+  boundary behavior for create, reveal, recovery, and reconciliation. The
+  frontend cancel/replace proof README, reference doc, and example now
+  document `active_placement_cancel_replace_contract`.
+- PASS: corrected frontend blind/contextless review confirmed the reported
+  gaps were resolved and found no remaining blocking issues.
+
+Status:
+
+- Backend focused cancel/replace/no-live checks passed with `6` selected
+  tests and `1` warning.
+- Backend autonomous work queue check passed for approved phases `2721-2740`.
+- Backend full regression passed with `844 passed, 1 warning`.
+- Frontend `npm run typecheck`, `npm run api:check`, `npm run
+  security:commands`, `npm run autonomous:check`, and focused command-dry/mock
+  checks passed after the review fixes.
+- Frontend full `npm run release:gate` passed after the review fixes with
+  `244` unit tests and `3` Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## M55 Live Execution Intent Contract Review - Phases 2701-2720
 
 Review scope:

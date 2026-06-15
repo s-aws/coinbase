@@ -8,9 +8,9 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-15
 - Updated by: Codex
 - Branch: main
-- Commit (optional): backend `69404df`, frontend `8fdc625` for previously
-  completed range `2681-2700`; range `2701-2720` validated and pending
-  commit/push in the current session.
+- Commit (optional): backend/frontend commit hashes pending for validated range
+  `2721-2740`; prior completed range `2701-2720` is backend `2f5fd16`,
+  frontend `48946a4`.
 
 ## Current Objective
 
@@ -38,15 +38,15 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2701-2720`.
-- Latest completed milestone slice: M55 - Live Execution Intent Contract
-  Evidence.
-- Completed files: backend-owned nested `live_execution_intent_contract`
-  evidence on exact stealth create lifecycle and non-create execution
-  contracts, nullable OpenAPI, frontend schema/mocks, dry-submit rendering,
-  docs/tests, full gates, and contextless review. Read-only command-suite
-  create evidence keeps `live_execution_intent_contract` null because no exact
-  command envelope exists.
+- Latest completed autonomous range: `2721-2740`.
+- Latest completed milestone slice: M55 - Active Placement Cancel/Replace
+  Contract Evidence.
+- Completed files: backend-owned shared
+  `active_placement_cancel_replace_contract` evidence for exact stealth
+  cancel, stealth move, and movement/reprice command responses, nullable
+  OpenAPI, frontend schema/mocks, dry-submit rendering, docs/tests, full
+  gates, and contextless review. Create, reveal, recovery, and reconciliation
+  command responses do not fabricate the nested cancel/replace boundary.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -220,12 +220,12 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: none; next approved M55 slice should be selected
-  after committing and pushing `2701-2720`.
+- Active autonomous range: `2721-2740`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: commit and push the completed `2701-2720` intent-contract
-  work, then continue into the next M55 slice without live Coinbase execution
-  unless a phase explicitly says otherwise.
+- Current direction: complete nested
+  `active_placement_cancel_replace_contract` evidence for exact stealth
+  cancel, stealth move, and movement/reprice command responses without live
+  Coinbase execution unless a phase explicitly says otherwise.
 
 ## Decisions (Durable)
 
@@ -512,37 +512,40 @@ Keep it short. Keep it factual.
 ## Validation Status
 
 - Last backend focused Admin API/readiness run: 2026-06-15
-  `python -m pytest --basetemp runtime_state\pytest_focus_range_2701_2720 tests\regression\test_spot_readiness_gate.py tests\regression\test_admin_api_contract.py -k "autonomous or route_inventory_and_openapi_paths_stay_in_sync or disabled_live_execution_service_is_evidence_only or stealth_create_execution_contract_resolves_local_prerequisites or stealth_reveal_contract_is_fail_closed_and_no_live" -v --tb=short`
-- Result: Passed, 5 selected tests, 111 deselected, 1 warning. Follow-up
-  targeted null-regression run passed 3 selected tests, 105 deselected, 1
-  warning.
+  `python -m pytest --basetemp runtime_state\pytest_focus_cancel_replace_contract_2721_2740_final tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -k "stealth_cancel_replace_execution_contract_resolves_proof or stealth_command_suite_is_read_only_backend_evidence or autonomous_work_queue_check_covers_approved_20_phase_batch or route_inventory_and_openapi_paths_stay_in_sync" -v --tb=short`
+- Result: Passed, 4 selected tests, 112 deselected, 1 warning. Earlier
+  focused cancel/replace contract run passed 6 selected tests, 110
+  deselected, 1 warning.
 - Last backend autonomous queue check: 2026-06-15
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M55 range `2701-2720` passed after validator sync. Live Coinbase
+- Result: M55 range `2721-2740` passed after validator sync. Live Coinbase
   execution `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-15
-  `python -m pytest --basetemp runtime_state\pytest_full_2701_2720 tests\regression\ -q --tb=short`
+  `python -m pytest --basetemp runtime_state\pytest_full_2721_2740 tests\regression\ -q --tb=short`
 - Result: Passed, 844 tests, 1 warning.
 - Last frontend focused run: 2026-06-15
-  `npm run typecheck`, `npm run api:check`, `npm run autonomous:check`,
-  `npm run deployment:check`, `npm run release:check`, and
-  `npm run test -- commandDrySubmit mockBackend StealthOrdersReadModel`.
-- Result: Passed focused M55 live intent contract frontend checks. Full
-  frontend `npm run release:gate` passed with 243 unit tests and 3 Playwright
-  tests.
+  `npm run typecheck`, `npm run api:check`, `npm run security:commands`,
+  `npm run autonomous:check`, and
+  `npm run test -- commandDrySubmit mockBackend`.
+- Result: Passed focused M55 cancel/replace boundary frontend checks. Full
+  frontend `npm run release:gate` passed after review fixes with 244 unit
+  tests and 3 Playwright tests.
 - Last blind/contextless M55 review: 2026-06-15
-- Result: 2701-2720 intent-contract review passed after resolving one backend
-  example/test gap. The corrected command-suite create example now shows
-  `live_execution_intent_contract: null`, and regression asserts the null
-  contract for read-only command-suite create evidence.
+- Result: 2721-2740 cancel/replace boundary review passed. Backend review
+  found no blockers and confirmed the shared helper is the single boundary
+  source. Frontend review initially found movement/reprice coverage gaps,
+  negative-test gaps, and stale cancel/replace proof docs/examples; those were
+  fixed and corrected frontend review passed.
 - Live Coinbase execution for M55: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Commit and push backend/frontend `2701-2720` intent-contract work.
-2. Select the next approved M55 slice that closes a real stealth command-suite
-   live-enablement gap without enabling live Coinbase execution by default.
+1. Commit and push backend/frontend `2721-2740` cancel/replace boundary
+   contract work.
+2. Advance to the next approved M55 slice that closes a real stealth
+   command-suite live-enablement gap without enabling live Coinbase execution
+   by default.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
@@ -643,6 +646,14 @@ Keep it short. Keep it factual.
   command-suite evidence keeps the field null. The batch did not enable live
   execution, construct adapters, call Coinbase, invoke managers, execute
   reconciliation, record plans, mutate state, or grant browser/BFF authority.
+- What is done through M55 2721-2740: backend and frontend expose nested
+  `active_placement_cancel_replace_contract` evidence to exact stealth cancel,
+  stealth move, and movement/reprice command responses by reusing the same
+  backend-owned cancel/replace boundary contract used by command-suite reads.
+  The evidence remains blocked, display-only, no-manager, no-Coinbase,
+  no-reconciliation-execution, no-state-mutation, and no browser/BFF execution
+  authority. Create, reveal, recovery, and reconciliation do not fabricate the
+  nested cancel/replace boundary.
 - What is blocked: Nothing currently known.
-- Exact next command: commit and push backend/frontend 2701-2720 changes, then
+- Exact next command: commit and push backend/frontend 2721-2740 changes, then
   advance to the next approved M55 slice.

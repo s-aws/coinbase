@@ -208,6 +208,13 @@ They also expose the same nested `post_write_reconciliation_boundary` object,
 which names the reconciliation-plan route and remains blocked/no-run.
 They also expose the same nested `live_execution_adapter_contract`, which names
 the shared command-service reference and remains disabled/non-executable.
+Exact stealth cancel, stealth move, and movement/reprice command responses may
+also expose `active_placement_cancel_replace_contract`. It is the same
+backend-owned cancel/replace boundary contract used by command-suite
+`cancel_replace_boundaries`, with exact-command proof-resolution fields when
+local proof records match. It is read/display evidence only and does not call
+Coinbase, invoke managers, execute cancel/replace, execute reconciliation,
+mutate state, or grant browser/BFF authority.
 Both surfaces remain evidence only: they do not resolve proof records as
 authority, invoke `StealthOrderManager`, write `stealth_orders` or
 `order_parent` rows, dispatch lifecycle events, read/submit/cancel Coinbase,

@@ -4998,6 +4998,9 @@ class StealthCommandSuiteCancelReplaceBoundaryItem(BaseModel):
     cancel_replace_required: bool = True
     cancel_replace_allowed: bool = False
     cancel_replace_ran: bool = False
+    cancel_replace_proof_required: bool = True
+    cancel_replace_proof_resolved: bool = False
+    cancel_replace_proof_id: str | None = None
     active_placement_exchange_truth_required: bool = True
     active_placement_exchange_truth_resolved: bool = False
     accepted_command_identity_keys: list[str] = Field(default_factory=list)
@@ -5251,6 +5254,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     cancel_replace_proof_required: bool = False
     cancel_replace_proof_resolved: bool = False
     cancel_replace_proof_id: str | None = None
+    active_placement_cancel_replace_contract: (
+        StealthCommandSuiteCancelReplaceBoundaryItem | None
+    ) = None
     live_execution_service_required: bool = True
     live_execution_service_resolved: bool = False
     live_execution_service_source: str = "disabled_backend_service"

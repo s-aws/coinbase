@@ -2697,24 +2697,27 @@ Current backend evidence:
   non-create execution contracts without constructing adapters. The completed
   phases 2681-2700 added nested live execution service contract evidence
   projected from the disabled backend service state without enabling live
-  execution. It now advances to phases 2701-2720 to expose the disabled live
-  execution intent envelope on exact stealth command responses without
-  fabricating payload-bound intent for command-suite reads.
+  execution. The completed phases 2701-2720 added nested live execution
+  intent contract evidence to exact stealth command responses without
+  fabricating payload-bound intent for command-suite reads. It now advances to
+  phases 2721-2740 to expose typed active-placement cancel/replace boundary
+  evidence on exact stealth cancel, stealth move, and movement/reprice command
+  responses by reusing the command-suite cancel/replace boundary builder.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Nested live execution intent contract evidence for stealth create and
-  non-create exact command responses is the active 2701-2720 slice. This
-  evidence may explain the backend-owned disabled intent envelope, route,
-  actor, idempotency key, operator intent, payload hash, blockers, executable
-  false, and display-only browser/BFF boundary, but it must not fabricate
-  payload-bound intent for command-suite reads, enable live execution,
-  construct executable adapters, record plans, execute reconciliation, resolve
-  disabled prerequisites, invoke managers, call Coinbase, mutate state, or
+- Nested active-placement cancel/replace boundary evidence for exact stealth
+  cancel, stealth move, and movement/reprice command responses is the active
+  2721-2740 slice. This evidence may explain route-bound cancel/replace proof
+  requirements, resolved local proof ids, rejected `client_order_id` and
+  `order_id` command identities, missing contracts, no-run flags, and
+  display-only browser/BFF boundaries, but it must not execute
+  cancel/replace, build move/reprice plans, invoke managers, call Coinbase,
+  mutate state, execute reconciliation, resolve disabled prerequisites, or
   grant browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
-  cancel/replace, live service enablement, live adapter construction, and
-  post-write reconciliation execution remain blocked.
+  cancel/replace execution, live service enablement, live adapter construction,
+  and post-write reconciliation execution remain blocked.
   Stealth create, reveal, cancel exchange
   handling, move revealed, reprice, recovery, reconciliation, and any eventual
   live execution screens must prove the full approval, cap/guard, admission
