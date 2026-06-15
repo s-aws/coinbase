@@ -157,6 +157,16 @@ explicit. It binds the stealth command route and exact command context, names
 lists missing post-write evidence, and reports no plan write, no reconciliation
 execution, no Coinbase call, and no state mutation. It is not a reconciliation
 executor and it is not browser/BFF authority.
+Post-write reconciliation proof records are exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`
+and persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs`.
+The writer route requires `reconciliation:record`, stores append-only backend
+local evidence only after exact admission prerequisites match, and supports
+guarded contexts for stealth create, reveal, cancel, move, reprice, recovery,
+and reconciliation. It does not satisfy the execution prerequisite, call
+Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, or authorize the frontend.
 The nested `live_execution_adapter_contract` object makes the disabled adapter
 construction boundary explicit. It binds the stealth command route to the
 shared `AdminApiCommandService.*` reference and lists forbidden execution

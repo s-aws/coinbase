@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2801-2820",
+  "approved_phase_range": "2821-2840",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -619,6 +619,20 @@ Those lifecycle-write guard proof records are append-only local evidence. They
 do not invoke `StealthOrderManager`, write stealth or `order_parent` rows,
 dispatch lifecycle events, submit/read Coinbase, execute reconciliation, or
 grant browser/BFF execution authority.
+
+Post-write reconciliation proof evidence is read back and written through:
+
+```http
+GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof
+POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs
+```
+
+Those post-write proof records are append-only local evidence. They can bind a
+guarded stealth command family to reviewed route-bound plan, post-write
+journal, and completion references, but they do not satisfy the execution
+prerequisite, invoke `StealthOrderManager`, call Coinbase, execute
+reconciliation, cancel/replace active placements, mutate lifecycle/order/
+exchange state, or grant browser/BFF execution authority.
 
 `create_lifecycle_write_audit.execution_contract` is also evidence only. It
 lists missing exact command context and prerequisites in command-suite

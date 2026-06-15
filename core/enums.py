@@ -286,6 +286,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_RECOVERY_PROOF = "stealth_recovery_proof"
     STEALTH_RECONCILIATION_PROOF = "stealth_reconciliation_proof"
     STEALTH_CANCEL_REPLACE_PROOF = "stealth_cancel_replace_proof"
+    STEALTH_POST_WRITE_RECONCILIATION_PROOF = (
+        "stealth_post_write_reconciliation_proof"
+    )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
@@ -502,6 +505,14 @@ class StealthCancelReplaceProofEvidenceSource(str, Enum):
     MANUAL_REVIEW = "manual_review"
     TEST_EVIDENCE = "test_evidence"
     CANCEL_REPLACE_RUNBOOK_REVIEW = "cancel_replace_runbook_review"
+
+
+class StealthPostWriteReconciliationEvidenceSource(str, Enum):
+    """Source posture for stealth post-write reconciliation proof evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    POST_WRITE_RUNBOOK_REVIEW = "post_write_runbook_review"
 
 
 class AdminApiApprovalLifecycleStatus(str, Enum):

@@ -248,6 +248,15 @@ handoff contract for `POST /api/v1/admin/reconciliation/plans`, not a plan
 writer or reconciliation executor. Workflows must treat its missing evidence,
 no-plan-write, no-reconciliation, no-Coinbase, and no-state-mutation flags as
 blocking evidence until a future backend-owned executor is explicitly wired.
+The backend can now persist post-write reconciliation proof evidence through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs`
+and read it through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`.
+Workflows may display those reviewed plan, execution-journal, and completion
+references only. The records do not satisfy `post_write_reconciliation`, do
+not execute reconciliation, do not call Coinbase, do not invoke managers, do
+not mutate lifecycle/order/exchange state, and do not grant browser/BFF
+authority.
 Both contracts also include a nested `live_execution_adapter_contract` from
 the shared live-execution adapter evidence builder. Workflows may display its
 route, `AdminApiCommandService.*` reference, forbidden methods, disabled

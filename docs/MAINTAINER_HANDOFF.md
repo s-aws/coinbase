@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2801-2820`.
+- Active autonomous range: `2821-2840`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -363,12 +363,14 @@ notional, retained inventory, reconciliation result, and audit ids.
   reprice, recovery, and reconciliation command responses by reusing the
   command-suite proof-route shape. The completed 2781-2800 range added
   ordered `execution_readiness_stages` evidence derived from the existing
-  non-create prerequisite resolver output. The active 2801-2820 range adds
+  non-create prerequisite resolver output. The completed 2801-2820 range added
   the same ordered stage parity to stealth create lifecycle-write execution
-  contracts. It must not record proofs, resolve proof authority through the
-  frontend, read or submit Coinbase orders, invoke managers, write lifecycle
-  rows, execute recovery or reconciliation, mutate state, or grant browser/BFF
-  authority.
+  contracts. The active 2821-2840 range adds append-only post-write
+  reconciliation proof evidence and readback. It may record guarded-command
+  plan, journal, and completion references, but it must not satisfy execution
+  prerequisites, resolve proof authority through the frontend, read or submit
+  Coinbase orders, invoke managers, write lifecycle rows, execute recovery or
+  reconciliation, mutate state, or grant browser/BFF authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

@@ -354,6 +354,15 @@ for the future post-write reconciliation plan/completion handoff. It names
 context binding, and no-run proof flags. It does not record a reconciliation
 plan, execute reconciliation, call Coinbase, invoke managers, cancel/replace
 active placements, mutate state, or grant browser/BFF authority.
+Post-write reconciliation proof evidence is persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs`
+and read back through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`.
+Those records are backend-owned append-only evidence for guarded stealth
+command families. They can record reviewed plan, journal, and completion
+references, but they do not satisfy the execution prerequisite, call Coinbase,
+invoke managers, mutate state, execute reconciliation, or grant browser/BFF
+authority.
 Both contracts also expose `live_execution_adapter_contract`, a nested
 route-bound adapter evidence object produced by the shared backend
 `build_live_execution_adapter_contract` helper. It names the
