@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2261-2280",
+  "approved_phase_range": "2281-2300",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -170,6 +170,27 @@ The `commands` array includes live-disabled rows for:
 - `/api/v1/stealth/orders/{stealth_order_id}/recovery`
 - `/api/v1/stealth/orders/{stealth_order_id}/reconciliation`
 - `/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
+
+Active-placement exchange-truth evidence is read back from:
+
+```http
+GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof
+Authorization: Bearer local-admin-token
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Snapshot and proof records are written only through backend-owned,
+idempotent, RBAC-gated, audited routes:
+
+```http
+POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots
+POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs
+```
+
+These records remain local evidence. They do not read Coinbase, cancel or
+replace active placements, execute reconciliation, mutate lifecycle state, or
+mark `exchange_truth_verified=true`.
 
 Each row uses `stealth_order_id` as `identity_key`. Create is a
 `local_state_mutation` draft route with `exchange_truth_required=false`,

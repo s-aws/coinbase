@@ -145,6 +145,7 @@ class AdminApiPermission(str, Enum):
     SPOT_PNL_RECORD = "spot_pnl:record"
     SPOT_RECOVERY_EXECUTE = "spot_recovery:execute"
     SPOT_RECOVERY_RECORD = "spot_recovery:record"
+    STEALTH_EXCHANGE_TRUTH_RECORD = "stealth_exchange_truth:record"
     STEALTH_RECOVERY_EXECUTE = "stealth_recovery:execute"
     STEALTH_RECONCILIATION_EXECUTE = "stealth_reconciliation:execute"
     CONFIG_UPDATE = "config:update"
@@ -263,6 +264,12 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_CANCEL = "stealth_cancel"
     STEALTH_RECOVERY = "stealth_recovery"
     STEALTH_RECONCILIATION = "stealth_reconciliation"
+    STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_SNAPSHOT = (
+        "stealth_active_placement_exchange_truth_snapshot"
+    )
+    STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_PROOF = (
+        "stealth_active_placement_exchange_truth_proof"
+    )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
@@ -294,6 +301,14 @@ class AdminApiStealthCommandSuiteGapFamily(str, Enum):
 
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
+
+    MANUAL_IMPORT = "manual_import"
+    TEST_EVIDENCE = "test_evidence"
+    LIVE_COINBASE_DISABLED = "live_coinbase_disabled"
+
+
+class StealthExchangeTruthEvidenceSource(str, Enum):
+    """Source posture for stealth active-placement exchange-truth evidence."""
 
     MANUAL_IMPORT = "manual_import"
     TEST_EVIDENCE = "test_evidence"

@@ -1364,8 +1364,9 @@ Stealth reads are local/backend lifecycle evidence routes. They are keyed by
 `stealth_order_id`. Active placement client ids and exchange order ids are
 evidence fields only. The enterprise Admin API exposes list/detail reads,
 read-only command-suite readiness, and live-disabled stealth create, reveal,
-move, and cancel drafts. Stealth create, reveal, move, recovery, and
-reconciliation routes are not modeled as executable Admin API commands.
+move, cancel, recovery, and reconciliation command contracts. These command
+contracts are modeled as Admin API routes, but they remain live-disabled until
+their backend proof chains and live execution services exist.
 
 ```http
 GET /api/v1/stealth/orders?product_id=BTC-USDC&stealth_status=REVEALED&limit=50&offset=0
@@ -1388,6 +1389,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
+```http
+GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
 Response rows include lifecycle and policy evidence such as `status`,
 `revealed_orders`, `active_placement_client_order_id`,
 `active_exchange_order_id`, `cancel_reentry_state`, and
@@ -1398,12 +1406,15 @@ state or cancel a live placement.
 The command-suite response reports `exchange_truth_required=true`,
 `live_enabled_command_count=0`, `executable_command_count=0`, and
 `live_coinbase_orders_ran=false`. It lists live-disabled stealth create,
-reveal, move, cancel, and movement/reprice command rows plus blocked gap rows for
-create lifecycle-write, reveal trigger/exchange placement, cancel exchange
-handling, move revealed, reprice completion, recovery, and reconciliation. It
-does not create stealth orders, reveal orders, cancel active placements,
-move/reprice revealed orders, execute reconciliation, mutate state, read
-Coinbase, or call Coinbase.
+reveal, move, cancel, recovery, reconciliation, and movement/reprice command
+rows plus blocked gap rows for create lifecycle-write, reveal trigger/exchange
+placement, cancel exchange handling, move revealed, reprice completion,
+recovery, and reconciliation. Active-placement exchange-truth snapshot/proof
+writer routes persist local no-live evidence only after backend admission
+prerequisites match. These routes do not create stealth orders, reveal orders,
+cancel active placements, move/reprice revealed orders, execute
+reconciliation, mutate state, read Coinbase, verify exchange truth, or call
+Coinbase.
 
 ## Movement And Repricing
 

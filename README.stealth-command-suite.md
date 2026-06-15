@@ -22,6 +22,10 @@ The route requires Admin API authentication and `analytics:read`. It returns
   identities, and the active-placement-required commands
 - typed `exchange_truth_checks.current_read_evidence` rows for existing
   read-only evidence behind blocked exchange-truth prerequisites
+- per-order active-placement exchange-truth readback evidence from
+  `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
+  plus backend-owned snapshot/proof writer contracts for route-bound local
+  evidence
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -85,6 +89,10 @@ reveal, cancel, move, and reprice prerequisites. They identify where current
 local read evidence exists, but they do not run Coinbase reads, prove active
 placement exchange truth, cancel/replace placements, reveal orders, execute
 reconciliation, mutate state, or authorize browser/BFF command execution.
+Active-placement exchange-truth snapshot/proof writer routes persist local
+evidence only after backend admission prerequisites match. They do not verify
+exchange truth, read Coinbase, cancel/replace active placements, execute
+reconciliation, mutate lifecycle state, or grant browser/BFF proof authority.
 
 ## Safety Constraints
 
@@ -114,6 +122,10 @@ reconciliation, mutate state, or authorize browser/BFF command execution.
   reads, active-placement truth resolution, cancel/replace behavior, reveal
   execution, state mutation, reconciliation execution, or BFF execution
   authority.
+- Active-placement exchange-truth snapshot/proof records are local evidence
+  only. They keep `exchange_truth_verified=false` and must not be converted
+  into Coinbase read authority, cancel/replace behavior, reconciliation
+  execution, lifecycle mutation, or browser/BFF exchange-truth authority.
 - `reveal_trigger_audit` is detail-route evidence only. It does not evaluate
   triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
   Coinbase orders, mutate lifecycle state, or authorize browser/BFF reveal
@@ -131,4 +143,6 @@ reconciliation, mutate state, or authorize browser/BFF command execution.
 - [Stealth Order Reads](docs/STEALTH_ORDER_READS.md)
 - [Command Workflows](docs/COMMAND_WORKFLOWS.md)
 - [Stealth Command Suite Examples](docs/examples/stealth-command-suite.md)
+- [Stealth Active-Placement Exchange-Truth Evidence](README.stealth-exchange-truth-proofs.md)
+- [Stealth Active-Placement Exchange-Truth Examples](docs/examples/stealth-exchange-truth-proofs.md)
 - [Public Invariants](docs/agents/INVARIANTS.md)

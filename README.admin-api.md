@@ -177,8 +177,8 @@ M55 starts the Stealth command-suite with
 `GET /api/v1/stealth/command-suite`, a read-only readiness contract for
 stealth create, cancel, reveal, move, reprice, recovery, and reconciliation
 workflows. The route links live-disabled stealth create, reveal, move, cancel,
-and movement/reprice command routes, reports missing workflow contracts, and
-makes exchange-truth
+recovery, reconciliation, and movement/reprice command routes, reports missing
+workflow contracts, and makes exchange-truth
 blockers explicit. It does not create stealth orders, reveal orders, cancel
 active placements, move/reprice revealed orders, execute reconciliation,
 mutate stealth/order/exchange state, read Coinbase, call Coinbase, or grant
@@ -215,6 +215,18 @@ required plan/proof posture, local active-placement evidence, read-evidence
 routes, missing proof contracts, and fail-closed no-live flags. It does not
 read Coinbase, resolve or write proof records, execute reconciliation, mutate
 order or lifecycle state, or grant browser/BFF reveal authority.
+Active-placement exchange-truth evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
+and persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots`
+and
+`POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs`.
+Those writer routes require `stealth_exchange_truth:record`, use path
+`stealth_order_id` as the command identity, and persist append-only local
+evidence only after backend admission prerequisites match. They do not read
+Coinbase, verify exchange truth, cancel/replace active placements, execute
+reconciliation, mutate order/exchange/lifecycle state, or authorize browser/BFF
+proof authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

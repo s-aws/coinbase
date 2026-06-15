@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2261-2280`.
+- Active autonomous range: `2281-2300`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -244,15 +244,21 @@ notional, retained inventory, reconciliation result, and audit ids.
   authority, but it must not claim Coinbase reads ran, prove active-placement
   exchange truth, cancel/replace placements, reveal orders, execute
   reconciliation, mutate stealth/order/exchange state, create proof records,
-  or grant browser/BFF execution authority. The active 2261-2280 range adds
-  route-bound, live-disabled stealth recovery and reconciliation command
-  contracts keyed by `stealth_order_id`. It may add request/command models,
+  or grant browser/BFF execution authority. The completed 2261-2280 range
+  added route-bound, live-disabled stealth recovery and reconciliation command
+  contracts keyed by `stealth_order_id`. It added request/command models,
   FastAPI adapters, shared service fail-closed responses, route inventory,
   OpenAPI, command-suite metadata, frontend schema, mocks, and dry-submit
-  display evidence, but it must not execute recovery repair, rollback,
+  display evidence, but it did not execute recovery repair, rollback,
   reconciliation, proof writers, Coinbase reads, Coinbase orders,
   `StealthOrderManager` mutations, local stealth/order lifecycle mutations,
-  exchange-state mutations, or browser/BFF command authority.
+  exchange-state mutations, or browser/BFF command authority. The active
+  2281-2300 range adds backend-owned append-only active-placement
+  exchange-truth snapshot/proof evidence and readback keyed by
+  `stealth_order_id`. It may persist local evidence records and link them to
+  command-suite blockers, but it must not run Coinbase reads, cancel/replace
+  active placements, execute reconciliation, mark exchange truth verified,
+  mutate stealth/order/exchange state, or grant browser/BFF command authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

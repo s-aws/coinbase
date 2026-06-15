@@ -86,6 +86,24 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface=(
+            "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-proof"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_active_placement_exchange_truth",
+        parity_test=(
+            "read-only active-placement exchange-truth evidence; no Coinbase "
+            "read, cancel/replace, reconciliation execution, or lifecycle mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/command-suite",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -168,6 +186,42 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "stealth_order_id identity; no reconciliation execution, lifecycle "
             "mutation, exchange-state mutation, Coinbase read, or proof writer "
             "until stealth reconciliation gates are complete"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-snapshots"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for active-placement evidence record admission",
+        audit="required",
+        shared_method="record_stealth_active_placement_exchange_truth_snapshot",
+        parity_test=(
+            "stealth_order_id identity; no Coinbase read, cancel/replace, "
+            "reconciliation execution, lifecycle mutation, or exchange-state mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-proofs"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for active-placement proof record admission",
+        audit="required",
+        shared_method="record_stealth_active_placement_exchange_truth_proof",
+        parity_test=(
+            "stealth_order_id identity; proof evidence remains no-live and "
+            "does not itself verify Coinbase exchange truth"
         ),
     ),
     AdminApiRouteInventoryItem(

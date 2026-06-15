@@ -25,6 +25,11 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminStealthOrderDetailResponse,
     AdminStealthOrderListResponse,
+    StealthActivePlacementExchangeTruthProofCommand,
+    StealthActivePlacementExchangeTruthProofRequest,
+    StealthActivePlacementExchangeTruthReadResponse,
+    StealthActivePlacementExchangeTruthSnapshotCommand,
+    StealthActivePlacementExchangeTruthSnapshotRequest,
     StealthCommandSuiteResponse,
     StealthCancelCommand,
     StealthCancelRequest,
@@ -234,6 +239,28 @@ def get_stealth_order_by_stealth_order_id(
     return _read_model_response(
         AdminStealthOrderDetailResponse,
         service.build_stealth_order_detail(stealth_order_id=stealth_order_id),
+    )
+
+
+@router.get(
+    "/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
+    response_model=StealthActivePlacementExchangeTruthReadResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth active-placement exchange-truth evidence by stealth_order_id",
+)
+def get_stealth_active_placement_exchange_truth_proof(
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read active-placement evidence without calling Coinbase."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_model_response(
+        StealthActivePlacementExchangeTruthReadResponse,
+        service.build_stealth_active_placement_exchange_truth(
+            stealth_order_id=stealth_order_id
+        ),
     )
 
 
@@ -631,6 +658,170 @@ def reconcile_stealth_order_by_stealth_order_id(
                 envelope=envelope,
                 stealth_order_id=stealth_order_id,
                 request=body,
+            )
+        ),
+    )
+
+
+@router.post(
+    "/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Record stealth active-placement exchange-truth snapshot evidence",
+)
+def record_stealth_active_placement_exchange_truth_snapshot(
+    request: Request,
+    body: StealthActivePlacementExchangeTruthSnapshotRequest,
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for backend-owned no-live active-placement snapshots."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope: AdminApiCommandEnvelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+        path_params={"stealth_order_id": stealth_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method="record_stealth_active_placement_exchange_truth_snapshot",
+        route_template=(
+            "/api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-snapshots"
+        ),
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        stealth_order_id=stealth_order_id,
+        command_runner_with_admission=lambda admission_decision: (
+            service.record_stealth_active_placement_exchange_truth_snapshot(
+                StealthActivePlacementExchangeTruthSnapshotCommand(
+                    envelope=envelope,
+                    stealth_order_id=stealth_order_id,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
+        ),
+    )
+
+
+@router.post(
+    "/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Record stealth active-placement exchange-truth proof evidence",
+)
+def record_stealth_active_placement_exchange_truth_proof(
+    request: Request,
+    body: StealthActivePlacementExchangeTruthProofRequest,
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for backend-owned no-live active-placement proofs."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope: AdminApiCommandEnvelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+        path_params={"stealth_order_id": stealth_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method="record_stealth_active_placement_exchange_truth_proof",
+        route_template=(
+            "/api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-proofs"
+        ),
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        stealth_order_id=stealth_order_id,
+        command_runner_with_admission=lambda admission_decision: (
+            service.record_stealth_active_placement_exchange_truth_proof(
+                StealthActivePlacementExchangeTruthProofCommand(
+                    envelope=envelope,
+                    stealth_order_id=stealth_order_id,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
             )
         ),
     )

@@ -54,6 +54,8 @@ from .models import (
     SpotRecoveryReconciliationProofRecordCommand,
     SpotRecoveryRollbackExecutionCommand,
     SpotSweepAutomationRunCommand,
+    StealthActivePlacementExchangeTruthProofCommand,
+    StealthActivePlacementExchangeTruthSnapshotCommand,
     StealthCancelCommand,
     StealthCreateCommand,
     StealthMoveCommand,
@@ -89,6 +91,16 @@ from .spot_recovery_proof_service import (
 from .spot_recovery_snapshot_service import (
     AdminApiSpotRecoverySnapshotService,
     SpotRecoverySnapshotError,
+)
+from .stealth_exchange_truth import (
+    FileStealthExchangeTruthProofStore,
+    FileStealthExchangeTruthSnapshotStore,
+    StealthActivePlacementExchangeTruthProofRecord,
+    StealthActivePlacementExchangeTruthSnapshotRecord,
+)
+from .stealth_exchange_truth_service import (
+    AdminApiStealthExchangeTruthService,
+    StealthExchangeTruthError,
 )
 
 
@@ -146,6 +158,14 @@ class AdminApiCommandDependencies:
         [],
         FileSpotRecoveryCompletionJournalStore,
     ] = FileSpotRecoveryCompletionJournalStore
+    stealth_exchange_truth_snapshot_store_getter: Callable[
+        [],
+        FileStealthExchangeTruthSnapshotStore,
+    ] = FileStealthExchangeTruthSnapshotStore
+    stealth_exchange_truth_proof_store_getter: Callable[
+        [],
+        FileStealthExchangeTruthProofStore,
+    ] = FileStealthExchangeTruthProofStore
     audit_store_getter: Callable[[], FileAdminApiAuditStore] = FileAdminApiAuditStore
     spot_recovery_proof_service: AdminApiSpotRecoveryProofService = field(
         default_factory=AdminApiSpotRecoveryProofService
@@ -155,6 +175,9 @@ class AdminApiCommandDependencies:
     )
     spot_recovery_snapshot_service: AdminApiSpotRecoverySnapshotService = field(
         default_factory=AdminApiSpotRecoverySnapshotService
+    )
+    stealth_exchange_truth_service: AdminApiStealthExchangeTruthService = field(
+        default_factory=AdminApiStealthExchangeTruthService
     )
 
 
@@ -386,6 +409,62 @@ def _spot_recovery_snapshot_response_data(
         "order_state_mutated": False,
         "exchange_state_mutated": False,
         "reconciliation_executed": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _stealth_exchange_truth_snapshot_response_data(
+    record: StealthActivePlacementExchangeTruthSnapshotRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted stealth snapshot."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "snapshot_recorded": True,
+        "proof_persisted": False,
+        "exchange_truth_verified": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "coinbase_order_cancel_submitted": False,
+        "active_placement_cancel_replace_ran": False,
+        "reconciliation_executed": False,
+        "order_state_mutated": False,
+        "lifecycle_state_mutated": False,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _stealth_exchange_truth_proof_response_data(
+    record: StealthActivePlacementExchangeTruthProofRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted stealth proof."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "snapshot_recorded": False,
+        "proof_persisted": True,
+        "exchange_truth_verified": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "coinbase_order_cancel_submitted": False,
+        "active_placement_cancel_replace_ran": False,
+        "reconciliation_executed": False,
+        "order_state_mutated": False,
+        "lifecycle_state_mutated": False,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
     })
@@ -1518,6 +1597,222 @@ class AdminApiCommandService:
             live_exchange_submitted=False,
             data=data,
             failure_stage="proof_prerequisite",
+        )
+
+    def _rejected_stealth_exchange_truth_response(
+        self,
+        *,
+        service_method: str,
+        mutation_family: AdminApiMutationFamilyType,
+        command: (
+            StealthActivePlacementExchangeTruthSnapshotCommand
+            | StealthActivePlacementExchangeTruthProofCommand
+        ),
+        message: str,
+        flags: dict[str, bool],
+    ) -> AdminApiCommandResponse:
+        request = command.request
+        data: dict[str, Any] = {
+            "mutation_family": mutation_family.value,
+            "stealth_order_id": command.stealth_order_id,
+            "exchange_truth_snapshot_id": getattr(
+                request,
+                "exchange_truth_snapshot_id",
+                None,
+            ),
+            "exchange_truth_proof_id": getattr(
+                request,
+                "exchange_truth_proof_id",
+                None,
+            ),
+            "active_placement_client_order_id": (
+                request.active_placement_client_order_id
+            ),
+            "active_exchange_order_id": request.active_exchange_order_id,
+            "exchange_truth_evidence_ref": getattr(
+                request,
+                "exchange_truth_evidence_ref",
+                None,
+            ),
+            "snapshot_evidence_ref": getattr(request, "snapshot_evidence_ref", None),
+            "product_id": getattr(request, "product_id", None),
+            "source_timestamp": getattr(request, "source_timestamp", None),
+            "evidence_source": getattr(request, "evidence_source", None),
+            "approval_snapshot_id": request.approval_snapshot_id,
+            "admission_audit_id": request.admission_audit_id,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "dry_run": request.dry_run,
+            "operator_reason": request.operator_reason,
+            "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "snapshot_recorded": False,
+            "proof_persisted": False,
+            "exchange_truth_verified": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "coinbase_rest_read_ran": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "active_placement_cancel_replace_ran": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "lifecycle_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        data.update(flags)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD,
+            service_method=service_method,
+            message=message,
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            data=data,
+            failure_stage="proof_prerequisite",
+        )
+
+    def record_stealth_active_placement_exchange_truth_snapshot(
+        self,
+        command: StealthActivePlacementExchangeTruthSnapshotCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned active-placement snapshot evidence."""
+
+        if command.admission_decision is None:
+            return self._rejected_stealth_exchange_truth_response(
+                service_method="record_stealth_active_placement_exchange_truth_snapshot",
+                mutation_family=(
+                    AdminApiMutationFamilyType.STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_SNAPSHOT
+                ),
+                command=command,
+                message="Stealth exchange-truth snapshot admission evidence is missing.",
+                flags={
+                    "snapshot_recorded": False,
+                    "coinbase_rest_read_ran": False,
+                    "proof_persisted": False,
+                },
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.stealth_exchange_truth_service.record_snapshot(
+                snapshot_store=deps.stealth_exchange_truth_snapshot_store_getter(),
+                stealth_order_id=command.stealth_order_id,
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except StealthExchangeTruthError as exc:
+            return self._rejected_stealth_exchange_truth_response(
+                service_method="record_stealth_active_placement_exchange_truth_snapshot",
+                mutation_family=(
+                    AdminApiMutationFamilyType.STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_SNAPSHOT
+                ),
+                command=command,
+                message=str(exc),
+                flags={
+                    "snapshot_recorded": False,
+                    "coinbase_rest_read_ran": False,
+                    "proof_persisted": False,
+                },
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD,
+            service_method="record_stealth_active_placement_exchange_truth_snapshot",
+            message=(
+                "Stealth active-placement exchange-truth snapshot recorded; "
+                "Coinbase was not read and no order, lifecycle, or exchange "
+                "state was mutated."
+            ),
+            stealth_order_id=record.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_stealth_exchange_truth_snapshot_response_data(record),
+        )
+
+    def record_stealth_active_placement_exchange_truth_proof(
+        self,
+        command: StealthActivePlacementExchangeTruthProofCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned active-placement proof evidence."""
+
+        if command.admission_decision is None:
+            return self._rejected_stealth_exchange_truth_response(
+                service_method="record_stealth_active_placement_exchange_truth_proof",
+                mutation_family=(
+                    AdminApiMutationFamilyType.STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_PROOF
+                ),
+                command=command,
+                message="Stealth exchange-truth proof admission evidence is missing.",
+                flags={
+                    "proof_persisted": False,
+                    "coinbase_rest_read_ran": False,
+                },
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.stealth_exchange_truth_service.record_proof(
+                snapshot_store=deps.stealth_exchange_truth_snapshot_store_getter(),
+                proof_store=deps.stealth_exchange_truth_proof_store_getter(),
+                stealth_order_id=command.stealth_order_id,
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except StealthExchangeTruthError as exc:
+            return self._rejected_stealth_exchange_truth_response(
+                service_method="record_stealth_active_placement_exchange_truth_proof",
+                mutation_family=(
+                    AdminApiMutationFamilyType.STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_PROOF
+                ),
+                command=command,
+                message=str(exc),
+                flags={
+                    "proof_persisted": False,
+                    "coinbase_rest_read_ran": False,
+                },
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD,
+            service_method="record_stealth_active_placement_exchange_truth_proof",
+            message=(
+                "Stealth active-placement exchange-truth proof recorded as "
+                "evidence only; it does not verify Coinbase state or execute "
+                "reconciliation."
+            ),
+            stealth_order_id=record.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_stealth_exchange_truth_proof_response_data(record),
         )
 
     def execute_spot_recovery_apply(

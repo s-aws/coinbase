@@ -23,10 +23,15 @@ Current route adapters:
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `GET /api/v1/stealth/command-suite`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs`
 - `POST /api/v1/stealth/orders`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/recovery`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
@@ -78,9 +83,21 @@ Current behavior:
 - `GET /api/v1/stealth/command-suite` exposes read-only M55 stealth
   command-suite readiness for create, cancel, reveal, move, reprice,
   recovery, and reconciliation workflows. It links live-disabled stealth
-  create, reveal, move, cancel, and movement/reprice routes, reports
+  create, reveal, move, cancel, recovery, reconciliation, and movement/reprice routes, reports
   exchange-truth blockers, and does not create, reveal, cancel, move/reprice,
   reconcile, mutate state, read Coinbase, or call Coinbase
+- `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
+  exposes read-only persisted active-placement exchange-truth evidence keyed
+  by `stealth_order_id`; it does not read Coinbase, verify exchange truth,
+  cancel/replace placements, execute reconciliation, or mutate lifecycle state
+- `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots`
+  and
+  `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs`
+  persist append-only local evidence after backend admission prerequisites
+  match. The path `stealth_order_id` is the command identity; placement client
+  ids and exchange ids are evidence only. The routes do not read Coinbase,
+  submit or cancel orders, cancel/replace active placements, verify exchange
+  truth, execute reconciliation, or mutate order/exchange/lifecycle state
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`
@@ -90,6 +107,13 @@ Current behavior:
   live-disabled command draft keyed by `stealth_order_id`; it returns `501`,
   writes command audit evidence, never calls Coinbase, and must not use active
   placement ids or exchange ids as cancel keys
+- `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` and
+  `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation` are
+  live-disabled local-state command contracts keyed by `stealth_order_id`.
+  They return fail-closed command evidence and do not execute recovery,
+  reconciliation, proof writers, Coinbase reads, Coinbase orders,
+  `StealthOrderManager` mutations, local lifecycle mutations, or
+  exchange-state mutations
 - `GET /api/v1/movement-repricing/evidence`,
   `GET /api/v1/movement-repricing/orders/{client_order_id}`, and
   `GET /api/v1/movement-repricing/stealth/{stealth_order_id}` expose

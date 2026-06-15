@@ -56,6 +56,7 @@ from core.enums import (
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
+    StealthExchangeTruthEvidenceSource,
     StealthMutationKind,
     TargetMovementType,
     TimeInForce,
@@ -280,6 +281,46 @@ class StealthReconciliationRequest(BaseModel):
     reconciliation_proof_id: str | None = Field(default=None, min_length=1)
     reason: str | None = None
     dry_run: bool = True
+    manual_live_acknowledgement: bool = False
+
+
+class StealthActivePlacementExchangeTruthSnapshotRequest(BaseModel):
+    """Stealth active-placement exchange-truth snapshot keyed by path id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    active_placement_client_order_id: str | None = Field(default=None, min_length=1)
+    active_exchange_order_id: str | None = Field(default=None, min_length=1)
+    product_id: str | None = Field(default=None, min_length=1, examples=["BTC-USDC"])
+    source_timestamp: str = Field(min_length=1)
+    evidence_source: StealthExchangeTruthEvidenceSource
+    snapshot_evidence_ref: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    exchange_truth_snapshot_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class StealthActivePlacementExchangeTruthProofRequest(BaseModel):
+    """Stealth active-placement exchange-truth proof keyed by path id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    exchange_truth_snapshot_id: str = Field(min_length=1)
+    active_placement_client_order_id: str | None = Field(default=None, min_length=1)
+    active_exchange_order_id: str | None = Field(default=None, min_length=1)
+    exchange_truth_evidence_ref: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    exchange_truth_proof_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
 
 
@@ -554,6 +595,30 @@ class StealthReconciliationCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthReconciliationRequest
+    allow_live_execution: bool = False
+
+
+class StealthActivePlacementExchangeTruthSnapshotCommand(BaseModel):
+    """Shared service command for active-placement snapshot evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthActivePlacementExchangeTruthSnapshotRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class StealthActivePlacementExchangeTruthProofCommand(BaseModel):
+    """Shared service command for active-placement proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthActivePlacementExchangeTruthProofRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 
@@ -1691,6 +1756,110 @@ class AdminStealthActivePlacementAuditEvidence(BaseModel):
     detail: str
 
 
+class StealthActivePlacementExchangeTruthSnapshotRecordItem(BaseModel):
+    """Read-only persisted active-placement exchange-truth snapshot evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    exchange_truth_snapshot_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    stealth_order_id: str
+    active_placement_client_order_id: str | None = None
+    active_exchange_order_id: str | None = None
+    product_id: str | None = None
+    source_timestamp: str
+    evidence_source: StealthExchangeTruthEvidenceSource
+    snapshot_evidence_ref: str
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_stealth_exchange_truth_snapshot_log"
+    snapshot_recorded: bool = True
+    exchange_truth_verified: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class StealthActivePlacementExchangeTruthProofRecordItem(BaseModel):
+    """Read-only persisted active-placement exchange-truth proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    exchange_truth_proof_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    stealth_order_id: str
+    exchange_truth_snapshot_id: str
+    active_placement_client_order_id: str | None = None
+    active_exchange_order_id: str | None = None
+    exchange_truth_evidence_ref: str
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_stealth_exchange_truth_proof_log"
+    proof_persisted: bool = True
+    exchange_truth_verified: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminMutationClaimEvidence(BaseModel):
     """Runtime claim evidence for repeatable stealth mutations."""
 
@@ -2530,6 +2699,49 @@ class AdminApiReadPayload(BaseModel):
     type: str | None = None
     status: str | None = None
     live_coinbase_orders_ran: bool = False
+
+
+class StealthActivePlacementExchangeTruthReadResponse(AdminApiReadPayload):
+    """Read-only active-placement exchange-truth evidence readback."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_active_placement_exchange_truth"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    exchange_truth_verified: bool = False
+    persisted_snapshot_count: int = Field(default=0, ge=0)
+    persisted_snapshots: list[StealthActivePlacementExchangeTruthSnapshotRecordItem] = (
+        Field(default_factory=list)
+    )
+    persisted_proof_count: int = Field(default=0, ge=0)
+    persisted_proofs: list[StealthActivePlacementExchangeTruthProofRecordItem] = (
+        Field(default_factory=list)
+    )
+    latest_exchange_truth_snapshot_id: str | None = None
+    latest_exchange_truth_proof_id: str | None = None
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    route_bound: bool = True
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
 
 
 class AdminApiFlexibleObject(BaseModel):

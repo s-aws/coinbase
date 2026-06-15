@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2261-2280**.
+- Approved phase range: **2281-2300**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,89 +53,190 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2261-2280
+## Active Phases 2281-2300
 
-These phases continue M55 after exchange-truth evidence-route linkage. The next explicit architecture gap is route-bound, backend-owned command contracts for stealth recovery and stealth reconciliation. This range may add live-disabled FastAPI adapters, request/command models, route inventory, OpenAPI, command-suite metadata, frontend schema, mocks, and dry-submit display evidence. It must not execute recovery repair, rollback, reconciliation, proof writers, Coinbase reads, Coinbase orders, `StealthOrderManager` mutations, local stealth/order lifecycle mutations, exchange-state mutations, or browser/BFF command authority.
+These phases continue M55 after live-disabled recovery/reconciliation command
+contracts. The next explicit architecture gap is backend-owned
+active-placement exchange-truth evidence for stealth cancel, move, recovery,
+reconciliation, and movement repricing. This range may add append-only
+snapshot/proof evidence contracts, route inventory, OpenAPI, command-suite
+metadata, frontend schema, mocks, and display-only readback. It must not run
+Coinbase reads, cancel/replace active placements, execute reconciliation,
+mark exchange truth verified, mutate stealth/order/exchange state, or grant
+browser/BFF command authority.
 
-### Phase 2261 - Advance Active Queue Range
+### Phase 2281 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2241-2260 to active phases 2261-2280 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2261-2280 to active phases 2281-2300 while preserving no-live defaults and cap policy.
 
-### Phase 2262 - Recovery/Reconciliation Command Scope
+### Phase 2282 - Active-Placement Evidence Scope
 
-- Define stealth recovery and stealth reconciliation as live-disabled command contracts only, not recovery execution, proof writing, exchange-state repair, or reconciliation execution.
+- Define stealth active-placement exchange-truth evidence as backend-owned append-only local evidence only, not Coinbase truth, cancel/replace execution, reconciliation execution, or lifecycle mutation.
 
-### Phase 2263 - Backend Permission And Family Audit
+### Phase 2283 - Backend Permission And Family Audit
 
-- Add enum-backed permissions and mutation-family identifiers for stealth recovery and stealth reconciliation without granting them to normal trader/operator roles.
+- Add enum-backed permission and mutation-family identifiers for stealth exchange-truth snapshot/proof recording without granting them to normal trader/operator roles.
 
-### Phase 2264 - Recovery Request Contract
+### Phase 2284 - Snapshot Request Contract
 
-- Add a typed stealth recovery request and command model keyed by `stealth_order_id`, with dry-run/operator acknowledgement evidence and no accepted exchange id identity.
+- Add a typed active-placement exchange-truth snapshot request and command model keyed by path `stealth_order_id`, with active placement ids as evidence only.
 
-### Phase 2265 - Reconciliation Request Contract
+### Phase 2285 - Proof Request Contract
 
-- Add a typed stealth reconciliation request and command model keyed by `stealth_order_id`, with reconciliation plan/proof references as evidence and no accepted exchange id identity.
+- Add a typed active-placement exchange-truth proof request and command model keyed by path `stealth_order_id`, requiring a prior snapshot reference while keeping `exchange_truth_verified=false`.
 
-### Phase 2266 - Recovery Route Adapter
+### Phase 2286 - Append-Only Evidence Stores
 
-- Add `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+- Add thread-safe JSONL stores for active-placement snapshot/proof records with readback by `stealth_order_id` and stable duplicate rejection.
 
-### Phase 2267 - Reconciliation Route Adapter
+### Phase 2287 - Evidence Service Validation
 
-- Add `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+- Add a service boundary that validates route inventory, approval snapshot, admission audit, cap/guard, reconciliation plan, actor, idempotency, payload hash, no-live status, and route identity before persisting records.
 
-### Phase 2268 - Shared Service Fail-Closed Responses
+### Phase 2288 - Snapshot Route Adapter
 
-- Return typed `not_implemented` responses from shared command-service methods with no manager invocation, Coinbase call, local mutation, exchange mutation, proof creation, or reconciliation execution.
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots` through the existing Admin API idempotency, RBAC, audit, and command-service path.
 
-### Phase 2269 - Command-Suite Metadata Sync
+### Phase 2289 - Proof Route Adapter
 
-- Expose recovery and reconciliation command rows, exchange-truth prerequisites, active-placement requirements, and updated coverage gaps through `GET /api/v1/stealth/command-suite`.
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs` through the existing Admin API idempotency, RBAC, audit, and command-service path.
 
-### Phase 2270 - Capability And Readiness Evidence
+### Phase 2290 - Readback Evidence Route
 
-- Ensure admin capabilities, enterprise readiness, and live-enablement evidence list the new command contracts without changing live-enabled counts or live eligibility.
+- Add `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof` as read-only evidence that never calls Coinbase and never marks exchange truth verified.
 
-### Phase 2271 - Route Inventory And OpenAPI Artifacts
+### Phase 2291 - Command-Suite Evidence Linkage
 
-- Update route inventory markdown/JSON and generated OpenAPI for the new routes and request models without hand-maintaining generated schema.
+- Link the new readback route into stealth command-suite exchange-truth checks and active-placement coverage gaps without removing live-disabled blockers.
 
-### Phase 2272 - Backend Focused Tests
+### Phase 2292 - Capability And Readiness Evidence
 
-- Cover RBAC, idempotency envelope, response fields, route inventory, OpenAPI, command-suite counts, no-live posture, and no accepted `order_id`/`client_order_id` body identity.
+- Ensure admin capabilities, enterprise readiness, and live-enablement evidence include the new routes without changing live-enabled counts or live eligibility.
 
-### Phase 2273 - Frontend Schema Sync
+### Phase 2293 - Route Inventory And OpenAPI Artifacts
+
+- Update route inventory markdown/JSON and generated OpenAPI for the new routes and request/read models without hand-maintaining generated schema.
+
+### Phase 2294 - Backend Focused Tests
+
+- Cover RBAC, idempotency replay/conflict posture, response fields, route inventory, OpenAPI, readback, audit persistence, no-live flags, and rejected `order_id` body identity.
+
+### Phase 2295 - Frontend Schema Sync
 
 - Regenerate frontend schema from backend OpenAPI and keep generated files unedited by hand.
 
+### Phase 2296 - Frontend API Client And Mock Routes
+
+- Add frontend client/mock support for the active-placement snapshot/proof/readback contracts without broadening BFF mutation authority beyond backend-owned routes.
+
+### Phase 2297 - Frontend Command-Suite Rendering
+
+- Render active-placement exchange-truth evidence, persisted records, required permissions, blocked gate chains, and no-live flags as display-only evidence.
+
+### Phase 2298 - Frontend Focused Tests
+
+- Cover UI rendering, mock/runtime contracts, no-live posture, no action controls beyond the approved backend route surface, and role hint boundaries.
+
+### Phase 2299 - Documentation, Gates, And Review
+
+- Update Admin API, stealth command-suite, command-workflow, route-inventory, examples, maintainer handoff, agent state, and roadmap docs; run API freshness, autonomous queue, ownership, command-security, and blind/contextless review.
+
+### Phase 2300 - Full Gates, Push, And Next Range
+
+- Run backend regression and frontend release gate, confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed Phases 2261-2280
+
+These phases completed route-bound, backend-owned, live-disabled stealth
+recovery and reconciliation command contracts keyed by `stealth_order_id`.
+They added typed request/command models, FastAPI adapters, shared
+command-service fail-closed responses, route inventory, OpenAPI,
+command-suite metadata, frontend schema/mocks/dry-submit display evidence,
+docs, focused tests, full gates, and contextless review. They did not execute
+recovery repair, rollback, reconciliation, proof writers, Coinbase reads,
+Coinbase orders, `StealthOrderManager` mutations, local stealth/order
+lifecycle mutations, exchange-state mutations, browser command authority, or
+BFF execution authority.
+
+### Phase 2261 - Advance Active Queue Range
+
+- Moved the durable autonomous queue from completed phases 2241-2260 to active phases 2261-2280 while preserving no-live defaults and cap policy.
+
+### Phase 2262 - Recovery/Reconciliation Command Scope
+
+- Defined stealth recovery and stealth reconciliation as live-disabled command contracts only, not recovery execution, proof writing, exchange-state repair, or reconciliation execution.
+
+### Phase 2263 - Backend Permission And Family Audit
+
+- Added enum-backed permissions and mutation-family identifiers for stealth recovery and stealth reconciliation without granting them to normal trader/operator roles.
+
+### Phase 2264 - Recovery Request Contract
+
+- Added a typed stealth recovery request and command model keyed by `stealth_order_id`, with dry-run/operator acknowledgement evidence and no accepted exchange id identity.
+
+### Phase 2265 - Reconciliation Request Contract
+
+- Added a typed stealth reconciliation request and command model keyed by `stealth_order_id`, with reconciliation plan/proof references as evidence and no accepted exchange id identity.
+
+### Phase 2266 - Recovery Route Adapter
+
+- Added `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+
+### Phase 2267 - Reconciliation Route Adapter
+
+- Added `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+
+### Phase 2268 - Shared Service Fail-Closed Responses
+
+- Returned typed `not_implemented` responses from shared command-service methods with no manager invocation, Coinbase call, local mutation, exchange mutation, proof creation, or reconciliation execution.
+
+### Phase 2269 - Command-Suite Metadata Sync
+
+- Exposed recovery and reconciliation command rows, exchange-truth prerequisites, active-placement requirements, and updated coverage gaps through `GET /api/v1/stealth/command-suite`.
+
+### Phase 2270 - Capability And Readiness Evidence
+
+- Ensured admin capabilities, enterprise readiness, and live-enablement evidence list the new command contracts without changing live-enabled counts or live eligibility.
+
+### Phase 2271 - Route Inventory And OpenAPI Artifacts
+
+- Updated route inventory markdown/JSON and generated OpenAPI for the new routes and request models without hand-maintaining generated schema.
+
+### Phase 2272 - Backend Focused Tests
+
+- Covered RBAC, idempotency envelope, response fields, route inventory, OpenAPI, command-suite counts, no-live posture, and no accepted `order_id`/`client_order_id` body identity.
+
+### Phase 2273 - Frontend Schema Sync
+
+- Regenerated frontend schema from backend OpenAPI and kept generated files unedited by hand.
+
 ### Phase 2274 - Frontend API Client And Mock Routes
 
-- Add frontend client/mock support for the recovery and reconciliation dry-submit contracts without broadening BFF mutation authority beyond backend-owned routes.
+- Added frontend client/mock support for the recovery and reconciliation dry-submit contracts without broadening BFF mutation authority beyond backend-owned routes.
 
 ### Phase 2275 - Frontend Command-Suite Rendering
 
-- Render recovery and reconciliation command evidence, required permissions, blocked gate chains, active-placement requirements, and dry-submit responses as display-only evidence.
+- Rendered recovery and reconciliation command evidence, required permissions, blocked gate chains, active-placement requirements, and dry-submit responses as display-only evidence.
 
 ### Phase 2276 - Frontend Focused Tests
 
-- Cover UI rendering, mock/runtime contracts, dry-submit no-live posture, no action controls beyond the approved backend route surface, and role hint boundaries.
+- Covered UI rendering, mock/runtime contracts, dry-submit no-live posture, no action controls beyond the approved backend route surface, and role hint boundaries.
 
 ### Phase 2277 - Documentation And Examples
 
-- Update Admin API, stealth command-suite, command-workflow, route-inventory, examples, maintainer handoff, agent state, and roadmap docs for the new live-disabled command contracts.
+- Updated Admin API, stealth command-suite, command-workflow, route-inventory, examples, maintainer handoff, agent state, and roadmap docs for the new live-disabled command contracts.
 
 ### Phase 2278 - API And Autonomous Gates
 
-- Run API freshness, autonomous queue, ownership, and command-security checks for the active 2261-2280 range.
+- Ran API freshness, autonomous queue, ownership, and command-security checks for the active 2261-2280 range.
 
 ### Phase 2279 - Blind/Contextless Review
 
-- Run contextless review for whether a fresh agent can explain the recovery/reconciliation command contracts without inferring execution, proof-writing, Coinbase-read, or state-mutation authority.
+- Ran contextless review for whether a fresh agent can explain the recovery/reconciliation command contracts without inferring execution, proof-writing, Coinbase-read, or state-mutation authority.
 
 ### Phase 2280 - Full Gates, Push, And Next Range
 
-- Run backend regression and frontend release gate, confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+- Ran backend regression and frontend release gate, confirmed no live Coinbase execution and `$0` frontend notional, pushed synchronized repos, then advanced to the next M55 range.
 
 ## Completed Phases 2241-2260
 

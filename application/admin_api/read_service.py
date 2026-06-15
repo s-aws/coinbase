@@ -122,6 +122,9 @@ from .models import (
     AdminStealthRevealReconciliationAuditEvidence,
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
+    StealthActivePlacementExchangeTruthProofRecordItem,
+    StealthActivePlacementExchangeTruthReadResponse,
+    StealthActivePlacementExchangeTruthSnapshotRecordItem,
     SpotCommandSuiteCommandItem,
     SpotCommandSuiteCoverageGapEvidenceRouteItem,
     SpotCommandSuiteCoverageGapItem,
@@ -171,12 +174,18 @@ from .spot_recovery_repair import (
     FileSpotRecoveryRepairResultJournalStore,
     SpotRecoveryRepairResultRecord,
 )
+from .stealth_exchange_truth import (
+    FileStealthExchangeTruthProofStore,
+    FileStealthExchangeTruthSnapshotStore,
+    StealthActivePlacementExchangeTruthProofRecord,
+    StealthActivePlacementExchangeTruthSnapshotRecord,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2261-2280"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2281-2300"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1252,7 +1261,8 @@ def _stealth_active_placement_audit(
 ) -> AdminStealthActivePlacementAuditEvidence:
     active_placement_present = bool(item.active_placement_client_order_id)
     required_contracts = [
-        "stealth_active_placement_exchange_truth_read_contract",
+        "stealth_active_placement_exchange_truth_snapshot_contract",
+        "stealth_active_placement_exchange_truth_proof_contract",
         "stealth_active_placement_cancel_replace_audit",
         "stealth_active_placement_reconciliation_proof",
     ]
@@ -1290,6 +1300,10 @@ def _stealth_active_placement_audit(
         ],
         read_evidence_routes=[
             "/api/v1/stealth/orders/{stealth_order_id}",
+            (
+                "/api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+                "exchange-truth-proof"
+            ),
             "/api/v1/stealth/command-suite",
         ],
         required_contracts=required_contracts,
@@ -2827,6 +2841,124 @@ def _spot_recovery_snapshot_item_from_record(
     )
 
 
+def _stealth_exchange_truth_snapshot_item_from_record(
+    record: StealthActivePlacementExchangeTruthSnapshotRecord,
+) -> StealthActivePlacementExchangeTruthSnapshotRecordItem:
+    return StealthActivePlacementExchangeTruthSnapshotRecordItem(
+        exchange_truth_snapshot_id=record.exchange_truth_snapshot_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        stealth_order_id=record.stealth_order_id,
+        active_placement_client_order_id=record.active_placement_client_order_id,
+        active_exchange_order_id=record.active_exchange_order_id,
+        product_id=record.product_id,
+        source_timestamp=record.source_timestamp,
+        evidence_source=record.evidence_source,
+        snapshot_evidence_ref=record.snapshot_evidence_ref,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        snapshot_recorded=record.snapshot_recorded,
+        exchange_truth_verified=record.exchange_truth_verified,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth active-placement exchange-truth snapshot is backend-owned "
+            "append-only local evidence. It is not browser exchange truth, a "
+            "Coinbase read, cancel/replace, lifecycle mutation, or "
+            "reconciliation execution."
+        ),
+    )
+
+
+def _stealth_exchange_truth_proof_item_from_record(
+    record: StealthActivePlacementExchangeTruthProofRecord,
+) -> StealthActivePlacementExchangeTruthProofRecordItem:
+    return StealthActivePlacementExchangeTruthProofRecordItem(
+        exchange_truth_proof_id=record.exchange_truth_proof_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        stealth_order_id=record.stealth_order_id,
+        exchange_truth_snapshot_id=record.exchange_truth_snapshot_id,
+        active_placement_client_order_id=record.active_placement_client_order_id,
+        active_exchange_order_id=record.active_exchange_order_id,
+        exchange_truth_evidence_ref=record.exchange_truth_evidence_ref,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        proof_persisted=record.proof_persisted,
+        exchange_truth_verified=record.exchange_truth_verified,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth active-placement exchange-truth proof is backend-owned "
+            "append-only evidence only. It remains exchange_truth_verified=false "
+            "until a later backend-owned Coinbase or reconciliation authority "
+            "proves active placement state."
+        ),
+    )
+
+
 def _spot_recovery_execution_item_from_record(
     record: SpotRecoveryExecutionRecord,
 ) -> SpotRecoveryExecutionRecordItem:
@@ -3023,6 +3155,12 @@ class AdminApiReadService:
         spot_recovery_completion_store: (
             FileSpotRecoveryCompletionJournalStore | None
         ) = None,
+        stealth_exchange_truth_snapshot_store: (
+            FileStealthExchangeTruthSnapshotStore | None
+        ) = None,
+        stealth_exchange_truth_proof_store: (
+            FileStealthExchangeTruthProofStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -3040,6 +3178,13 @@ class AdminApiReadService:
         self.spot_recovery_completion_store = (
             spot_recovery_completion_store
             or FileSpotRecoveryCompletionJournalStore()
+        )
+        self.stealth_exchange_truth_snapshot_store = (
+            stealth_exchange_truth_snapshot_store
+            or FileStealthExchangeTruthSnapshotStore()
+        )
+        self.stealth_exchange_truth_proof_store = (
+            stealth_exchange_truth_proof_store or FileStealthExchangeTruthProofStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -6665,6 +6810,120 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "active-placement/exchange-truth-snapshots"
+                ),
+                mutation_id="stealth.exchange_truth_snapshot",
+                mutation_family=(
+                    AdminApiMutationFamilyType
+                    .STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_SNAPSHOT
+                ),
+                workflow_id="stealth.exchange_truth_snapshot_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth active-placement exchange-truth snapshot recording "
+                    "is append-only local evidence keyed by stealth_order_id; it "
+                    "does not read Coinbase, verify exchange truth, cancel/replace "
+                    "placements, execute reconciliation, or mutate lifecycle state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_active_placement_exchange_truth_snapshot",
+                    "application/admin_api/command_service.py::record_stealth_active_placement_exchange_truth_snapshot",
+                    "application/admin_api/stealth_exchange_truth_service.py",
+                    "application/admin_api/stealth_exchange_truth.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthActivePlacementExchangeTruthSnapshot",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.stealth-exchange-truth-proofs.md",
+                    "docs/examples/stealth-exchange-truth-proofs.md",
+                ],
+                required_next_contract=(
+                    "Future exchange-truth verification must be owned by backend "
+                    "Coinbase read/reconciliation paths; this route records "
+                    "evidence only and keeps exchange_truth_verified=false."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "coinbase_read_disabled",
+                    "exchange_truth_verified_false",
+                    "active placement reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not treat browser-supplied active placement or exchange "
+                    "ids as truth, cancel authority, reconciliation authority, or "
+                    "lifecycle mutation input."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard evidence; "
+                    "snapshot recording is not sell authority or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "active-placement/exchange-truth-proofs"
+                ),
+                mutation_id="stealth.exchange_truth_proof",
+                mutation_family=(
+                    AdminApiMutationFamilyType
+                    .STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_PROOF
+                ),
+                workflow_id="stealth.exchange_truth_proof_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth active-placement exchange-truth proof recording is "
+                    "append-only local evidence linked to a prior snapshot and "
+                    "keyed by stealth_order_id; it does not itself verify Coinbase "
+                    "truth or authorize cancel/replace/reconciliation."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_active_placement_exchange_truth_proof",
+                    "application/admin_api/command_service.py::record_stealth_active_placement_exchange_truth_proof",
+                    "application/admin_api/stealth_exchange_truth_service.py",
+                    "application/admin_api/stealth_exchange_truth.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthActivePlacementExchangeTruthProof",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.stealth-exchange-truth-proofs.md",
+                    "docs/examples/stealth-exchange-truth-proofs.md",
+                ],
+                required_next_contract=(
+                    "Future verified active-placement exchange truth must come "
+                    "from backend Coinbase/reconciliation evidence, not from this "
+                    "local proof-record route alone."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "coinbase_read_disabled",
+                    "exchange_truth_verified_false",
+                    "active placement reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not use browser proof records as active-placement truth, "
+                    "cancel authority, reconciliation authority, or lifecycle "
+                    "mutation input."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard evidence; "
+                    "proof recording is not sell authority or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -7853,6 +8112,74 @@ class AdminApiReadService:
             ),
         )
 
+    def build_stealth_active_placement_exchange_truth(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthActivePlacementExchangeTruthReadResponse:
+        """Return persisted no-live active-placement exchange-truth evidence."""
+
+        snapshots = [
+            _stealth_exchange_truth_snapshot_item_from_record(record)
+            for record in self.stealth_exchange_truth_snapshot_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=20,
+            )
+        ]
+        proofs = [
+            _stealth_exchange_truth_proof_item_from_record(record)
+            for record in self.stealth_exchange_truth_proof_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=20,
+            )
+        ]
+        latest_snapshot_id = (
+            snapshots[0].exchange_truth_snapshot_id if snapshots else None
+        )
+        latest_proof_id = proofs[0].exchange_truth_proof_id if proofs else None
+        missing_contracts = [
+            "backend_coinbase_active_placement_read_authority",
+            "stealth_active_placement_cancel_replace_audit",
+            "stealth_active_placement_reconciliation_execution_proof",
+        ]
+        return StealthActivePlacementExchangeTruthReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            exchange_truth_verified=False,
+            persisted_snapshot_count=len(snapshots),
+            persisted_snapshots=snapshots,
+            persisted_proof_count=len(proofs),
+            persisted_proofs=proofs,
+            latest_exchange_truth_snapshot_id=latest_snapshot_id,
+            latest_exchange_truth_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            active_placement_cancel_replace_ran=False,
+            reconciliation_executed=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth active-placement exchange-truth records are "
+                "backend-owned evidence only. They do not verify live Coinbase "
+                "state, cancel or replace placements, execute reconciliation, "
+                "or mutate stealth/order/exchange state."
+            ),
+        )
+
     def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
         """Return read-only M55 stealth command-suite readiness evidence."""
 
@@ -8425,20 +8752,36 @@ class AdminApiReadService:
         ]
         stealth_detail_surfaces = [
             "GET /api/v1/stealth/orders/{stealth_order_id}",
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+                "exchange-truth-proof"
+            ),
             "GET /api/v1/stealth/command-suite",
         ]
         movement_stealth_surfaces = [
             "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+                "exchange-truth-proof"
+            ),
             "GET /api/v1/stealth/command-suite",
         ]
         recovery_surfaces = [
             "GET /api/v1/admin/recovery-gate",
             "GET /api/v1/stealth/orders/{stealth_order_id}",
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+                "exchange-truth-proof"
+            ),
             "GET /api/v1/stealth/command-suite",
         ]
         reconciliation_surfaces = [
             "GET /api/v1/admin/reconciliation/plans",
             "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+                "exchange-truth-proof"
+            ),
             "GET /api/v1/stealth/command-suite",
         ]
 
@@ -8465,16 +8808,22 @@ class AdminApiReadService:
                 "stealth_reveal_reconciliation_proof",
             ],
             AdminApiMutationFamilyType.STEALTH_CANCEL: [
+                "stealth_active_placement_exchange_truth_snapshot_contract",
+                "stealth_active_placement_exchange_truth_proof_contract",
                 "stealth_cancel_active_placement_cancel_proof",
                 "stealth_cancel_exchange_reconciliation_proof",
                 "stealth_cancel_state_transition_audit",
             ],
             AdminApiMutationFamilyType.STEALTH_MOVE: [
+                "stealth_active_placement_exchange_truth_snapshot_contract",
+                "stealth_active_placement_exchange_truth_proof_contract",
                 "stealth_move_active_placement_cancel_replace_proof",
                 "stealth_move_mutation_claim_snapshot_contract",
                 "stealth_move_reconciliation_proof",
             ],
             AdminApiMutationFamilyType.STEALTH_RECOVERY: [
+                "stealth_active_placement_exchange_truth_snapshot_contract",
+                "stealth_active_placement_exchange_truth_proof_contract",
                 "stealth_recovery_preview_contract",
                 "stealth_recovery_repair_result_contract",
                 "stealth_recovery_rollback_contract",
@@ -8482,11 +8831,14 @@ class AdminApiReadService:
             ],
             AdminApiMutationFamilyType.STEALTH_RECONCILIATION: [
                 "stealth_reconciliation_plan_contract",
-                "stealth_exchange_evidence_snapshot_contract",
+                "stealth_active_placement_exchange_truth_snapshot_contract",
+                "stealth_active_placement_exchange_truth_proof_contract",
                 "stealth_reconciliation_executor",
                 "stealth_reconciliation_completion_proof",
             ],
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: [
+                "stealth_active_placement_exchange_truth_snapshot_contract",
+                "stealth_active_placement_exchange_truth_proof_contract",
                 "stealth_reprice_active_placement_cancel_replace_proof",
                 "stealth_reprice_cooldown_claim_contract",
                 "stealth_reprice_reconciliation_proof",

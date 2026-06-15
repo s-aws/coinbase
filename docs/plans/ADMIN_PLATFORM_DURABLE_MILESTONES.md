@@ -2624,9 +2624,10 @@ Current backend evidence:
   stealth command-suite readiness, create/reveal/move command drafts,
   exchange-truth ledgers, detail-route audit evidence, lifecycle-write and
   proof-route linkage, coverage-gap read-evidence linkage, and
-  exchange-truth read-evidence linkage without adding live Coinbase reads or
-  live execution. It now advances to phases 2261-2280 for route-bound,
-  live-disabled stealth recovery and reconciliation command contracts.
+  exchange-truth read-evidence linkage, and route-bound live-disabled stealth
+  recovery and reconciliation command contracts without adding live Coinbase
+  reads or live execution. It now advances to phases 2281-2300 for
+  backend-owned append-only active-placement exchange-truth evidence.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
