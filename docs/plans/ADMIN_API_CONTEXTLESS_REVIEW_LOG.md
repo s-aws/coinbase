@@ -550,6 +550,62 @@ Status:
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
 
+## M55 Stealth Recovery-Proof Resolver Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers were not given chat history.
+
+Reviewer tasks:
+
+- trace how stealth recovery-proof evidence is recorded, read back, and used
+  as recovery command prerequisite evidence
+- verify the backend route remains append-only local evidence with no
+  `StealthOrderManager`, Coinbase read/order/cancel, recovery repair,
+  rollback, reconciliation execution, active-placement cancel/replace, or
+  lifecycle/order/exchange mutation
+- verify frontend schema, wrappers, BFF routing, mocks, runtime loading, docs,
+  and read model stay display-only/forward-only
+- identify stale docs, missing doc refs, or wording that could mislead a
+  contextless maintainer into placing proof authority in the browser
+
+Findings and resolution:
+
+- PASS after remediation: backend reviewer traced
+  `POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs`,
+  `GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof`, the
+  append-only proof store, command-suite readiness, and recovery execution
+  contract resolver.
+- CLEANUP: backend route summary and command-service comments could be misread
+  as current repair authority. They now state that recovery is
+  live-disabled prerequisite evidence only and that any future repair
+  implementation must be separate.
+- CLEANUP: command-suite readiness now maps
+  `record_stealth_recovery_proof` to `recovery_proof` evidence so the
+  recovery command shows the correct ninth prerequisite row.
+- PASS after remediation: frontend reviewer confirmed wrappers, BFF routing,
+  runtime loading, mocks, and UI readback were display/forward-only, then
+  failed the handoff for missing local documentation references and unsafe
+  proof-authority wording.
+- CLEANUP: frontend docs now include local stealth recovery-proof and
+  exchange-truth proof boundary docs/examples, mock docs explain the
+  no-repair/no-live recovery-proof fixture boundary, and the route-coverage
+  gate fails on broken local `documentationRefs`.
+
+Status:
+
+- Backend ownership check passed.
+- Backend focused M55 recovery-proof checks passed with `6` tests and `1`
+  warning.
+- Backend full regression passed with `838 passed, 1 warning`.
+- Frontend focused recovery-proof/AdminShell checks passed with `91` tests.
+- Frontend full `npm run release:gate` passed with `234` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Spot Command Suite Proof-Route Review - Phases 1541-1560
 
 Review scope:

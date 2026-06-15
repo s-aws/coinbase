@@ -70,6 +70,7 @@ owners:
       - README.spot-trading.md
       - README.stealth-command-suite.md
       - README.stealth-mutation-claim-proofs.md
+      - README.stealth-recovery-proofs.md
       - docs/PUBLIC_RELEASE_READINESS.md
       - .gitignore
       - .vscode/settings.json

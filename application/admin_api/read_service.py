@@ -131,6 +131,8 @@ from .models import (
     StealthCreateLifecycleWriteGuardReadResponse,
     StealthMutationClaimSnapshotProofRecordItem,
     StealthMutationClaimSnapshotReadResponse,
+    StealthRecoveryProofReadResponse,
+    StealthRecoveryProofRecordItem,
     SpotCommandSuiteCommandItem,
     SpotCommandSuiteCoverageGapEvidenceRouteItem,
     SpotCommandSuiteCoverageGapItem,
@@ -200,12 +202,16 @@ from .stealth_mutation_claim import (
     FileStealthMutationClaimProofStore,
     StealthMutationClaimSnapshotProofRecord,
 )
+from .stealth_recovery_proof import (
+    FileStealthRecoveryProofStore,
+    StealthRecoveryProofRecord,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2461-2480"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2481-2500"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3132,6 +3138,74 @@ def _stealth_mutation_claim_proof_item_from_record(
     )
 
 
+def _stealth_recovery_proof_item_from_record(
+    record: StealthRecoveryProofRecord,
+) -> StealthRecoveryProofRecordItem:
+    return StealthRecoveryProofRecordItem(
+        recovery_proof_id=record.recovery_proof_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        stealth_order_id=record.stealth_order_id,
+        guarded_command_route=record.guarded_command_route,
+        guarded_command_method=record.guarded_command_method,
+        guarded_service_method=record.guarded_service_method,
+        guarded_actor_id=record.guarded_actor_id,
+        guarded_operator_intent=record.guarded_operator_intent,
+        guarded_idempotency_key=record.guarded_idempotency_key,
+        guarded_payload_hash=record.guarded_payload_hash,
+        recovery_evidence_ref=record.recovery_evidence_ref,
+        recovery_plan_ref=record.recovery_plan_ref,
+        evidence_source=record.evidence_source,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        proof_persisted=record.proof_persisted,
+        recovery_proof_verified=record.recovery_proof_verified,
+        manager_invocation_ran=record.manager_invocation_ran,
+        recovery_plan_built=record.recovery_plan_built,
+        recovery_repair_executed=record.recovery_repair_executed,
+        rollback_executed=record.rollback_executed,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth recovery proof is backend-owned append-only evidence only. "
+            "It does not repair state, roll back state, invoke managers, call "
+            "Coinbase, cancel/replace placements, mutate lifecycle state, or "
+            "execute reconciliation."
+        ),
+    )
+
+
 def _spot_recovery_execution_item_from_record(
     record: SpotRecoveryExecutionRecord,
 ) -> SpotRecoveryExecutionRecordItem:
@@ -3340,6 +3414,9 @@ class AdminApiReadService:
         stealth_mutation_claim_proof_store: (
             FileStealthMutationClaimProofStore | None
         ) = None,
+        stealth_recovery_proof_store: (
+            FileStealthRecoveryProofStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -3372,6 +3449,10 @@ class AdminApiReadService:
         self.stealth_mutation_claim_proof_store = (
             stealth_mutation_claim_proof_store
             or FileStealthMutationClaimProofStore()
+        )
+        self.stealth_recovery_proof_store = (
+            stealth_recovery_proof_store
+            or FileStealthRecoveryProofStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -7242,6 +7323,60 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
+                mutation_id="stealth.recovery_proof",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_RECOVERY_PROOF,
+                workflow_id="stealth.recovery_proof_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth recovery proof recording is append-only local "
+                    "evidence keyed by stealth_order_id and guarded command "
+                    "context; it does not repair state, roll back state, call "
+                    "Coinbase, execute reconciliation, or mutate lifecycle state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_recovery_proof",
+                    "application/admin_api/command_service.py::record_stealth_recovery_proof",
+                    "application/admin_api/stealth_recovery_proof_service.py",
+                    "application/admin_api/stealth_recovery_proof.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthRecoveryProof",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/stealth-command-suite.md",
+                ],
+                required_next_contract=(
+                    "Future executable recovery paths must prove backend "
+                    "repair/rollback plans, exchange handling, approval, cap, "
+                    "audit, and reconciliation through backend-owned contracts; "
+                    "this proof route is local admission evidence only."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "repair_execution_disabled",
+                    "rollback_execution_disabled",
+                    "reconciliation_execution_disabled",
+                    "post-recovery reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not use browser proof records as recovery authority, "
+                    "repair authority, rollback authority, reconciliation "
+                    "authority, manager authority, or lifecycle mutation input."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard "
+                    "evidence; recovery proof recording is not sell authority "
+                    "or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -8633,6 +8768,71 @@ class AdminApiReadService:
             ),
         )
 
+    def build_stealth_recovery_proof(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthRecoveryProofReadResponse:
+        """Return persisted no-live recovery proof evidence."""
+
+        proofs = [
+            _stealth_recovery_proof_item_from_record(record)
+            for record in self.stealth_recovery_proof_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=20,
+            )
+        ]
+        latest_proof_id = proofs[0].recovery_proof_id if proofs else None
+        missing_contracts = [
+            "stealth_recovery_repair_execution_contract",
+            "stealth_recovery_rollback_execution_contract",
+            "stealth_recovery_post_write_reconciliation_proof",
+        ]
+        return StealthRecoveryProofReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            recovery_proof_verified=False,
+            persisted_proof_count=len(proofs),
+            persisted_proofs=proofs,
+            latest_recovery_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            proof_records_created=bool(proofs),
+            manager_invocation_allowed=False,
+            manager_invocation_ran=False,
+            recovery_plan_build_allowed=False,
+            recovery_plan_built=False,
+            recovery_repair_allowed=False,
+            recovery_repair_executed=False,
+            rollback_allowed=False,
+            rollback_executed=False,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            active_placement_cancel_replace_ran=False,
+            reconciliation_required=True,
+            reconciliation_executed=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth recovery proof records are backend-owned "
+                "evidence only. They do not repair state, roll back state, "
+                "invoke managers, call Coinbase, cancel or replace placements, "
+                "execute reconciliation, or mutate stealth/order/exchange state."
+            ),
+        )
+
     def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
         """Return read-only M55 stealth command-suite readiness evidence."""
 
@@ -8758,6 +8958,22 @@ class AdminApiReadService:
                     "reconciliation."
                 ),
             ),
+            (
+                AdminApiLivePreflightCategory.RECOVERY_PROOF,
+                "POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
+                "stealth_order_id",
+                [
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                ],
+                (
+                    "Record backend-owned recovery proof for the stealth "
+                    "recovery command. This does not invoke managers, repair "
+                    "state, roll back state, call Coinbase, cancel or replace "
+                    "placements, mutate state, or execute reconciliation."
+                ),
+            ),
         )
 
         def proof_routes_for_command(
@@ -8765,6 +8981,7 @@ class AdminApiReadService:
             *,
             include_lifecycle_write_guard: bool = False,
             include_mutation_claim: bool = False,
+            include_recovery_proof: bool = False,
         ) -> list[StealthCommandSuiteProofRouteItem]:
             proof_routes: list[StealthCommandSuiteProofRouteItem] = []
             for (
@@ -8782,6 +8999,11 @@ class AdminApiReadService:
                 if (
                     gate == AdminApiLivePreflightCategory.MUTATION_CLAIM
                     and not include_mutation_claim
+                ):
+                    continue
+                if (
+                    gate == AdminApiLivePreflightCategory.RECOVERY_PROOF
+                    and not include_recovery_proof
                 ):
                     continue
                 item = inventory_by_surface[surface]
@@ -9155,6 +9377,10 @@ class AdminApiReadService:
                                 AdminApiMutationFamilyType.MOVEMENT_REPRICE,
                             }
                         ),
+                        include_recovery_proof=(
+                            mutation_family
+                            == AdminApiMutationFamilyType.STEALTH_RECOVERY
+                        ),
                     ),
                     evidence=[
                         "Derived from ADMIN_API_ROUTE_INVENTORY and live-enablement readiness evidence.",
@@ -9506,6 +9732,9 @@ class AdminApiReadService:
             ),
             "record_stealth_mutation_claim_snapshot_proof": (
                 AdminApiStealthAdmissionEvidence.MUTATION_CLAIM_SNAPSHOT
+            ),
+            "record_stealth_recovery_proof": (
+                AdminApiStealthAdmissionEvidence.RECOVERY_PROOF
             ),
         }
 

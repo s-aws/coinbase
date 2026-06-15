@@ -210,6 +210,18 @@ uses the latest proof for the same `stealth_order_id` and fails closed when
 that latest proof is unsafe, stale, or bound to different guarded command
 context; older matching proofs are not used to override the latest failed
 proof.
+Stealth recovery proof evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof` and persisted
+through `POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs`.
+The writer route requires `stealth_recovery:record`, uses path
+`stealth_order_id` as the command identity, and persists append-only local
+proof evidence only after backend admission prerequisites match. It does not
+build recovery plans, repair state, roll back state, invoke managers, read
+Coinbase, submit or cancel orders, cancel/replace active placements, execute
+reconciliation, mutate order/exchange/lifecycle state, or authorize browser/
+BFF proof authority. Recovery execution-posture resolution uses the latest
+proof for the same `stealth_order_id` and fails closed when that latest proof
+is unsafe, stale, or bound to different guarded command context.
 The same detail route also exposes `reveal_trigger_audit` as local
 reveal-condition evidence for the reveal workflow. It reports whether a
 condition is present, the condition type/payload when available, missing
@@ -824,6 +836,8 @@ and rotation policy without disclosing a token value.
 - [Admin API Examples](docs/examples/admin-api.md)
 - [Stealth Mutation-Claim Snapshot Proofs](README.stealth-mutation-claim-proofs.md)
 - [Stealth Mutation-Claim Snapshot Proof Examples](docs/examples/stealth-mutation-claim-proofs.md)
+- [Stealth Recovery Proofs](README.stealth-recovery-proofs.md)
+- [Stealth Recovery Proof Examples](docs/examples/stealth-recovery-proofs.md)
 - [Movement And Repricing](README.movement-repricing.md)
 - [Futures/Perpetuals Admin Reads](README.futures-perpetuals.md)
 - [Guard/Risk Policy Admin Reads](README.guard-risk-policy.md)

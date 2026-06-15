@@ -141,6 +141,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_recovery_proof",
+        parity_test=(
+            "read-only recovery proof evidence; no manager invocation, repair, "
+            "rollback, Coinbase call, reconciliation execution, or state mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/command-suite",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -298,6 +313,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "does not invoke StealthOrderManager, acquire or release claims, "
             "cancel/replace active placements, execute reconciliation, or "
             "submit/read Coinbase"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface="POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_RECOVERY_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for recovery proof admission",
+        audit="required",
+        shared_method="record_stealth_recovery_proof",
+        parity_test=(
+            "stealth_order_id identity; proof evidence remains no-live and "
+            "does not repair state, roll back state, invoke managers, call "
+            "Coinbase, cancel/replace placements, execute reconciliation, or "
+            "mutate state"
         ),
     ),
     AdminApiRouteInventoryItem(

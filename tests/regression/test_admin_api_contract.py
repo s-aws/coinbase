@@ -86,6 +86,10 @@ from application.admin_api.stealth_mutation_claim import (
     FileStealthMutationClaimProofStore,
     StealthMutationClaimSnapshotProofRecord,
 )
+from application.admin_api.stealth_recovery_proof import (
+    FileStealthRecoveryProofStore,
+    StealthRecoveryProofRecord,
+)
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -116,6 +120,8 @@ from application.admin_api.models import (
     StealthCreateLifecycleWriteGuardProofRequest,
     StealthMoveRequest,
     StealthMutationClaimSnapshotProofRequest,
+    StealthRecoveryProofRequest,
+    StealthRecoveryRequest,
 )
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
@@ -152,6 +158,7 @@ from core.enums import (
     StealthExchangeTruthEvidenceSource,
     StealthLifecycleWriteGuardEvidenceSource,
     StealthMutationClaimEvidenceSource,
+    StealthRecoveryProofEvidenceSource,
     StealthCreateLifecycleExecutionBlocker,
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
@@ -250,6 +257,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     stealth_mutation_claim_proof_store = FileStealthMutationClaimProofStore(
         store_dir / "stealth_mutation_claim_proofs.jsonl"
     )
+    stealth_recovery_proof_store = FileStealthRecoveryProofStore(
+        store_dir / "stealth_recovery_proofs.jsonl"
+    )
     order_command_service = AdminApiCommandService(
         AdminApiCommandDependencies(
             spot_recovery_proof_store_getter=lambda: spot_recovery_proof_store,
@@ -274,6 +284,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             ),
             stealth_mutation_claim_proof_store_getter=lambda: (
                 stealth_mutation_claim_proof_store
+            ),
+            stealth_recovery_proof_store_getter=lambda: (
+                stealth_recovery_proof_store
             ),
             audit_store_getter=lambda: audit_store,
         )
@@ -343,6 +356,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
                 stealth_lifecycle_write_guard_proof_store
             ),
             stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
+            stealth_recovery_proof_store=stealth_recovery_proof_store,
         )
     )
     client = TestClient(app)
@@ -377,6 +391,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client.admin_api_test_stealth_mutation_claim_proof_store = (
         stealth_mutation_claim_proof_store
+    )
+    client.admin_api_test_stealth_recovery_proof_store = (
+        stealth_recovery_proof_store
     )
     return client
 
@@ -904,6 +921,26 @@ def _stealth_mutation_claim_payload_hash(
         "body": StealthMutationClaimSnapshotProofRequest.model_validate(
             body
         ).model_dump(mode="json"),
+        "path_params": {"stealth_order_id": stealth_order_id},
+    })
+
+
+def _stealth_recovery_proof_payload_hash(
+    *,
+    endpoint: str,
+    stealth_order_id: str,
+    body: dict,
+    operator_intent: str = "stealth_recovery_proof_contract_review",
+    roles: list[str] | None = None,
+) -> str:
+    return make_payload_hash({
+        "endpoint": endpoint,
+        "actor_id": "operator-001",
+        "roles": roles or [AdminApiRole.ADMIN.value],
+        "operator_intent": operator_intent,
+        "body": StealthRecoveryProofRequest.model_validate(body).model_dump(
+            mode="json"
+        ),
         "path_params": {"stealth_order_id": stealth_order_id},
     })
 
@@ -4473,6 +4510,439 @@ def test_admin_api_stealth_recovery_contract_is_fail_closed_and_no_live(monkeypa
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
+    monkeypatch,
+):
+    import configuration
+
+    def poison(*_args, **_kwargs):
+        raise AssertionError("stealth recovery proof must not contact Coinbase")
+
+    monkeypatch.setattr(configuration, "get_rest_client", poison)
+
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-recovery-proof-001"
+    proof_route = "/api/v1/stealth/orders/{stealth_order_id}/recovery-proofs"
+    proof_path = f"/api/v1/stealth/orders/{stealth_order_id}/recovery-proofs"
+    read_path = f"/api/v1/stealth/orders/{stealth_order_id}/recovery-proof"
+    proof_body = {
+        "stealth_order_id": stealth_order_id,
+        "guarded_command_route": (
+            "/api/v1/stealth/orders/{stealth_order_id}/recovery"
+        ),
+        "guarded_command_method": "POST",
+        "guarded_service_method": "recover_stealth_order_by_stealth_order_id",
+        "guarded_actor_id": "operator-001",
+        "guarded_operator_intent": "stealth_recovery_execution_review",
+        "guarded_idempotency_key": "stealth-recovery-command-001",
+        "guarded_payload_hash": "c" * 64,
+        "recovery_evidence_ref": "operator-reviewed-recovery-evidence-001",
+        "recovery_plan_ref": "operator-reviewed-recovery-plan-001",
+        "evidence_source": StealthRecoveryProofEvidenceSource.TEST_EVIDENCE.value,
+        "reconciliation_plan_id": "stealth-recovery-proof-recon-plan-001",
+        "approval_snapshot_id": "stealth-recovery-proof-approval-001",
+        "admission_audit_id": "stealth-recovery-proof-admission-audit-001",
+        "cap_guard_decision_id": "stealth-recovery-proof-cap-guard-001",
+        "recovery_proof_id": "stealth-recovery-proof-001",
+        "dry_run": True,
+        "operator_reason": "contract evidence only",
+        "manual_live_acknowledgement": False,
+    }
+
+    denied = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(roles=AdminApiRole.TRADER.value),
+    )
+    assert denied.status_code == 403
+    assert denied.json()["live_coinbase_orders_ran"] is False
+
+    rejected_order_id = client.post(
+        proof_path,
+        json={**proof_body, "order_id": "exchange-order-id"},
+        headers=_headers(
+            idempotency_key="stealth-recovery-proof-order-id-rejected",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert rejected_order_id.status_code == 422
+
+    missing_prereq = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(
+            idempotency_key="stealth-recovery-proof-missing-prereq",
+            operator_intent="stealth_recovery_proof_contract_review",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert missing_prereq.status_code == 400
+    missing_payload = missing_prereq.json()
+    assert missing_payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert missing_payload["data"]["proof_persisted"] is False
+    assert missing_payload["data"]["recovery_repair_executed"] is False
+    assert missing_payload["data"]["rollback_executed"] is False
+    assert (
+        client.admin_api_test_stealth_recovery_proof_store.read_recent() == []
+    )
+
+    proof_payload_hash = _stealth_recovery_proof_payload_hash(
+        endpoint=f"POST {proof_path}",
+        stealth_order_id=stealth_order_id,
+        body=proof_body,
+        operator_intent="stealth_recovery_proof_contract_review",
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=proof_route,
+        service_method="record_stealth_recovery_proof",
+        stealth_order_id=stealth_order_id,
+        idempotency_key="stealth-recovery-proof-001",
+        operator_intent="stealth_recovery_proof_contract_review",
+        payload_hash=proof_payload_hash,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_RECOVERY_RECORD,
+        approval_snapshot_id="stealth-recovery-proof-approval-001",
+        admission_audit_id="stealth-recovery-proof-admission-audit-001",
+        cap_guard_decision_id="stealth-recovery-proof-cap-guard-001",
+        reconciliation_plan_id="stealth-recovery-proof-recon-plan-001",
+    )
+    proof_created = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(
+            idempotency_key="stealth-recovery-proof-001",
+            operator_intent="stealth_recovery_proof_contract_review",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert proof_created.status_code == 200
+    proof_payload = proof_created.json()
+    assert proof_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert proof_payload["stealth_order_id"] == stealth_order_id
+    assert proof_payload["client_order_id"] is None
+    assert proof_payload["coinbase_order_id"] is None
+    assert proof_payload["required_permission"] == (
+        AdminApiPermission.STEALTH_RECOVERY_RECORD.value
+    )
+    assert proof_payload["data"]["recovery_proof_id"] == "stealth-recovery-proof-001"
+    assert proof_payload["data"]["proof_persisted"] is True
+    assert proof_payload["data"]["recovery_proof_verified"] is False
+    assert proof_payload["data"]["manager_invocation_ran"] is False
+    assert proof_payload["data"]["recovery_plan_built"] is False
+    assert proof_payload["data"]["recovery_repair_executed"] is False
+    assert proof_payload["data"]["rollback_executed"] is False
+    assert proof_payload["data"]["coinbase_rest_read_ran"] is False
+    assert proof_payload["data"]["coinbase_order_submitted"] is False
+    assert proof_payload["data"]["coinbase_order_cancel_submitted"] is False
+    assert proof_payload["data"]["active_placement_cancel_replace_ran"] is False
+    assert proof_payload["data"]["reconciliation_executed"] is False
+    assert proof_payload["data"]["order_state_mutated"] is False
+    assert proof_payload["data"]["lifecycle_state_mutated"] is False
+    assert proof_payload["data"]["exchange_state_mutated"] is False
+    assert proof_payload["live_exchange_submitted"] is False
+    assert '"order_id"' not in json.dumps(proof_payload)
+
+    proof_replay = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(
+            idempotency_key="stealth-recovery-proof-001",
+            operator_intent="stealth_recovery_proof_contract_review",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert proof_replay.status_code == 200
+    assert proof_replay.headers["X-Idempotency-Replayed"] == "true"
+    assert proof_replay.json()["audit_id"] == proof_payload["audit_id"]
+
+    proof_records = client.admin_api_test_stealth_recovery_proof_store.read_recent()
+    assert [record.recovery_proof_id for record in proof_records] == [
+        "stealth-recovery-proof-001"
+    ]
+
+    readback = client.get(
+        read_path,
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["approved_phase_range"] == "2481-2500"
+    assert readback_payload["stealth_order_id"] == stealth_order_id
+    assert readback_payload["recovery_proof_verified"] is False
+    assert readback_payload["persisted_proof_count"] == 1
+    assert readback_payload["latest_recovery_proof_id"] == (
+        "stealth-recovery-proof-001"
+    )
+    assert readback_payload["proof_records_created"] is True
+    assert readback_payload["manager_invocation_ran"] is False
+    assert readback_payload["recovery_plan_built"] is False
+    assert readback_payload["recovery_repair_executed"] is False
+    assert readback_payload["rollback_executed"] is False
+    assert readback_payload["coinbase_rest_read_ran"] is False
+    assert readback_payload["coinbase_order_submitted"] is False
+    assert readback_payload["coinbase_order_cancel_submitted"] is False
+    assert readback_payload["reconciliation_executed"] is False
+    assert readback_payload["order_state_mutated"] is False
+    assert readback_payload["lifecycle_state_mutated"] is False
+    assert readback_payload["exchange_state_mutated"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_read_ran"] is False
+    assert all(
+        proof["required_permission"]
+        == AdminApiPermission.STEALTH_RECOVERY_RECORD.value
+        for proof in readback_payload["persisted_proofs"]
+    )
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=80)
+    proof_audit_rows = [
+        row
+        for row in audit_rows
+        if row.permission == AdminApiPermission.STEALTH_RECOVERY_RECORD
+        and row.endpoint == f"POST {proof_path}"
+    ]
+    assert {row.audit_id for row in proof_audit_rows} >= {
+        proof_payload["audit_id"],
+    }
+    assert all(row.coinbase_order_id is None for row in proof_audit_rows)
+    assert all(
+        row.admission_decision is not None
+        and row.admission_decision.live_exchange_submitted is False
+        for row in proof_audit_rows
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_recovery_execution_contract_resolves_recovery_proof(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-recovery-proof-resolve-abc"
+    route = "/api/v1/stealth/orders/{stealth_order_id}/recovery"
+    path = f"/api/v1/stealth/orders/{stealth_order_id}/recovery"
+    body = {
+        "recovery_evidence_ref": "ops-note-001",
+        "reason": "operator_recovery_review",
+        "dry_run": True,
+        "manual_live_acknowledgement": False,
+    }
+    idempotency_key = "idem-stealth-recovery-proof-resolve"
+    operator_intent = "stealth_recovery_execution_review"
+    payload_hash = _stealth_command_payload_hash(
+        endpoint=f"POST {path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        model=StealthRecoveryRequest,
+        operator_intent=operator_intent,
+        roles=[AdminApiRole.ADMIN.value],
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=route,
+        service_method="recover_stealth_order_by_stealth_order_id",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_RECOVERY_EXECUTE,
+        approval_snapshot_id="stealth-recovery-approval-001",
+        admission_audit_id="stealth-recovery-admission-audit-001",
+        cap_guard_decision_id="stealth-recovery-cap-guard-001",
+        reconciliation_plan_id="stealth-recovery-recon-plan-001",
+    )
+    client.admin_api_test_stealth_exchange_truth_proof_store.append(
+        StealthActivePlacementExchangeTruthProofRecord(
+            exchange_truth_proof_id="stealth-recovery-extruth-proof-001",
+            stealth_order_id=stealth_order_id,
+            exchange_truth_snapshot_id="stealth-recovery-extruth-snapshot-001",
+            active_placement_client_order_id="placement-client-001",
+            active_exchange_order_id="exchange-order-evidence-001",
+            exchange_truth_evidence_ref="local-stealth-proof-ref-001",
+            reconciliation_plan_id="stealth-extruth-recon-plan-proof-001",
+            approval_snapshot_id="stealth-extruth-approval-proof-001",
+            admission_audit_id="stealth-extruth-admission-audit-proof-001",
+            cap_guard_decision_id="stealth-extruth-cap-guard-proof-001",
+            route=(
+                "/api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+                "exchange-truth-proofs"
+            ),
+            method="POST",
+            service_method="record_stealth_active_placement_exchange_truth_proof",
+            actor_id="operator-001",
+            operator_intent="stealth_exchange_truth_contract_review",
+            idempotency_key="stealth-extruth-proof-001",
+            correlation_id="corr-stealth-extruth-proof",
+            payload_hash="f" * 64,
+            audit_id="audit-stealth-extruth-proof-001",
+            dry_run=True,
+            operator_reason="contract evidence only",
+            manual_live_acknowledgement=False,
+        )
+    )
+    safe_recovery_proof = StealthRecoveryProofRecord(
+        recovery_proof_id="stealth-recovery-proof-resolve-001",
+        stealth_order_id=stealth_order_id,
+        guarded_command_route=route,
+        guarded_command_method="POST",
+        guarded_service_method="recover_stealth_order_by_stealth_order_id",
+        guarded_actor_id="operator-001",
+        guarded_operator_intent=operator_intent,
+        guarded_idempotency_key=idempotency_key,
+        guarded_payload_hash=payload_hash,
+        recovery_evidence_ref="operator-reviewed-recovery-evidence-001",
+        recovery_plan_ref="operator-reviewed-recovery-plan-001",
+        evidence_source=StealthRecoveryProofEvidenceSource.TEST_EVIDENCE,
+        reconciliation_plan_id="stealth-recovery-proof-recon-plan-001",
+        approval_snapshot_id="stealth-recovery-proof-approval-001",
+        admission_audit_id="stealth-recovery-proof-admission-audit-001",
+        cap_guard_decision_id="stealth-recovery-proof-cap-guard-001",
+        route="/api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
+        method="POST",
+        service_method="record_stealth_recovery_proof",
+        actor_id="operator-001",
+        operator_intent="stealth_recovery_proof_contract_review",
+        idempotency_key="stealth-recovery-proof-001",
+        correlation_id="corr-stealth-recovery-proof",
+        payload_hash="d" * 64,
+        audit_id="audit-stealth-recovery-proof-001",
+        dry_run=True,
+        operator_reason="contract evidence only",
+        manual_live_acknowledgement=False,
+    )
+    client.admin_api_test_stealth_recovery_proof_store.append(safe_recovery_proof)
+
+    response = client.post(
+        path,
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 501
+    contract = response.json()["stealth_command_execution_contract"]
+    assert contract["execution_allowed"] is False
+    assert contract["active_placement_exchange_truth_resolved"] is True
+    assert contract["recovery_proof_resolved"] is True
+    assert (
+        StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value
+        in contract["resolved_prerequisites"]
+    )
+    assert (
+        StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value
+        not in contract["missing_prerequisites"]
+    )
+    resolution_by_prerequisite = {
+        row["prerequisite"]: row
+        for row in contract["prerequisite_resolution"]
+    }
+    recovery_proof = resolution_by_prerequisite[
+        StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value
+    ]
+    assert recovery_proof["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert recovery_proof["lookup_ran"] is True
+    assert recovery_proof["resolved"] is True
+    assert recovery_proof["resolved_evidence_id"] == (
+        "stealth-recovery-proof-resolve-001"
+    )
+    assert recovery_proof["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
+    assert recovery_proof["writes_ran"] is False
+    assert recovery_proof["live_coinbase_read_ran"] is False
+    assert contract["manager_invocation_ran"] is False
+    assert contract["active_placement_cancel_replace_ran"] is False
+    assert contract["coinbase_order_cancel_submitted"] is False
+    assert contract["live_coinbase_read_ran"] is False
+    assert contract["reconciliation_executed"] is False
+
+    unsafe_idempotency_key = "idem-stealth-recovery-proof-unsafe"
+    unsafe_operator_intent = "stealth_recovery_execution_review_latest_unsafe"
+    unsafe_payload_hash = _stealth_command_payload_hash(
+        endpoint=f"POST {path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        model=StealthRecoveryRequest,
+        operator_intent=unsafe_operator_intent,
+        roles=[AdminApiRole.ADMIN.value],
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=route,
+        service_method="recover_stealth_order_by_stealth_order_id",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=unsafe_idempotency_key,
+        operator_intent=unsafe_operator_intent,
+        payload_hash=unsafe_payload_hash,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_RECOVERY_EXECUTE,
+        approval_snapshot_id="stealth-recovery-approval-unsafe-001",
+        admission_audit_id="stealth-recovery-admission-audit-unsafe-001",
+        cap_guard_decision_id="stealth-recovery-cap-guard-unsafe-001",
+        reconciliation_plan_id="stealth-recovery-recon-plan-unsafe-001",
+    )
+    client.admin_api_test_stealth_recovery_proof_store.append(
+        safe_recovery_proof.model_copy(
+            update={
+                "recovery_proof_id": "stealth-recovery-proof-unsafe-001",
+                "guarded_operator_intent": unsafe_operator_intent,
+                "guarded_idempotency_key": unsafe_idempotency_key,
+                "guarded_payload_hash": unsafe_payload_hash,
+                "recovery_repair_executed": True,
+                "idempotency_key": "stealth-recovery-proof-unsafe-001",
+                "audit_id": "audit-stealth-recovery-proof-unsafe-001",
+            }
+        )
+    )
+
+    unsafe_response = client.post(
+        path,
+        headers=_headers(
+            idempotency_key=unsafe_idempotency_key,
+            operator_intent=unsafe_operator_intent,
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=body,
+    )
+
+    assert unsafe_response.status_code == 501
+    unsafe_contract = unsafe_response.json()["stealth_command_execution_contract"]
+    assert unsafe_contract["recovery_proof_resolved"] is False
+    assert (
+        StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value
+        in unsafe_contract["missing_prerequisites"]
+    )
+    unsafe_recovery_proof = {
+        row["prerequisite"]: row
+        for row in unsafe_contract["prerequisite_resolution"]
+    }[StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value]
+    assert unsafe_recovery_proof["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert unsafe_recovery_proof["lookup_ran"] is True
+    assert unsafe_recovery_proof["resolved"] is False
+    assert unsafe_recovery_proof["stale_or_invalid"] is True
+    assert unsafe_recovery_proof["missing_reason"] == "recovery_proof_not_safe"
+    assert unsafe_recovery_proof["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_reconciliation_contract_is_fail_closed_and_no_live(
     monkeypatch,
 ):
@@ -5028,7 +5498,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2461-2480"
+    assert readback_payload["approved_phase_range"] == "2481-2500"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -5243,7 +5713,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2461-2480"
+    assert readback_payload["approved_phase_range"] == "2481-2500"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7435,7 +7905,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2461-2480"
+    assert payload["approved_phase_range"] == "2481-2500"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -7817,6 +8287,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
             in {
                 AdminApiMutationFamilyType.STEALTH_MOVE.value,
                 AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+                AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
             }
             else 8
         )
@@ -9110,7 +9581,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2461-2480"
+    assert live_payload["approved_phase_range"] == "2481-2500"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -9673,7 +10144,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2461-2480"
+    assert enterprise_payload["approved_phase_range"] == "2481-2500"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -10271,7 +10742,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2461-2480"
+    assert recovery_preview_payload["approved_phase_range"] == "2481-2500"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

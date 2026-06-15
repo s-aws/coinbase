@@ -212,10 +212,11 @@ cancel exchange-handling, move revealed, reprice completion, recovery, and
 reconciliation contracts. Gap rows identify current read evidence, missing
 backend contracts, required gate chains, and browser/BFF boundaries.
 
-Stealth command rows require mutation-claim evidence in addition to the normal
-approval, cap/guard, admission audit, reconciliation, idempotency,
-payload-hash, and operator-intent chain. Move, cancel, recovery,
-reconciliation, and reprice also
+Stealth command rows require command-specific proof evidence in addition to
+the normal approval, cap/guard, admission audit, reconciliation, idempotency,
+payload-hash, and operator-intent chain. Move and reprice require
+mutation-claim evidence; recovery requires recovery proof evidence. Move,
+cancel, recovery, reconciliation, and reprice also
 require active-placement exchange truth before execution can be considered.
 Create and reveal are command drafts that do not require active-placement
 evidence before the draft response, but they still remain blocked until
@@ -286,6 +287,13 @@ For active-placement-sensitive commands, the contract may resolve only
 store when a safe same-`stealth_order_id` record exists. The resolver is local
 proof readback only; it is not Coinbase verification, manager invocation,
 cancel/replace execution, or reconciliation authority.
+For recovery commands, the same contract may resolve only `recovery_proof`
+from the backend append-only recovery proof store when the latest safe
+same-`stealth_order_id` record exactly matches route, method, service method,
+actor, operator intent, idempotency key, and payload hash. The resolver is
+local proof readback only; it is not recovery repair, rollback, manager
+invocation, Coinbase verification, cancel/replace execution, state mutation,
+or reconciliation authority.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute

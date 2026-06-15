@@ -33,6 +33,9 @@ from application.admin_api.stealth_exchange_truth import (
 from application.admin_api.stealth_mutation_claim import (
     FileStealthMutationClaimProofStore,
 )
+from application.admin_api.stealth_recovery_proof import (
+    FileStealthRecoveryProofStore,
+)
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiCommandEnvelope,
@@ -418,6 +421,7 @@ def _attach_stealth_execution_posture(
     *,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
+    stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
 ) -> None:
     """Attach typed no-live execution posture for eligible stealth commands."""
 
@@ -425,6 +429,7 @@ def _attach_stealth_execution_posture(
         admission_decision,
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
+        stealth_recovery_proof_store=stealth_recovery_proof_store,
     )
     response.stealth_command_execution_contract = contract
     if contract is None or not isinstance(response.data, dict):
@@ -548,6 +553,7 @@ def _execute_idempotent_command(
     live_execution_service: AdminApiLiveExecutionService,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
+    stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     command_runner: Callable[[], AdminApiCommandResponse] | None = None,
     command_runner_with_admission: Callable[
         [AdminLiveAdmissionDecisionEvidence],
@@ -606,6 +612,7 @@ def _execute_idempotent_command(
             admission_decision,
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
             stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
+            stealth_recovery_proof_store=stealth_recovery_proof_store,
         )
         response.audit_id = _record_audit(
             audit_store=audit_store,
@@ -632,6 +639,7 @@ def _execute_idempotent_command(
         admission_decision,
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
+        stealth_recovery_proof_store=stealth_recovery_proof_store,
     )
     if response.guard is None:
         response.guard = {}

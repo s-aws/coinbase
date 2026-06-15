@@ -2648,24 +2648,33 @@ Current backend evidence:
   same-`stealth_order_id` proof record exists; it does not verify Coinbase,
   resolve reveal-trigger evidence, mutation-claim snapshots, recovery proof,
   or reconciliation proof, execute commands, or grant browser/BFF authority.
-  It now advances to phases 2461-2480 for backend-owned mutation-claim
-  snapshot proof records, readback, command-suite proof-route linkage, and
+  It completed phases 2461-2480 for backend-owned mutation-claim snapshot
+  proof records, readback, command-suite proof-route linkage, and
   exact-context resolver evidence for move and movement/reprice posture. The
   resolver may remove only the `mutation_claim_snapshot` missing prerequisite
   when the latest safe same-`stealth_order_id` proof record exactly matches
-  the command context; it must not acquire or release runtime claims, invoke
+  the command context; it does not acquire or release runtime claims, invoke
   `StealthOrderManager`, cancel/replace active placements, call Coinbase,
-  execute reconciliation, mutate state, or grant browser/BFF authority.
+  execute reconciliation, mutate state, or grant browser/BFF authority. It now
+  advances to phases 2481-2500 for backend-owned recovery proof records,
+  readback, command-suite proof-route linkage, and exact-context resolver
+  evidence for stealth recovery posture. The resolver may remove only the
+  `recovery_proof` missing prerequisite when the latest safe same-
+  `stealth_order_id` proof record exactly matches the command context; it
+  must not repair state, roll back state, invoke managers, cancel/replace
+  active placements, call Coinbase, execute reconciliation, mutate state, or
+  grant browser/BFF authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Stealth recovery and reconciliation now require route-bound live-disabled
-  command contracts before any command UI can exist. Stealth create, reveal,
-  cancel exchange handling, move revealed, reprice, recovery, reconciliation,
-  and any eventual live execution screens must prove the full approval,
-  cap/guard, admission audit, reconciliation, mutation claim,
-  active-placement exchange truth, live service, and adapter chain through
-  backend-owned contracts before execution authority can exist.
+- Stealth reconciliation proof, reveal-trigger proof, live repair/rollback,
+  active-placement cancel/replace, live service, live adapter, and post-write
+  reconciliation remain blocked. Stealth create, reveal, cancel exchange
+  handling, move revealed, reprice, recovery, reconciliation, and any eventual
+  live execution screens must prove the full approval, cap/guard, admission
+  audit, reconciliation, command-specific proof, active-placement exchange
+  truth, live service, and adapter chain through backend-owned contracts before
+  execution authority can exist.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
 - Live Coinbase execution and live Coinbase reads remain not run for the

@@ -101,10 +101,14 @@ disabled live service/adapter posture, no-manager/no-Coinbase/no-reconciliation
 flags, and browser/BFF authority strings. It may resolve the
 `active_placement_exchange_truth` prerequisite from the existing append-only
 backend proof store when a safe same-`stealth_order_id` proof exists, but that
-is local proof readback only. It does not verify Coinbase, resolve reveal
-trigger or mutation-claim evidence, resolve recovery/reconciliation proof, run
-manager code, cancel/replace live placements, execute reconciliation, mutate
-local or exchange state, or authorize the frontend.
+is local proof readback only. It may resolve `mutation_claim_snapshot` for
+move/reprice and `recovery_proof` for recovery from their backend append-only
+proof stores when the latest safe same-`stealth_order_id` proof exactly
+matches route, method, service method, actor, operator intent, idempotency key,
+and payload hash. It does not verify Coinbase, resolve reveal trigger or
+reconciliation proof, run manager code, repair state, roll back state,
+cancel/replace live placements, execute reconciliation, mutate local or
+exchange state, or authorize the frontend.
 
 The command-suite `create_lifecycle_write_audit.execution_contract` block
 reports the backend-owned stealth create execution-contract boundary without
