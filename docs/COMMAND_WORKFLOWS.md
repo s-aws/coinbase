@@ -257,6 +257,13 @@ references only. The records do not satisfy `post_write_reconciliation`, do
 not execute reconciliation, do not call Coinbase, do not invoke managers, do
 not mutate lifecycle/order/exchange state, and do not grant browser/BFF
 authority.
+Create and non-create execution prerequisite resolvers may now read the
+post-write proof store for an exact command-context record. A found record is
+reported as evidence with `resolved_evidence_id`,
+`proof_lookup_authority=backend_store_read_only_no_execution`, and
+`missing_reason=post_write_reconciliation_proof_not_sufficient`; the
+prerequisite remains missing until a separately approved phase accepts the
+execution journal and verifies post-write reconciliation.
 Both contracts also include a nested `live_execution_adapter_contract` from
 the shared live-execution adapter evidence builder. Workflows may display its
 route, `AdminApiCommandService.*` reference, forbidden methods, disabled

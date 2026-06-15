@@ -2,6 +2,58 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## M55 Stealth Post-Write Resolver Awareness Review - Phases 2841-2860
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers were not given chat history.
+
+Reviewer tasks:
+
+- trace stealth create and non-create execution prerequisite resolvers after
+  post-write reconciliation proof-store visibility was added
+- verify exact-context post-write proof records are visible as backend-owned
+  resolver evidence but remain fail-closed with
+  `post_write_reconciliation_proof_not_sufficient`
+- verify unsafe exact-context proof records with
+  `execution_journal_accepted=true` or
+  `post_write_reconciliation_verified=true` are rejected as
+  `post_write_reconciliation_proof_not_safe`
+- verify frontend mocks, dry-submit evidence, and stealth read models show both
+  the proof id and fail-closed missing reason when both are present
+- verify no Coinbase read/submit/cancel, manager invocation, active-placement
+  cancel/replace, reconciliation execution, lifecycle/order/exchange mutation,
+  execution-journal acceptance, or browser/BFF execution authority is granted
+
+Findings and resolution:
+
+- FAIL, resolved: backend review found the initial safety predicate did not
+  explicitly reject records with accepted execution journals or verified
+  reconciliation. The create and non-create safety predicates now require
+  both `execution_journal_accepted is False` and
+  `post_write_reconciliation_verified is False`, with regression coverage for
+  both unsafe fields.
+- FAIL, resolved: frontend review found dry-submit and stealth read-model
+  rendering could hide `post_write_reconciliation_proof_not_sufficient` when a
+  proof id was also present. The evidence format now shows the proof id, the
+  fail-closed reason, proof lookup authority, write flag, and Coinbase-read
+  flag; focused tests pin the display.
+- PASS: final backend blind/contextless review found no remaining blockers.
+- PASS: final frontend blind/contextless review found no remaining blockers.
+
+Status:
+
+- Backend focused resolver regression passed with `4` selected tests.
+- Backend full regression passed with `847 passed, 1 warning`.
+- Backend ownership check and autonomous queue check passed for `2841-2860`.
+- Frontend focused formatter/read-model/mock tests passed with `43` tests.
+- Frontend full `npm run release:gate` passed with `248` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## M55 Stealth Post-Write Reconciliation Proof Review - Phases 2821-2840
 
 Review scope:

@@ -363,6 +363,11 @@ command families. They can record reviewed plan, journal, and completion
 references, but they do not satisfy the execution prerequisite, call Coinbase,
 invoke managers, mutate state, execute reconciliation, or grant browser/BFF
 authority.
+Execution prerequisite resolvers may read those records for exact command
+context and return the found proof id as fail-closed evidence. The resolver
+still reports `post_write_reconciliation_proof_not_sufficient` and keeps
+`post_write_reconciliation` unresolved until a future approved backend phase
+accepts the execution journal and verifies reconciliation.
 Both contracts also expose `live_execution_adapter_contract`, a nested
 route-bound adapter evidence object produced by the shared backend
 `build_live_execution_adapter_contract` helper. It names the

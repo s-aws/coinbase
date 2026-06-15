@@ -34,6 +34,8 @@ from .stealth_lifecycle_write import (
     StealthCreateLifecycleWriteGuardProofRecord,
 )
 from .stealth_post_write_reconciliation import (
+    FileStealthPostWriteReconciliationProofStore,
+    StealthPostWriteReconciliationProofRecord,
     build_stealth_post_write_reconciliation_boundary,
 )
 
@@ -93,7 +95,8 @@ NEXT_REQUIRED_CREATE_CONTRACT_BY_PREREQUISITE: dict[
         "build_live_execution_adapter_contract"
     ),
     StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION: (
-        "POST /api/v1/admin/reconciliation/plans"
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "post-write-reconciliation-proofs"
     ),
 }
 
@@ -118,6 +121,9 @@ def build_stealth_create_lifecycle_write_execution_contract(
     lifecycle_write_guard_proof_store: (
         FileStealthLifecycleWriteGuardProofStore | None
     ) = None,
+    post_write_reconciliation_proof_store: (
+        FileStealthPostWriteReconciliationProofStore | None
+    ) = None,
     resolved_prerequisites: list[str] | None = None,
 ) -> StealthCreateLifecycleWriteExecutionContractEvidence:
     """Build blocked execution-contract evidence for stealth create."""
@@ -127,6 +133,7 @@ def build_stealth_create_lifecycle_write_execution_contract(
         exact_command_context_present=exact_command_context_present,
         admission_decision=admission_decision,
         lifecycle_write_guard_proof_store=lifecycle_write_guard_proof_store,
+        post_write_reconciliation_proof_store=post_write_reconciliation_proof_store,
     )
     resolved = {
         item.prerequisite.value
@@ -342,6 +349,9 @@ def _build_prerequisite_resolution(
     lifecycle_write_guard_proof_store: (
         FileStealthLifecycleWriteGuardProofStore | None
     ),
+    post_write_reconciliation_proof_store: (
+        FileStealthPostWriteReconciliationProofStore | None
+    ),
 ) -> list[StealthCreateLifecyclePrerequisiteResolverItem]:
     if not exact_command_context_present:
         return [
@@ -461,15 +471,12 @@ def _build_prerequisite_resolution(
             missing_reason="live_execution_adapter_disabled",
             detail="Live execution adapter is not enabled for stealth create.",
         ),
-        _resolver_item(
-            prerequisite=(
-                StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION
+        _resolve_post_write_reconciliation_proof(
+            stealth_order_id=stealth_order_id,
+            admission_decision=admission_decision,
+            post_write_reconciliation_proof_store=(
+                post_write_reconciliation_proof_store
             ),
-            identity_value=stealth_order_id,
-            source=POST_WRITE_RECONCILIATION_SOURCE,
-            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.DISABLED,
-            missing_reason="post_write_reconciliation_missing",
-            detail="Post-write reconciliation proof is required before execution.",
         ),
     ]
 
@@ -603,6 +610,149 @@ def _find_matching_lifecycle_write_guard_proof(
     return None
 
 
+def _resolve_post_write_reconciliation_proof(
+    *,
+    stealth_order_id: str | None,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    post_write_reconciliation_proof_store: (
+        FileStealthPostWriteReconciliationProofStore | None
+    ),
+) -> StealthCreateLifecyclePrerequisiteResolverItem:
+    prerequisite = StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION
+    source = "admin_api_stealth_post_write_reconciliation_proof_log"
+    if post_write_reconciliation_proof_store is None or not stealth_order_id:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="post_write_reconciliation_proof_store_unavailable",
+            detail="Post-write reconciliation proof store was not available.",
+        )
+
+    record = _find_matching_post_write_reconciliation_proof(
+        store=post_write_reconciliation_proof_store,
+        stealth_order_id=stealth_order_id,
+        admission_decision=admission_decision,
+    )
+    if record is None:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            missing_reason="no_matching_post_write_reconciliation_proof",
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Backend-owned post-write reconciliation proof lookup found no "
+                "exact stealth-create command-context record and did not "
+                "execute reconciliation."
+            ),
+        )
+
+    if not _is_safe_post_write_reconciliation_proof(record):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=record.post_write_reconciliation_proof_id,
+            missing_reason="post_write_reconciliation_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest exact-context stealth-create post-write reconciliation "
+                "proof was found but is not safe no-live/no-mutation evidence."
+            ),
+        )
+
+    return _resolver_item(
+        prerequisite=prerequisite,
+        identity_value=stealth_order_id,
+        source=source,
+        lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING,
+        lookup_ran=True,
+        resolved=False,
+        resolved_evidence_id=record.post_write_reconciliation_proof_id,
+        missing_reason="post_write_reconciliation_proof_not_sufficient",
+        stale_or_invalid=True,
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Latest exact-context stealth-create post-write reconciliation "
+            "proof was found, but current proof records deliberately do not "
+            "accept execution journals or verify post-write reconciliation; "
+            "execution remains blocked."
+        ),
+    )
+
+
+def _find_matching_post_write_reconciliation_proof(
+    *,
+    store: FileStealthPostWriteReconciliationProofStore,
+    stealth_order_id: str,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> StealthPostWriteReconciliationProofRecord | None:
+    for record in store.read_for_stealth_order_id(stealth_order_id, limit=500):
+        if _post_write_reconciliation_proof_matches_admission(
+            record,
+            admission_decision=admission_decision,
+        ):
+            return record
+    return None
+
+
+def _post_write_reconciliation_proof_matches_admission(
+    record: StealthPostWriteReconciliationProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == STEALTH_CREATE_ROUTE
+        and record.guarded_command_method == STEALTH_CREATE_METHOD
+        and record.guarded_service_method == STEALTH_CREATE_SERVICE_METHOD
+        and record.guarded_mutation_family == AdminApiMutationFamilyType.STEALTH_CREATE
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+        and record.reconciliation_plan_id == admission_decision.reconciliation_plan_id
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+        and record.cap_guard_decision_id == admission_decision.cap_guard_decision_id
+    )
+
+
+def _is_safe_post_write_reconciliation_proof(
+    record: StealthPostWriteReconciliationProofRecord,
+) -> bool:
+    return (
+        record.proof_persisted is True
+        and record.route_bound_reconciliation_plan_recorded is True
+        and record.execution_journal_accepted is False
+        and record.completion_proof_recorded is True
+        and record.post_write_reconciliation_verified is False
+        and record.manager_invocation_ran is False
+        and record.reconciliation_plan_built is False
+        and record.reconciliation_execution_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
 def _resolver_item(
     *,
     prerequisite: StealthCreateLifecycleExecutionPrerequisite,
@@ -615,6 +765,7 @@ def _resolver_item(
     resolved_evidence_id: str | None = None,
     missing_reason: str | None = None,
     stale_or_invalid: bool = False,
+    proof_lookup_authority: str = "none",
 ) -> StealthCreateLifecyclePrerequisiteResolverItem:
     return StealthCreateLifecyclePrerequisiteResolverItem(
         prerequisite=prerequisite,
@@ -626,5 +777,6 @@ def _resolver_item(
         resolved_evidence_id=resolved_evidence_id,
         missing_reason=missing_reason,
         stale_or_invalid=stale_or_invalid,
+        proof_lookup_authority=proof_lookup_authority,
         detail=detail,
     )

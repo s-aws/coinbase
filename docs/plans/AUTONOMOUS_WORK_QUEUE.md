@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2821-2840**.
+- Approved phase range: **2841-2860**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,99 +53,108 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2821-2840
+## Active Phases 2841-2860
 
-These phases continue M55 after create/non-create execution-readiness stage
-parity. The next explicit gap is that the nested
-`post_write_reconciliation_boundary` names required evidence
-(`route_bound_reconciliation_plan`, `post_write_execution_journal`, and
-`post_write_completion_proof`) but has no stealth-specific durable proof route
-or readback. This batch adds backend-owned append-only post-write
-reconciliation proof evidence and frontend/API visibility for that proof. It
-must remain no-live and no-execution: no Coinbase submit/read/cancel, no
-`StealthOrderManager` invocation, no reconciliation execution, no
-active-placement cancel/replace, no lifecycle/order/exchange state mutation,
-no execution-prerequisite resolver satisfaction, and no browser/BFF authority.
+These phases continue M55 after durable post-write reconciliation proof
+recording and readback. The next explicit gap is that create and non-create
+execution prerequisite resolvers can now receive proof records, but they must
+surface those records as fail-closed evidence rather than as execution
+satisfaction. This batch makes the resolvers aware of exact-context
+post-write proof records while keeping `post_write_reconciliation` missing:
+no execution-journal acceptance, no reconciliation verification, no Coinbase
+submit/read/cancel, no manager invocation, no active-placement cancel/replace,
+no lifecycle/order/exchange state mutation, no browser/BFF authority, and no
+live execution.
 
-### Phase 2821 - Advance Active Queue Range
+### Phase 2841 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2801-2820 to active phases 2821-2840 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2821-2840 to active phases 2841-2860 while preserving no-live defaults and cap policy.
 
-### Phase 2822 - Prior Range Completion Evidence
+### Phase 2842 - Prior Range Completion Evidence
 
-- Record phases 2801-2820 as completed create execution-readiness stage parity evidence with no live Coinbase execution, no proof recording, no manager invocation, no reconciliation execution, and no state mutation.
+- Record phases 2821-2840 as completed append-only post-write reconciliation proof route/readback evidence with no live Coinbase execution, no manager invocation, no reconciliation execution, and no state mutation.
 
-### Phase 2823 - Post-Write Proof Store
+### Phase 2843 - Non-Create Resolver Store Intake
 
-- Add a typed append-only stealth post-write reconciliation proof record and JSONL store keyed by `stealth_order_id`.
+- Pass the post-write reconciliation proof store into the non-create stealth command execution contract builder through the existing route/helper path.
 
-### Phase 2824 - Post-Write API Models
+### Phase 2844 - Non-Create Exact-Context Lookup
 
-- Add request, command, persisted item, and readback response models for post-write reconciliation proof evidence.
+- Add a read-only lookup for the latest exact command-context post-write proof across reveal, cancel, move, reprice, recovery, and reconciliation command families.
 
-### Phase 2825 - Post-Write Proof Service
+### Phase 2845 - Non-Create Fail-Closed Sufficiency
 
-- Add a backend-owned service that validates route inventory, guarded command context, admission prerequisites, dry-run posture, and duplicate proof ids before appending evidence.
+- Keep `post_write_reconciliation` unresolved when a matching proof exists, exposing `post_write_reconciliation_proof_not_sufficient` until execution journals and verified reconciliation are separately approved.
 
-### Phase 2826 - Guarded Command Family Coverage
+### Phase 2846 - Create Resolver Store Intake
 
-- Bind post-write proof evidence to stealth create, reveal, cancel, move, reprice, recovery, and reconciliation guarded command families without executing those commands.
+- Pass the post-write reconciliation proof store into the stealth create lifecycle execution contract builder through the command service.
 
-### Phase 2827 - Proof Writer Route
+### Phase 2847 - Create Exact-Context Lookup
 
-- Add `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs` through the shared command service and existing admission gate.
+- Add a read-only lookup for exact stealth-create post-write proof evidence keyed by route, service method, actor, operator intent, idempotency key, payload hash, and admission evidence ids.
 
-### Phase 2828 - Proof Readback Route
+### Phase 2848 - Create Fail-Closed Sufficiency
 
-- Add `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof` as read-only persisted evidence.
+- Keep stealth create `post_write_reconciliation` unresolved when matching proof evidence exists, with evidence id, proof lookup authority, stale/invalid status, and no execution authority.
 
-### Phase 2829 - Route Inventory And OpenAPI Sync
+### Phase 2849 - Readiness Stage Contract Update
 
-- Register the post-write proof writer/readback routes in route inventory and regenerate OpenAPI artifacts.
+- Point `post_write_reconciliation` readiness-stage next-required contracts at the proof route while retaining the route-bound reconciliation plan boundary evidence.
 
-### Phase 2830 - Command Response Evidence
+### Phase 2850 - Idempotency Conflict Parity
 
-- Return accepted/rejected command-response data that proves proof persistence status and keeps manager, Coinbase, state mutation, and reconciliation execution flags false.
+- Ensure idempotency conflict responses attach the same post-write resolver evidence as normal command responses.
 
-### Phase 2831 - Readback No-Live Evidence
+### Phase 2851 - Movement Reprice Parity
 
-- Expose persisted proof counts, latest proof id, guarded mutation family, required permission, missing execution contracts, and no-live/no-execution flags in readback.
+- Ensure movement repricing uses the same post-write proof resolver awareness as other stealth command families.
 
-### Phase 2832 - Backend Regression Coverage
+### Phase 2852 - Backend Regression Coverage
 
-- Cover route-keyed proof append/readback, guarded command family validation, admission chain binding, OpenAPI sync, and no-live/no-state-mutation assertions.
+- Cover exact proof found-but-blocking behavior for create and non-create command contracts, including evidence id, missing reason, proof lookup authority, no-live flags, and unresolved prerequisites.
 
-### Phase 2833 - Backend Documentation Update
+### Phase 2853 - Backend Docs Update
 
-- Update Admin API, command workflow, stealth order read, examples, handoff, roadmap, and agent-state docs for post-write reconciliation proof evidence.
+- Update Admin API, command workflow, stealth read, examples, handoff, roadmap, and agent-state docs for fail-closed resolver awareness.
 
-### Phase 2834 - Frontend Schema Intake
+### Phase 2854 - Frontend Mock Resolver Evidence
 
-- Regenerate frontend generated API schema from backend OpenAPI.
+- Update frontend mock command contracts to show post-write proof lookup evidence as backend-store read-only and still blocked.
 
-### Phase 2835 - Frontend Client And Mock Sync
+### Phase 2855 - Frontend Runtime Fixture Sync
 
-- Add frontend API client and mock backend support for the post-write proof writer/readback surfaces as backend evidence only.
+- Sync runtime fixtures and tests so create/non-create command contracts display the found proof evidence without command enablement.
 
-### Phase 2836 - Frontend Evidence Rendering
+### Phase 2856 - Frontend Read Model/Workflow Copy
 
-- Display post-write proof readback and command-response evidence without making the browser or BFF an execution authority.
+- Update command workflow/read-model output and docs to describe proof evidence as insufficient until future journal acceptance and reconciliation verification.
 
-### Phase 2837 - Frontend Tests And Artifacts
+### Phase 2857 - Artifact And Validator Sync
 
-- Update unit tests, runtime fixtures, release/deployment artifacts, and autonomous validators for phases 2821-2840.
+- Update release readiness, deployment readiness, autonomous queue artifacts, and tests for phases 2841-2860.
 
-### Phase 2838 - Focused Gates
+### Phase 2858 - Focused Gates
 
-- Run focused backend and frontend tests for post-write proof contracts, schema parity, mocks, and rendering.
+- Run focused backend and frontend tests for resolver awareness, mocks, rendering, and autonomous validators.
 
-### Phase 2839 - Blind Contextless Reviews
+### Phase 2859 - Blind Contextless Reviews
 
-- Run blind/contextless backend and frontend reviews asking whether a fresh agent can explain post-write reconciliation proof evidence as no-live backend evidence that does not satisfy execution yet.
+- Run blind/contextless backend and frontend reviews asking whether a fresh agent can explain why found post-write proof evidence is displayed but remains blocking.
 
-### Phase 2840 - Full Gates, Commit, Push, And Next Range
+### Phase 2860 - Full Gates, Commit, Push, And Next Range
 
-- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then create the next milestone-linked range if a concrete approved M55 gap remains.
+- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless review remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then create the next milestone-linked range if a concrete approved gap remains.
+
+## Completed Phases 2821-2840
+
+These phases added backend-owned append-only post-write reconciliation proof
+records, writer/readback routes, route inventory/OpenAPI coverage, frontend
+client/mock/read-model display, and contextless documentation. They remained
+no-live and no-execution: no Coinbase submit/read/cancel, no manager
+invocation, no reconciliation execution, no active-placement cancel/replace,
+no lifecycle/order/exchange state mutation, no execution-prerequisite
+resolver satisfaction, and no browser/BFF authority.
 
 ## Completed Phases 2801-2820
 

@@ -536,6 +536,9 @@ def reveal_stealth_order_by_stealth_order_id(
         stealth_reveal_trigger_proof_store=(
             service.dependencies.stealth_reveal_trigger_proof_store_getter()
         ),
+        stealth_post_write_reconciliation_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reveal_stealth_order_by_stealth_order_id(
             StealthRevealCommand(
@@ -621,6 +624,9 @@ def move_stealth_order_by_stealth_order_id(
         stealth_cancel_replace_proof_store=(
             service.dependencies.stealth_cancel_replace_proof_store_getter()
         ),
+        stealth_post_write_reconciliation_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.move_stealth_order_by_stealth_order_id(
             StealthMoveCommand(
@@ -705,6 +711,9 @@ def cancel_stealth_order_by_stealth_order_id(
         ),
         stealth_cancel_replace_proof_store=(
             service.dependencies.stealth_cancel_replace_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
         ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.cancel_stealth_order_by_stealth_order_id(
@@ -794,6 +803,9 @@ def recover_stealth_order_by_stealth_order_id(
         stealth_recovery_proof_store=(
             service.dependencies.stealth_recovery_proof_store_getter()
         ),
+        stealth_post_write_reconciliation_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.recover_stealth_order_by_stealth_order_id(
             StealthRecoveryCommand(
@@ -878,6 +890,9 @@ def reconcile_stealth_order_by_stealth_order_id(
         ),
         stealth_reconciliation_proof_store=(
             service.dependencies.stealth_reconciliation_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_proof_store_getter()
         ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reconcile_stealth_order_by_stealth_order_id(

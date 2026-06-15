@@ -2713,20 +2713,25 @@ Current backend evidence:
   ordered execution-readiness stages derived from exact non-create command
   prerequisite resolver evidence. The completed phases 2801-2820 added the
   same ordered execution-readiness stage parity to the separate stealth create
-  lifecycle-write execution contract. It now advances to phases 2821-2840 to
-  add durable, backend-owned post-write reconciliation proof records and
-  readback for the existing nested post-write boundary.
+  lifecycle-write execution contract. The completed phases 2821-2840 added
+  durable, backend-owned post-write reconciliation proof records and readback
+  for the existing nested post-write boundary. It now advances to phases
+  2841-2860 to make create and non-create execution prerequisite resolvers
+  aware of exact-context post-write proof records while keeping the
+  prerequisite unresolved until future journal acceptance and reconciliation
+  verification are separately approved.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Post-write reconciliation proof evidence is the active 2821-2840 slice.
-  This evidence may persist and read back route-bound plan, post-write
-  execution-journal, and completion-proof references for guarded stealth
-  command families, but it must not satisfy execution prerequisites, resolve
-  proof authority through the frontend, read Coinbase, submit or cancel
-  Coinbase orders, write `stealth_orders` or `order_parent`, dispatch
-  lifecycle events, invoke managers, mutate state, execute reconciliation,
-  resolve disabled prerequisites, or grant browser/BFF authority.
+- Post-write reconciliation resolver awareness is the active 2841-2860 slice.
+  This evidence may read exact-context proof records and expose evidence ids
+  with `post_write_reconciliation_proof_not_sufficient`, but it must not
+  satisfy execution prerequisites, accept execution journals, verify
+  reconciliation, resolve proof authority through the frontend, read Coinbase,
+  submit or cancel Coinbase orders, write `stealth_orders` or `order_parent`,
+  dispatch lifecycle events, invoke managers, mutate state, execute
+  reconciliation, resolve disabled live prerequisites, or grant browser/BFF
+  authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
   and post-write reconciliation execution remain blocked.

@@ -9,8 +9,8 @@ Keep it short. Keep it factual.
 - Updated by: Codex
 - Branch: main
 - Commit (optional): backend/frontend commit hashes pending for active range
-  `2821-2840`; completed range `2801-2820` is backend `c2c88be`,
-  frontend `e7e3bed`.
+  `2841-2860`; completed range `2821-2840` is backend `844f505a`,
+  frontend `6bd0aaf`.
 
 ## Current Objective
 
@@ -221,14 +221,15 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2821-2840`.
+- Active autonomous range: `2841-2860`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add durable stealth post-write reconciliation proof
-  evidence and readback for guarded stealth command families. This may record
-  route-bound plan, post-write execution-journal, and completion-proof
-  references, but it must not satisfy execution prerequisites, run live
-  Coinbase reads/execution/cancels, invoke managers, mutate stealth/order/
-  exchange state, execute reconciliation, or grant frontend authority.
+- Current direction: make create and non-create execution prerequisite
+  resolvers aware of exact-context stealth post-write reconciliation proof
+  records while keeping `post_write_reconciliation` missing until future
+  execution-journal acceptance and reconciliation verification are separately
+  approved. This must not run live Coinbase reads/execution/cancels, invoke
+  managers, mutate stealth/order/exchange state, execute reconciliation, or
+  grant frontend/BFF authority.
 
 ## Decisions (Durable)
 
@@ -543,12 +544,12 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Finish backend/frontend `2821-2840` stealth post-write reconciliation
-   proof evidence and contextless reviews.
-2. Commit and push the synchronized backend/frontend 2821-2840 proof work,
-   then advance to the next approved M55 slice that closes a real stealth
-   command-suite live-enablement gap without enabling live Coinbase execution
-   by default.
+1. Finish backend/frontend `2841-2860` post-write reconciliation resolver
+   awareness and contextless reviews.
+2. Commit and push the synchronized backend/frontend 2841-2860 resolver
+   awareness work, then advance to the next approved M55 slice that closes a
+   real stealth command-suite live-enablement gap without enabling live
+   Coinbase execution by default.
 3. Keep contextless blind review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
@@ -679,14 +680,21 @@ Keep it short. Keep it factual.
   submit, no-manager, no stealth/order row write, no lifecycle dispatch,
   no-reconciliation-execution, no-state-mutation, and no browser/BFF
   execution authority.
-- What is active for M55 2821-2840: backend and frontend expose durable
+- What is done through M55 2821-2840: backend and frontend expose durable
   post-write reconciliation proof evidence and readback for guarded stealth
   command families. The evidence may persist reviewed route-bound plan,
   post-write journal, and completion references, but it must not satisfy
   execution prerequisites, call Coinbase, invoke managers, execute
   reconciliation, cancel/replace active placements, mutate state, or grant
   browser/BFF authority.
+- What is active for M55 2841-2860: backend and frontend make create and
+  non-create execution prerequisite resolvers aware of exact-context
+  post-write proof records while keeping `post_write_reconciliation`
+  unresolved with `post_write_reconciliation_proof_not_sufficient`. The
+  evidence must remain backend-store read-only and cannot accept execution
+  journals, verify reconciliation, execute Coinbase actions, invoke managers,
+  mutate state, or grant browser/BFF authority.
 - What is blocked: Nothing currently known.
-- Exact next command: finish backend/frontend 2821-2840 gates, run
+- Exact next command: finish backend/frontend 2841-2860 gates, run
   contextless reviews, commit and push both repos, then advance to the next
   approved M55 slice.
