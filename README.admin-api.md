@@ -351,6 +351,14 @@ append-only local evidence only. It does not build cancel/replace plans,
 invoke managers, read Coinbase, submit/cancel Coinbase orders, cancel or
 replace active placements, execute reconciliation, mutate
 order/exchange/lifecycle state, or authorize browser/BFF proof authority.
+Live-disabled stealth cancel, stealth move, and movement reprice command
+responses may resolve only the `cancel_replace_proof` prerequisite from the
+latest safe same-`stealth_order_id` proof record when it exactly matches
+route, method, service method, actor, operator intent, idempotency key,
+payload hash, and mutation family. A resolved proof does not resolve
+active-placement exchange truth, mutation claims, live service, live adapter,
+or post-write reconciliation. Unsafe latest proof evidence remains
+missing/stale and does not fall back to older records.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

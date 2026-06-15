@@ -117,6 +117,35 @@ persisted records, no-live flags, no-cancel/replace flags, and proof-route
 metadata. It does not build plans, invoke managers, cancel or replace
 placements, execute reconciliation, or call Coinbase.
 
+## Command Resolver Evidence
+
+When the later guarded command is submitted, the command response can report a
+resolved `cancel_replace_proof` prerequisite only when the latest proof record
+for the same `stealth_order_id` exactly matches that command route, method,
+service method, actor, operator intent, idempotency key, payload hash, and
+mutation family. The resolver reads this backend store only; it does not
+execute cancel/replace work or call Coinbase.
+
+Expected live-disabled command evidence includes:
+
+```json
+{
+  "stealth_command_execution_contract": {
+    "cancel_replace_proof_required": true,
+    "cancel_replace_proof_resolved": true,
+    "cancel_replace_proof_id": "stealth-cancel-replace-proof-001",
+    "execution_allowed": false,
+    "active_placement_cancel_replace_ran": false,
+    "coinbase_order_cancel_submitted": false,
+    "reconciliation_executed": false
+  }
+}
+```
+
+If the latest matching proof record has any unsafe flag such as
+`cancel_replace_plan_built=true`, the resolver reports the proof as missing
+with stale/invalid evidence instead of falling back to an older safe record.
+
 ## Fail-Closed Cases
 
 The proof writer rejects records when:

@@ -308,6 +308,7 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     REVEAL_TRIGGER_EVIDENCE = "reveal_trigger_evidence"
     RECOVERY_PROOF = "recovery_proof"
     RECONCILIATION_PROOF = "reconciliation_proof"
+    CANCEL_REPLACE_PROOF = "cancel_replace_proof"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
     POST_LIVE_RECONCILIATION = "post_live_reconciliation"
 
@@ -381,6 +382,7 @@ class StealthCommandExecutionPrerequisite(str, Enum):
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
     RECOVERY_PROOF = "recovery_proof"
     RECONCILIATION_PROOF = "reconciliation_proof"
+    CANCEL_REPLACE_PROOF = "cancel_replace_proof"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
     POST_WRITE_RECONCILIATION = "post_write_reconciliation"

@@ -2680,17 +2680,22 @@ Current backend evidence:
   placements, call Coinbase, mutate order/exchange/lifecycle state, or grant
   browser/BFF authority. The completed phases 2541-2560 added
   reconciliation-proof current-read evidence parity and active-placement
-  cancel/replace proof boundary planning for cancel, move, and reprice. It now
-  advances to phases 2561-2580 for append-only cancel/replace proof records and
-  readback for stealth cancel, stealth move, and movement reprice without
-  execution authority.
+  cancel/replace proof boundary planning for cancel, move, and reprice. The
+  completed phases 2561-2580 added append-only cancel/replace proof records
+  and readback for stealth cancel, stealth move, and movement reprice without
+  execution authority. It now advances to phases 2581-2600 for exact-context
+  prerequisite resolver linkage for those cancel/replace proof records.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Append-only cancel/replace proof records and readback for cancel, move, and
-  reprice are the active 2561-2580 slice. Live reveal exchange submission,
-  live repair/rollback, active-placement cancel/replace,
-  live service, live adapter, and post-write reconciliation remain blocked.
+- Cancel/replace proof resolver linkage for cancel, move, and reprice is the
+  active 2581-2600 slice. The resolver may remove only the
+  `cancel_replace_proof` missing prerequisite when the latest safe same-
+  `stealth_order_id` proof record exactly matches route, method, service
+  method, actor, operator intent, idempotency key, payload hash, and mutation
+  family. Live reveal exchange submission, live repair/rollback,
+  active-placement cancel/replace, live service, live adapter, and post-write
+  reconciliation remain blocked.
   Stealth create, reveal, cancel exchange
   handling, move revealed, reprice, recovery, reconciliation, and any eventual
   live execution screens must prove the full approval, cap/guard, admission

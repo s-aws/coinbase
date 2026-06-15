@@ -100,6 +100,7 @@ from application.admin_api.stealth_reconciliation_proof import (
 )
 from application.admin_api.stealth_cancel_replace_proof import (
     FileStealthCancelReplaceProofStore,
+    StealthCancelReplaceProofRecord,
 )
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -119,12 +120,14 @@ from application.admin_api.models import (
     AdminApprovalRequestCreateRequest,
     AdminLiveAdmissionDecisionEvidence,
     ManualOrderRequest,
+    MovementRepriceRequest,
     SpotRecoveryApplyExecutionRequest,
     SpotRecoveryExchangeStateProofRequest,
     SpotRecoveryExchangeStateSnapshotRequest,
     SpotRecoveryReconciliationExecutionRequest,
     SpotRecoveryReconciliationProofRecordRequest,
     SpotRecoveryRollbackExecutionRequest,
+    StealthCancelRequest,
     StealthActivePlacementExchangeTruthProofRequest,
     StealthActivePlacementExchangeTruthSnapshotRequest,
     StealthCancelReplaceProofRequest,
@@ -1060,10 +1063,12 @@ def _stealth_command_payload_hash(
     stealth_order_id: str,
     body: dict,
     model: type[
-        StealthMoveRequest
+        StealthCancelRequest
+        | StealthMoveRequest
         | StealthRecoveryRequest
         | StealthRevealRequest
         | StealthReconciliationRequest
+        | MovementRepriceRequest
     ],
     operator_intent: str,
     roles: list[str] | None = None,
@@ -4017,6 +4022,7 @@ def test_admin_api_stealth_move_contract_is_fail_closed_and_no_live(monkeypatch)
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
             StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
@@ -4536,6 +4542,7 @@ def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypa
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
+            StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
             StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
@@ -4796,7 +4803,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2561-2580"
+    assert readback_payload["approved_phase_range"] == "2581-2600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -5010,7 +5017,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2561-2580"
+    assert readback_payload["approved_phase_range"] == "2581-2600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -5803,6 +5810,263 @@ def test_admin_api_stealth_cancel_replace_proof_is_no_live_and_path_keyed(
         == AdminApiPermission.STEALTH_CANCEL_REPLACE_RECORD.value
         for proof in readback_payload["persisted_proofs"]
     )
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_cancel_replace_execution_contract_resolves_proof(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    cases = [
+        {
+            "label": "cancel",
+            "stealth_order_id": "stealth-cancel-replace-resolve-cancel",
+            "family": AdminApiMutationFamilyType.STEALTH_CANCEL,
+            "route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+            "path_template": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+            "service_method": "cancel_stealth_order_by_stealth_order_id",
+            "model": StealthCancelRequest,
+            "body": {"reason": "operator_request"},
+            "module_id": "stealth_orders",
+        },
+        {
+            "label": "move",
+            "stealth_order_id": "stealth-cancel-replace-resolve-move",
+            "family": AdminApiMutationFamilyType.STEALTH_MOVE,
+            "route": "/api/v1/stealth/orders/{stealth_order_id}/move",
+            "path_template": "/api/v1/stealth/orders/{stealth_order_id}/move",
+            "service_method": "move_stealth_order_by_stealth_order_id",
+            "model": StealthMoveRequest,
+            "body": {
+                "new_limit_price": "50100.00",
+                "reason": "operator_requested_move",
+                "manual_live_acknowledgement": True,
+            },
+            "module_id": "stealth_orders",
+        },
+        {
+            "label": "reprice",
+            "stealth_order_id": "stealth-cancel-replace-resolve-reprice",
+            "family": AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+            "route": (
+                "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+            ),
+            "path_template": (
+                "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+            ),
+            "service_method": "reprice_stealth_order_by_stealth_order_id",
+            "model": MovementRepriceRequest,
+            "body": {"reason": "operator_requested_reprice"},
+            "module_id": "movement_repricing",
+        },
+    ]
+
+    for case in cases:
+        label = case["label"]
+        stealth_order_id = case["stealth_order_id"]
+        path = case["path_template"].format(stealth_order_id=stealth_order_id)
+        idempotency_key = f"idem-cancel-replace-resolve-{label}"
+        operator_intent = f"stealth_{label}_cancel_replace_execution_review"
+        payload_hash = _stealth_command_payload_hash(
+            endpoint=f"POST {path}",
+            stealth_order_id=stealth_order_id,
+            body=case["body"],
+            model=case["model"],
+            operator_intent=operator_intent,
+            roles=[AdminApiRole.TRADER.value],
+        )
+        _append_stealth_command_admission_chain(
+            approval_store=client.admin_api_test_approval_store,
+            audit_store=client.admin_api_test_audit_store,
+            cap_guard_store=client.admin_api_test_cap_guard_store,
+            reconciliation_store=client.admin_api_test_reconciliation_store,
+            route=case["route"],
+            service_method=case["service_method"],
+            stealth_order_id=stealth_order_id,
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=payload_hash,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            approval_snapshot_id=f"stealth-cancel-replace-approval-{label}",
+            admission_audit_id=f"stealth-cancel-replace-admission-{label}",
+            cap_guard_decision_id=f"stealth-cancel-replace-cap-guard-{label}",
+            reconciliation_plan_id=f"stealth-cancel-replace-plan-{label}",
+            module_id=case["module_id"],
+        )
+        safe_proof = StealthCancelReplaceProofRecord(
+            cancel_replace_proof_id=f"stealth-cancel-replace-proof-{label}",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=case["route"],
+            guarded_command_method="POST",
+            guarded_service_method=case["service_method"],
+            guarded_mutation_family=case["family"],
+            guarded_actor_id="operator-001",
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            active_placement_evidence_ref=(
+                f"operator-reviewed-active-placement-{label}"
+            ),
+            mutation_claim_evidence_ref=(
+                None
+                if case["family"] == AdminApiMutationFamilyType.STEALTH_CANCEL
+                else f"operator-reviewed-mutation-claim-{label}"
+            ),
+            cancel_replace_evidence_ref=(
+                f"operator-reviewed-cancel-replace-{label}"
+            ),
+            evidence_source=StealthCancelReplaceProofEvidenceSource.TEST_EVIDENCE,
+            reconciliation_plan_id=f"stealth-cancel-replace-proof-plan-{label}",
+            approval_snapshot_id=f"stealth-cancel-replace-proof-approval-{label}",
+            admission_audit_id=f"stealth-cancel-replace-proof-admission-{label}",
+            cap_guard_decision_id=f"stealth-cancel-replace-proof-cap-{label}",
+            route=(
+                "/api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs"
+            ),
+            method="POST",
+            service_method="record_stealth_cancel_replace_proof",
+            actor_id="operator-001",
+            operator_intent="stealth_cancel_replace_proof_contract_review",
+            idempotency_key=f"stealth-cancel-replace-proof-idem-{label}",
+            correlation_id=f"corr-stealth-cancel-replace-proof-{label}",
+            payload_hash="c" * 64,
+            audit_id=f"audit-stealth-cancel-replace-proof-{label}",
+            dry_run=True,
+            operator_reason="contract evidence only",
+            manual_live_acknowledgement=False,
+        )
+        client.admin_api_test_stealth_cancel_replace_proof_store.append(safe_proof)
+
+        response = client.post(
+            path,
+            headers=_headers(
+                idempotency_key=idempotency_key,
+                operator_intent=operator_intent,
+            ),
+            json=case["body"],
+        )
+
+        assert response.status_code == 501
+        contract = response.json()["stealth_command_execution_contract"]
+        assert contract["execution_allowed"] is False
+        assert contract["cancel_replace_proof_required"] is True
+        assert contract["cancel_replace_proof_resolved"] is True
+        assert contract["cancel_replace_proof_id"] == safe_proof.cancel_replace_proof_id
+        assert (
+            StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value
+            in contract["resolved_prerequisites"]
+        )
+        assert (
+            StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value
+            not in contract["missing_prerequisites"]
+        )
+        resolution_by_prerequisite = {
+            row["prerequisite"]: row
+            for row in contract["prerequisite_resolution"]
+        }
+        cancel_replace_proof = resolution_by_prerequisite[
+            StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value
+        ]
+        assert cancel_replace_proof["lookup_status"] == (
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED.value
+        )
+        assert cancel_replace_proof["lookup_ran"] is True
+        assert cancel_replace_proof["resolved"] is True
+        assert (
+            cancel_replace_proof["resolved_evidence_id"]
+            == safe_proof.cancel_replace_proof_id
+        )
+        assert cancel_replace_proof["proof_lookup_authority"] == (
+            "backend_store_read_only_no_execution"
+        )
+        assert cancel_replace_proof["writes_ran"] is False
+        assert cancel_replace_proof["live_coinbase_read_ran"] is False
+        assert contract["manager_invocation_ran"] is False
+        assert contract["active_placement_cancel_replace_ran"] is False
+        assert contract["coinbase_order_cancel_submitted"] is False
+        assert contract["live_coinbase_read_ran"] is False
+        assert contract["reconciliation_executed"] is False
+
+        unsafe_idempotency_key = f"idem-cancel-replace-unsafe-{label}"
+        unsafe_operator_intent = f"stealth_{label}_cancel_replace_latest_unsafe"
+        unsafe_payload_hash = _stealth_command_payload_hash(
+            endpoint=f"POST {path}",
+            stealth_order_id=stealth_order_id,
+            body=case["body"],
+            model=case["model"],
+            operator_intent=unsafe_operator_intent,
+            roles=[AdminApiRole.TRADER.value],
+        )
+        _append_stealth_command_admission_chain(
+            approval_store=client.admin_api_test_approval_store,
+            audit_store=client.admin_api_test_audit_store,
+            cap_guard_store=client.admin_api_test_cap_guard_store,
+            reconciliation_store=client.admin_api_test_reconciliation_store,
+            route=case["route"],
+            service_method=case["service_method"],
+            stealth_order_id=stealth_order_id,
+            idempotency_key=unsafe_idempotency_key,
+            operator_intent=unsafe_operator_intent,
+            payload_hash=unsafe_payload_hash,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            approval_snapshot_id=f"stealth-cancel-replace-approval-unsafe-{label}",
+            admission_audit_id=f"stealth-cancel-replace-admission-unsafe-{label}",
+            cap_guard_decision_id=f"stealth-cancel-replace-cap-guard-unsafe-{label}",
+            reconciliation_plan_id=f"stealth-cancel-replace-plan-unsafe-{label}",
+            module_id=case["module_id"],
+        )
+        client.admin_api_test_stealth_cancel_replace_proof_store.append(
+            safe_proof.model_copy(
+                update={
+                    "cancel_replace_proof_id": (
+                        f"stealth-cancel-replace-proof-unsafe-{label}"
+                    ),
+                    "guarded_operator_intent": unsafe_operator_intent,
+                    "guarded_idempotency_key": unsafe_idempotency_key,
+                    "guarded_payload_hash": unsafe_payload_hash,
+                    "cancel_replace_plan_built": True,
+                    "idempotency_key": (
+                        f"stealth-cancel-replace-proof-idem-unsafe-{label}"
+                    ),
+                    "audit_id": f"audit-stealth-cancel-replace-proof-unsafe-{label}",
+                }
+            )
+        )
+
+        unsafe_response = client.post(
+            path,
+            headers=_headers(
+                idempotency_key=unsafe_idempotency_key,
+                operator_intent=unsafe_operator_intent,
+            ),
+            json=case["body"],
+        )
+
+        assert unsafe_response.status_code == 501
+        unsafe_contract = unsafe_response.json()["stealth_command_execution_contract"]
+        assert unsafe_contract["cancel_replace_proof_resolved"] is False
+        assert (
+            StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value
+            in unsafe_contract["missing_prerequisites"]
+        )
+        unsafe_cancel_replace_proof = {
+            row["prerequisite"]: row
+            for row in unsafe_contract["prerequisite_resolution"]
+        }[StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value]
+        assert unsafe_cancel_replace_proof["lookup_status"] == (
+            StealthCommandExecutionPrerequisiteLookupStatus.MISSING.value
+        )
+        assert unsafe_cancel_replace_proof["lookup_ran"] is True
+        assert unsafe_cancel_replace_proof["resolved"] is False
+        assert unsafe_cancel_replace_proof["stale_or_invalid"] is True
+        assert unsafe_cancel_replace_proof["missing_reason"] == (
+            "cancel_replace_proof_not_safe"
+        )
+        assert unsafe_cancel_replace_proof["proof_lookup_authority"] == (
+            "backend_store_read_only_no_execution"
+        )
 
 
 @pytest.mark.regression
@@ -6599,7 +6863,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2561-2580"
+    assert readback_payload["approved_phase_range"] == "2581-2600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -6814,7 +7078,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2561-2580"
+    assert readback_payload["approved_phase_range"] == "2581-2600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -6906,6 +7170,7 @@ def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkey
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
             StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
@@ -9006,7 +9271,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2561-2580"
+    assert payload["approved_phase_range"] == "2581-2600"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -9453,18 +9718,20 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert readiness["bff_authority"] == "forward_only_no_execution"
         assert readiness["accepted_command_identity_keys"] == ["stealth_order_id"]
         assert "order_id" in readiness["rejected_command_identity_keys"]
-        expected_evidence_count = (
-            9
-            if command["mutation_family"]
-            in {
-                AdminApiMutationFamilyType.STEALTH_MOVE.value,
-                AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
-                AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
-                AdminApiMutationFamilyType.STEALTH_REVEAL.value,
-                AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
-            }
-            else 8
-        )
+        if command["mutation_family"] in {
+            AdminApiMutationFamilyType.STEALTH_MOVE.value,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+        }:
+            expected_evidence_count = 10
+        elif command["mutation_family"] in {
+            AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+            AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
+            AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
+        }:
+            expected_evidence_count = 9
+        else:
+            expected_evidence_count = 8
         assert readiness["required_evidence_count"] == expected_evidence_count
         assert readiness["present_evidence_count"] == 0
         assert readiness["missing_evidence_count"] == expected_evidence_count
@@ -9619,6 +9886,15 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
             in admission_readiness[route]["missing_evidence"]
         )
     for route in (
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        "/api/v1/stealth/orders/{stealth_order_id}/move",
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+    ):
+        assert (
+            AdminApiStealthAdmissionEvidence.CANCEL_REPLACE_PROOF.value
+            in admission_readiness[route]["missing_evidence"]
+        )
+    for route in (
         "/api/v1/stealth/orders",
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
         "/api/v1/stealth/orders/{stealth_order_id}/cancel",
@@ -9627,6 +9903,16 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     ):
         assert (
             AdminApiStealthAdmissionEvidence.MUTATION_CLAIM_SNAPSHOT.value
+            not in admission_readiness[route]["missing_evidence"]
+        )
+    for route in (
+        "/api/v1/stealth/orders",
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+    ):
+        assert (
+            AdminApiStealthAdmissionEvidence.CANCEL_REPLACE_PROOF.value
             not in admission_readiness[route]["missing_evidence"]
         )
     create_truth_evidence = {
@@ -10777,7 +11063,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2561-2580"
+    assert live_payload["approved_phase_range"] == "2581-2600"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -11340,7 +11626,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2561-2580"
+    assert enterprise_payload["approved_phase_range"] == "2581-2600"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -11938,7 +12224,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2561-2580"
+    assert recovery_preview_payload["approved_phase_range"] == "2581-2600"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

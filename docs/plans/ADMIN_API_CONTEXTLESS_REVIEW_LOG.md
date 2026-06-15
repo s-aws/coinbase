@@ -3456,3 +3456,58 @@ Status:
 - Blind/contextless review passed with no blockers.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M55 Cancel/Replace Proof Resolver And Admission Readiness Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers were not given chat history.
+
+Reviewer tasks:
+
+- trace exact-context `cancel_replace_proof` resolution for stealth cancel,
+  stealth move, and movement reprice
+- verify command-suite admission readiness and generated schema expose the
+  same read-only proof requirement
+- verify backend behavior remains no-live, no manager, no Coinbase,
+  no active-placement cancel/replace, no reconciliation execution, and
+  no lifecycle/order/exchange-state mutation
+- identify stale docs or examples that could mislead a contextless maintainer
+
+Findings and resolution:
+
+- PASS after remediation: execution-contract resolver code is enum-backed,
+  latest-record-only, exact-context matched, and fail-closed. Unsafe, stale, or
+  non-matching latest same-`stealth_order_id` proof records do not fall back to
+  older records.
+- FAIL then fixed: `docs/STEALTH_ORDER_READS.md` initially implied "latest
+  safe" fallback. It now states the latest same-order record must itself be
+  safe and exact-context.
+- FAIL then fixed: command-suite admission readiness and OpenAPI initially
+  lagged the frontend mock. `AdminApiStealthAdmissionEvidence` now includes
+  `cancel_replace_proof`, and cancel/move/reprice admission readiness includes
+  the read-only cancel/replace-proof requirement.
+- FAIL then fixed: `docs/examples/stealth-command-suite.md` cancel examples
+  omitted `cancel_replace_proof`. The examples and prose now show cancel,
+  move, and reprice as cancel/replace-proof consumers.
+- PASS after remediation: frontend generated schema, mock fixtures,
+  dry-submit rendering, and docs remain display-only/forward-only and do not
+  add browser/BFF resolver or execution authority.
+
+Status:
+
+- Backend focused M55 resolver/readiness checks passed with `3` selected tests
+  and `1` warning.
+- Backend full regression passed with `844 passed, 1 warning`.
+- Backend autonomous work queue check passed for approved phases `2581-2600`.
+- Frontend `npm run api:check` passed after regenerating schema from the
+  backend OpenAPI contract.
+- Frontend focused resolver/read-model/mock checks passed with `39` tests.
+- Frontend full `npm run release:gate` passed with `243` unit tests and `3`
+  Playwright tests.
+- Frontend `release:check`, `deployment:check`, and `autonomous:check` passed
+  after doc-only corrections.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

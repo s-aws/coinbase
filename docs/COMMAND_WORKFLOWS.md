@@ -303,6 +303,16 @@ Its `active_placement_evidence_ref`, `mutation_claim_evidence_ref`, and
 the writer validates required presence and guarded-context matching, but does
 not dereference them, verify another proof-store row, or treat them as
 execution authority.
+For stealth cancel, stealth move, and movement reprice command responses, the
+same command execution contract may resolve only the `cancel_replace_proof`
+prerequisite from the backend append-only cancel/replace proof store. The
+latest same-`stealth_order_id` proof record must exactly match route, method,
+service method, actor, operator intent, idempotency key, payload hash, and
+mutation family, and it must be safe no-live/no-manager/no-state-mutation
+evidence. This resolver does not build cancel/replace plans, invoke managers,
+call Coinbase, cancel/replace active placements, execute reconciliation, or
+grant browser/BFF authority. Unsafe latest records stay missing/stale instead
+of falling back to older proof evidence.
 For recovery commands, the same contract may resolve only `recovery_proof`
 from the backend append-only recovery proof store when the latest safe
 same-`stealth_order_id` record exactly matches route, method, service method,

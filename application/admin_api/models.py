@@ -5146,6 +5146,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     reconciliation_proof_required: bool = False
     reconciliation_proof_resolved: bool = False
     reconciliation_proof_id: str | None = None
+    cancel_replace_proof_required: bool = False
+    cancel_replace_proof_resolved: bool = False
+    cancel_replace_proof_id: str | None = None
     live_execution_service_required: bool = True
     live_execution_service_resolved: bool = False
     live_execution_adapter_required: bool = True

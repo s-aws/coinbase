@@ -230,7 +230,7 @@ from .stealth_cancel_replace_proof import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2561-2580"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2581-2600"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -10699,6 +10699,14 @@ class AdminApiReadService:
             "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
             "exchange-truth-proof"
         )
+        cancel_replace_proof_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof"
+        )
+        cancel_replace_proof_families = {
+            AdminApiMutationFamilyType.STEALTH_CANCEL,
+            AdminApiMutationFamilyType.STEALTH_MOVE,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+        }
         for command in commands:
             requirements: list[StealthCommandSuiteAdmissionRequirementItem] = []
             for proof_route in command.proof_routes:
@@ -10764,6 +10772,26 @@ class AdminApiReadService:
                             ),
                         )
                     )
+            if command.mutation_family in cancel_replace_proof_families:
+                requirements.append(
+                    admission_requirement_from_surface(
+                        surface=cancel_replace_proof_surface,
+                        evidence_name=(
+                            AdminApiStealthAdmissionEvidence.CANCEL_REPLACE_PROOF
+                        ),
+                        source="cancel_replace_proof_readback",
+                        identity_key="stealth_order_id",
+                        bff_authority="read_only_forward",
+                        detail=(
+                            "Read cancel/replace proof records for the exact "
+                            "stealth_order_id and guarded cancel, move, or "
+                            "reprice command. This remains local evidence only "
+                            "and does not build plans, invoke managers, call "
+                            "Coinbase, cancel/replace placements, execute "
+                            "reconciliation, or mutate state."
+                        ),
+                    )
+                )
             requirements.append(
                 StealthCommandSuiteAdmissionRequirementItem(
                     evidence_name=AdminApiStealthAdmissionEvidence.LIVE_EXECUTION_ADAPTER,

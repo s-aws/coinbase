@@ -113,8 +113,8 @@ matches route, method, service method, actor, operator intent, idempotency key,
 and payload hash. It may also resolve `reveal_trigger_evidence` for reveal
 from the backend reveal-trigger proof store under the same exact-context and
 latest-safe rules. It does not verify Coinbase, evaluate triggers, call
-`should_trigger_reveal`, call `reveal_order_slice`, resolve reconciliation
-proof, run manager code, repair state, roll back state, cancel/replace live
+`should_trigger_reveal`, call `reveal_order_slice`, run manager code, repair
+state, roll back state, cancel/replace live
 placements, execute reconciliation, mutate local or exchange state, or
 authorize the frontend.
 It may also resolve `reconciliation_proof` for reconciliation from the
@@ -154,6 +154,15 @@ supports guarded contexts for stealth cancel, stealth move, and movement
 reprice. It does not build cancel/replace plans, invoke managers, read
 Coinbase, cancel or replace active placements, submit/cancel orders, execute
 reconciliation, or mutate lifecycle, order, or exchange state.
+Live-disabled stealth cancel, stealth move, and movement reprice command
+responses may resolve only the `cancel_replace_proof` prerequisite when the
+latest same-`stealth_order_id` proof record is safe and exactly matches route,
+method, service method, actor, operator intent, idempotency key, payload hash,
+and mutation family. If the latest same-order proof record is unsafe, stale, or
+not an exact-context match, the resolver reports the prerequisite missing/stale
+and does not fall back to an older safe record. That read-only resolver does not
+resolve active-placement exchange truth or mutation claims, does not call
+Coinbase, does not invoke managers, and does not make the command executable.
 
 The command-suite `create_lifecycle_write_audit.execution_contract` block
 reports the backend-owned stealth create execution-contract boundary without

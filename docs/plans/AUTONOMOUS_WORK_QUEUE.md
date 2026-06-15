@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2561-2580**.
+- Approved phase range: **2581-2600**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,97 +53,110 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2561-2580
+## Active Phases 2581-2600
 
-These phases continue M55 after cancel/replace boundary evidence. The next
-explicit gap is append-only proof-record foundation for stealth cancel, stealth
-move, and movement reprice cancel/replace prerequisites. This range may add
-route-bound proof request/record/readback contracts, command-suite linkage,
-OpenAPI, generated frontend consumption, tests, docs, and validators. It must
-not call Coinbase, invoke `StealthOrderManager`, cancel or replace active
-placements, mutate stealth/order/exchange state, resolve execution
-prerequisites, approve live admission, or grant browser/BFF execution
+These phases continue M55 after append-only cancel/replace proof records.
+The next explicit gap is exact-context prerequisite resolver linkage for
+stealth cancel, stealth move, and movement reprice cancel/replace proof
+evidence. This range may add a `cancel_replace_proof` execution
+prerequisite, read-only proof-store lookup, response fields, tests, docs,
+OpenAPI/frontend schema sync, and validator updates. It must not call
+Coinbase, invoke `StealthOrderManager`, build cancel/replace plans, cancel or
+replace active placements, mutate stealth/order/exchange state, approve live
+admission, enable live service/adapters, or grant browser/BFF execution
 authority.
 
-### Phase 2561 - Advance Active Queue Range
+### Phase 2581 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2541-2560 to active phases 2561-2580 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2561-2580 to active phases 2581-2600 while preserving no-live defaults and cap policy.
 
-### Phase 2562 - Prior Range Completion Evidence
+### Phase 2582 - Prior Range Completion Evidence
 
-- Record phases 2541-2560 as completed reconciliation read parity and cancel/replace boundary evidence with no live Coinbase execution and no active-placement cancel/replace behavior.
+- Record phases 2561-2580 as completed cancel/replace proof records/readback with no live Coinbase execution, no manager invocation, and no active-placement cancel/replace behavior.
 
-### Phase 2563 - Cancel/Replace Proof Enum Contract
+### Phase 2583 - Cancel/Replace Proof Prerequisite Enum
 
-- Add backend enum values for stealth cancel/replace proof mutation family, permission, and evidence source without using magic strings in the contract.
+- Add a backend enum prerequisite for `cancel_replace_proof` without using magic strings.
 
-### Phase 2564 - Cancel/Replace Proof Record Store
+### Phase 2584 - Execution Contract Model Fields
 
-- Add an append-only, locked, JSONL-backed stealth cancel/replace proof store keyed by `stealth_order_id` and proof id.
+- Add typed execution-contract fields for `cancel_replace_proof_required`, `cancel_replace_proof_resolved`, and latest resolved proof id.
 
-### Phase 2565 - Cancel/Replace Proof Service Validation
+### Phase 2585 - Resolver Store Injection
 
-- Validate route inventory, admission prerequisites, guarded command context, dry-run posture, and no-live flags before any proof record is persisted.
+- Pass the cancel/replace proof store through the shared command execution posture builder and all stealth cancel/move/reprice route adapters.
 
-### Phase 2566 - Guarded Command Family Coverage
+### Phase 2586 - Stealth Cancel Resolver
 
-- Support only guarded stealth cancel, stealth move, and movement reprice command contexts, with mutation-claim evidence required for move and reprice.
+- Resolve `cancel_replace_proof` for stealth cancel only when the latest same-`stealth_order_id` proof exactly matches route, method, service method, actor, operator intent, idempotency key, payload hash, and mutation family.
 
-### Phase 2567 - Cancel/Replace Proof Write Route
+### Phase 2587 - Stealth Move Resolver
 
-- Add `POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs` through the shared command service, idempotency, RBAC, approval, cap/guard, audit, and reconciliation gates.
+- Resolve `cancel_replace_proof` for stealth move under the same exact-context rule while keeping mutation-claim and active-placement proof prerequisites separate.
 
-### Phase 2568 - Cancel/Replace Proof Readback Route
+### Phase 2588 - Movement Reprice Resolver
 
-- Add `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof` as read-only evidence that never invokes managers, Coinbase, cancel/replace, reconciliation execution, or state mutation.
+- Resolve `cancel_replace_proof` for movement reprice under the same exact-context rule while keeping M56 movement/repricing execution disabled.
 
-### Phase 2569 - Command-Suite Linkage
+### Phase 2589 - Unsafe Latest Proof Fail-Closed
 
-- Link cancel/replace proof record and readback surfaces into stealth command-suite boundary and gap evidence for cancel, move, and reprice.
+- Treat the latest unsafe or mismatched cancel/replace proof as stale/invalid and leave the prerequisite missing.
 
-### Phase 2570 - Mutation Taxonomy Linkage
+### Phase 2590 - Admission Response Linkage
 
-- Add route-bound mutation taxonomy evidence for the cancel/replace proof record contract without marking cancel/replace execution supported.
+- Surface resolved/missing cancel/replace proof evidence in command response data without changing execution status.
 
-### Phase 2571 - OpenAPI And Route Inventory Sync
+### Phase 2591 - Route Attachment Sync
 
-- Regenerate OpenAPI and route inventory docs so frontend generation and contextless agents see the proof contract.
+- Ensure stealth cancel, stealth move, and movement reprice route adapters all use the same shared resolver path.
 
-### Phase 2572 - Backend Regression Coverage
+### Phase 2592 - OpenAPI Sync
 
-- Add regression tests for cancel, move, and reprice proof records, no-live flags, readback, route inventory, permission, and proof-store persistence.
+- Regenerate OpenAPI and route inventory outputs if the execution-contract schema changes.
 
-### Phase 2573 - Backend Documentation Sync
+### Phase 2593 - Backend Regression Coverage
 
-- Update Admin API, stealth command-suite, examples, handoff, docs index, and active queue docs for the cancel/replace proof boundary.
+- Add regression tests for resolved and unsafe cancel/replace proof lookup across cancel, move, and reprice.
 
-### Phase 2574 - Frontend Schema Intake
+### Phase 2594 - Backend Documentation Sync
 
-- Regenerate the frontend API schema from backend OpenAPI and add canonical client wrapper/BFF/mock coverage if generated route shapes changed.
+- Update Admin API, stealth command-suite, cancel/replace proof, examples, handoff, and roadmap docs for resolver semantics.
 
-### Phase 2575 - Frontend Evidence Rendering
+### Phase 2595 - Frontend Schema Intake
 
-- Render cancel/replace proof readback and command-suite linkage as display-only evidence with no command controls or browser proof authority.
+- Regenerate the frontend API schema from backend OpenAPI after execution-contract fields are added.
 
-### Phase 2576 - Frontend Documentation Sync
+### Phase 2596 - Frontend Contract And Mock Sync
 
-- Update frontend API contract, command workflow, stealth read, testing, and handoff docs for the cancel/replace proof boundary.
+- Update frontend mocks, adapters, quality artifacts, and tests only where the backend response contract changed.
 
-### Phase 2577 - Validator Range Sync
+### Phase 2597 - Validator Range Sync
 
-- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2561-2580.
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2581-2600.
 
-### Phase 2578 - No-Live Drift Scan
+### Phase 2598 - No-Live Drift Scan
 
-- Search for wording or code implying cancel/replace proof records perform Coinbase reads, live cancel/replace, manager invocation, reconciliation execution, or state mutation.
+- Search for wording or code implying the resolver executes cancel/replace, invokes managers, calls Coinbase, mutates state, or grants browser/BFF authority.
 
-### Phase 2579 - Blind Contextless Review And Gates
+### Phase 2599 - Blind Contextless Review And Gates
 
-- Run blind/contextless review plus focused backend/frontend checks proving a fresh agent can explain the proof boundary without inventing execution authority.
+- Run blind/contextless review plus focused backend/frontend checks proving a fresh agent can explain resolver semantics without inventing execution authority.
 
-### Phase 2580 - Push And Next Range
+### Phase 2600 - Full Gates, Push, And Next Range
 
 - Run backend full regression and frontend `npm run release:gate`, commit and push synchronized repos after gates pass, report no live Coinbase execution and `$0` notional, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed Phases 2561-2580
+
+These phases added append-only cancel/replace proof records and readback for
+stealth cancel, stealth move, and movement reprice. The records are keyed by
+`stealth_order_id` and guarded command context, linked into route inventory,
+OpenAPI, command-suite boundary evidence, frontend readback, docs, validators,
+and blind/contextless review. They remain no-live evidence only: no Coinbase
+read, submit, cancel, or cancel/replace ran; no manager was invoked; no
+cancel/replace plan was built; no reconciliation executed; no
+stealth/order/exchange state mutated; and no browser/BFF execution authority
+was added.
 
 ## Completed Phases 2541-2560
 

@@ -593,6 +593,9 @@ def move_stealth_order_by_stealth_order_id(
         stealth_mutation_claim_proof_store=(
             service.dependencies.stealth_mutation_claim_proof_store_getter()
         ),
+        stealth_cancel_replace_proof_store=(
+            service.dependencies.stealth_cancel_replace_proof_store_getter()
+        ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.move_stealth_order_by_stealth_order_id(
             StealthMoveCommand(
@@ -674,6 +677,9 @@ def cancel_stealth_order_by_stealth_order_id(
         ),
         stealth_mutation_claim_proof_store=(
             service.dependencies.stealth_mutation_claim_proof_store_getter()
+        ),
+        stealth_cancel_replace_proof_store=(
+            service.dependencies.stealth_cancel_replace_proof_store_getter()
         ),
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.cancel_stealth_order_by_stealth_order_id(

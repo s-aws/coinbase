@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2561-2580",
+  "approved_phase_range": "2581-2600",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -61,6 +61,7 @@ blocked even when exact command-envelope context is present:
       "cap_guard_decision",
       "reconciliation_plan",
       "active_placement_exchange_truth",
+      "cancel_replace_proof",
       "live_execution_service",
       "live_execution_adapter",
       "post_write_reconciliation"
@@ -455,6 +456,7 @@ row has this shape:
     "cap_guard_decision",
     "reconciliation_plan",
     "active_placement_exchange_truth",
+    "cancel_replace_proof",
     "live_execution_adapter",
     "post_live_reconciliation"
   ],
@@ -487,10 +489,11 @@ row has this shape:
 
 Create and reveal rows use `lifecycle_write_guard` instead of
 `active_placement_exchange_truth`. Cancel, move, recovery, reconciliation,
-and reprice rows require `active_placement_exchange_truth`. The ledger does
-not approve commands, execute commands, read Coinbase, call
-`StealthOrderManager`, cancel/replace placements, execute reconciliation,
-mutate state, or grant browser/BFF authority.
+and reprice rows require `active_placement_exchange_truth`; cancel, move, and
+reprice also require `cancel_replace_proof`. The ledger does not approve
+commands, execute commands, read Coinbase, call `StealthOrderManager`,
+cancel/replace placements, execute reconciliation, mutate state, or grant
+browser/BFF authority.
 
 The `cancel_replace_boundaries` array gives cancel, move, and reprice one
 shared blocked evidence shape. It is not a cancel/replace executor:

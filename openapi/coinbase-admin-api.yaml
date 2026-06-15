@@ -8464,6 +8464,7 @@ components:
       - reveal_trigger_evidence
       - recovery_proof
       - reconciliation_proof
+      - cancel_replace_proof
       - live_execution_adapter
       - post_live_reconciliation
       title: AdminApiStealthAdmissionEvidence
@@ -20102,6 +20103,19 @@ components:
           - type: string
           - type: 'null'
           title: Reconciliation Proof Id
+        cancel_replace_proof_required:
+          type: boolean
+          title: Cancel Replace Proof Required
+          default: false
+        cancel_replace_proof_resolved:
+          type: boolean
+          title: Cancel Replace Proof Resolved
+          default: false
+        cancel_replace_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Replace Proof Id
         live_execution_service_required:
           type: boolean
           title: Live Execution Service Required
@@ -20261,6 +20275,7 @@ components:
       - mutation_claim_snapshot
       - recovery_proof
       - reconciliation_proof
+      - cancel_replace_proof
       - live_execution_service
       - live_execution_adapter
       - post_write_reconciliation

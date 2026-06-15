@@ -90,6 +90,23 @@ Accepted proof records keep `cancel_replace_proof_verified=false`,
 `lifecycle_state_mutated=false`, `exchange_state_mutated=false`,
 `live_exchange_submitted=false`, and `live_coinbase_orders_ran=false`.
 
+## Execution-Contract Resolver Behavior
+
+Live-disabled stealth cancel, stealth move, and movement reprice command
+responses may resolve the `cancel_replace_proof` prerequisite from this store.
+Resolution is exact-context and fail-closed: the latest same-`stealth_order_id`
+record must match the command route, method, shared service method, actor,
+operator intent, idempotency key, payload hash, and mutation family. The record
+must also remain safe no-live evidence with no manager invocation, no
+cancel/replace plan, no Coinbase read/submit/cancel, no active-placement
+cancel/replace, no reconciliation execution, and no state mutation.
+
+A resolved `cancel_replace_proof` removes only that missing prerequisite. It
+does not resolve active-placement exchange truth, mutation-claim snapshots,
+live service, live adapter, or post-write reconciliation. An unsafe or
+mismatched latest record is reported as stale/invalid and the prerequisite
+stays missing.
+
 ## Key Files
 
 - `application/admin_api/stealth_cancel_replace_proof.py`
