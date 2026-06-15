@@ -339,6 +339,13 @@ for the future post-write reconciliation plan/completion handoff. It names
 context binding, and no-run proof flags. It does not record a reconciliation
 plan, execute reconciliation, call Coinbase, invoke managers, cancel/replace
 active placements, mutate state, or grant browser/BFF authority.
+Both contracts also expose `live_execution_adapter_contract`, a nested
+route-bound adapter evidence object produced by the shared backend
+`build_live_execution_adapter_contract` helper. It names the
+`AdminApiCommandService.*` method, route, module id, action class, forbidden
+execution methods, and display-only browser/BFF authority while remaining
+disabled and non-executable. It is not an adapter implementation, live switch,
+Coinbase caller, manager invocation path, or BFF execution grant.
 For commands that require active-placement exchange truth, the contract may
 resolve that single prerequisite from the existing append-only backend proof
 store when a safe same-`stealth_order_id` proof record exists. That resolver

@@ -232,6 +232,12 @@ handoff contract for `POST /api/v1/admin/reconciliation/plans`, not a plan
 writer or reconciliation executor. Workflows must treat its missing evidence,
 no-plan-write, no-reconciliation, no-Coinbase, and no-state-mutation flags as
 blocking evidence until a future backend-owned executor is explicitly wired.
+Both contracts also include a nested `live_execution_adapter_contract` from
+the shared live-execution adapter evidence builder. Workflows may display its
+route, `AdminApiCommandService.*` reference, forbidden methods, disabled
+status, and browser/BFF authority only. It does not construct an adapter,
+invoke managers, call Coinbase, cancel/replace active placements, execute
+reconciliation, mutate state, or make the command executable.
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase

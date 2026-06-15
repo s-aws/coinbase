@@ -5234,6 +5234,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     live_execution_adapter_missing_reason: str | None = (
         "live_execution_adapter_disabled"
     )
+    live_execution_adapter_contract: (
+        AdminLiveExecutionAdapterContractEvidence | None
+    ) = None
     post_write_reconciliation_required: bool = True
     post_write_reconciliation_resolved: bool = False
     post_write_reconciliation_route: str = "/api/v1/admin/reconciliation/plans"
@@ -5349,6 +5352,9 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     live_execution_adapter_missing_reason: str | None = (
         "live_execution_adapter_disabled"
     )
+    live_execution_adapter_contract: (
+        AdminLiveExecutionAdapterContractEvidence | None
+    ) = None
     post_write_reconciliation_required: bool = True
     post_write_reconciliation_route: str = "/api/v1/admin/reconciliation/plans"
     post_write_reconciliation_method: str = "POST"

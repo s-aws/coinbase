@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2641-2660**.
+- Approved phase range: **2661-2680**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,101 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2641-2660
+## Active Phases 2661-2680
+
+These phases continue M55 after nested post-write reconciliation boundary
+evidence. The next explicit gap is making the still-disabled stealth
+live-adapter construction contract a rich, typed, route-bound object on create
+and non-create execution contracts by reusing the existing backend
+`build_live_execution_adapter_contract` evidence. This range may add backend
+model fields, shared-builder wiring, OpenAPI and frontend schema sync,
+display-only dry-submit rows, mocks, tests, docs, validator updates, and
+blind/contextless review. It must not add executable adapters, call Coinbase,
+invoke `StealthOrderManager`, record reconciliation plans, execute
+reconciliation, cancel/replace active placements, mutate stealth/order/exchange
+state, approve live admission, or grant browser/BFF execution authority.
+
+### Phase 2661 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2641-2660 to active phases 2661-2680 while preserving no-live defaults and cap policy.
+
+### Phase 2662 - Prior Range Completion Evidence
+
+- Record phases 2641-2660 as completed nested post-write reconciliation boundary evidence with no live Coinbase execution, no plan writes, no reconciliation execution, and no state mutation.
+
+### Phase 2663 - Adapter Contract Model Attachment
+
+- Add a nested live-execution adapter contract field to stealth create and non-create execution contracts without changing the existing flat disabled adapter fields.
+
+### Phase 2664 - Shared Adapter Builder Reuse
+
+- Populate the nested adapter contract only through the existing backend `build_live_execution_adapter_contract` helper so route-to-service evidence stays single-source.
+
+### Phase 2665 - Create Lifecycle Adapter Attachment
+
+- Attach the nested adapter contract to stealth create lifecycle execution evidence using route-inventory-consistent defaults when exact command admission context is absent.
+
+### Phase 2666 - Non-Create Adapter Attachment
+
+- Attach the nested adapter contract to reveal, cancel, move, recovery, reconciliation, and movement/reprice execution contracts from their admission route metadata.
+
+### Phase 2667 - Backend Regression Coverage
+
+- Assert the nested adapter contract is backend-owned, route-bound, disabled, non-executable, display/forward-only, and lists forbidden execution methods for create and non-create responses.
+
+### Phase 2668 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after the nested adapter contract shape change.
+
+### Phase 2669 - Frontend Schema Intake
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2670 - Frontend Mock Adapter Sync
+
+- Update mock create and non-create stealth execution contracts with the nested live adapter contract object.
+
+### Phase 2671 - Dry-Submit Adapter Rows
+
+- Display the nested adapter as display-only evidence, including status, route, adapter reference, forbidden methods, and browser/BFF authority.
+
+### Phase 2672 - Runtime Fixture Type Safety
+
+- Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
+### Phase 2673 - Documentation Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested live adapter contract.
+
+### Phase 2674 - Validator Range Sync
+
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2661-2680.
+
+### Phase 2675 - No-Live Drift Scan
+
+- Search for wording or code implying the adapter contract constructs executable adapters, calls Coinbase, invokes managers, cancels/replaces placements, records plans, executes reconciliation, or mutates state.
+
+### Phase 2676 - Blind Contextless Backend Review
+
+- Run a blind/contextless backend review asking whether a fresh agent can explain the adapter contract without inventing execution authority.
+
+### Phase 2677 - Blind Contextless Frontend Review
+
+- Run a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and the generated-contract source.
+
+### Phase 2678 - Focused Gates
+
+- Run focused backend/frontend tests, schema checks, and autonomous checks for the nested adapter contract.
+
+### Phase 2679 - Full Gates
+
+- Run backend full regression and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional.
+
+### Phase 2680 - Commit, Push, And Next Range
+
+- Commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed Phases 2641-2660
 
 These phases continue M55 after create lifecycle boundary parity. The next
 explicit gap is making the stealth post-write reconciliation boundary a rich,

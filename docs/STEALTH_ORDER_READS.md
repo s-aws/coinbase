@@ -128,6 +128,13 @@ explicit. It binds the stealth command route and exact command context, names
 lists missing post-write evidence, and reports no plan write, no reconciliation
 execution, no Coinbase call, and no state mutation. It is not a reconciliation
 executor and it is not browser/BFF authority.
+The nested `live_execution_adapter_contract` object makes the disabled adapter
+construction boundary explicit. It binds the stealth command route to the
+shared `AdminApiCommandService.*` reference and lists forbidden execution
+methods while reporting `executable=false`, `browser_authority=display_only`,
+and `bff_authority=forward_only_no_execution`. It is not an adapter
+implementation, manager invocation path, Coinbase caller, or command-enablement
+signal.
 It may also resolve `reconciliation_proof` for reconciliation from the
 backend reconciliation proof store when the latest safe same-`stealth_order_id`
 proof exactly matches route, method, service method, actor, operator intent,
@@ -192,6 +199,8 @@ path, and `execution_boundary_authority` fields used by non-create stealth
 execution contracts.
 They also expose the same nested `post_write_reconciliation_boundary` object,
 which names the reconciliation-plan route and remains blocked/no-run.
+They also expose the same nested `live_execution_adapter_contract`, which names
+the shared command-service reference and remains disabled/non-executable.
 Both surfaces remain evidence only: they do not resolve proof records as
 authority, invoke `StealthOrderManager`, write `stealth_orders` or
 `order_parent` rows, dispatch lifecycle events, read/submit/cancel Coinbase,

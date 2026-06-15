@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from core.enums import (
+    AdminApiActionClass,
     AdminApiMutationFamilyType,
     AdminApiStealthAdmissionContextField,
     StealthCreateLifecycleExecutionBlocker,
@@ -22,6 +23,7 @@ from .live_execution import (
     POST_WRITE_RECONCILIATION_METHOD,
     POST_WRITE_RECONCILIATION_ROUTE,
     POST_WRITE_RECONCILIATION_SOURCE,
+    build_live_execution_adapter_contract,
 )
 from .stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
@@ -31,6 +33,11 @@ from .stealth_post_write_reconciliation import (
     build_stealth_post_write_reconciliation_boundary,
 )
 
+
+STEALTH_CREATE_ROUTE = "/api/v1/stealth/orders"
+STEALTH_CREATE_METHOD = "POST"
+STEALTH_CREATE_MODULE_ID = "stealth_orders"
+STEALTH_CREATE_SERVICE_METHOD = "create_stealth_order"
 
 REQUIRED_CREATE_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = (
     AdminApiStealthAdmissionContextField.ROUTE.value,
@@ -149,6 +156,25 @@ def build_stealth_create_lifecycle_write_execution_contract(
         ),
         live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
         live_execution_adapter_missing_reason="live_execution_adapter_disabled",
+        live_execution_adapter_contract=build_live_execution_adapter_contract(
+            method=(
+                admission_decision.method
+                if admission_decision is not None
+                else STEALTH_CREATE_METHOD
+            ),
+            route=STEALTH_CREATE_ROUTE,
+            module_id=(
+                admission_decision.module_id
+                if admission_decision is not None
+                else STEALTH_CREATE_MODULE_ID
+            ),
+            service_method=STEALTH_CREATE_SERVICE_METHOD,
+            action_class=(
+                admission_decision.action_class
+                if admission_decision is not None
+                else AdminApiActionClass.LOCAL_STATE_MUTATION
+            ),
+        ),
         post_write_reconciliation_route=POST_WRITE_RECONCILIATION_ROUTE,
         post_write_reconciliation_method=POST_WRITE_RECONCILIATION_METHOD,
         post_write_reconciliation_source=POST_WRITE_RECONCILIATION_SOURCE,
@@ -158,13 +184,15 @@ def build_stealth_create_lifecycle_write_execution_contract(
         post_write_reconciliation_boundary=(
             build_stealth_post_write_reconciliation_boundary(
                 mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
-                command_route="/api/v1/stealth/orders",
-                service_method="create_stealth_order",
+                command_route=STEALTH_CREATE_ROUTE,
+                service_method=STEALTH_CREATE_SERVICE_METHOD,
                 stealth_order_id=stealth_order_id,
                 admission_decision=admission_decision,
             )
         ),
-        canonical_execution_path=["core/stealth_order_manager.py::create_stealth_order"],
+        canonical_execution_path=[
+            "core/stealth_order_manager.py::create_stealth_order"
+        ],
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,
         evidence=[
             "Execution-contract evidence is backend-owned and no-live.",
