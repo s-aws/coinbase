@@ -38,7 +38,100 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Lifecycle-Write Guard Proof Batch - Phases 2361-2380
+## Active M55 Lifecycle-Write Execution Contract Boundary Batch - Phases 2381-2400
+
+These phases continue M55 after lifecycle-write guard proof records. The next
+explicit gap is a backend-owned stealth create lifecycle-write execution
+contract boundary. This range may define no-live execution-contract evidence,
+exact prerequisite linkage, command-suite/readback fields, command-response
+blockers, frontend display evidence, docs, tests, and contextless review. It
+must not invoke `StealthOrderManager`, write `stealth_orders` or
+`order_parent` rows, dispatch lifecycle events, submit/read/cancel Coinbase,
+replace active placements, execute reconciliation, mutate stealth/order/
+exchange state, approve live admission, or grant browser/BFF execution
+authority.
+
+### Phase 2381 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2361-2380 to active phases 2381-2400 while preserving no-live defaults and cap policy.
+
+### Phase 2382 - Execution Contract Boundary Scope
+
+- Define the stealth create lifecycle-write execution contract as backend-owned readiness evidence over exact prerequisites, not create execution, manager invocation, lifecycle mutation, or live approval.
+
+### Phase 2383 - Execution Contract Evidence Model
+
+- Add typed evidence fields for execution-contract status, required prerequisite ids, missing prerequisite ids, accepted identity, rejected identity keys, and no-live/no-write authority flags.
+
+### Phase 2384 - Prerequisite Matrix Builder
+
+- Build the create execution prerequisite matrix from existing route inventory, approval snapshot, admission audit, cap/guard decision, reconciliation plan, lifecycle guard proof, idempotency, operator intent, and payload-hash evidence.
+
+### Phase 2385 - Command-Suite Audit Linkage
+
+- Update `GET /api/v1/stealth/command-suite` create lifecycle-write audit to separate guard-proof readiness from execution-contract readiness.
+
+### Phase 2386 - Create Command Response Linkage
+
+- Add execution-contract blockers and prerequisite evidence to the live-disabled create command response without changing the existing fail-closed execution behavior.
+
+### Phase 2387 - Enterprise Taxonomy Linkage
+
+- Link the execution-contract readiness evidence into enterprise readiness, mutation taxonomy, route inventory references, and live-enablement/readiness surfaces.
+
+### Phase 2388 - Backend Contract Tests
+
+- Cover exact prerequisite reporting, `stealth_order_id` identity, rejected `order_id`/`client_order_id`, no manager invocation, no DB lifecycle writes, no Coinbase access, no reconciliation execution, and continued create-route fail-closed behavior.
+
+### Phase 2389 - Backend Generated Artifacts
+
+- Regenerate OpenAPI and route-inventory artifacts after the execution-contract evidence model changes.
+
+### Phase 2390 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI without hand-editing generated files.
+
+### Phase 2391 - Frontend Mock And Runtime Sync
+
+- Update frontend mocks, runtime snapshots, and backend API contracts to consume execution-contract readiness evidence without adding command controls.
+
+### Phase 2392 - Frontend Evidence Rendering
+
+- Render execution-contract readiness as display-only create lifecycle evidence, clearly separated from guard-proof records and actual create execution.
+
+### Phase 2393 - Command Workflow Evidence Sync
+
+- Update dry-submit and command workflow evidence so the create command explains why execution remains blocked.
+
+### Phase 2394 - Documentation Update
+
+- Update Admin API, stealth reads, command workflows, examples, maintainer handoff, agent state, and roadmap docs for the execution-contract boundary.
+
+### Phase 2395 - Validator Sync
+
+- Update autonomous queue, release, deployment, runtime, and quality validators to require phases 2381-2400 and execution-contract readiness evidence.
+
+### Phase 2396 - Drift Scan
+
+- Search for stale active-range text and wording that implies stealth create can execute, invoke the manager, mutate lifecycle state, call Coinbase, or bypass reconciliation.
+
+### Phase 2397 - Focused Gate Prep
+
+- Run backend focused tests, frontend focused tests, autonomous validators, schema checks, and resolve route/schema/doc drift.
+
+### Phase 2398 - Blind Contextless Review
+
+- Run a contextless review asking whether a fresh agent can explain the execution-contract boundary and why it does not execute stealth create.
+
+### Phase 2399 - Full Gates
+
+- Run backend full regression and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` frontend notional.
+
+### Phase 2400 - Full Gates, Push, And Next Range
+
+- Push synchronized repos after gates and contextless review pass, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed M55 Lifecycle-Write Guard Proof Batch - Phases 2361-2380
 
 These phases continue M55 after command-response admission context echo. The
 next explicit gap is backend-owned stealth create lifecycle-write guard proof
