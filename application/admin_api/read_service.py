@@ -131,6 +131,8 @@ from .models import (
     StealthCreateLifecycleWriteGuardReadResponse,
     StealthMutationClaimSnapshotProofRecordItem,
     StealthMutationClaimSnapshotReadResponse,
+    StealthRevealTriggerProofReadResponse,
+    StealthRevealTriggerProofRecordItem,
     StealthRecoveryProofReadResponse,
     StealthRecoveryProofRecordItem,
     SpotCommandSuiteCommandItem,
@@ -202,6 +204,10 @@ from .stealth_mutation_claim import (
     FileStealthMutationClaimProofStore,
     StealthMutationClaimSnapshotProofRecord,
 )
+from .stealth_reveal_trigger_proof import (
+    FileStealthRevealTriggerProofStore,
+    StealthRevealTriggerProofRecord,
+)
 from .stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
     StealthRecoveryProofRecord,
@@ -211,7 +217,7 @@ from .stealth_recovery_proof import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2481-2500"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2501-2520"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3138,6 +3144,75 @@ def _stealth_mutation_claim_proof_item_from_record(
     )
 
 
+def _stealth_reveal_trigger_proof_item_from_record(
+    record: StealthRevealTriggerProofRecord,
+) -> StealthRevealTriggerProofRecordItem:
+    return StealthRevealTriggerProofRecordItem(
+        reveal_trigger_proof_id=record.reveal_trigger_proof_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        stealth_order_id=record.stealth_order_id,
+        guarded_command_route=record.guarded_command_route,
+        guarded_command_method=record.guarded_command_method,
+        guarded_service_method=record.guarded_service_method,
+        guarded_actor_id=record.guarded_actor_id,
+        guarded_operator_intent=record.guarded_operator_intent,
+        guarded_idempotency_key=record.guarded_idempotency_key,
+        guarded_payload_hash=record.guarded_payload_hash,
+        reveal_condition_ref=record.reveal_condition_ref,
+        trigger_evidence_ref=record.trigger_evidence_ref,
+        condition_snapshot_ref=record.condition_snapshot_ref,
+        evidence_source=record.evidence_source,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        proof_persisted=record.proof_persisted,
+        reveal_trigger_verified=record.reveal_trigger_verified,
+        manager_invocation_ran=record.manager_invocation_ran,
+        trigger_evaluation_ran=record.trigger_evaluation_ran,
+        should_trigger_reveal_called=record.should_trigger_reveal_called,
+        reveal_order_slice_called=record.reveal_order_slice_called,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth reveal-trigger proof is backend-owned append-only "
+            "evidence only. It does not evaluate triggers, call "
+            "should_trigger_reveal, call reveal_order_slice, invoke managers, "
+            "call Coinbase, mutate lifecycle state, or execute reconciliation."
+        ),
+    )
+
+
 def _stealth_recovery_proof_item_from_record(
     record: StealthRecoveryProofRecord,
 ) -> StealthRecoveryProofRecordItem:
@@ -3414,6 +3489,9 @@ class AdminApiReadService:
         stealth_mutation_claim_proof_store: (
             FileStealthMutationClaimProofStore | None
         ) = None,
+        stealth_reveal_trigger_proof_store: (
+            FileStealthRevealTriggerProofStore | None
+        ) = None,
         stealth_recovery_proof_store: (
             FileStealthRecoveryProofStore | None
         ) = None,
@@ -3449,6 +3527,10 @@ class AdminApiReadService:
         self.stealth_mutation_claim_proof_store = (
             stealth_mutation_claim_proof_store
             or FileStealthMutationClaimProofStore()
+        )
+        self.stealth_reveal_trigger_proof_store = (
+            stealth_reveal_trigger_proof_store
+            or FileStealthRevealTriggerProofStore()
         )
         self.stealth_recovery_proof_store = (
             stealth_recovery_proof_store
@@ -7377,6 +7459,63 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs",
+                mutation_id="stealth.reveal_trigger_proof",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL_TRIGGER_PROOF,
+                workflow_id="stealth.reveal_trigger_proof_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth reveal-trigger proof recording is append-only "
+                    "local evidence keyed by stealth_order_id and guarded "
+                    "reveal command context; it does not evaluate triggers, "
+                    "call should_trigger_reveal, call reveal_order_slice, "
+                    "invoke managers, call Coinbase, execute reconciliation, "
+                    "or mutate lifecycle state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_reveal_trigger_proof",
+                    "application/admin_api/command_service.py::record_stealth_reveal_trigger_proof",
+                    "application/admin_api/stealth_reveal_trigger_proof_service.py",
+                    "application/admin_api/stealth_reveal_trigger_proof.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthRevealTriggerProof",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/stealth-command-suite.md",
+                ],
+                required_next_contract=(
+                    "Future executable reveal paths must prove backend trigger "
+                    "evaluation, exchange submission handling, approval, cap, "
+                    "audit, and reconciliation through backend-owned contracts; "
+                    "this proof route is local admission evidence only."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "trigger_evaluation_disabled",
+                    "reveal_order_slice_disabled",
+                    "exchange_submission_disabled",
+                    "post-reveal reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not use browser proof records as trigger authority, "
+                    "reveal authority, exchange submission authority, "
+                    "manager authority, reconciliation authority, or lifecycle "
+                    "mutation input."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard "
+                    "evidence; reveal-trigger proof recording is not sell "
+                    "authority or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -8833,6 +8972,74 @@ class AdminApiReadService:
             ),
         )
 
+    def build_stealth_reveal_trigger_proof(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthRevealTriggerProofReadResponse:
+        """Return persisted no-live reveal-trigger proof evidence."""
+
+        proofs = [
+            _stealth_reveal_trigger_proof_item_from_record(record)
+            for record in (
+                self.stealth_reveal_trigger_proof_store.read_for_stealth_order_id(
+                    stealth_order_id,
+                    limit=20,
+                )
+            )
+        ]
+        latest_proof_id = proofs[0].reveal_trigger_proof_id if proofs else None
+        missing_contracts = [
+            "stealth_reveal_trigger_execution_guard",
+            "stealth_reveal_exchange_submission_adapter",
+            "stealth_reveal_post_write_reconciliation_proof",
+        ]
+        return StealthRevealTriggerProofReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            reveal_trigger_verified=False,
+            persisted_proof_count=len(proofs),
+            persisted_proofs=proofs,
+            latest_reveal_trigger_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            proof_records_created=bool(proofs),
+            manager_invocation_allowed=False,
+            manager_invocation_ran=False,
+            trigger_evaluation_allowed=False,
+            trigger_evaluation_ran=False,
+            should_trigger_reveal_allowed=False,
+            should_trigger_reveal_called=False,
+            reveal_order_slice_allowed=False,
+            reveal_order_slice_called=False,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            active_placement_cancel_replace_ran=False,
+            reconciliation_required=True,
+            reconciliation_executed=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth reveal-trigger proof records are "
+                "backend-owned evidence only. They do not evaluate triggers, "
+                "call should_trigger_reveal, call reveal_order_slice, invoke "
+                "managers, call Coinbase, execute reconciliation, or mutate "
+                "stealth/order/exchange state."
+            ),
+        )
+
     def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
         """Return read-only M55 stealth command-suite readiness evidence."""
 
@@ -8974,6 +9181,26 @@ class AdminApiReadService:
                     "placements, mutate state, or execute reconciliation."
                 ),
             ),
+            (
+                AdminApiLivePreflightCategory.REVEAL_TRIGGER,
+                (
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "reveal-trigger-proofs"
+                ),
+                "stealth_order_id",
+                [
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                ],
+                (
+                    "Record backend-owned reveal-trigger proof for the stealth "
+                    "reveal command. This does not evaluate triggers, call "
+                    "should_trigger_reveal, call reveal_order_slice, invoke "
+                    "managers, call Coinbase, mutate state, or execute "
+                    "reconciliation."
+                ),
+            ),
         )
 
         def proof_routes_for_command(
@@ -8982,6 +9209,7 @@ class AdminApiReadService:
             include_lifecycle_write_guard: bool = False,
             include_mutation_claim: bool = False,
             include_recovery_proof: bool = False,
+            include_reveal_trigger: bool = False,
         ) -> list[StealthCommandSuiteProofRouteItem]:
             proof_routes: list[StealthCommandSuiteProofRouteItem] = []
             for (
@@ -9004,6 +9232,11 @@ class AdminApiReadService:
                 if (
                     gate == AdminApiLivePreflightCategory.RECOVERY_PROOF
                     and not include_recovery_proof
+                ):
+                    continue
+                if (
+                    gate == AdminApiLivePreflightCategory.REVEAL_TRIGGER
+                    and not include_reveal_trigger
                 ):
                     continue
                 item = inventory_by_surface[surface]
@@ -9381,6 +9614,10 @@ class AdminApiReadService:
                             mutation_family
                             == AdminApiMutationFamilyType.STEALTH_RECOVERY
                         ),
+                        include_reveal_trigger=(
+                            mutation_family
+                            == AdminApiMutationFamilyType.STEALTH_REVEAL
+                        ),
                     ),
                     evidence=[
                         "Derived from ADMIN_API_ROUTE_INVENTORY and live-enablement readiness evidence.",
@@ -9735,6 +9972,9 @@ class AdminApiReadService:
             ),
             "record_stealth_recovery_proof": (
                 AdminApiStealthAdmissionEvidence.RECOVERY_PROOF
+            ),
+            "record_stealth_reveal_trigger_proof": (
+                AdminApiStealthAdmissionEvidence.REVEAL_TRIGGER_EVIDENCE
             ),
         }
 

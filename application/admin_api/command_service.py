@@ -61,6 +61,7 @@ from .models import (
     StealthCreateCommand,
     StealthMutationClaimSnapshotProofCommand,
     StealthMoveCommand,
+    StealthRevealTriggerProofCommand,
     StealthRecoveryProofCommand,
     StealthRecoveryCommand,
     StealthReconciliationCommand,
@@ -128,6 +129,14 @@ from .stealth_recovery_proof import (
 from .stealth_recovery_proof_service import (
     AdminApiStealthRecoveryProofService,
     StealthRecoveryProofError,
+)
+from .stealth_reveal_trigger_proof import (
+    FileStealthRevealTriggerProofStore,
+    StealthRevealTriggerProofRecord,
+)
+from .stealth_reveal_trigger_proof_service import (
+    AdminApiStealthRevealTriggerProofService,
+    StealthRevealTriggerProofError,
 )
 from .stealth_lifecycle_execution import (
     build_stealth_create_lifecycle_write_execution_contract,
@@ -208,6 +217,10 @@ class AdminApiCommandDependencies:
         [],
         FileStealthRecoveryProofStore,
     ] = FileStealthRecoveryProofStore
+    stealth_reveal_trigger_proof_store_getter: Callable[
+        [],
+        FileStealthRevealTriggerProofStore,
+    ] = FileStealthRevealTriggerProofStore
     audit_store_getter: Callable[[], FileAdminApiAuditStore] = FileAdminApiAuditStore
     spot_recovery_proof_service: AdminApiSpotRecoveryProofService = field(
         default_factory=AdminApiSpotRecoveryProofService
@@ -230,6 +243,9 @@ class AdminApiCommandDependencies:
     stealth_recovery_proof_service: AdminApiStealthRecoveryProofService = field(
         default_factory=AdminApiStealthRecoveryProofService
     )
+    stealth_reveal_trigger_proof_service: (
+        AdminApiStealthRevealTriggerProofService
+    ) = field(default_factory=AdminApiStealthRevealTriggerProofService)
 
 
 def direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
@@ -597,6 +613,37 @@ def _stealth_recovery_proof_response_data(
         "recovery_plan_built": False,
         "recovery_repair_executed": False,
         "rollback_executed": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "coinbase_order_cancel_submitted": False,
+        "active_placement_cancel_replace_ran": False,
+        "reconciliation_executed": False,
+        "order_state_mutated": False,
+        "lifecycle_state_mutated": False,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _stealth_reveal_trigger_proof_response_data(
+    record: StealthRevealTriggerProofRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted reveal-trigger proof."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "proof_persisted": True,
+        "reveal_trigger_verified": False,
+        "manager_invocation_ran": False,
+        "trigger_evaluation_ran": False,
+        "should_trigger_reveal_called": False,
+        "reveal_order_slice_called": False,
         "coinbase_read_attempted": False,
         "coinbase_read_succeeded": False,
         "coinbase_rest_read_ran": False,
@@ -2284,6 +2331,123 @@ class AdminApiCommandService:
             live_exchange_submitted=False,
             data=data,
             failure_stage="proof_prerequisite",
+        )
+
+    def _rejected_stealth_reveal_trigger_proof_response(
+        self,
+        *,
+        command: StealthRevealTriggerProofCommand,
+        message: str,
+    ) -> AdminApiCommandResponse:
+        request = command.request
+        data: dict[str, Any] = {
+            "mutation_family": (
+                AdminApiMutationFamilyType.STEALTH_REVEAL_TRIGGER_PROOF.value
+            ),
+            "stealth_order_id": command.stealth_order_id,
+            "reveal_trigger_proof_id": request.reveal_trigger_proof_id,
+            "guarded_command_route": request.guarded_command_route,
+            "guarded_command_method": request.guarded_command_method,
+            "guarded_service_method": request.guarded_service_method,
+            "guarded_actor_id": request.guarded_actor_id,
+            "guarded_operator_intent": request.guarded_operator_intent,
+            "guarded_idempotency_key": request.guarded_idempotency_key,
+            "guarded_payload_hash": request.guarded_payload_hash,
+            "reveal_condition_ref": request.reveal_condition_ref,
+            "trigger_evidence_ref": request.trigger_evidence_ref,
+            "condition_snapshot_ref": request.condition_snapshot_ref,
+            "evidence_source": request.evidence_source.value,
+            "approval_snapshot_id": request.approval_snapshot_id,
+            "admission_audit_id": request.admission_audit_id,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "dry_run": request.dry_run,
+            "operator_reason": request.operator_reason,
+            "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "proof_persisted": False,
+            "reveal_trigger_verified": False,
+            "manager_invocation_ran": False,
+            "trigger_evaluation_ran": False,
+            "should_trigger_reveal_called": False,
+            "reveal_order_slice_called": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "coinbase_rest_read_ran": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "active_placement_cancel_replace_ran": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "lifecycle_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_REVEAL_TRIGGER_RECORD,
+            service_method="record_stealth_reveal_trigger_proof",
+            message=message,
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            data=data,
+            failure_stage="proof_prerequisite",
+        )
+
+    def record_stealth_reveal_trigger_proof(
+        self,
+        command: StealthRevealTriggerProofCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned stealth reveal-trigger proof evidence."""
+
+        if command.admission_decision is None:
+            return self._rejected_stealth_reveal_trigger_proof_response(
+                command=command,
+                message="Stealth reveal-trigger proof admission evidence is missing.",
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.stealth_reveal_trigger_proof_service.record_proof(
+                proof_store=deps.stealth_reveal_trigger_proof_store_getter(),
+                stealth_order_id=command.stealth_order_id,
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except StealthRevealTriggerProofError as exc:
+            return self._rejected_stealth_reveal_trigger_proof_response(
+                command=command,
+                message=str(exc),
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_REVEAL_TRIGGER_RECORD,
+            service_method="record_stealth_reveal_trigger_proof",
+            message=(
+                "Stealth reveal-trigger proof recorded as evidence only; no "
+                "trigger evaluation, reveal_order_slice call, manager "
+                "invocation, reconciliation, or Coinbase activity ran."
+            ),
+            stealth_order_id=record.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_stealth_reveal_trigger_proof_response_data(record),
         )
 
     def record_stealth_recovery_proof(

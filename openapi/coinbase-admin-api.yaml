@@ -5737,6 +5737,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof:
+    get:
+      tags:
+      - stealth
+      summary: Read stealth reveal-trigger proof evidence by stealth_order_id
+      description: Read reveal-trigger proof evidence without trigger or Coinbase
+        writes.
+      operationId: get_stealth_reveal_trigger_proof_api_v1_stealth_orders__stealth_order_id__reveal_trigger_proof_get
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthRevealTriggerProofReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/command-suite:
     get:
       tags:
@@ -6955,6 +7026,121 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs:
+    post:
+      tags:
+      - stealth
+      summary: Record stealth reveal-trigger proof evidence
+      description: Route adapter for backend-owned no-live reveal-trigger proofs.
+      operationId: record_stealth_reveal_trigger_proof_api_v1_stealth_orders__stealth_order_id__reveal_trigger_proofs_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthRevealTriggerProofRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     ActionConditionType:
@@ -7706,6 +7892,7 @@ components:
       - reconciliation
       - lifecycle_write_guard
       - mutation_claim
+      - reveal_trigger
       - recovery_proof
       - live_execution_service
       - browser_authority
@@ -7764,6 +7951,7 @@ components:
       - stealth_active_placement_exchange_truth_proof
       - stealth_create_lifecycle_write_guard_proof
       - stealth_mutation_claim_snapshot_proof
+      - stealth_reveal_trigger_proof
       - stealth_recovery_proof
       - movement_reprice
       - futures_contract_required
@@ -7798,6 +7986,7 @@ components:
       - stealth_exchange_truth:record
       - stealth_lifecycle_write:record
       - stealth_mutation_claim:record
+      - stealth_reveal_trigger:record
       - stealth_recovery:record
       - stealth_recovery:execute
       - stealth_reconciliation:execute
@@ -7895,6 +8084,7 @@ components:
       - active_placement_exchange_truth
       - lifecycle_write_guard
       - mutation_claim_snapshot
+      - reveal_trigger_evidence
       - recovery_proof
       - live_execution_adapter
       - post_live_reconciliation
@@ -19068,6 +19258,30 @@ components:
           type: boolean
           title: Manager Invocation Ran
           default: false
+        trigger_evaluation_allowed:
+          type: boolean
+          title: Trigger Evaluation Allowed
+          default: false
+        trigger_evaluation_ran:
+          type: boolean
+          title: Trigger Evaluation Ran
+          default: false
+        should_trigger_reveal_allowed:
+          type: boolean
+          title: Should Trigger Reveal Allowed
+          default: false
+        should_trigger_reveal_called:
+          type: boolean
+          title: Should Trigger Reveal Called
+          default: false
+        reveal_order_slice_allowed:
+          type: boolean
+          title: Reveal Order Slice Allowed
+          default: false
+        reveal_order_slice_called:
+          type: boolean
+          title: Reveal Order Slice Called
+          default: false
         active_placement_cancel_replace_allowed:
           type: boolean
           title: Active Placement Cancel Replace Allowed
@@ -22567,6 +22781,509 @@ components:
       type: object
       title: StealthRevealRequest
       description: Stealth reveal request body keyed by path ``stealth_order_id``.
+    StealthRevealTriggerEvidenceSource:
+      type: string
+      enum:
+      - manual_review
+      - test_evidence
+      - reveal_condition_review
+      title: StealthRevealTriggerEvidenceSource
+      description: Source posture for stealth reveal-trigger proof evidence.
+    StealthRevealTriggerProofReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_reveal_trigger_proof
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        reveal_trigger_verified:
+          type: boolean
+          title: Reveal Trigger Verified
+          default: false
+        persisted_proof_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Proof Count
+          default: 0
+        persisted_proofs:
+          items:
+            $ref: '#/components/schemas/StealthRevealTriggerProofRecordItem'
+          type: array
+          title: Persisted Proofs
+        latest_reveal_trigger_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Reveal Trigger Proof Id
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        proof_records_created:
+          type: boolean
+          title: Proof Records Created
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        trigger_evaluation_allowed:
+          type: boolean
+          title: Trigger Evaluation Allowed
+          default: false
+        trigger_evaluation_ran:
+          type: boolean
+          title: Trigger Evaluation Ran
+          default: false
+        should_trigger_reveal_allowed:
+          type: boolean
+          title: Should Trigger Reveal Allowed
+          default: false
+        should_trigger_reveal_called:
+          type: boolean
+          title: Should Trigger Reveal Called
+          default: false
+        reveal_order_slice_allowed:
+          type: boolean
+          title: Reveal Order Slice Allowed
+          default: false
+        reveal_order_slice_called:
+          type: boolean
+          title: Reveal Order Slice Called
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - stealth_order_id
+      - detail
+      title: StealthRevealTriggerProofReadResponse
+      description: Read-only stealth reveal-trigger proof readback.
+    StealthRevealTriggerProofRecordItem:
+      properties:
+        reveal_trigger_proof_id:
+          type: string
+          title: Reveal Trigger Proof Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        guarded_command_route:
+          type: string
+          title: Guarded Command Route
+        guarded_command_method:
+          type: string
+          title: Guarded Command Method
+        guarded_service_method:
+          type: string
+          title: Guarded Service Method
+        guarded_actor_id:
+          type: string
+          title: Guarded Actor Id
+        guarded_operator_intent:
+          type: string
+          title: Guarded Operator Intent
+        guarded_idempotency_key:
+          type: string
+          title: Guarded Idempotency Key
+        guarded_payload_hash:
+          type: string
+          title: Guarded Payload Hash
+        reveal_condition_ref:
+          type: string
+          title: Reveal Condition Ref
+        trigger_evidence_ref:
+          type: string
+          title: Trigger Evidence Ref
+        condition_snapshot_ref:
+          type: string
+          title: Condition Snapshot Ref
+        evidence_source:
+          $ref: '#/components/schemas/StealthRevealTriggerEvidenceSource'
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        audit_id:
+          type: string
+          title: Audit Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_stealth_reveal_trigger_proof_log
+        proof_persisted:
+          type: boolean
+          title: Proof Persisted
+          default: true
+        reveal_trigger_verified:
+          type: boolean
+          title: Reveal Trigger Verified
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        trigger_evaluation_ran:
+          type: boolean
+          title: Trigger Evaluation Ran
+          default: false
+        should_trigger_reveal_called:
+          type: boolean
+          title: Should Trigger Reveal Called
+          default: false
+        reveal_order_slice_called:
+          type: boolean
+          title: Reveal Order Slice Called
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - reveal_trigger_proof_id
+      - recorded_at
+      - mutation_family
+      - stealth_order_id
+      - guarded_command_route
+      - guarded_command_method
+      - guarded_service_method
+      - guarded_actor_id
+      - guarded_operator_intent
+      - guarded_idempotency_key
+      - guarded_payload_hash
+      - reveal_condition_ref
+      - trigger_evidence_ref
+      - condition_snapshot_ref
+      - evidence_source
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - audit_id
+      - detail
+      title: StealthRevealTriggerProofRecordItem
+      description: Read-only persisted stealth reveal-trigger proof evidence.
+    StealthRevealTriggerProofRequest:
+      properties:
+        stealth_order_id:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+        guarded_command_route:
+          type: string
+          title: Guarded Command Route
+          default: /api/v1/stealth/orders/{stealth_order_id}/reveal
+        guarded_command_method:
+          type: string
+          title: Guarded Command Method
+          default: POST
+        guarded_service_method:
+          type: string
+          title: Guarded Service Method
+          default: reveal_stealth_order_by_stealth_order_id
+        guarded_actor_id:
+          type: string
+          minLength: 1
+          title: Guarded Actor Id
+        guarded_operator_intent:
+          type: string
+          minLength: 1
+          title: Guarded Operator Intent
+        guarded_idempotency_key:
+          type: string
+          minLength: 1
+          title: Guarded Idempotency Key
+        guarded_payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Guarded Payload Hash
+        reveal_condition_ref:
+          type: string
+          minLength: 1
+          title: Reveal Condition Ref
+        trigger_evidence_ref:
+          type: string
+          minLength: 1
+          title: Trigger Evidence Ref
+        condition_snapshot_ref:
+          type: string
+          minLength: 1
+          title: Condition Snapshot Ref
+        evidence_source:
+          $ref: '#/components/schemas/StealthRevealTriggerEvidenceSource'
+        reconciliation_plan_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          minLength: 1
+          title: Cap Guard Decision Id
+        reveal_trigger_proof_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reveal Trigger Proof Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - guarded_actor_id
+      - guarded_operator_intent
+      - guarded_idempotency_key
+      - guarded_payload_hash
+      - reveal_condition_ref
+      - trigger_evidence_ref
+      - condition_snapshot_ref
+      - evidence_source
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      title: StealthRevealTriggerProofRequest
+      description: Stealth reveal-trigger proof keyed by path id.
     TargetMovementType:
       type: string
       enum:

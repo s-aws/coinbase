@@ -2655,19 +2655,27 @@ Current backend evidence:
   when the latest safe same-`stealth_order_id` proof record exactly matches
   the command context; it does not acquire or release runtime claims, invoke
   `StealthOrderManager`, cancel/replace active placements, call Coinbase,
-  execute reconciliation, mutate state, or grant browser/BFF authority. It now
-  advances to phases 2481-2500 for backend-owned recovery proof records,
+  execute reconciliation, mutate state, or grant browser/BFF authority. It
+  completed phases 2481-2500 for backend-owned recovery proof records,
   readback, command-suite proof-route linkage, and exact-context resolver
   evidence for stealth recovery posture. The resolver may remove only the
   `recovery_proof` missing prerequisite when the latest safe same-
   `stealth_order_id` proof record exactly matches the command context; it
   must not repair state, roll back state, invoke managers, cancel/replace
   active placements, call Coinbase, execute reconciliation, mutate state, or
-  grant browser/BFF authority.
+  grant browser/BFF authority. It now advances to phases 2501-2520 for
+  backend-owned reveal-trigger proof records, readback, command-suite
+  proof-route linkage, and exact-context resolver evidence for stealth reveal
+  posture. The resolver may remove only the `reveal_trigger_evidence`
+  missing prerequisite when the latest safe same-`stealth_order_id` proof
+  record exactly matches the command context; it must not evaluate triggers,
+  call `should_trigger_reveal`, call `reveal_order_slice`, invoke managers,
+  call Coinbase, execute reconciliation, mutate state, or grant browser/BFF
+  authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Stealth reconciliation proof, reveal-trigger proof, live repair/rollback,
+- Stealth reconciliation proof, live reveal exchange submission, live repair/rollback,
   active-placement cancel/replace, live service, live adapter, and post-write
   reconciliation remain blocked. Stealth create, reveal, cancel exchange
   handling, move revealed, reprice, recovery, reconciliation, and any eventual

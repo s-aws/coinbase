@@ -29,6 +29,10 @@ from .stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
     StealthRecoveryProofRecord,
 )
+from .stealth_reveal_trigger_proof import (
+    FileStealthRevealTriggerProofStore,
+    StealthRevealTriggerProofRecord,
+)
 
 
 REQUIRED_STEALTH_COMMAND_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = tuple(
@@ -196,6 +200,9 @@ def build_stealth_command_execution_contract(
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
+    stealth_reveal_trigger_proof_store: (
+        FileStealthRevealTriggerProofStore | None
+    ) = None,
 ) -> StealthCommandExecutionContractEvidence | None:
     """Build no-live execution posture evidence for eligible stealth commands."""
 
@@ -213,6 +220,7 @@ def build_stealth_command_execution_contract(
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
         stealth_recovery_proof_store=stealth_recovery_proof_store,
+        stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
     )
     resolved = sorted(
         item.prerequisite.value
@@ -296,6 +304,7 @@ def _build_prerequisite_resolution(
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None,
+    stealth_reveal_trigger_proof_store: FileStealthRevealTriggerProofStore | None,
 ) -> list[StealthCommandExecutionPrerequisiteResolverItem]:
     approval = _resolver_item_from_flag(
         prerequisite=StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT,
@@ -357,6 +366,7 @@ def _build_prerequisite_resolution(
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
             stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
             stealth_recovery_proof_store=stealth_recovery_proof_store,
+            stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
         )
         for prerequisite in metadata.prerequisites
         if prerequisite not in COMMON_PREREQUISITES
@@ -416,6 +426,7 @@ def _command_specific_prerequisite(
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None,
+    stealth_reveal_trigger_proof_store: FileStealthRevealTriggerProofStore | None,
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE:
         return _resolver_item(
@@ -488,6 +499,12 @@ def _command_specific_prerequisite(
             metadata=metadata,
             admission_decision=admission_decision,
             stealth_recovery_proof_store=stealth_recovery_proof_store,
+        )
+    if prerequisite == StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE:
+        return _resolve_reveal_trigger_proof(
+            metadata=metadata,
+            admission_decision=admission_decision,
+            stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
         )
     return _resolver_item(
         prerequisite=prerequisite,
@@ -725,6 +742,88 @@ def _find_latest_recovery_proof(
     return records[0] if records else None
 
 
+def _resolve_reveal_trigger_proof(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    stealth_reveal_trigger_proof_store: FileStealthRevealTriggerProofStore | None,
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    prerequisite = StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE
+    if (
+        stealth_reveal_trigger_proof_store is None
+        or not admission_decision.identity_value
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="reveal_trigger_proof_store_unavailable",
+            detail="Reveal-trigger proof store was not available.",
+        )
+
+    record = _find_latest_reveal_trigger_proof(
+        store=stealth_reveal_trigger_proof_store,
+        stealth_order_id=admission_decision.identity_value,
+    )
+    if record is not None and not _is_safe_reveal_trigger_proof(
+        record,
+        admission_decision=admission_decision,
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            missing_reason="reveal_trigger_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest reveal-trigger proof was found but is not safe "
+                "exact-context no-live/no-mutation evidence for command "
+                "execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=_source_for_command_specific_prerequisite(prerequisite),
+        lookup_status=(
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCommandExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.reveal_trigger_proof_id if record is not None else None
+        ),
+        missing_reason=(
+            None if record is not None else "no_matching_reveal_trigger_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned reveal-trigger proof lookup is read-only and does "
+            "not evaluate triggers, call should_trigger_reveal, call "
+            "reveal_order_slice, mutate lifecycle state, verify Coinbase, or "
+            "authorize execution."
+        ),
+    )
+
+
+def _find_latest_reveal_trigger_proof(
+    *,
+    store: FileStealthRevealTriggerProofStore,
+    stealth_order_id: str,
+) -> StealthRevealTriggerProofRecord | None:
+    records = store.read_for_stealth_order_id(stealth_order_id, limit=1)
+    return records[0] if records else None
+
+
 def _is_safe_mutation_claim_snapshot_proof(
     record: StealthMutationClaimSnapshotProofRecord,
     *,
@@ -785,6 +884,36 @@ def _is_safe_recovery_proof(
     )
 
 
+def _is_safe_reveal_trigger_proof(
+    record: StealthRevealTriggerProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        _reveal_trigger_proof_matches_admission(record, admission_decision)
+        and record.proof_persisted is True
+        and record.reveal_trigger_verified is False
+        and record.manager_invocation_ran is False
+        and record.trigger_evaluation_ran is False
+        and record.should_trigger_reveal_called is False
+        and record.reveal_order_slice_called is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
 def _mutation_claim_proof_matches_admission(
     record: StealthMutationClaimSnapshotProofRecord,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
@@ -802,6 +931,21 @@ def _mutation_claim_proof_matches_admission(
 
 def _recovery_proof_matches_admission(
     record: StealthRecoveryProofRecord,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == admission_decision.route
+        and record.guarded_command_method == admission_decision.method
+        and record.guarded_service_method == admission_decision.service_method
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+    )
+
+
+def _reveal_trigger_proof_matches_admission(
+    record: StealthRevealTriggerProofRecord,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
 ) -> bool:
     return (
@@ -845,7 +989,7 @@ def _source_for_command_specific_prerequisite(
             "admin_api_stealth_exchange_truth_proof_log"
         ),
         StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE: (
-            "stealth_detail_reveal_trigger_audit"
+            "admin_api_stealth_reveal_trigger_proof_log"
         ),
         StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT: (
             "stealth_manager_mutation_claim_snapshot"

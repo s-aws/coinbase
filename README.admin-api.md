@@ -222,6 +222,20 @@ reconciliation, mutate order/exchange/lifecycle state, or authorize browser/
 BFF proof authority. Recovery execution-posture resolution uses the latest
 proof for the same `stealth_order_id` and fails closed when that latest proof
 is unsafe, stale, or bound to different guarded command context.
+Stealth reveal-trigger proof evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof` and
+persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs`.
+The writer route requires `stealth_reveal_trigger:record`, uses path
+`stealth_order_id` as the command identity, and persists append-only local
+proof evidence only after backend admission prerequisites match. It does not
+evaluate triggers, call `should_trigger_reveal`, call `reveal_order_slice`,
+invoke managers, read Coinbase, submit or cancel orders, cancel/replace
+active placements, execute reconciliation, mutate order/exchange/lifecycle
+state, or authorize browser/BFF proof authority. Reveal execution-posture
+resolution uses the latest proof for the same `stealth_order_id` and fails
+closed when that latest proof is unsafe, stale, or bound to different guarded
+command context.
 The same detail route also exposes `reveal_trigger_audit` as local
 reveal-condition evidence for the reveal workflow. It reports whether a
 condition is present, the condition type/payload when available, missing

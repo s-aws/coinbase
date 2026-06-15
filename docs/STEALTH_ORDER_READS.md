@@ -8,6 +8,9 @@ platform, not the legacy dashboard command plane.
 
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
 - `GET /api/v1/stealth/command-suite`
 
 The list/detail routes read local stealth lifecycle rows and report active
@@ -105,10 +108,22 @@ is local proof readback only. It may resolve `mutation_claim_snapshot` for
 move/reprice and `recovery_proof` for recovery from their backend append-only
 proof stores when the latest safe same-`stealth_order_id` proof exactly
 matches route, method, service method, actor, operator intent, idempotency key,
-and payload hash. It does not verify Coinbase, resolve reveal trigger or
-reconciliation proof, run manager code, repair state, roll back state,
-cancel/replace live placements, execute reconciliation, mutate local or
-exchange state, or authorize the frontend.
+and payload hash. It may also resolve `reveal_trigger_evidence` for reveal
+from the backend reveal-trigger proof store under the same exact-context and
+latest-safe rules. It does not verify Coinbase, evaluate triggers, call
+`should_trigger_reveal`, call `reveal_order_slice`, resolve reconciliation
+proof, run manager code, repair state, roll back state, cancel/replace live
+placements, execute reconciliation, mutate local or exchange state, or
+authorize the frontend.
+
+Reveal-trigger proof evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof` and
+persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs`.
+The writer route requires `stealth_reveal_trigger:record`, stores append-only
+backend local evidence only after exact admission prerequisites match, and
+does not evaluate triggers, invoke managers, call Coinbase, execute
+reconciliation, or mutate lifecycle/order/exchange state.
 
 The command-suite `create_lifecycle_write_audit.execution_contract` block
 reports the backend-owned stealth create execution-contract boundary without

@@ -215,8 +215,9 @@ backend contracts, required gate chains, and browser/BFF boundaries.
 Stealth command rows require command-specific proof evidence in addition to
 the normal approval, cap/guard, admission audit, reconciliation, idempotency,
 payload-hash, and operator-intent chain. Move and reprice require
-mutation-claim evidence; recovery requires recovery proof evidence. Move,
-cancel, recovery, reconciliation, and reprice also
+mutation-claim evidence; recovery requires recovery proof evidence; reveal
+requires reveal-trigger proof evidence. Move, cancel, recovery,
+reconciliation, and reprice also
 require active-placement exchange truth before execution can be considered.
 Create and reveal are command drafts that do not require active-placement
 evidence before the draft response, but they still remain blocked until
@@ -294,6 +295,14 @@ actor, operator intent, idempotency key, and payload hash. The resolver is
 local proof readback only; it is not recovery repair, rollback, manager
 invocation, Coinbase verification, cancel/replace execution, state mutation,
 or reconciliation authority.
+For reveal commands, the same contract may resolve only
+`reveal_trigger_evidence` from the backend append-only reveal-trigger proof
+store when the latest safe same-`stealth_order_id` record exactly matches
+route, method, service method, actor, operator intent, idempotency key, and
+payload hash. The resolver is local proof readback only; it is not trigger
+evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase
+verification, exchange submission, state mutation, or reconciliation
+authority.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute

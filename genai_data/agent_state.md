@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-15
 - Updated by: Codex
 - Branch: main
-- Commit (optional): backend `a3560dc`, frontend `0fe6b8d` for completed
-  range `2461-2480`; active range `2481-2500` in progress.
+- Commit (optional): backend `d148e66`, frontend `1471e8f` for completed
+  range `2481-2500`; active range `2501-2520` in progress.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2461-2480`.
+- Latest completed autonomous range: `2481-2500`.
 - Latest completed milestone slice: M55 - Mutation-Claim Proof Resolver.
 - Completed files: backend-owned mutation-claim snapshot proof records,
   readback, proof-route linkage, exact-context resolver evidence for move and
@@ -134,14 +134,27 @@ Keep it short. Keep it factual.
   submit/read/cancel Coinbase, execute reconciliation, mutate state, grant
   browser/BFF authority, or run live commands. The batch completed in backend
   commit `a3560dc` and frontend commit `0fe6b8d`.
+- M55 2481-2500 added backend-owned stealth recovery proof records, readback,
+  command-suite proof-route linkage, and exact-context resolver evidence for
+  stealth recovery posture. The resolver may remove only the `recovery_proof`
+  missing prerequisite when the latest same-`stealth_order_id` proof record
+  exactly matches route, method, service method, actor, operator intent,
+  idempotency key, and payload hash and is safe no-live, no-manager,
+  no-repair/rollback, no-Coinbase, no-reconciliation, and no-state-mutation
+  evidence. Latest unsafe proof records fail closed as missing/stale. The
+  resolver does not repair state, roll back state, invoke managers, build
+  recovery plans, cancel/replace active placements, submit/read/cancel
+  Coinbase, execute reconciliation, mutate state, grant browser/BFF
+  authority, or run live commands. The batch completed in backend commit
+  `d148e66` and frontend commit `1471e8f`.
 
 ## Active Scope
 
-- Active autonomous range: `2481-2500`.
+- Active autonomous range: `2501-2520`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete stealth recovery proof records, readback,
+- Current direction: complete stealth reveal-trigger proof records, readback,
   proof-route linkage, exact-context resolver evidence, frontend sync, docs,
-  gates, and blind/contextless review for phases 2481-2500.
+  gates, and blind/contextless review for phases 2501-2520.
 
 ## Decisions (Durable)
 
@@ -428,11 +441,11 @@ Keep it short. Keep it factual.
 ## Validation Status
 
 - Last backend focused Admin API/readiness run: 2026-06-15
-  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_stealth_mutation_claim_proof_routes_persist_read_back_and_resolve tests\regression\test_admin_api_contract.py::test_admin_api_stealth_mutation_claim_proof_latest_unsafe_record_fails_closed tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch -v --tb=short --basetemp=runtime_state\pytest_tmp`
-- Result: Passed for M55 mutation-claim proof resolver checks.
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed tests\regression\test_admin_api_contract.py::test_admin_api_stealth_reveal_execution_contract_resolves_reveal_trigger_proof -v --tb=short --basetemp=runtime_state\pytest_tmp`
+- Result: Passed for M55 reveal-trigger proof resolver checks.
 - Last backend autonomous queue check: 2026-06-15
   `python tools\run_autonomous_work_queue_check.py`
-- Result: M55 range `2461-2480` passed. Live Coinbase execution `not_run`,
+- Result: M55 range `2481-2500` passed. Live Coinbase execution `not_run`,
   submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-15
   `python -m pytest tests\regression\ -v --tb=short --basetemp=runtime_state\pytest_tmp`
@@ -454,7 +467,7 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Complete M55 2481-2500 recovery proof evidence in backend
+1. Complete M55 2501-2520 reveal-trigger proof evidence in backend
    and frontend without live Coinbase execution.
 2. Run focused/full backend and frontend gates, plus blind/contextless review,
    before phase-close commit/push.
@@ -504,13 +517,21 @@ Keep it short. Keep it factual.
   does not acquire/release claims, invoke manager methods, cancel/replace
   active placements, call Coinbase, execute reconciliation, mutate state, or
   grant browser/BFF execution authority.
-- What is active through M55 2481-2500: backend and frontend are adding
-  recovery proof records, readback, proof-route linkage, and exact-context
-  resolver evidence for stealth recovery posture only. This remains local
-  evidence only; it must not repair state, roll back state, execute
-  reconciliation, invoke managers, call Coinbase, cancel/replace active
-  placements, mutate state, or grant browser/BFF authority.
+- What is done through M55 2481-2500: backend and frontend expose
+  resolver-backed recovery proof evidence on stealth recovery command
+  responses. It resolves only from the latest safe exact-context same-
+  `stealth_order_id` backend proof-store row, fails closed on latest unsafe
+  proof rows, and remains local readback evidence only. It does not repair
+  state, roll back state, invoke managers, build recovery plans,
+  cancel/replace active placements, call Coinbase, execute reconciliation,
+  mutate state, or grant browser/BFF execution authority.
+- What is active through M55 2501-2520: backend and frontend are adding
+  reveal-trigger proof records, readback, proof-route linkage, and
+  exact-context resolver evidence for stealth reveal posture only. This
+  remains local evidence only; it must not evaluate triggers, call
+  `should_trigger_reveal`, call `reveal_order_slice`, execute reconciliation,
+  invoke managers, call Coinbase, cancel/replace active placements, mutate
+  state, or grant browser/BFF authority.
 - What is blocked: Nothing currently known.
-- Exact next command: implement backend recovery proof store/service/routes,
-  then run focused Admin API tests and regenerate artifacts before syncing the
-  frontend schema/mocks.
+- Exact next command: sync frontend schema/mocks for reveal-trigger proof,
+  then run focused frontend tests and release gates.

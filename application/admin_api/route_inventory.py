@@ -156,6 +156,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_reveal_trigger_proof",
+        parity_test=(
+            "read-only reveal-trigger proof evidence; no trigger evaluation, "
+            "should_trigger_reveal call, reveal_order_slice call, Coinbase "
+            "call, reconciliation execution, or lifecycle mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/command-suite",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -330,6 +346,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "does not repair state, roll back state, invoke managers, call "
             "Coinbase, cancel/replace placements, execute reconciliation, or "
             "mutate state"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface="POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_REVEAL_TRIGGER_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for reveal-trigger proof admission",
+        audit="required",
+        shared_method="record_stealth_reveal_trigger_proof",
+        parity_test=(
+            "stealth_order_id identity; proof evidence remains no-live and "
+            "does not evaluate triggers, call should_trigger_reveal, call "
+            "reveal_order_slice, invoke managers, submit/read Coinbase, "
+            "execute reconciliation, or mutate lifecycle state"
         ),
     ),
     AdminApiRouteInventoryItem(
