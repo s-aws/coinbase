@@ -36,36 +36,39 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2181-2200`.
-- Latest completed milestone: M54 - Stealth Create Lifecycle Audit Evidence.
-- Completed files: Admin API stealth create lifecycle-write audit evidence,
-  OpenAPI, command-suite docs, frontend generated schema, mock/runtime
-  evidence, Stealth Orders read-model rendering, frontend docs/tests, full
-  backend regression, frontend release gate, and contextless review.
+- Latest completed autonomous range: `2241-2260`.
+- Latest completed milestone slice: M55 - Exchange-Truth Evidence-Route
+  Linkage.
+- Completed files: Admin API stealth exchange-truth read-evidence route
+  linkage, command-suite docs, frontend mock/runtime evidence, Stealth Orders
+  read-model rendering, frontend docs/tests, full backend regression,
+  frontend release gate, and contextless review.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M54 made stealth create lifecycle-write audit evidence visible on
-  `GET /api/v1/stealth/command-suite` and in the frontend read model. It did
-  not invoke `StealthOrderManager`, write stealth/order_parent/lifecycle
-  state, call Coinbase, execute reconciliation, create proof records, grant
-  browser/BFF authority, add a live switch, or create a parallel command path.
+- M55 2241-2260 linked stealth command-suite `exchange_truth_checks` to typed
+  backend-owned read evidence rows and frontend display evidence. It did not
+  claim Coinbase reads ran, prove active-placement exchange truth,
+  cancel/replace placements, reveal orders, execute reconciliation, mutate
+  stealth/order/exchange state, create proof records, grant browser/BFF
+  authority, add a live switch, or create a parallel command path.
 
 ## Active Scope
 
-- Active autonomous range: `2241-2260`.
-- Active milestone: M55 - Exchange-Truth Evidence-Route Linkage.
-- Current direction: link stealth command-suite `exchange_truth_checks` to
-  backend-owned typed `current_read_evidence` route metadata and consume it in
-  the frontend as display-only evidence. Do not claim Coinbase reads ran,
-  prove active-placement exchange truth, cancel/replace placements, reveal
-  orders, create proof records, mutate approval/admission-audit/cap-guard/
-  reconciliation stores, invoke `StealthOrderManager`, write
-  stealth/order_parent/lifecycle state, mutate exchange state, call Coinbase,
-  execute reconciliation, add browser proof authority, add BFF execution
-  authority, or enable live commands.
+- Active autonomous range: `2261-2280`.
+- Active milestone: M55 - Stealth Recovery/Reconciliation Command Contract
+  Foundation.
+- Current direction: add route-bound, live-disabled stealth recovery and
+  reconciliation command contracts keyed by `stealth_order_id`, with backend
+  models, FastAPI adapters, shared command-service fail-closed responses,
+  route inventory, OpenAPI, command-suite metadata, frontend schema, mocks,
+  and dry-submit display evidence. Do not execute recovery repair, rollback,
+  reconciliation, proof writers, Coinbase reads, Coinbase orders,
+  `StealthOrderManager` mutations, local stealth/order lifecycle mutations,
+  exchange-state mutations, browser command authority, BFF execution
+  authority, or live commands.
 
 ## Decisions (Durable)
 
@@ -356,7 +359,7 @@ Keep it short. Keep it factual.
 - Result: Passed for M55 focused checks, 3 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-14
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M55 completed range `2201-2220` passed. Live Coinbase execution
+- Result: M55 completed range `2241-2260` passed. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-14
   `python -m pytest tests\regression\ -v --tb=short --basetemp=runtime_state\pytest_tmp`
@@ -364,27 +367,27 @@ Keep it short. Keep it factual.
 - Last frontend focused run: 2026-06-14
   `npm run typecheck`, `npm run api:check`, `npm run autonomous:check`,
   `npm run security:commands`, `npm run lint`, and focused Vitest.
-- Result: Passed focused M55 frontend checks after updating brittle exact-count
-  assertions for the new proof-route rows. Full frontend release gate passed
-  with 215 unit tests and 3 Playwright tests.
+- Result: Passed focused M55 frontend checks after rendering exchange-truth
+  read-evidence rows. Full frontend release gate passed with 215 unit tests
+  and 3 Playwright tests.
 - Last blind/contextless M55 review: 2026-06-14
-- Result: Passed with no blockers. Reviewer confirmed backend proof-route
-  linkage is read-only, frontend rendering is display-only, no manager/
-  lifecycle/Coinbase/reconciliation/proof-store authority was added, and
-  generated/mock/UI docs align with the durable no-live objective.
+- Result: Passed with no blockers. Reviewer confirmed backend exchange-truth
+  read-evidence linkage is read-only, frontend rendering is display-only, no
+  manager/lifecycle/Coinbase/reconciliation/proof-store authority was added,
+  and generated/mock/UI docs align with the durable no-live objective.
 - Live Coinbase execution for M55: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Complete synchronized M55 exchange-truth evidence-route linkage for active
-   range `2241-2260`, then rerun focused backend/frontend checks,
+1. Complete synchronized M55 stealth recovery/reconciliation command-contract
+   foundation for active range `2261-2280`, then rerun focused backend/frontend checks,
    blind/contextless review, full backend regression, and frontend release
    gate.
-2. Preserve stealth create proof-route linkage and coverage-gap read-evidence
-   linkage as read-only evidence without proof creation, store mutation,
-   manager invocation, lifecycle writes, Coinbase calls, reconciliation
-   execution, browser authority, BFF execution authority, or unapproved live
+2. Preserve the new recovery/reconciliation routes as live-disabled command
+   contracts only, without recovery repair, rollback, proof writing,
+   reconciliation execution, manager invocation, lifecycle writes, Coinbase
+   calls, browser authority, BFF execution authority, or unapproved live
    execution.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
@@ -392,11 +395,11 @@ Keep it short. Keep it factual.
 
 ## Handoff Notes
 
-- What is done through M54: backend and frontend expose live-disabled stealth
-  create lifecycle-write audit evidence as read-only command-suite evidence.
-  The evidence names the existing command route, shared service method,
-  manager method, identity discipline, no-write/no-live posture, and missing
-  lifecycle contracts without creating a second lifecycle path.
+- What is done through M55 2241-2260: backend and frontend expose
+  exchange-truth read-evidence route linkage as read-only command-suite
+  evidence. The evidence names backend-owned read routes, shared methods,
+  permissions, documentation refs, and no-write/no-live posture without
+  proving active-placement exchange truth or creating a second lifecycle path.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard,
@@ -405,9 +408,9 @@ Keep it short. Keep it factual.
   display evidence only. No command controls, guard evaluator, audit storage,
   approval storage, reconciliation execution, BFF mutation broadening,
   Coinbase call, browser approval, or reconciliation behavior is allowed.
-- What is in progress: M55 exchange-truth evidence-route linkage for active
-  approved range `2241-2260`.
+- What is in progress: M55 stealth recovery/reconciliation command-contract
+  foundation for active approved range `2261-2280`.
 - What is blocked: Nothing currently known.
-- Exact next command: run focused backend/frontend checks for the 2241-2260
-  exchange-truth evidence-route linkage, resolve drift, run blind/contextless review, then
-  full gates before commit/push.
+- Exact next command: finish backend/frontend sync for the 2261-2280
+  recovery/reconciliation command contracts, resolve drift, run
+  blind/contextless review, then full gates before commit/push.

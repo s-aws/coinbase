@@ -16,7 +16,7 @@ route-inventory artifacts, fail-closed auth/RBAC bootstrap, durable JSONL
 idempotency/audit stores, structured error payloads, observability headers,
 read-only admin diagnostics, order read routes, read-only stealth lifecycle
 routes, read-only stealth command-suite readiness evidence, live-disabled
-stealth create, reveal, move, and cancel command contracts, movement/repricing evidence routes, a
+stealth create, reveal, move, cancel, recovery, and reconciliation command contracts, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
 account and position routes, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
@@ -28,7 +28,8 @@ they do not submit orders, cancel orders, or call Coinbase.
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
 The current runtime still returns `501` for create, order cancel, stealth
-create, stealth reveal, stealth move, stealth cancel, movement reprice,
+create, stealth reveal, stealth move, stealth cancel, stealth recovery,
+stealth reconciliation, movement reprice,
 campaign execution, and spot sweep automation
 commands because HTTP live execution is not approved. Read routes document
 typed `200` payloads plus structured `401` and `403` errors.

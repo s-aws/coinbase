@@ -139,6 +139,38 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="stealth_order_id identity; no active placement mutation until exchange handling is complete",
     ),
     AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface="POST /api/v1/stealth/orders/{stealth_order_id}/recovery",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_RECOVERY_EXECUTE,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for active-placement, repair, rollback, and reconciliation evidence",
+        audit="required",
+        shared_method="recover_stealth_order_by_stealth_order_id",
+        parity_test=(
+            "stealth_order_id identity; no recovery repair, rollback, lifecycle "
+            "mutation, Coinbase read, or reconciliation execution until stealth "
+            "recovery gates are complete"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface="POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for reconciliation plan/proof and active-placement exchange-truth evidence",
+        audit="required",
+        shared_method="reconcile_stealth_order_by_stealth_order_id",
+        parity_test=(
+            "stealth_order_id identity; no reconciliation execution, lifecycle "
+            "mutation, exchange-state mutation, Coinbase read, or proof writer "
+            "until stealth reconciliation gates are complete"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="movement_repricing",
         surface="GET /api/v1/movement-repricing/evidence",
         action_class=AdminApiActionClass.READ_ONLY,

@@ -1205,6 +1205,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/stealth/command-suite" in written["paths"]
     assert "/api/v1/stealth/orders/{stealth_order_id}/reveal" in written["paths"]
     assert "/api/v1/stealth/orders/{stealth_order_id}/cancel" in written["paths"]
+    assert "/api/v1/stealth/orders/{stealth_order_id}/recovery" in written["paths"]
+    assert (
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+        in written["paths"]
+    )
     assert "/api/v1/movement-repricing/evidence" in written["paths"]
     assert "/api/v1/movement-repricing/orders/{client_order_id}" in written["paths"]
     assert "/api/v1/movement-repricing/stealth/{stealth_order_id}" in written["paths"]
@@ -1261,6 +1266,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]["post"]
     assert "200" in stealth_cancel_operation["responses"]
     assert "501" in stealth_cancel_operation["responses"]
+    for stealth_recovery_path in (
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+    ):
+        stealth_recovery_operation = written["paths"][stealth_recovery_path]["post"]
+        assert "200" in stealth_recovery_operation["responses"]
+        assert "501" in stealth_recovery_operation["responses"]
     stealth_command_suite_operation = written["paths"]["/api/v1/stealth/command-suite"][
         "get"
     ]
@@ -2679,6 +2691,126 @@ def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypa
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_recovery_contract_is_fail_closed_and_no_live(monkeypatch):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/stealth/orders/stealth-recovery-abc/recovery",
+        headers=_headers(
+            idempotency_key="idem-stealth-recovery",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "recovery_evidence_ref": "ops-note-001",
+            "reason": "operator_recovery_review",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert payload["required_permission"] == (
+        AdminApiPermission.STEALTH_RECOVERY_EXECUTE.value
+    )
+    assert payload["service_method"] == "recover_stealth_order_by_stealth_order_id"
+    assert payload["client_order_id"] is None
+    assert payload["stealth_order_id"] == "stealth-recovery-abc"
+    assert payload["coinbase_order_id"] is None
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["guard"]["approval_snapshot_required"] is True
+    assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["admission_decision"]["route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery"
+    )
+    assert payload["admission_decision"]["module_id"] == "stealth_orders"
+    assert payload["admission_decision"]["identity_key"] == "stealth_order_id"
+    assert payload["admission_decision"]["identity_value"] == "stealth-recovery-abc"
+    assert payload["admission_decision"]["required_permission"] == (
+        AdminApiPermission.STEALTH_RECOVERY_EXECUTE.value
+    )
+    assert payload["data"]["identity_key"] == "stealth_order_id"
+    assert payload["data"]["recovery_evidence_ref"] == "ops-note-001"
+    assert payload["data"]["dry_run"] is False
+    assert payload["data"]["manual_live_acknowledgement"] is True
+    assert payload["data"]["active_placement_client_order_id"] is None
+    assert payload["data"]["exchange_order_id_evidence_only"] is True
+    assert payload["data"]["stealth_manager_invoked"] is False
+    assert payload["data"]["recovery_repair_executed"] is False
+    assert payload["data"]["rollback_executed"] is False
+    assert payload["data"]["local_state_mutated"] is False
+    assert payload["data"]["exchange_state_mutated"] is False
+    assert payload["data"]["reconciliation_executed"] is False
+    assert payload["data"]["coinbase_rest_read_ran"] is False
+    assert payload["data"]["coinbase_order_submitted"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_reconciliation_contract_is_fail_closed_and_no_live(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/stealth/orders/stealth-reconcile-abc/reconciliation",
+        headers=_headers(
+            idempotency_key="idem-stealth-reconciliation",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "reconciliation_plan_id": "plan-001",
+            "reconciliation_proof_id": "proof-001",
+            "reason": "operator_reconciliation_review",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert payload["required_permission"] == (
+        AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE.value
+    )
+    assert payload["service_method"] == "reconcile_stealth_order_by_stealth_order_id"
+    assert payload["client_order_id"] is None
+    assert payload["stealth_order_id"] == "stealth-reconcile-abc"
+    assert payload["coinbase_order_id"] is None
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["guard"]["approval_snapshot_required"] is True
+    assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["admission_decision"]["route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+    )
+    assert payload["admission_decision"]["module_id"] == "stealth_orders"
+    assert payload["admission_decision"]["identity_key"] == "stealth_order_id"
+    assert payload["admission_decision"]["identity_value"] == "stealth-reconcile-abc"
+    assert payload["admission_decision"]["required_permission"] == (
+        AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE.value
+    )
+    assert payload["data"]["identity_key"] == "stealth_order_id"
+    assert payload["data"]["reconciliation_plan_id"] == "plan-001"
+    assert payload["data"]["reconciliation_proof_id"] == "proof-001"
+    assert payload["data"]["dry_run"] is False
+    assert payload["data"]["manual_live_acknowledgement"] is True
+    assert payload["data"]["active_placement_client_order_id"] is None
+    assert payload["data"]["exchange_order_id_evidence_only"] is True
+    assert payload["data"]["reconciliation_plan_resolved"] is False
+    assert payload["data"]["reconciliation_proof_resolved"] is False
+    assert payload["data"]["stealth_manager_invoked"] is False
+    assert payload["data"]["local_state_mutated"] is False
+    assert payload["data"]["exchange_state_mutated"] is False
+    assert payload["data"]["reconciliation_executed"] is False
+    assert payload["data"]["coinbase_rest_read_ran"] is False
+    assert payload["data"]["coinbase_order_submitted"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkeypatch):
     client = _client(monkeypatch)
 
@@ -3082,6 +3214,23 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
             "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
         ]["post"]["parameters"]
     )
+    for stealth_route in (
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+    ):
+        stealth_body_ref = schema["paths"][stealth_route]["post"]["requestBody"][
+            "content"
+        ]["application/json"]["schema"]["$ref"]
+        stealth_body_model_name = stealth_body_ref.rsplit("/", 1)[-1]
+        stealth_body_schema = schema["components"]["schemas"][stealth_body_model_name]
+        assert "stealth_order_id" not in stealth_body_schema.get("properties", {})
+        assert "client_order_id" not in stealth_body_schema.get("properties", {})
+        assert "active_placement_client_order_id" not in stealth_body_schema.get(
+            "properties", {}
+        )
+        assert "exchange_order_id" not in stealth_body_schema.get("properties", {})
+        assert "order_id" not in stealth_body_schema.get("properties", {})
+        assert "stealth_order_id" in str(schema["paths"][stealth_route]["post"]["parameters"])
 
 
 @pytest.mark.regression
@@ -4781,15 +4930,15 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2241-2260"
-    assert payload["command_count"] == 5
-    assert payload["blocked_command_count"] == 5
+    assert payload["approved_phase_range"] == "2261-2280"
+    assert payload["command_count"] == 7
+    assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
     assert payload["coverage_gap_count"] == 7
-    assert payload["exchange_truth_check_count"] == 5
-    assert payload["blocking_exchange_truth_check_count"] == 5
-    assert payload["active_placement_exchange_truth_required_count"] == 3
+    assert payload["exchange_truth_check_count"] == 7
+    assert payload["blocking_exchange_truth_check_count"] == 7
+    assert payload["active_placement_exchange_truth_required_count"] == 5
     assert payload["exchange_truth_required"] is True
     assert payload["browser_authority"] == "display_only"
     assert payload["bff_authority"] == "forward_only_no_execution"
@@ -4895,6 +5044,8 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
         "/api/v1/stealth/orders/{stealth_order_id}/move",
         "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
     }
     for command in command_routes.values():
@@ -4955,6 +5106,8 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
 
     for route in (
         "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
     ):
         assert command_routes[route]["exchange_truth_required"] is True
@@ -4965,6 +5118,38 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert "active_placement_exchange_truth" in command_routes[route][
             "missing_gate_chain"
         ]
+    recovery_command = command_routes[
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery"
+    ]
+    assert recovery_command["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value
+    )
+    assert recovery_command["action_class"] == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    )
+    assert recovery_command["required_permission"] == (
+        AdminApiPermission.STEALTH_RECOVERY_EXECUTE.value
+    )
+    assert (
+        recovery_command["shared_method"]
+        == "recover_stealth_order_by_stealth_order_id"
+    )
+    reconciliation_command = command_routes[
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+    ]
+    assert reconciliation_command["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value
+    )
+    assert reconciliation_command["action_class"] == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    )
+    assert reconciliation_command["required_permission"] == (
+        AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE.value
+    )
+    assert (
+        reconciliation_command["shared_method"]
+        == "reconcile_stealth_order_by_stealth_order_id"
+    )
 
     exchange_truth_checks = {
         item["route"]: item for item in payload["exchange_truth_checks"]
@@ -5022,6 +5207,8 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     for route in (
         "/api/v1/stealth/orders/{stealth_order_id}/cancel",
         "/api/v1/stealth/orders/{stealth_order_id}/move",
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
     ):
         assert exchange_truth_checks[route]["active_placement_evidence_required"] is True
@@ -5141,9 +5328,11 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     ]
     assert (
         recovery_gap["exposure_status"]
-        == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+        == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
     )
-    assert recovery_gap["command_route"] is None
+    assert recovery_gap["command_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/recovery"
+    )
     assert recovery_gap["current_read_evidence_routes"] == [
         "GET /api/v1/admin/recovery-gate",
         "GET /api/v1/stealth/orders/{stealth_order_id}",
@@ -5173,9 +5362,11 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     ]
     assert (
         reconciliation_gap["exposure_status"]
-        == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+        == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
     )
-    assert reconciliation_gap["command_route"] is None
+    assert reconciliation_gap["command_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+    )
     assert reconciliation_gap["current_read_evidence_routes"] == [
         "GET /api/v1/admin/reconciliation/plans",
         "GET /api/v1/admin/reconciliation/plans/{plan_id}",
@@ -5929,6 +6120,7 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
     viewer = AdminApiActor(actor_id="viewer-001", roles=[AdminApiRole.VIEWER])
     operator = AdminApiActor(actor_id="operator-001", roles=[AdminApiRole.OPERATOR])
     trader = AdminApiActor(actor_id="trader-001", roles=[AdminApiRole.TRADER])
+    admin = AdminApiActor(actor_id="admin-001", roles=[AdminApiRole.ADMIN])
     emergency = AdminApiActor(actor_id="emergency-001", roles=[AdminApiRole.EMERGENCY])
 
     assert actor_has_permission(viewer, AdminApiPermission.ANALYTICS_READ)
@@ -5939,20 +6131,48 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
     assert not actor_has_permission(viewer, AdminApiPermission.SPOT_PNL_RECORD)
     assert not actor_has_permission(viewer, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert not actor_has_permission(viewer, AdminApiPermission.SPOT_RECOVERY_RECORD)
+    assert not actor_has_permission(
+        viewer, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
+    )
+    assert not actor_has_permission(
+        viewer, AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE
+    )
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_PAUSE)
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_RESUME)
     assert not actor_has_permission(operator, AdminApiPermission.ORDER_CANCEL)
     assert not actor_has_permission(operator, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert not actor_has_permission(operator, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert not actor_has_permission(operator, AdminApiPermission.SPOT_RECOVERY_RECORD)
+    assert not actor_has_permission(
+        operator, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
+    )
+    assert not actor_has_permission(
+        operator, AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE
+    )
     assert actor_has_permission(trader, AdminApiPermission.CAMPAIGN_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.SPOT_PNL_RECORD)
     assert actor_has_permission(trader, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.SPOT_RECOVERY_RECORD)
+    assert not actor_has_permission(
+        trader, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
+    )
+    assert not actor_has_permission(
+        trader, AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE
+    )
+    assert actor_has_permission(admin, AdminApiPermission.STEALTH_RECOVERY_EXECUTE)
+    assert actor_has_permission(
+        admin, AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE
+    )
     assert not actor_has_permission(emergency, AdminApiPermission.ORDER_CANCEL)
     assert not actor_has_permission(emergency, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert not actor_has_permission(emergency, AdminApiPermission.SPOT_RECOVERY_RECORD)
+    assert not actor_has_permission(
+        emergency, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
+    )
+    assert not actor_has_permission(
+        emergency, AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE
+    )
     assert actor_has_permission(emergency, AdminApiPermission.RUNTIME_SHUTDOWN)
 
 
@@ -6060,6 +6280,18 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert command_capabilities[
         ("POST", "/api/v1/spot/sweep/automation-runs")
     ]["shared_method"] == "run_spot_sweep_automation"
+    assert command_capabilities[
+        ("POST", "/api/v1/stealth/orders/{stealth_order_id}/recovery")
+    ]["permission"] == AdminApiPermission.STEALTH_RECOVERY_EXECUTE.value
+    assert command_capabilities[
+        ("POST", "/api/v1/stealth/orders/{stealth_order_id}/recovery")
+    ]["shared_method"] == "recover_stealth_order_by_stealth_order_id"
+    assert command_capabilities[
+        ("POST", "/api/v1/stealth/orders/{stealth_order_id}/reconciliation")
+    ]["permission"] == AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE.value
+    assert command_capabilities[
+        ("POST", "/api/v1/stealth/orders/{stealth_order_id}/reconciliation")
+    ]["shared_method"] == "reconcile_stealth_order_by_stealth_order_id"
     assert csrf.status_code == 200
     assert csrf.json() == {
         "type": "admin_csrf_contract",
@@ -6075,7 +6307,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2241-2260"
+    assert live_payload["approved_phase_range"] == "2261-2280"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6638,7 +6870,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2241-2260"
+    assert enterprise_payload["approved_phase_range"] == "2261-2280"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -7221,7 +7453,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2241-2260"
+    assert recovery_preview_payload["approved_phase_range"] == "2261-2280"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -11306,6 +11538,50 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["POST /api/v1/spot/sweep/automation-runs"].permission == (
         AdminApiPermission.SPOT_SWEEP_EXECUTE
     )
+    stealth_recovery_route = rows[
+        "POST /api/v1/stealth/orders/{stealth_order_id}/recovery"
+    ]
+    assert stealth_recovery_route.shared_method == (
+        "recover_stealth_order_by_stealth_order_id"
+    )
+    assert stealth_recovery_route.action_class == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    assert stealth_recovery_route.permission == (
+        AdminApiPermission.STEALTH_RECOVERY_EXECUTE
+    )
+    assert stealth_recovery_route.idempotency == "required"
+    assert stealth_recovery_route.approval == (
+        "required by current HTTP live-disabled gate"
+    )
+    assert stealth_recovery_route.caps == (
+        "required for active-placement, repair, rollback, and reconciliation evidence"
+    )
+    assert stealth_recovery_route.audit == "required"
+    assert "no recovery repair" in stealth_recovery_route.parity_test
+    assert "Coinbase" in stealth_recovery_route.parity_test
+    stealth_reconciliation_route = rows[
+        "POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+    ]
+    assert stealth_reconciliation_route.shared_method == (
+        "reconcile_stealth_order_by_stealth_order_id"
+    )
+    assert stealth_reconciliation_route.action_class == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    assert stealth_reconciliation_route.permission == (
+        AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE
+    )
+    assert stealth_reconciliation_route.idempotency == "required"
+    assert stealth_reconciliation_route.approval == (
+        "required by current HTTP live-disabled gate"
+    )
+    assert stealth_reconciliation_route.caps == (
+        "required for reconciliation plan/proof and active-placement exchange-truth evidence"
+    )
+    assert stealth_reconciliation_route.audit == "required"
+    assert "no reconciliation execution" in stealth_reconciliation_route.parity_test
+    assert "Coinbase" in stealth_reconciliation_route.parity_test
     assert rows["GET /api/v1/admin/bootstrap"].shared_method == "build_admin_bootstrap"
     assert rows["GET /api/v1/admin/oidc-readiness"].shared_method == (
         "build_oidc_jwt_readiness"
@@ -11443,6 +11719,13 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         assert doc_row[7].strip("`") == route.shared_method
         assert doc_row[8] == route.parity_test
     for route in (rows[surface] for surface in recovery_command_routes):
+        doc_row = markdown_inventory_rows[route.surface]
+        assert doc_row[1].strip("`") == route.action_class.value
+        assert doc_row[2].strip("`") == route.permission.value
+        assert doc_row[5] == route.caps
+        assert doc_row[7].strip("`") == route.shared_method
+        assert doc_row[8] == route.parity_test
+    for route in (stealth_recovery_route, stealth_reconciliation_route):
         doc_row = markdown_inventory_rows[route.surface]
         assert doc_row[1].strip("`") == route.action_class.value
         assert doc_row[2].strip("`") == route.permission.value

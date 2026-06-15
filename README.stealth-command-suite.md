@@ -16,10 +16,10 @@ The route requires Admin API authentication and `analytics:read`. It returns
 `StealthCommandSuiteResponse` with:
 
 - blocked command rows for live-disabled stealth create, reveal, move, cancel,
-  and movement reprice
-- exchange-truth prerequisite rows for those same five command routes,
+  recovery, reconciliation, and movement reprice
+- exchange-truth prerequisite rows for those same seven command routes,
   including accepted `stealth_order_id` identity, rejected placement/exchange
-  identities, and the three active-placement-required commands
+  identities, and the active-placement-required commands
 - typed `exchange_truth_checks.current_read_evidence` rows for existing
   read-only evidence behind blocked exchange-truth prerequisites
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
@@ -69,9 +69,17 @@ Coverage-gap evidence routes are also display-only. Recovery gaps may point to
 `GET /api/v1/stealth/command-suite`. These rows name route, method, action
 class, required permission, shared read-service method, documentation refs,
 and browser/BFF authority so operators can trace what evidence already
-exists. They do not create recovery or reconciliation command routes, proof
-writers, exchange-state inputs, reconciliation executors, Coinbase calls, or
-browser/BFF command authority.
+exists. These evidence rows do not execute recovery or reconciliation, write
+proofs, mutate exchange-state inputs, call Coinbase, or grant browser/BFF
+command authority.
+Stealth recovery and reconciliation also have live-disabled command contracts:
+`POST /api/v1/stealth/orders/{stealth_order_id}/recovery` and
+`POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation`. These routes
+pass through the Admin API RBAC, idempotency, audit, and shared command-service
+path, but they return fail-closed `not_implemented` responses. They do not
+execute recovery repair, rollback, reconciliation, proof writers, Coinbase
+reads, Coinbase orders, `StealthOrderManager` mutations, local lifecycle
+mutations, exchange-state mutations, or browser/BFF command authority.
 Exchange-truth evidence routes use the same read-only shape for create,
 reveal, cancel, move, and reprice prerequisites. They identify where current
 local read evidence exists, but they do not run Coinbase reads, prove active
@@ -93,9 +101,14 @@ reconciliation, mutate state, or authorize browser/BFF command execution.
   authority.
 - `coverage_gaps.current_read_evidence` is traceability evidence only. It
   does not close missing backend contracts and must not be converted into
-  recovery/reconciliation command controls, proof writing, exchange-state
+  executable recovery/reconciliation controls, proof writing, exchange-state
   mutation, reconciliation execution, Coinbase reads, Coinbase submissions, or
   BFF execution authority.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` and
+  `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation` are
+  live-disabled command contracts. They may provide typed admission evidence,
+  but they do not execute recovery, reconciliation, proof writing, state
+  mutation, Coinbase reads, or Coinbase orders.
 - `exchange_truth_checks.current_read_evidence` is traceability evidence only.
   It does not prove exchange truth and must not be converted into Coinbase
   reads, active-placement truth resolution, cancel/replace behavior, reveal

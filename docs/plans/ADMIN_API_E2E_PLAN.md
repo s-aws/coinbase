@@ -38,89 +38,173 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Exchange-Truth Evidence-Route Linkage Batch - Phases 2241-2260
+## Active M55 Recovery/Reconciliation Command Contract Batch - Phases 2261-2280
 
-These phases continue M55 after coverage-gap evidence-route linkage. The next explicit architecture gap is typed read-evidence route linkage for stealth command-suite `exchange_truth_checks`. The existing `GET /api/v1/stealth/command-suite` response already reports the route strings behind each exchange-truth prerequisite; this range makes the typed rows first-class across backend assertions and frontend display. It must not claim Coinbase reads ran, prove active-placement exchange truth, cancel/replace placements, reveal orders, execute reconciliation, mutate stealth/order/exchange state, create proof records, or grant browser/BFF execution authority.
+These phases continue M55 after exchange-truth evidence-route linkage. The next explicit architecture gap is route-bound, backend-owned command contracts for stealth recovery and stealth reconciliation. This range may add live-disabled FastAPI adapters, request/command models, route inventory, OpenAPI, command-suite metadata, frontend schema, mocks, and dry-submit display evidence. It must not execute recovery repair, rollback, reconciliation, proof writers, Coinbase reads, Coinbase orders, `StealthOrderManager` mutations, local stealth/order lifecycle mutations, exchange-state mutations, or browser/BFF command authority.
+
+### Phase 2261 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2241-2260 to active phases 2261-2280 while preserving no-live defaults and cap policy.
+
+### Phase 2262 - Recovery/Reconciliation Command Scope
+
+- Define stealth recovery and stealth reconciliation as live-disabled command contracts only, not recovery execution, proof writing, exchange-state repair, or reconciliation execution.
+
+### Phase 2263 - Backend Permission And Family Audit
+
+- Add enum-backed permissions and mutation-family identifiers for stealth recovery and stealth reconciliation without granting them to normal trader/operator roles.
+
+### Phase 2264 - Recovery Request Contract
+
+- Add a typed stealth recovery request and command model keyed by `stealth_order_id`, with dry-run/operator acknowledgement evidence and no accepted exchange id identity.
+
+### Phase 2265 - Reconciliation Request Contract
+
+- Add a typed stealth reconciliation request and command model keyed by `stealth_order_id`, with reconciliation plan/proof references as evidence and no accepted exchange id identity.
+
+### Phase 2266 - Recovery Route Adapter
+
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+
+### Phase 2267 - Reconciliation Route Adapter
+
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation` through the existing Admin API idempotency, RBAC, audit, and command-service path.
+
+### Phase 2268 - Shared Service Fail-Closed Responses
+
+- Return typed `not_implemented` responses from shared command-service methods with no manager invocation, Coinbase call, local mutation, exchange mutation, proof creation, or reconciliation execution.
+
+### Phase 2269 - Command-Suite Metadata Sync
+
+- Expose recovery and reconciliation command rows, exchange-truth prerequisites, active-placement requirements, and updated coverage gaps through `GET /api/v1/stealth/command-suite`.
+
+### Phase 2270 - Capability And Readiness Evidence
+
+- Ensure admin capabilities, enterprise readiness, and live-enablement evidence list the new command contracts without changing live-enabled counts or live eligibility.
+
+### Phase 2271 - Route Inventory And OpenAPI Artifacts
+
+- Update route inventory markdown/JSON and generated OpenAPI for the new routes and request models without hand-maintaining generated schema.
+
+### Phase 2272 - Backend Focused Tests
+
+- Cover RBAC, idempotency envelope, response fields, route inventory, OpenAPI, command-suite counts, no-live posture, and no accepted `order_id`/`client_order_id` body identity.
+
+### Phase 2273 - Frontend Schema Sync
+
+- Regenerate frontend schema from backend OpenAPI and keep generated files unedited by hand.
+
+### Phase 2274 - Frontend API Client And Mock Routes
+
+- Add frontend client/mock support for the recovery and reconciliation dry-submit contracts without broadening BFF mutation authority beyond backend-owned routes.
+
+### Phase 2275 - Frontend Command-Suite Rendering
+
+- Render recovery and reconciliation command evidence, required permissions, blocked gate chains, active-placement requirements, and dry-submit responses as display-only evidence.
+
+### Phase 2276 - Frontend Focused Tests
+
+- Cover UI rendering, mock/runtime contracts, dry-submit no-live posture, no action controls beyond the approved backend route surface, and role hint boundaries.
+
+### Phase 2277 - Documentation And Examples
+
+- Update Admin API, stealth command-suite, command-workflow, route-inventory, examples, maintainer handoff, agent state, and roadmap docs for the new live-disabled command contracts.
+
+### Phase 2278 - API And Autonomous Gates
+
+- Run API freshness, autonomous queue, ownership, and command-security checks for the active 2261-2280 range.
+
+### Phase 2279 - Blind/Contextless Review
+
+- Run contextless review for whether a fresh agent can explain the recovery/reconciliation command contracts without inferring execution, proof-writing, Coinbase-read, or state-mutation authority.
+
+### Phase 2280 - Full Gates, Push, And Next Range
+
+- Run backend regression and frontend release gate, confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed M55 Exchange-Truth Evidence-Route Linkage Batch - Phases 2241-2260
+
+These phases continued M55 after coverage-gap evidence-route linkage by making typed read-evidence route linkage first-class for stealth command-suite `exchange_truth_checks`. The completed range shows route, method, permission, shared method, documentation refs, and display/read-only authority for current read evidence. It does not claim Coinbase reads ran, prove active-placement exchange truth, cancel/replace placements, reveal orders, execute reconciliation, mutate stealth/order/exchange state, create proof records, or grant browser/BFF execution authority.
 
 ### Phase 2241 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2221-2240 to active phases 2241-2260 while preserving no-live defaults and cap policy.
+- Moved the durable autonomous queue from completed phases 2221-2240 to active phases 2241-2260 while preserving no-live defaults and cap policy.
 
 ### Phase 2242 - Exchange-Truth Linkage Scope
 
-- Define exchange-truth evidence-route linkage as read-only traceability for blocked prerequisites, not active-placement proof, Coinbase read authority, or command execution.
+- Defined exchange-truth evidence-route linkage as read-only traceability for blocked prerequisites, not active-placement proof, Coinbase read authority, or command execution.
 
 ### Phase 2243 - Backend Exchange-Truth Contract Audit
 
-- Verify the exchange-truth response model and builder expose typed current read evidence rows for create, reveal, cancel, move, and reprice checks.
+- Verified the exchange-truth response model and builder expose typed current read evidence rows for create, reveal, cancel, move, and reprice checks.
 
 ### Phase 2244 - Create Truth Evidence Routes
 
-- Ensure create exchange-truth evidence links to stealth list/detail/readiness routes without claiming active-placement truth.
+- Ensured create exchange-truth evidence links to stealth list/detail/readiness routes without claiming active-placement truth.
 
 ### Phase 2245 - Reveal Truth Evidence Routes
 
-- Ensure reveal exchange-truth evidence links to stealth detail/readiness routes without evaluating triggers, submitting orders, or mutating lifecycle state.
+- Ensured reveal exchange-truth evidence links to stealth detail/readiness routes without evaluating triggers, submitting orders, or mutating lifecycle state.
 
 ### Phase 2246 - Cancel Truth Evidence Routes
 
-- Ensure cancel exchange-truth evidence links to active-placement/readiness evidence without cancelling Coinbase placements or marking local state cancelled.
+- Ensured cancel exchange-truth evidence links to active-placement/readiness evidence without cancelling Coinbase placements or marking local state cancelled.
 
 ### Phase 2247 - Move And Reprice Truth Evidence Routes
 
-- Ensure move/reprice exchange-truth evidence links to movement/repricing and command-suite reads without invoking cancel/replace, move planning, repricing, or Coinbase calls.
+- Ensured move/reprice exchange-truth evidence links to movement/repricing and command-suite reads without invoking cancel/replace, move planning, repricing, or Coinbase calls.
 
 ### Phase 2248 - Backend No-Authority Assertions
 
-- Cover that typed exchange-truth evidence rows are `GET`, `read_only`, backend-owned, display/read-only authority, and do not create command routes, execute reconciliation, or call Coinbase.
+- Covered that typed exchange-truth evidence rows are `GET`, `read_only`, backend-owned, display/read-only authority, and do not create command routes, execute reconciliation, or call Coinbase.
 
 ### Phase 2249 - Backend Focused Tests
 
-- Add or extend Admin API regression coverage for exchange-truth evidence route metadata, shared methods, permissions, and no-live/no-mutation posture.
+- Extended Admin API regression coverage for exchange-truth evidence route metadata, shared methods, permissions, and no-live/no-mutation posture.
 
 ### Phase 2250 - Frontend Schema Sync
 
-- Regenerate frontend schema only if backend OpenAPI changes and keep generated files unedited by hand.
+- Confirmed frontend schema sync was unnecessary because backend OpenAPI did not change for read-only evidence-route linkage.
 
 ### Phase 2251 - Frontend Adapter Mapping
 
-- Map exchange-truth `current_read_evidence` rows into the stealth command-suite view model.
+- Mapped exchange-truth `current_read_evidence` rows into the stealth command-suite view model.
 
 ### Phase 2252 - Frontend Exchange-Truth UI Rendering
 
-- Render typed exchange-truth evidence routes in the existing stealth exchange-truth table or adjacent read-only panel without command controls.
+- Rendered typed exchange-truth evidence routes in the existing stealth exchange-truth evidence without command controls.
 
 ### Phase 2253 - Mock Runtime Fixtures
 
-- Update mock exchange-truth checks to include backend-like typed current read evidence rows.
+- Updated mock exchange-truth checks to include backend-like typed current read evidence rows.
 
 ### Phase 2254 - Documentation And Examples
 
-- Update API contract, stealth command-suite README, command workflows, examples, handoff, and roadmap docs for exchange-truth evidence-route linkage.
+- Updated API contract, stealth command-suite README, command workflows, examples, handoff, and roadmap docs for exchange-truth evidence-route linkage.
 
 ### Phase 2255 - Frontend Focused Tests
 
-- Cover exchange-truth evidence route rendering, permissions, shared methods, documentation refs, browser/BFF authority, and no action controls.
+- Covered exchange-truth evidence route rendering, permissions, shared methods, documentation refs, browser/BFF authority, and no action controls.
 
 ### Phase 2256 - API And Autonomous Gates
 
-- Run API freshness, autonomous queue, ownership, and command-security checks for the active 2241-2260 range.
+- Ran API freshness, autonomous queue, ownership, and command-security checks for the active 2241-2260 range.
 
 ### Phase 2257 - Blind/Contextless Review
 
-- Run contextless review for whether a fresh agent can explain exchange-truth evidence-route linkage without inferring Coinbase-read, active-placement, or execution authority.
+- Ran contextless review for whether a fresh agent can explain exchange-truth evidence-route linkage without inferring Coinbase-read, active-placement, or execution authority.
 
 ### Phase 2258 - Full Gates
 
-- Run backend regression and frontend release gate, confirming no live Coinbase execution and `$0` frontend notional.
+- Ran backend regression and frontend release gate, confirming no live Coinbase execution and `$0` frontend notional.
 
 ### Phase 2259 - Cross-Repo Drift Scan
 
-- Scan backend/frontend docs, mocks, generated schema, and validators for stale active range or exchange-truth authority drift.
+- Scanned backend/frontend docs, mocks, generated schema, and validators for stale active range or exchange-truth authority drift.
 
 ### Phase 2260 - Final Gates, Push, And Next Range
 
-- Push synchronized repos after all gates pass and create the next milestone-linked range only if a concrete approved M55 gap remains.
+- Pushed synchronized repos after all gates passed and selected the next concrete M55 gap.
 
 ## Completed M55 Coverage-Gap Evidence-Route Linkage Batch - Phases 2221-2240
 

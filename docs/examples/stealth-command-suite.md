@@ -22,15 +22,15 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2221-2240",
-  "command_count": 5,
-  "blocked_command_count": 5,
+  "approved_phase_range": "2261-2280",
+  "command_count": 7,
+  "blocked_command_count": 7,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
   "exchange_truth_required": true,
-  "exchange_truth_check_count": 5,
-  "blocking_exchange_truth_check_count": 5,
-  "active_placement_exchange_truth_required_count": 3,
+  "exchange_truth_check_count": 7,
+  "blocking_exchange_truth_check_count": 7,
+  "active_placement_exchange_truth_required_count": 5,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
   "submitted_notional_usdc": "0",
@@ -167,6 +167,8 @@ The `commands` array includes live-disabled rows for:
 - `/api/v1/stealth/orders/{stealth_order_id}/reveal`
 - `/api/v1/stealth/orders/{stealth_order_id}/move`
 - `/api/v1/stealth/orders/{stealth_order_id}/cancel`
+- `/api/v1/stealth/orders/{stealth_order_id}/recovery`
+- `/api/v1/stealth/orders/{stealth_order_id}/reconciliation`
 - `/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 
 Each row uses `stealth_order_id` as `identity_key`. Create is a
@@ -192,15 +194,22 @@ exchange truth before any lifecycle mutation. Move is a
 `build_stealth_move_plan`, `execute_stealth_move`, `StealthOrderManager`,
 Coinbase cancel/submit, cancel/replace, and local lifecycle mutation were not
 invoked.
+Recovery and reconciliation are `local_state_mutation` command contracts with
+`exchange_truth_required=true` and `active_placement_evidence_required=true`.
+They return fail-closed `not_implemented` responses and do not execute
+recovery repair, rollback, reconciliation, proof writers, Coinbase reads,
+Coinbase orders, `StealthOrderManager` mutations, local lifecycle mutations,
+exchange-state mutations, or browser/BFF command authority.
 
-The `exchange_truth_checks` array mirrors those five command routes as
+The `exchange_truth_checks` array mirrors those seven command routes as
 read-only prerequisites. Each row accepts only `stealth_order_id` as command
 identity and rejects `client_order_id`, `active_placement_client_order_id`,
-exchange order ids, and `order_id` as command identities. Cancel, move, and
-reprice require active-placement exchange truth before any future executable
-backend path can be considered. The fields are evidence only; they do not
-read Coinbase, cancel/replace active placements, execute reconciliation, or
-grant browser/BFF exchange-truth authority.
+exchange order ids, and `order_id` as command identities. Cancel, move,
+recovery, reconciliation, and reprice require active-placement exchange truth
+before any future executable backend path can be considered. The fields are
+evidence only; they do not read Coinbase, cancel/replace active placements,
+execute recovery or reconciliation, or grant browser/BFF exchange-truth
+authority.
 Each exchange-truth row also includes typed `current_read_evidence` route
 metadata:
 
@@ -299,7 +308,7 @@ backend read-only route evidence only:
 [
   {
     "family": "stealth_recovery_workflow",
-    "command_route": null,
+    "command_route": "/api/v1/stealth/orders/{stealth_order_id}/recovery",
     "current_read_evidence_routes": [
       "GET /api/v1/admin/recovery-gate",
       "GET /api/v1/stealth/orders/{stealth_order_id}",
@@ -340,7 +349,7 @@ backend read-only route evidence only:
   },
   {
     "family": "stealth_reconciliation_workflow",
-    "command_route": null,
+    "command_route": "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
     "current_read_evidence_routes": [
       "GET /api/v1/admin/reconciliation/plans",
       "GET /api/v1/admin/reconciliation/plans/{plan_id}",
@@ -382,9 +391,11 @@ backend read-only route evidence only:
 ]
 ```
 
-These evidence rows do not create recovery or reconciliation command routes,
-write proof records, execute reconciliation, trust browser exchange evidence,
-mutate stealth/order/exchange state, or call Coinbase.
+These evidence rows do not execute recovery or reconciliation, write proof
+records, trust browser exchange evidence, mutate stealth/order/exchange state,
+or call Coinbase. The dedicated recovery and reconciliation command routes
+exist only as live-disabled Admin API contracts until their backend execution
+gates are complete.
 
 Do not treat this response as command approval. It is readiness evidence only.
 It does not create stealth orders, reveal orders, cancel active placements,

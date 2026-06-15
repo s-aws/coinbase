@@ -2620,18 +2620,23 @@ Current backend evidence:
   reconciliation-link evidence, recovery-preview evidence, recovery execution
   journals, repair-result evidence, completion evidence, proof writers, and
   route-bound fail-closed reconciliation execution-boundary evidence.
-- The durable autonomous work queue completed phases 1961-1980 for
-  backend-owned exchange/Coinbase evidence snapshot contract boundaries
-  without adding live Coinbase reads or live execution, and now advances to
-  phases 1981-2000 for M55 stealth command-suite readiness.
+- The durable autonomous work queue completed phases 1981-2260 for M55
+  stealth command-suite readiness, create/reveal/move command drafts,
+  exchange-truth ledgers, detail-route audit evidence, lifecycle-write and
+  proof-route linkage, coverage-gap read-evidence linkage, and
+  exchange-truth read-evidence linkage without adding live Coinbase reads or
+  live execution. It now advances to phases 2261-2280 for route-bound,
+  live-disabled stealth recovery and reconciliation command contracts.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Stealth create, reveal, cancel exchange handling, move revealed, reprice,
-  recovery, reconciliation, and any eventual live execution screens must prove
-  the full approval, cap/guard, admission audit, reconciliation, mutation
-  claim, active-placement exchange truth, live service, and adapter chain
-  through backend-owned contracts before command UI can exist.
+- Stealth recovery and reconciliation now require route-bound live-disabled
+  command contracts before any command UI can exist. Stealth create, reveal,
+  cancel exchange handling, move revealed, reprice, recovery, reconciliation,
+  and any eventual live execution screens must prove the full approval,
+  cap/guard, admission audit, reconciliation, mutation claim,
+  active-placement exchange truth, live service, and adapter chain through
+  backend-owned contracts before execution authority can exist.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
 - Live Coinbase execution and live Coinbase reads remain not run for the

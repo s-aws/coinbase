@@ -5866,6 +5866,238 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders/{stealth_order_id}/recovery:
+    post:
+      tags:
+      - stealth
+      summary: Recover stealth order state by stealth_order_id through the shared
+        command service
+      description: Route adapter for live-disabled stealth recovery by ``stealth_order_id``.
+      operationId: recover_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__recovery_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthRecoveryRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders/{stealth_order_id}/reconciliation:
+    post:
+      tags:
+      - stealth
+      summary: Reconcile stealth order state by stealth_order_id through the shared
+        command service
+      description: Route adapter for live-disabled stealth reconciliation by ``stealth_order_id``.
+      operationId: reconcile_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__reconciliation_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthReconciliationRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     ActionConditionType:
@@ -6654,6 +6886,8 @@ components:
       - stealth_reveal
       - stealth_move
       - stealth_cancel
+      - stealth_recovery
+      - stealth_reconciliation
       - movement_reprice
       - futures_contract_required
       - fill_ledger_repair_contract_required
@@ -6684,6 +6918,8 @@ components:
       - spot_pnl:record
       - spot_recovery:execute
       - spot_recovery:record
+      - stealth_recovery:execute
+      - stealth_reconciliation:execute
       - config:update
       - runtime:pause
       - runtime:resume
@@ -17920,6 +18156,62 @@ components:
         repriced again. Callers must release the claim with ``release`` after
 
         both success and failure paths; there is no terminal ``done`` state.'
+    StealthReconciliationRequest:
+      properties:
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_proof_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reconciliation Proof Id
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      title: StealthReconciliationRequest
+      description: Stealth reconciliation request body keyed by path ``stealth_order_id``.
+    StealthRecoveryRequest:
+      properties:
+        recovery_evidence_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Recovery Evidence Ref
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      title: StealthRecoveryRequest
+      description: Stealth recovery request body keyed by path ``stealth_order_id``.
     StealthRevealRequest:
       properties:
         reason:

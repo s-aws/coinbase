@@ -40,6 +40,16 @@ evidence:
   Coinbase orders, perform cancel/replace, or mutate lifecycle state.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is linked as a
   live-disabled command row.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` is linked as a
+  live-disabled recovery command contract and does not execute recovery
+  repair, rollback, proof writing, Coinbase reads, Coinbase orders,
+  `StealthOrderManager` mutations, local lifecycle mutations, or exchange
+  mutation.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation` is linked
+  as a live-disabled reconciliation command contract and does not execute
+  reconciliation, resolve or write proof records, read Coinbase, submit
+  Coinbase orders, mutate order/lifecycle/exchange state, or grant browser/BFF
+  reconciliation authority.
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice` is
   linked as a live-disabled movement/repricing command row.
 - Workflow gaps remain blocked until backend-owned contracts exist for create
@@ -50,9 +60,10 @@ Every command row remains `live_enabled=false` and `executable=false`. Required
 gates include idempotency, operator intent, payload hash, approval snapshot,
 approval-store contract, admission audit, cap/guard decision, reconciliation
 plan, mutation claim, live execution adapter, live execution service, and
-post-live reconciliation. Move, cancel, and reprice additionally require
-active-placement exchange truth; create and reveal drafts remain blocked on
-lifecycle/trigger evidence before execution can be considered.
+post-live reconciliation. Move, cancel, recovery, reconciliation, and reprice
+additionally require active-placement exchange truth; create and reveal drafts
+remain blocked on lifecycle/trigger evidence before execution can be
+considered.
 Exchange-truth rows also expose typed `current_read_evidence` metadata for
 the existing read routes behind each blocked prerequisite. Those rows name the
 read route, method, permission, shared read-service method, documentation

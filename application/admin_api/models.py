@@ -260,6 +260,29 @@ class StealthMoveRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class StealthRecoveryRequest(BaseModel):
+    """Stealth recovery request body keyed by path ``stealth_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    recovery_evidence_ref: str | None = Field(default=None, min_length=1)
+    reason: str | None = None
+    dry_run: bool = True
+    manual_live_acknowledgement: bool = False
+
+
+class StealthReconciliationRequest(BaseModel):
+    """Stealth reconciliation request body keyed by path ``stealth_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reconciliation_plan_id: str | None = Field(default=None, min_length=1)
+    reconciliation_proof_id: str | None = Field(default=None, min_length=1)
+    reason: str | None = None
+    dry_run: bool = True
+    manual_live_acknowledgement: bool = False
+
+
 class StealthCreateRequest(BaseModel):
     """Stealth create request shape for future gated lifecycle writes."""
 
@@ -509,6 +532,28 @@ class StealthMoveCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthMoveRequest
+    allow_live_execution: bool = False
+
+
+class StealthRecoveryCommand(BaseModel):
+    """Shared service command for live-disabled stealth recovery."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthRecoveryRequest
+    allow_live_execution: bool = False
+
+
+class StealthReconciliationCommand(BaseModel):
+    """Shared service command for live-disabled stealth reconciliation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthReconciliationRequest
     allow_live_execution: bool = False
 
 

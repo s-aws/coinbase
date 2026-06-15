@@ -176,7 +176,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2241-2260"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2261-2280"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -4890,6 +4890,120 @@ class AdminApiReadService:
                 ),
             ),
             functionality_item(
+                workflow_id="stealth.recovery_command_draft",
+                module_id="stealth_orders",
+                module="Stealth Orders",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth recovery is exposed as a live-disabled backend "
+                    "contract keyed by stealth_order_id; it does not execute "
+                    "repair, rollback, Coinbase reads, lifecycle mutation, or "
+                    "reconciliation."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                live_enabled=False,
+                command_routes=[
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/recovery",
+                ],
+                identity_keys=["stealth_order_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::recover_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::recover_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recoverStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Backend stealth recovery contract with active-placement "
+                    "exchange truth, repair/rollback proof, approval, cap/guard, "
+                    "audit, and reconciliation before any state repair can run."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "stealth_recovery_repair_result_contract_missing",
+                    "stealth_recovery_rollback_contract_missing",
+                    "active_placement_exchange_truth_missing",
+                    "reconciliation_proof_missing",
+                ],
+                frontend_boundary=(
+                    "Do not repair stealth state, rollback lifecycle records, "
+                    "read Coinbase, or resolve active placements from the browser."
+                ),
+                spot_rule_boundary=(
+                    "Spot recovery contracts are not reusable authority for "
+                    "stealth recovery; spot guard evidence may apply only through "
+                    "backend gates for spot products."
+                ),
+            ),
+            functionality_item(
+                workflow_id="stealth.reconciliation_command_draft",
+                module_id="stealth_orders",
+                module="Stealth Orders",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth reconciliation is exposed as a live-disabled "
+                    "backend contract keyed by stealth_order_id; it does not "
+                    "execute reconciliation, write proof records, mutate local "
+                    "or exchange state, read Coinbase, or invoke the manager."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                live_enabled=False,
+                command_routes=[
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+                ],
+                identity_keys=["stealth_order_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::reconcile_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reconcile_stealth_order_by_stealth_order_id",
+                    "application/admin_api/reconciliation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::reconcileStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "README.reconciliation-plans.md",
+                ],
+                required_next_contract=(
+                    "Backend stealth reconciliation execution contract with "
+                    "plan/proof resolution, active-placement exchange truth, "
+                    "approval, cap/guard, audit, lifecycle repair policy, and "
+                    "post-execution proof before any reconciliation can run."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "stealth_reconciliation_plan_contract_missing",
+                    "stealth_exchange_evidence_snapshot_contract_missing",
+                    "stealth_reconciliation_executor_missing",
+                    "active_placement_exchange_truth_missing",
+                ],
+                frontend_boundary=(
+                    "Do not execute reconciliation, create proof authority, "
+                    "read Coinbase, or mutate local/exchange state from browser code."
+                ),
+                spot_rule_boundary=(
+                    "Spot reconciliation records are not reusable authority for "
+                    "stealth reconciliation; stealth exchange-reality invariants "
+                    "remain module-specific."
+                ),
+            ),
+            functionality_item(
                 workflow_id="movement.repricing_reads",
                 module_id="movement_repricing",
                 module="Order Movement / Repricing",
@@ -6451,6 +6565,106 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/recovery",
+                mutation_id="stealth.recovery",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_RECOVERY,
+                workflow_id="stealth.recovery_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth recovery is a route-bound local-state recovery "
+                    "draft keyed by stealth_order_id; it does not run repair, "
+                    "rollback, Coinbase read, lifecycle mutation, or reconciliation."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::recover_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::recover_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recoverStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
+                ],
+                required_next_contract=(
+                    "Recovery execution must prove active-placement exchange "
+                    "truth, repair/rollback proof, approval, cap/guard, audit, "
+                    "and reconciliation before any local recovery state changes."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "stealth_recovery_preview_contract_missing",
+                    "stealth_recovery_repair_result_contract_missing",
+                    "stealth_recovery_rollback_contract_missing",
+                    "active placement reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not repair, rollback, read Coinbase, or mutate stealth "
+                    "lifecycle state from the browser."
+                ),
+                spot_rule_boundary=(
+                    "Spot recovery permissions and repair contracts do not "
+                    "generalize to stealth recovery."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+                mutation_id="stealth.reconciliation",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+                workflow_id="stealth.reconciliation_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth reconciliation is a route-bound reconciliation "
+                    "draft keyed by stealth_order_id; it does not execute "
+                    "reconciliation, create proof authority, read Coinbase, or "
+                    "mutate local/exchange state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::reconcile_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reconcile_stealth_order_by_stealth_order_id",
+                    "application/admin_api/reconciliation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::reconcileStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "README.reconciliation-plans.md",
+                ],
+                required_next_contract=(
+                    "Reconciliation execution must prove route-bound plan/proof "
+                    "evidence, active-placement exchange truth, approval, "
+                    "cap/guard, audit, lifecycle repair policy, and post-execution "
+                    "proof before any state transition can be recorded."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "stealth_reconciliation_plan_contract_missing",
+                    "stealth_exchange_evidence_snapshot_contract_missing",
+                    "stealth_reconciliation_executor_missing",
+                    "active placement reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not execute reconciliation, create proof records, read "
+                    "Coinbase, or mutate local/exchange state from the browser."
+                ),
+                spot_rule_boundary=(
+                    "Spot reconciliation records are not stealth reconciliation "
+                    "authority; stealth exchange-reality policy remains separate."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -7884,6 +8098,64 @@ class AdminApiReadService:
                     "changes."
                 ),
             },
+            AdminApiMutationFamilyType.STEALTH_RECOVERY: {
+                "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/recovery",
+                "identity_key": "stealth_order_id",
+                "exchange_truth_required": True,
+                "active_placement_evidence_required": True,
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::recover_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::recover_stealth_order_by_stealth_order_id",
+                    "bridges/stealth_order_bridge.py",
+                    "core/stealth_order_manager.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::recoverStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.admin-api.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Stealth recovery is route-bound by stealth_order_id and "
+                    "currently live-disabled. Future execution must prove "
+                    "active-placement exchange truth, repair/rollback proof, "
+                    "audit, approval, cap/guard, and reconciliation before any "
+                    "local lifecycle recovery state changes."
+                ),
+            },
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION: {
+                "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+                "identity_key": "stealth_order_id",
+                "exchange_truth_required": True,
+                "active_placement_evidence_required": True,
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::reconcile_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reconcile_stealth_order_by_stealth_order_id",
+                    "application/admin_api/reconciliation.py",
+                    "bridges/stealth_order_bridge.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::reconcileStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.reconciliation-plans.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Stealth reconciliation is route-bound by stealth_order_id "
+                    "and currently live-disabled. Future execution must prove "
+                    "plan/proof evidence, active-placement exchange truth, "
+                    "audit, approval, cap/guard, lifecycle repair policy, and "
+                    "post-execution proof before any state transition."
+                ),
+            },
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: {
                 "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 "identity_key": "stealth_order_id",
@@ -8175,6 +8447,8 @@ class AdminApiReadService:
             AdminApiMutationFamilyType.STEALTH_REVEAL: stealth_detail_surfaces,
             AdminApiMutationFamilyType.STEALTH_CANCEL: stealth_detail_surfaces,
             AdminApiMutationFamilyType.STEALTH_MOVE: movement_stealth_surfaces,
+            AdminApiMutationFamilyType.STEALTH_RECOVERY: recovery_surfaces,
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION: reconciliation_surfaces,
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: movement_stealth_surfaces,
         }
         exchange_truth_contracts_by_family = {
@@ -8199,6 +8473,18 @@ class AdminApiReadService:
                 "stealth_move_active_placement_cancel_replace_proof",
                 "stealth_move_mutation_claim_snapshot_contract",
                 "stealth_move_reconciliation_proof",
+            ],
+            AdminApiMutationFamilyType.STEALTH_RECOVERY: [
+                "stealth_recovery_preview_contract",
+                "stealth_recovery_repair_result_contract",
+                "stealth_recovery_rollback_contract",
+                "stealth_recovery_reconciliation_proof",
+            ],
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION: [
+                "stealth_reconciliation_plan_contract",
+                "stealth_exchange_evidence_snapshot_contract",
+                "stealth_reconciliation_executor",
+                "stealth_reconciliation_completion_proof",
             ],
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: [
                 "stealth_reprice_active_placement_cancel_replace_proof",
@@ -8225,6 +8511,16 @@ class AdminApiReadService:
                 "Move must prove mutation-claim ownership and active-placement "
                 "cancel/replace exchange truth before it can call the existing "
                 "move plan or execute path."
+            ),
+            AdminApiMutationFamilyType.STEALTH_RECOVERY: (
+                "Recovery must prove active-placement exchange truth, repair "
+                "and rollback contracts, and reconciliation evidence before any "
+                "local lifecycle recovery action."
+            ),
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION: (
+                "Reconciliation must prove plan/proof evidence and "
+                "active-placement exchange truth before it can compare or repair "
+                "local stealth lifecycle state."
             ),
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: (
                 "Reprice must prove cooldown/claim authority and active-placement "
@@ -8460,14 +8756,15 @@ class AdminApiReadService:
             ),
             StealthCommandSuiteCoverageGapItem(
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/stealth/orders/{stealth_order_id}/recovery",
                 current_read_evidence_routes=recovery_surfaces,
                 current_read_evidence=coverage_gap_evidence_routes(recovery_surfaces),
                 required_backend_contract=(
-                    "Stealth recovery must define backend-owned preview, proof, "
-                    "repair, rollback, audit, active-placement, and reconciliation "
-                    "contracts before any repair action can be exposed."
+                    "Stealth recovery has a route-bound Admin API contract, but "
+                    "still needs backend-owned preview, proof, repair, rollback, "
+                    "audit, active-placement, and reconciliation contracts before "
+                    "any repair action can execute."
                 ),
                 required_gate_chain=gap_required_gate_chain,
                 missing_contracts=[
@@ -8483,19 +8780,21 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Spot recovery contracts do not generalize to stealth. "
-                    "Stealth recovery needs exchange-reality-specific contracts."
+                    "A live-disabled stealth recovery command route exists, but "
+                    "it does not execute repair, rollback, lifecycle mutation, "
+                    "Coinbase reads, or reconciliation."
                 ),
             ),
             StealthCommandSuiteCoverageGapItem(
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
                 current_read_evidence_routes=reconciliation_surfaces,
                 current_read_evidence=coverage_gap_evidence_routes(reconciliation_surfaces),
                 required_backend_contract=(
-                    "Stealth-specific reconciliation execution contract that can "
-                    "compare local stealth lifecycle state with active Coinbase "
+                    "Stealth reconciliation has a route-bound Admin API contract, "
+                    "but still needs a stealth-specific execution contract that "
+                    "can compare local lifecycle state with active Coinbase "
                     "placement evidence without browser or BFF state mutation."
                 ),
                 required_gate_chain=gap_required_gate_chain,
@@ -8511,9 +8810,9 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Generic reconciliation plan records exist, but stealth "
-                    "reconciliation execution is not modeled until active "
-                    "placement evidence and lifecycle repair policy exist."
+                    "A live-disabled stealth reconciliation command route exists, "
+                    "but it does not execute reconciliation, write proof records, "
+                    "read Coinbase, or mutate order/lifecycle/exchange state."
                 ),
             ),
         ]

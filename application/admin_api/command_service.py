@@ -57,6 +57,8 @@ from .models import (
     StealthCancelCommand,
     StealthCreateCommand,
     StealthMoveCommand,
+    StealthRecoveryCommand,
+    StealthReconciliationCommand,
     StealthRevealCommand,
 )
 from .spot_recovery_execution import (
@@ -1067,6 +1069,104 @@ class AdminApiCommandService:
                 "stealth_manager_invoked": False,
                 "cancel_replace_submitted": False,
                 "local_state_mutated": False,
+                "coinbase_order_submitted": False,
+            },
+            failure_stage="approval",
+        )
+
+    def recover_stealth_order_by_stealth_order_id(
+        self,
+        command: StealthRecoveryCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a route-bound stealth recovery command fail-closed.
+
+        Stealth recovery may eventually repair local lifecycle evidence, but
+        this contract is not wired to any repair, rollback, manager, Coinbase,
+        or reconciliation path yet.
+        """
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_RECOVERY_EXECUTE,
+            service_method="recover_stealth_order_by_stealth_order_id",
+            message=(
+                "Stealth recovery requires enterprise auth, idempotency, audit, "
+                "approval, cap/rate gates, active-placement exchange truth, "
+                "repair/rollback contracts, and reconciliation before any "
+                "recovery action can execute."
+            ),
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "stealth_order_id": command.stealth_order_id,
+                "reason": command.request.reason,
+                "recovery_evidence_ref": command.request.recovery_evidence_ref,
+                "dry_run": command.request.dry_run,
+                "manual_live_acknowledgement": (
+                    command.request.manual_live_acknowledgement
+                ),
+                "identity_key": "stealth_order_id",
+                "active_placement_client_order_id": None,
+                "exchange_order_id_evidence_only": True,
+                "stealth_manager_invoked": False,
+                "recovery_repair_executed": False,
+                "rollback_executed": False,
+                "local_state_mutated": False,
+                "exchange_state_mutated": False,
+                "reconciliation_executed": False,
+                "coinbase_rest_read_ran": False,
+                "coinbase_order_submitted": False,
+            },
+            failure_stage="approval",
+        )
+
+    def reconcile_stealth_order_by_stealth_order_id(
+        self,
+        command: StealthReconciliationCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a route-bound stealth reconciliation command fail-closed."""
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE,
+            service_method="reconcile_stealth_order_by_stealth_order_id",
+            message=(
+                "Stealth reconciliation requires enterprise auth, idempotency, "
+                "audit, approval, cap/rate gates, reconciliation plan/proof "
+                "contracts, active-placement exchange truth, and lifecycle "
+                "repair policy before execution."
+            ),
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "stealth_order_id": command.stealth_order_id,
+                "reason": command.request.reason,
+                "reconciliation_plan_id": command.request.reconciliation_plan_id,
+                "reconciliation_proof_id": command.request.reconciliation_proof_id,
+                "dry_run": command.request.dry_run,
+                "manual_live_acknowledgement": (
+                    command.request.manual_live_acknowledgement
+                ),
+                "identity_key": "stealth_order_id",
+                "active_placement_client_order_id": None,
+                "exchange_order_id_evidence_only": True,
+                "reconciliation_plan_resolved": False,
+                "reconciliation_proof_resolved": False,
+                "stealth_manager_invoked": False,
+                "local_state_mutated": False,
+                "exchange_state_mutated": False,
+                "reconciliation_executed": False,
+                "coinbase_rest_read_ran": False,
                 "coinbase_order_submitted": False,
             },
             failure_stage="approval",
