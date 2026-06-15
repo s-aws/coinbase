@@ -2382,6 +2382,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "properties"
     ]
     assert "prerequisite_resolution" in execution_contract_schema["properties"]
+    assert "execution_readiness_stage_count" in execution_contract_schema[
+        "properties"
+    ]
+    assert "execution_readiness_stages" in execution_contract_schema["properties"]
     assert "manager_invocation_ran" in execution_contract_schema["properties"]
     assert "stealth_row_write_ran" in execution_contract_schema["properties"]
     assert "order_parent_write_ran" in execution_contract_schema["properties"]
@@ -2389,6 +2393,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "live_coinbase_read_ran" in execution_contract_schema["properties"]
     assert "reconciliation_executed" in execution_contract_schema["properties"]
     assert "StealthCreateLifecyclePrerequisiteResolverItem" in written[
+        "components"
+    ]["schemas"]
+    assert "StealthCreateLifecycleExecutionReadinessStageItem" in written[
         "components"
     ]["schemas"]
     prerequisite_resolver_schema = written["components"]["schemas"][
@@ -4262,6 +4269,70 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
     ]["lookup_status"] == (
         StealthCreateLifecycleExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY.value
     )
+    stages = execution_contract["execution_readiness_stages"]
+    stages_by_prerequisite = {row["prerequisite"]: row for row in stages}
+    assert execution_contract["execution_readiness_stage_count"] == len(
+        StealthCreateLifecycleExecutionPrerequisite
+    )
+    assert execution_contract["blocked_execution_readiness_stage_count"] == len(
+        StealthCreateLifecycleExecutionPrerequisite
+    )
+    assert execution_contract["passed_execution_readiness_stage_count"] == 0
+    assert [row["stage_order"] for row in stages] == list(
+        range(1, len(stages) + 1)
+    )
+    assert set(stages_by_prerequisite) == {
+        prerequisite.value
+        for prerequisite in StealthCreateLifecycleExecutionPrerequisite
+    }
+    approval_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.APPROVAL_SNAPSHOT.value
+    ]
+    assert approval_stage["workflow_family"] == "stealth_create_workflow"
+    assert approval_stage["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_CREATE.value
+    )
+    assert approval_stage["source"] == approval_resolution["source"]
+    assert approval_stage["route"] == "/api/v1/stealth/orders"
+    assert approval_stage["method"] == "POST"
+    assert approval_stage["identity_key"] == "stealth_order_id"
+    assert approval_stage["identity_value"] == "stealth-create-abc"
+    assert approval_stage["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert approval_stage["status"] == AdminApiGateStatus.BLOCKED.value
+    assert approval_stage["required"] is True
+    assert approval_stage["resolved"] is False
+    assert approval_stage["blocking"] is True
+    assert approval_stage["resolved_evidence_id"] is None
+    assert approval_stage["missing_reason"] == approval_resolution["missing_reason"]
+    assert approval_stage["next_required_contract"] == (
+        "POST /api/v1/admin/approvals/requests"
+    )
+    assert approval_stage["backend_owned"] is True
+    assert approval_stage["route_bound"] is True
+    assert approval_stage["command_context_bound"] is True
+    assert approval_stage["browser_authority"] == "display_only"
+    assert approval_stage["bff_authority"] == "forward_only_no_execution"
+    assert approval_stage["no_live_execution"] is True
+    assert approval_stage["manager_invocation_allowed"] is False
+    assert approval_stage["stealth_row_write_allowed"] is False
+    assert approval_stage["order_parent_write_allowed"] is False
+    assert approval_stage["lifecycle_event_dispatch_allowed"] is False
+    assert approval_stage["coinbase_submit_allowed"] is False
+    assert approval_stage["coinbase_read_allowed"] is False
+    assert approval_stage["state_mutation_allowed"] is False
+    assert approval_stage["reconciliation_execution_allowed"] is False
+    lifecycle_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
+    ]
+    assert lifecycle_stage["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY.value
+    )
+    assert lifecycle_stage["next_required_contract"] == (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "lifecycle-write-guard-proofs"
+    )
     assert execution_contract["prerequisite_resolver_available"] is True
     assert execution_contract["prerequisite_resolver_lookup_ran"] is True
     assert execution_contract["resolved_prerequisites"] == []
@@ -4432,6 +4503,51 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
     assert resolution_by_prerequisite[
         StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
     ]["source"] == POST_WRITE_RECONCILIATION_SOURCE
+    stages = execution_contract["execution_readiness_stages"]
+    stages_by_prerequisite = {row["prerequisite"]: row for row in stages}
+    assert execution_contract["execution_readiness_stage_count"] == len(stages)
+    assert execution_contract["execution_readiness_stage_count"] == len(
+        StealthCreateLifecycleExecutionPrerequisite
+    )
+    assert execution_contract["passed_execution_readiness_stage_count"] == 5
+    assert execution_contract["blocked_execution_readiness_stage_count"] == 3
+    assert [row["stage_order"] for row in stages] == list(
+        range(1, len(stages) + 1)
+    )
+    approval_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.APPROVAL_SNAPSHOT.value
+    ]
+    assert approval_stage["status"] == AdminApiGateStatus.PASSED.value
+    assert approval_stage["resolved"] is True
+    assert approval_stage["blocking"] is False
+    assert approval_stage["resolved_evidence_id"] == "approval-stealth-create-resolved"
+    assert approval_stage["next_required_contract"] == (
+        "POST /api/v1/admin/approvals/requests"
+    )
+    lifecycle_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
+    ]
+    assert lifecycle_stage["status"] == AdminApiGateStatus.PASSED.value
+    assert lifecycle_stage["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert lifecycle_stage["resolved_evidence_id"] == "life-write-proof-create-resolved"
+    assert lifecycle_stage["next_required_contract"] == (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "lifecycle-write-guard-proofs"
+    )
+    live_service_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
+    ]
+    assert live_service_stage["status"] == AdminApiGateStatus.BLOCKED.value
+    assert live_service_stage["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.DISABLED.value
+    )
+    assert live_service_stage["source"] == DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
+    assert live_service_stage["next_required_contract"] == (
+        "application/admin_api/live_execution.py::"
+        "build_live_execution_service_contract"
+    )
     assert execution_contract["lifecycle_write_guard_proof_resolved"] is True
     assert execution_contract["lifecycle_write_guard_proof_lookup_ran"] is True
     assert execution_contract["live_execution_service_source"] == (
@@ -5433,7 +5549,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2781-2800"
+    assert readback_payload["approved_phase_range"] == "2801-2820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -5647,7 +5763,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2781-2800"
+    assert readback_payload["approved_phase_range"] == "2801-2820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7501,7 +7617,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2781-2800"
+    assert readback_payload["approved_phase_range"] == "2801-2820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7716,7 +7832,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2781-2800"
+    assert readback_payload["approved_phase_range"] == "2801-2820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9943,7 +10059,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2781-2800"
+    assert payload["approved_phase_range"] == "2801-2820"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -11765,7 +11881,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2781-2800"
+    assert live_payload["approved_phase_range"] == "2801-2820"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -12328,7 +12444,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2781-2800"
+    assert enterprise_payload["approved_phase_range"] == "2801-2820"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -12926,7 +13042,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2781-2800"
+    assert recovery_preview_payload["approved_phase_range"] == "2801-2820"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

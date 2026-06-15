@@ -397,6 +397,13 @@ workflow family, prerequisite, lookup status, next required backend contract,
 and display/forward-only authority. The stage ledger is not a second
 resolver, live preflight, proof writer, Coinbase verification path, manager
 invocation path, reconciliation executor, or state mutation authority.
+Stealth create responses expose the same ordered stage pattern on
+`stealth_lifecycle_execution_contract.execution_readiness_stages`, derived
+from the existing create prerequisite resolver. Those stage rows are
+create-lifecycle evidence only: they do not invoke `StealthOrderManager`,
+write `stealth_orders` or `order_parent`, dispatch lifecycle events, submit
+or read Coinbase orders, execute reconciliation, or authorize browser/BFF
+execution.
 For stealth reconciliation, the same contract may resolve
 `reconciliation_proof` from
 `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and

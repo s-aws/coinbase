@@ -280,6 +280,12 @@ and display/forward-only authority only. The rows are derived from the
 backend prerequisite resolver and must not become proof lookup, Coinbase
 read/write, manager invocation, recovery/reconciliation execution, state
 mutation, or browser/BFF command authority.
+Stealth create uses
+`stealth_lifecycle_execution_contract.execution_readiness_stages` from the
+separate create lifecycle resolver. Workflows may display those create stage
+rows and no-write flags only; they must not become lifecycle-write authority,
+Coinbase submit/read authority, manager authority, reconciliation authority,
+or browser/BFF execution authority.
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase

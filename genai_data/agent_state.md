@@ -9,8 +9,8 @@ Keep it short. Keep it factual.
 - Updated by: Codex
 - Branch: main
 - Commit (optional): backend/frontend commit hashes pending for active range
-  `2781-2800`; completed range `2761-2780` is backend `b03899b`,
-  frontend `5a41252`.
+  `2801-2820`; completed range `2781-2800` is backend `dad60a1`,
+  frontend `9326546`.
 
 ## Current Objective
 
@@ -38,14 +38,15 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2761-2780`.
-- Latest completed milestone slice: M55 - Command-Specific Proof-Route
-  Contract Evidence.
-- Completed files: backend-owned shared `command_specific_proof_contracts`
-  evidence for exact stealth reveal, move, reprice, recovery, and
-  reconciliation command responses, nullable OpenAPI, frontend schema/mocks,
-  dry-submit rendering, docs/tests, full gates, and contextless review.
-  Stealth cancel keeps an empty command-specific proof list.
+- Latest completed autonomous range: `2781-2800`.
+- Latest completed milestone slice: M55 - Execution-Readiness Stage Ledger.
+- Completed files: backend-owned ordered `execution_readiness_stages`
+  evidence for exact non-create stealth command responses, OpenAPI,
+  frontend schema/mocks, dry-submit rendering, docs/tests, full gates, and
+  contextless review. Stage rows are derived from existing prerequisite
+  resolver output and remain display-only, no-live, no-proof-write,
+  no-manager, no-reconciliation, no-state-mutation, and no browser/BFF
+  authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -219,14 +220,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2781-2800`.
+- Active autonomous range: `2801-2820`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete exact-command
-  `command_specific_proof_contracts` evidence for stealth reveal, move,
-  reprice, recovery, and reconciliation responses by reusing command-suite
-  proof-route contracts, without proof writes, live Coinbase reads/execution,
-  manager invocation, reconciliation execution, state mutation, or frontend
-  authority.
+- Current direction: add stealth create lifecycle-write execution-readiness
+  stage parity by deriving `stealth_lifecycle_execution_contract`
+  `execution_readiness_stages` from the existing create prerequisite resolver,
+  without proof writes, live Coinbase reads/execution, manager invocation,
+  stealth/order row writes, lifecycle event dispatch, reconciliation
+  execution, state mutation, or frontend authority.
 
 ## Decisions (Durable)
 
@@ -541,9 +542,9 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Finish backend/frontend `2781-2800` execution-readiness stage evidence and
-   contextless reviews.
-2. Commit and push the synchronized backend/frontend 2781-2800 stage work,
+1. Finish backend/frontend `2801-2820` stealth create execution-readiness
+   stage parity and contextless reviews.
+2. Commit and push the synchronized backend/frontend 2801-2820 stage work,
    then advance to the next approved M55 slice that closes a real stealth
    command-suite live-enablement gap without enabling live Coinbase execution
    by default.
@@ -664,21 +665,20 @@ Keep it short. Keep it factual.
   no-state-mutation, and no browser/BFF execution authority. Create and
   reveal must not fabricate the nested active-placement exchange-truth
   boundary.
-- What is done through M55 2761-2780: backend and frontend expose
-  `command_specific_proof_contracts` evidence to exact stealth reveal, move,
-  reprice, recovery, and reconciliation command responses by reusing the
-  command-suite proof-route contract shape. The evidence remains blocked,
-  display-only, no-proof-write, no-Coinbase-read, no-manager,
-  no-reconciliation-execution, no-state-mutation, and no browser/BFF
-  execution authority. Stealth cancel keeps an empty command-specific
-  proof-route list.
-- What is active for M55 2781-2800: backend and frontend expose ordered
+- What is done through M55 2781-2800: backend and frontend expose ordered
   `execution_readiness_stages` evidence to exact non-create stealth command
   responses by reusing the existing prerequisite resolver output. The evidence
-  must remain blocked, display-only, no-proof-write, no-Coinbase-read,
+  remains blocked, display-only, no-proof-write, no-Coinbase-read,
   no-manager, no-reconciliation-execution, no-state-mutation, and no
   browser/BFF execution authority.
+- What is active for M55 2801-2820: backend and frontend expose the same
+  ordered readiness-stage pattern for stealth create lifecycle-write
+  execution contracts by deriving rows from the create prerequisite resolver.
+  The evidence must remain display-only, no-proof-write, no-Coinbase-read or
+  submit, no-manager, no stealth/order row write, no lifecycle dispatch,
+  no-reconciliation-execution, no-state-mutation, and no browser/BFF
+  execution authority.
 - What is blocked: Nothing currently known.
-- Exact next command: finish backend/frontend 2781-2800 gates, run
+- Exact next command: finish backend/frontend 2801-2820 gates, run
   contextless reviews, commit and push both repos, then advance to the next
   approved M55 slice.

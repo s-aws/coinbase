@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiGateStatus,
     AdminApiMutationFamilyType,
+    AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
     StealthCreateLifecycleExecutionBlocker,
     StealthCreateLifecycleExecutionPrerequisite,
@@ -13,6 +15,7 @@ from core.enums import (
 
 from .models import (
     AdminLiveAdmissionDecisionEvidence,
+    StealthCreateLifecycleExecutionReadinessStageItem,
     StealthCreateLifecyclePrerequisiteResolverItem,
     StealthCreateLifecycleWriteExecutionContractEvidence,
 )
@@ -60,6 +63,39 @@ REQUIRED_CREATE_EXECUTION_PREREQUISITES: tuple[str, ...] = (
     StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
     StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
 )
+
+NEXT_REQUIRED_CREATE_CONTRACT_BY_PREREQUISITE: dict[
+    StealthCreateLifecycleExecutionPrerequisite,
+    str,
+] = {
+    StealthCreateLifecycleExecutionPrerequisite.APPROVAL_SNAPSHOT: (
+        "POST /api/v1/admin/approvals/requests"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.ADMISSION_AUDIT: (
+        "POST /api/v1/admin/admission-audits"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.CAP_GUARD_DECISION: (
+        "POST /api/v1/admin/cap-guard/decisions"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.RECONCILIATION_PLAN: (
+        "POST /api/v1/admin/reconciliation/plans"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "lifecycle-write-guard-proofs"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE: (
+        "application/admin_api/live_execution.py::"
+        "build_live_execution_service_contract"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER: (
+        "application/admin_api/live_execution.py::"
+        "build_live_execution_adapter_contract"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION: (
+        "POST /api/v1/admin/reconciliation/plans"
+    ),
+}
 
 BASE_CREATE_EXECUTION_BLOCKERS: tuple[str, ...] = (
     StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING.value,
@@ -115,6 +151,9 @@ def build_stealth_create_lifecycle_write_execution_contract(
         blockers.append(
             StealthCreateLifecycleExecutionBlocker.EXACT_COMMAND_CONTEXT_MISSING.value
         )
+    execution_readiness_stages = _build_execution_readiness_stages(
+        resolution=resolution,
+    )
 
     return StealthCreateLifecycleWriteExecutionContractEvidence(
         stealth_order_id=stealth_order_id,
@@ -134,6 +173,14 @@ def build_stealth_create_lifecycle_write_execution_contract(
         prerequisite_resolver_available=True,
         prerequisite_resolver_lookup_ran=any(item.lookup_ran for item in resolution),
         prerequisite_resolution=resolution,
+        execution_readiness_stage_count=len(execution_readiness_stages),
+        blocked_execution_readiness_stage_count=sum(
+            1 for item in execution_readiness_stages if item.blocking
+        ),
+        passed_execution_readiness_stage_count=sum(
+            1 for item in execution_readiness_stages if item.resolved
+        ),
+        execution_readiness_stages=execution_readiness_stages,
         blockers=blockers,
         lifecycle_write_guard_proof_resolved=(
             StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
@@ -233,6 +280,58 @@ def build_stealth_create_lifecycle_write_execution_contract(
             "adapter, and post-write reconciliation evidence are all present."
         ),
     )
+
+
+def _build_execution_readiness_stages(
+    *,
+    resolution: list[StealthCreateLifecyclePrerequisiteResolverItem],
+) -> list[StealthCreateLifecycleExecutionReadinessStageItem]:
+    """Summarize stealth create prerequisites as ordered no-live stages."""
+
+    resolution_by_prerequisite = {item.prerequisite: item for item in resolution}
+    stages: list[StealthCreateLifecycleExecutionReadinessStageItem] = []
+    for stage_order, prerequisite in enumerate(
+        StealthCreateLifecycleExecutionPrerequisite,
+        start=1,
+    ):
+        item = resolution_by_prerequisite[prerequisite]
+        stages.append(
+            StealthCreateLifecycleExecutionReadinessStageItem(
+                stage_order=stage_order,
+                workflow_family=(
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW
+                ),
+                mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+                prerequisite=prerequisite,
+                source=item.source,
+                route=item.route,
+                method=item.method,
+                identity_key=item.identity_key,
+                identity_value=item.identity_value,
+                lookup_status=item.lookup_status,
+                status=(
+                    AdminApiGateStatus.PASSED
+                    if item.resolved
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                required=True,
+                resolved=item.resolved,
+                blocking=not item.resolved,
+                resolved_evidence_id=item.resolved_evidence_id,
+                missing_reason=item.missing_reason,
+                next_required_contract=(
+                    NEXT_REQUIRED_CREATE_CONTRACT_BY_PREREQUISITE[prerequisite]
+                ),
+                detail=(
+                    f"{prerequisite.value} stage for stealth_create remains "
+                    f"{'resolved' if item.resolved else 'blocked'}; this "
+                    "stage is evidence only and does not invoke the stealth "
+                    "manager, write lifecycle rows, call Coinbase, or mutate "
+                    "state."
+                ),
+            )
+        )
+    return stages
 
 
 def _build_prerequisite_resolution(

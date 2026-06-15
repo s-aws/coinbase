@@ -21849,6 +21849,141 @@ components:
       - unavailable
       title: StealthCreateLifecycleExecutionPrerequisiteLookupStatus
       description: Read-only lookup status for stealth create execution prerequisites.
+    StealthCreateLifecycleExecutionReadinessStageItem:
+      properties:
+        stage_order:
+          type: integer
+          minimum: 1.0
+          title: Stage Order
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+          default: stealth_create_workflow
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          default: stealth_create
+        prerequisite:
+          $ref: '#/components/schemas/StealthCreateLifecycleExecutionPrerequisite'
+        source:
+          type: string
+          minLength: 1
+          title: Source
+        route:
+          type: string
+          title: Route
+          default: /api/v1/stealth/orders
+        method:
+          type: string
+          title: Method
+          default: POST
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
+        lookup_status:
+          $ref: '#/components/schemas/StealthCreateLifecycleExecutionPrerequisiteLookupStatus'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        resolved_evidence_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Evidence Id
+        missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Missing Reason
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        stealth_row_write_allowed:
+          type: boolean
+          title: Stealth Row Write Allowed
+          default: false
+        order_parent_write_allowed:
+          type: boolean
+          title: Order Parent Write Allowed
+          default: false
+        lifecycle_event_dispatch_allowed:
+          type: boolean
+          title: Lifecycle Event Dispatch Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - stage_order
+      - prerequisite
+      - source
+      - lookup_status
+      - next_required_contract
+      - detail
+      title: StealthCreateLifecycleExecutionReadinessStageItem
+      description: Ordered fail-closed stage evidence before stealth create execution.
     StealthCreateLifecyclePrerequisiteResolverItem:
       properties:
         prerequisite:
@@ -22218,6 +22353,26 @@ components:
             $ref: '#/components/schemas/StealthCreateLifecyclePrerequisiteResolverItem'
           type: array
           title: Prerequisite Resolution
+        execution_readiness_stage_count:
+          type: integer
+          minimum: 0.0
+          title: Execution Readiness Stage Count
+          default: 0
+        blocked_execution_readiness_stage_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Execution Readiness Stage Count
+          default: 0
+        passed_execution_readiness_stage_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Execution Readiness Stage Count
+          default: 0
+        execution_readiness_stages:
+          items:
+            $ref: '#/components/schemas/StealthCreateLifecycleExecutionReadinessStageItem'
+          type: array
+          title: Execution Readiness Stages
         blockers:
           items:
             type: string

@@ -2709,20 +2709,23 @@ Current backend evidence:
   command-suite exchange-truth builder. The completed phases 2761-2780
   exposed command-specific proof-route contracts on exact stealth reveal,
   move, reprice, recovery, and reconciliation command responses by reusing the
-  command-suite proof-route shape. It now advances to phases 2781-2800 to
-  expose ordered execution-readiness stages derived from exact command
-  prerequisite resolver evidence.
+  command-suite proof-route shape. The completed phases 2781-2800 exposed
+  ordered execution-readiness stages derived from exact non-create command
+  prerequisite resolver evidence. It now advances to phases 2801-2820 to add
+  the same ordered execution-readiness stage parity to the separate stealth
+  create lifecycle-write execution contract.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Execution-readiness stage evidence for exact stealth command responses is
-  the active 2781-2800 slice. This evidence may explain ordered approval,
-  audit, cap/guard, reconciliation, exchange-truth, proof, disabled live
-  service, adapter, and post-write stages, but it must not record proofs,
-  resolve proof authority through the frontend, read Coinbase, execute
-  cancel/replace, build move/reprice plans, invoke managers, mutate state,
-  execute recovery or reconciliation, resolve disabled prerequisites, or grant
-  browser/BFF authority.
+- Execution-readiness stage parity for stealth create lifecycle-write
+  contracts is the active 2801-2820 slice. This evidence may explain ordered
+  approval, audit, cap/guard, reconciliation-plan, lifecycle-write guard
+  proof, disabled live service, disabled adapter, and post-write
+  reconciliation stages, but it must not record proofs, resolve proof
+  authority through the frontend, read Coinbase, submit Coinbase orders, write
+  `stealth_orders` or `order_parent`, dispatch lifecycle events, invoke
+  managers, mutate state, execute reconciliation, resolve disabled
+  prerequisites, or grant browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
   and post-write reconciliation execution remain blocked.

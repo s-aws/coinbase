@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2781-2800",
+  "approved_phase_range": "2801-2820",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -255,6 +255,11 @@ status, next required contract, and no-live authority boundary. They are
 display-only evidence; they do not record proofs, read Coinbase, invoke
 managers, execute recovery/reconciliation, mutate state, or authorize
 browser/BFF execution.
+Stealth create dry-submit responses expose the same stage pattern under
+`stealth_lifecycle_execution_contract.execution_readiness_stages`. These rows
+show the create prerequisite chain and no-write/no-live posture, but they do
+not authorize lifecycle writes, Coinbase submit/read, reconciliation
+execution, manager invocation, or browser/BFF execution.
 
 Reveal, move, reprice, recovery, and reconciliation responses use the same
 field for their command-specific blocked proof routes. For reveal:

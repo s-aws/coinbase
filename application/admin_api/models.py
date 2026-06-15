@@ -5393,6 +5393,47 @@ class StealthCreateLifecyclePrerequisiteResolverItem(BaseModel):
     detail: str
 
 
+class StealthCreateLifecycleExecutionReadinessStageItem(BaseModel):
+    """Ordered fail-closed stage evidence before stealth create execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage_order: int = Field(ge=1)
+    workflow_family: AdminApiStealthCommandSuiteGapFamily = (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW
+    )
+    mutation_family: AdminApiMutationFamilyType = AdminApiMutationFamilyType.STEALTH_CREATE
+    prerequisite: StealthCreateLifecycleExecutionPrerequisite
+    source: str = Field(min_length=1)
+    route: str = "/api/v1/stealth/orders"
+    method: str = "POST"
+    identity_key: str = "stealth_order_id"
+    identity_value: str | None = None
+    lookup_status: StealthCreateLifecycleExecutionPrerequisiteLookupStatus
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    resolved: bool = False
+    blocking: bool = True
+    resolved_evidence_id: str | None = None
+    missing_reason: str | None = None
+    next_required_contract: str
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    no_live_execution: bool = True
+    manager_invocation_allowed: bool = False
+    stealth_row_write_allowed: bool = False
+    order_parent_write_allowed: bool = False
+    lifecycle_event_dispatch_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    state_mutation_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    detail: str
+
+
 class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     """No-live execution-contract boundary evidence for stealth create."""
 
@@ -5421,6 +5462,12 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     prerequisite_resolver_authority: str = "read_only_no_execution"
     prerequisite_resolution: list[
         StealthCreateLifecyclePrerequisiteResolverItem
+    ] = Field(default_factory=list)
+    execution_readiness_stage_count: int = Field(default=0, ge=0)
+    blocked_execution_readiness_stage_count: int = Field(default=0, ge=0)
+    passed_execution_readiness_stage_count: int = Field(default=0, ge=0)
+    execution_readiness_stages: list[
+        StealthCreateLifecycleExecutionReadinessStageItem
     ] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
     lifecycle_write_guard_proof_required: bool = True

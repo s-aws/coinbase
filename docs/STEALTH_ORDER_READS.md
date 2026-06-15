@@ -99,6 +99,12 @@ next required backend contract, and no-live authority boundary. They are
 display-only evidence and do not record proofs, query Coinbase, execute
 cancel/replace, invoke managers, execute recovery/reconciliation, mutate
 state, or authorize browser/BFF execution.
+Stealth create exposes the same ordered stage shape on
+`stealth_lifecycle_execution_contract.execution_readiness_stages`, derived
+from the create lifecycle prerequisite resolver. It is display-only
+create-lifecycle evidence and does not authorize stealth row writes,
+`order_parent` writes, lifecycle event dispatch, Coinbase submit/read,
+reconciliation execution, or browser/BFF execution.
 
 The command-suite response also reports `admission_readiness` rows. This
 ledger binds each stealth command route to the backend evidence that must
