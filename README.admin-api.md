@@ -368,6 +368,14 @@ context and return the found proof id as fail-closed evidence. The resolver
 still reports `post_write_reconciliation_proof_not_sufficient` and keeps
 `post_write_reconciliation` unresolved until a future approved backend phase
 accepts the execution journal and verifies reconciliation.
+Both create and non-create execution contracts also expose
+`post_write_completion_verifier_contract`. It is backend-owned, route-bound,
+blocked, and display-only. A safe proof id may be present, but the verifier
+still lists `accepted_execution_journal` and
+`verified_post_write_reconciliation` as missing evidence and reports no
+manager invocation, Coinbase submit/cancel/read, reconciliation execution,
+cancel/replace, lifecycle/order/exchange mutation, browser authority, or BFF
+execution authority.
 Both contracts also expose `live_execution_adapter_contract`, a nested
 route-bound adapter evidence object produced by the shared backend
 `build_live_execution_adapter_contract` helper. It names the

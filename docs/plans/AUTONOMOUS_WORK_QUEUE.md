@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2841-2860**.
+- Approved phase range: **2861-2880**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,99 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2841-2860
+## Active Phases 2861-2880
+
+These phases continue M55 after resolver awareness by adding an explicit
+backend-owned post-write completion verifier. The verifier must show that a
+found post-write proof id is not completion authority until an accepted
+execution journal and verified post-write reconciliation are separately
+present. This batch remains no-live and no-execution: no execution-journal
+acceptance, no reconciliation verification, no Coinbase submit/read/cancel,
+no manager invocation, no active-placement cancel/replace, no lifecycle/order/
+exchange state mutation, no browser/BFF authority, and no execution
+prerequisite satisfaction from proof evidence alone.
+
+### Phase 2861 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2841-2860 to active phases 2861-2880 while preserving no-live defaults and cap policy.
+
+### Phase 2862 - Prior Range Completion Evidence
+
+- Record phases 2841-2860 as completed resolver-awareness work with found proof evidence still blocked, unresolved, and no-authority.
+
+### Phase 2863 - Completion Verifier Model
+
+- Add a typed post-write completion verifier contract that names safe proof, accepted execution journal, and verified reconciliation as required evidence.
+
+### Phase 2864 - Shared Proof Safety Predicate
+
+- Centralize post-write proof no-live/no-mutation safety checks so create and non-create paths use one predicate.
+
+### Phase 2865 - Completion Verifier Builder
+
+- Build fail-closed verifier evidence from exact command context and optional proof records without accepting journals, verifying reconciliation, or mutating state.
+
+### Phase 2866 - Non-Create Contract Wiring
+
+- Attach the verifier to non-create stealth execution contracts while keeping `post_write_reconciliation` unresolved.
+
+### Phase 2867 - Create Contract Wiring
+
+- Attach the verifier to stealth create lifecycle-write execution contracts while keeping create execution blocked.
+
+### Phase 2868 - Missing Evidence Semantics
+
+- Report missing `accepted_execution_journal` and `verified_post_write_reconciliation` even when a safe proof id is found.
+
+### Phase 2869 - No-Live Authority Flags
+
+- Expose verifier no-run flags for managers, Coinbase submit/cancel/read, cancel/replace, reconciliation execution, and state mutation.
+
+### Phase 2870 - OpenAPI Contract Sync
+
+- Regenerate and assert the Admin API OpenAPI schema includes the verifier model and nested contract fields.
+
+### Phase 2871 - Backend Regression Coverage
+
+- Cover create and non-create exact-context proof scenarios so the verifier remains blocked and proof evidence cannot satisfy execution.
+
+### Phase 2872 - Frontend Schema Sync
+
+- Regenerate frontend API types from the backend OpenAPI artifact without hand-editing generated code.
+
+### Phase 2873 - Frontend Mock Contract Intake
+
+- Update frontend mock create and non-create contracts with the completion verifier shape.
+
+### Phase 2874 - Dry-Submit Verifier Display
+
+- Render completion verifier status, missing evidence, journal/verification status, no-run proof, mutation flags, and authority.
+
+### Phase 2875 - Frontend Unit Coverage
+
+- Cover verifier display and mock contract semantics in focused unit tests.
+
+### Phase 2876 - Documentation And Handoff Sync
+
+- Update Admin API, command workflow, frontend API/mock docs, handoff, roadmap, and agent-state docs for completion verifier semantics.
+
+### Phase 2877 - Artifact And Validator Sync
+
+- Update release readiness, deployment readiness, autonomous queue artifacts, examples, and tests for phases 2861-2880.
+
+### Phase 2878 - Focused Gates
+
+- Run focused backend and frontend tests for verifier contracts, generated schema, mocks, rendering, and autonomous validators.
+
+### Phase 2879 - Blind Contextless Reviews
+
+- Run blind/contextless backend and frontend reviews asking whether a fresh agent can explain why the verifier stays blocked until accepted journal plus verified reconciliation.
+
+### Phase 2880 - Full Gates, Commit, Push, And Pause
+
+- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless review remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then pause for user restart.
+
+## Completed Phases 2841-2860
 
 These phases continue M55 after durable post-write reconciliation proof
 recording and readback. The next explicit gap is that create and non-create

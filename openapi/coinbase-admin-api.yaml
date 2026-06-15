@@ -20517,6 +20517,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthPostWriteReconciliationBoundaryEvidence'
           - type: 'null'
+        post_write_completion_verifier_contract:
+          anyOf:
+          - $ref: '#/components/schemas/StealthPostWriteReconciliationCompletionVerifierEvidence'
+          - type: 'null'
         canonical_execution_path:
           items:
             type: string
@@ -22661,6 +22665,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthPostWriteReconciliationBoundaryEvidence'
           - type: 'null'
+        post_write_completion_verifier_contract:
+          anyOf:
+          - $ref: '#/components/schemas/StealthPostWriteReconciliationCompletionVerifierEvidence'
+          - type: 'null'
         canonical_execution_path:
           items:
             type: string
@@ -24263,6 +24271,247 @@ components:
       - detail
       title: StealthPostWriteReconciliationBoundaryEvidence
       description: Fail-closed post-write reconciliation boundary for stealth commands.
+    StealthPostWriteReconciliationCompletionVerifierEvidence:
+      properties:
+        boundary_type:
+          type: string
+          title: Boundary Type
+          default: stealth_post_write_reconciliation_completion_verifier
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        command_route:
+          type: string
+          title: Command Route
+        command_method:
+          type: string
+          title: Command Method
+          default: POST
+        service_method:
+          type: string
+          title: Service Method
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        stealth_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: false
+        payload_bound:
+          type: boolean
+          title: Payload Bound
+          default: false
+        idempotency_bound:
+          type: boolean
+          title: Idempotency Bound
+          default: false
+        operator_intent_bound:
+          type: boolean
+          title: Operator Intent Bound
+          default: false
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        payload_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payload Hash
+        operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Intent
+        proof_lookup_authority:
+          type: string
+          title: Proof Lookup Authority
+          default: backend_store_read_only_no_execution
+        post_write_reconciliation_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Post Write Reconciliation Proof Id
+        post_write_proof_found:
+          type: boolean
+          title: Post Write Proof Found
+          default: false
+        post_write_proof_safe:
+          type: boolean
+          title: Post Write Proof Safe
+          default: false
+        safe_post_write_proof_required:
+          type: boolean
+          title: Safe Post Write Proof Required
+          default: true
+        execution_journal_required:
+          type: boolean
+          title: Execution Journal Required
+          default: true
+        execution_journal_accepted:
+          type: boolean
+          title: Execution Journal Accepted
+          default: false
+        reconciliation_verification_required:
+          type: boolean
+          title: Reconciliation Verification Required
+          default: true
+        post_write_reconciliation_verified:
+          type: boolean
+          title: Post Write Reconciliation Verified
+          default: false
+        completion_proof_required:
+          type: boolean
+          title: Completion Proof Required
+          default: true
+        completion_proof_recorded:
+          type: boolean
+          title: Completion Proof Recorded
+          default: false
+        required_evidence:
+          items:
+            type: string
+          type: array
+          title: Required Evidence
+        missing_evidence:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        coinbase_order_submit_allowed:
+          type: boolean
+          title: Coinbase Order Submit Allowed
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_allowed:
+          type: boolean
+          title: Coinbase Order Cancel Allowed
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_coinbase_read_allowed:
+          type: boolean
+          title: Live Coinbase Read Allowed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        active_placement_cancel_replace_allowed:
+          type: boolean
+          title: Active Placement Cancel Replace Allowed
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        lifecycle_state_mutation_allowed:
+          type: boolean
+          title: Lifecycle State Mutation Allowed
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        order_state_mutation_allowed:
+          type: boolean
+          title: Order State Mutation Allowed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutation_allowed:
+          type: boolean
+          title: Exchange State Mutation Allowed
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        execution_boundary_authority:
+          type: string
+          title: Execution Boundary Authority
+          default: backend_contract_only_no_execution
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - command_route
+      - service_method
+      - detail
+      title: StealthPostWriteReconciliationCompletionVerifierEvidence
+      description: Fail-closed completion verifier for stealth post-write reconciliation.
     StealthPostWriteReconciliationEvidenceSource:
       type: string
       enum:

@@ -5407,6 +5407,70 @@ class StealthPostWriteReconciliationBoundaryEvidence(BaseModel):
     detail: str
 
 
+class StealthPostWriteReconciliationCompletionVerifierEvidence(BaseModel):
+    """Fail-closed completion verifier for stealth post-write reconciliation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    boundary_type: str = "stealth_post_write_reconciliation_completion_verifier"
+    mutation_family: AdminApiMutationFamilyType
+    command_route: str
+    command_method: str = "POST"
+    service_method: str
+    identity_key: str = "stealth_order_id"
+    stealth_order_id: str | None = None
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    resolved: bool = False
+    blocking: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = False
+    payload_bound: bool = False
+    idempotency_bound: bool = False
+    operator_intent_bound: bool = False
+    idempotency_key: str | None = None
+    payload_hash: str | None = None
+    operator_intent: str | None = None
+    proof_lookup_authority: str = "backend_store_read_only_no_execution"
+    post_write_reconciliation_proof_id: str | None = None
+    post_write_proof_found: bool = False
+    post_write_proof_safe: bool = False
+    safe_post_write_proof_required: bool = True
+    execution_journal_required: bool = True
+    execution_journal_accepted: bool = False
+    reconciliation_verification_required: bool = True
+    post_write_reconciliation_verified: bool = False
+    completion_proof_required: bool = True
+    completion_proof_recorded: bool = False
+    required_evidence: list[str] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    execution_allowed: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    coinbase_order_submit_allowed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_allowed: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    lifecycle_state_mutation_allowed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutation_allowed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutation_allowed: bool = False
+    exchange_state_mutated: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    execution_boundary_authority: str = "backend_contract_only_no_execution"
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class StealthCommandExecutionContractEvidence(BaseModel):
     """No-live execution posture evidence for non-create stealth commands."""
 
@@ -5496,6 +5560,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     )
     post_write_reconciliation_boundary: (
         StealthPostWriteReconciliationBoundaryEvidence | None
+    ) = None
+    post_write_completion_verifier_contract: (
+        StealthPostWriteReconciliationCompletionVerifierEvidence | None
     ) = None
     canonical_execution_path: list[str] = Field(default_factory=list)
     execution_boundary_authority: str = "backend_contract_only_no_execution"
@@ -5664,6 +5731,9 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     )
     post_write_reconciliation_boundary: (
         StealthPostWriteReconciliationBoundaryEvidence | None
+    ) = None
+    post_write_completion_verifier_contract: (
+        StealthPostWriteReconciliationCompletionVerifierEvidence | None
     ) = None
     canonical_execution_path: list[str] = Field(default_factory=list)
     execution_boundary_authority: str = "backend_contract_only_no_execution"

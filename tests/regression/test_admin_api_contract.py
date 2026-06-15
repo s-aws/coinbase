@@ -2458,6 +2458,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "command_specific_proof_contracts" in stealth_command_execution_schema[
         "properties"
     ]
+    assert "post_write_completion_verifier_contract" in (
+        stealth_command_execution_schema["properties"]
+    )
     assert "manager_invocation_ran" in stealth_command_execution_schema["properties"]
     assert "coinbase_order_cancel_submitted" in stealth_command_execution_schema[
         "properties"
@@ -2491,6 +2494,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "properties"
     ]
     assert "execution_readiness_stages" in execution_contract_schema["properties"]
+    assert "post_write_completion_verifier_contract" in (
+        execution_contract_schema["properties"]
+    )
     assert "manager_invocation_ran" in execution_contract_schema["properties"]
     assert "stealth_row_write_ran" in execution_contract_schema["properties"]
     assert "order_parent_write_ran" in execution_contract_schema["properties"]
@@ -2503,6 +2509,21 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "StealthCreateLifecycleExecutionReadinessStageItem" in written[
         "components"
     ]["schemas"]
+    assert "StealthPostWriteReconciliationCompletionVerifierEvidence" in written[
+        "components"
+    ]["schemas"]
+    completion_verifier_schema = written["components"]["schemas"][
+        "StealthPostWriteReconciliationCompletionVerifierEvidence"
+    ]
+    assert "post_write_reconciliation_proof_id" in completion_verifier_schema[
+        "properties"
+    ]
+    assert "execution_journal_accepted" in completion_verifier_schema["properties"]
+    assert "post_write_reconciliation_verified" in completion_verifier_schema[
+        "properties"
+    ]
+    assert "missing_evidence" in completion_verifier_schema["properties"]
+    assert "execution_allowed" in completion_verifier_schema["properties"]
     prerequisite_resolver_schema = written["components"]["schemas"][
         "StealthCreateLifecyclePrerequisiteResolverItem"
     ]
@@ -3757,6 +3778,90 @@ def _assert_stealth_post_write_reconciliation_boundary(
     )
 
 
+def _assert_stealth_post_write_completion_verifier(
+    verifier: dict,
+    *,
+    mutation_family: str,
+    route: str,
+    service_method: str,
+    identity_value: str | None,
+    proof_id: str | None,
+    exact_context_present: bool,
+    proof_safe: bool = True,
+) -> None:
+    assert verifier["boundary_type"] == (
+        "stealth_post_write_reconciliation_completion_verifier"
+    )
+    assert verifier["mutation_family"] == mutation_family
+    assert verifier["command_route"] == route
+    assert verifier["command_method"] == "POST"
+    assert verifier["service_method"] == service_method
+    assert verifier["identity_key"] == "stealth_order_id"
+    assert verifier["stealth_order_id"] == identity_value
+    assert verifier["status"] == AdminApiGateStatus.BLOCKED.value
+    assert verifier["required"] is True
+    assert verifier["resolved"] is False
+    assert verifier["blocking"] is True
+    assert verifier["backend_owned"] is True
+    assert verifier["route_bound"] is True
+    assert verifier["command_context_bound"] is exact_context_present
+    assert verifier["payload_bound"] is exact_context_present
+    assert verifier["idempotency_bound"] is exact_context_present
+    assert verifier["operator_intent_bound"] is exact_context_present
+    assert verifier["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
+    assert verifier["post_write_reconciliation_proof_id"] == proof_id
+    assert verifier["post_write_proof_found"] is (proof_id is not None)
+    assert verifier["post_write_proof_safe"] is proof_safe
+    assert verifier["safe_post_write_proof_required"] is True
+    assert verifier["execution_journal_required"] is True
+    assert verifier["execution_journal_accepted"] is False
+    assert verifier["reconciliation_verification_required"] is True
+    assert verifier["post_write_reconciliation_verified"] is False
+    assert verifier["completion_proof_required"] is True
+    assert verifier["completion_proof_recorded"] is (proof_id is not None)
+    assert verifier["required_evidence"] == [
+        "safe_post_write_reconciliation_proof",
+        "accepted_execution_journal",
+        "verified_post_write_reconciliation",
+    ]
+    expected_missing = [
+        "accepted_execution_journal",
+        "verified_post_write_reconciliation",
+    ]
+    if not proof_safe:
+        expected_missing = [
+            "safe_post_write_reconciliation_proof",
+            *expected_missing,
+        ]
+    assert verifier["missing_evidence"] == expected_missing
+    assert verifier["execution_allowed"] is False
+    assert verifier["manager_invocation_allowed"] is False
+    assert verifier["manager_invocation_ran"] is False
+    assert verifier["coinbase_order_submit_allowed"] is False
+    assert verifier["coinbase_order_submitted"] is False
+    assert verifier["coinbase_order_cancel_allowed"] is False
+    assert verifier["coinbase_order_cancel_submitted"] is False
+    assert verifier["live_coinbase_read_allowed"] is False
+    assert verifier["live_coinbase_read_ran"] is False
+    assert verifier["active_placement_cancel_replace_allowed"] is False
+    assert verifier["active_placement_cancel_replace_ran"] is False
+    assert verifier["reconciliation_execution_allowed"] is False
+    assert verifier["reconciliation_executed"] is False
+    assert verifier["lifecycle_state_mutation_allowed"] is False
+    assert verifier["lifecycle_state_mutated"] is False
+    assert verifier["order_state_mutation_allowed"] is False
+    assert verifier["order_state_mutated"] is False
+    assert verifier["exchange_state_mutation_allowed"] is False
+    assert verifier["exchange_state_mutated"] is False
+    assert verifier["browser_authority"] == "display_only"
+    assert verifier["bff_authority"] == "forward_only_no_execution"
+    assert verifier["execution_boundary_authority"] == (
+        EXECUTION_BOUNDARY_AUTHORITY
+    )
+
+
 def _assert_stealth_live_execution_adapter_contract(
     adapter: dict,
     *,
@@ -4774,6 +4879,15 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         route="/api/v1/stealth/orders",
         service_method="create_stealth_order",
         identity_value=body["stealth_order_id"],
+        exact_context_present=True,
+    )
+    _assert_stealth_post_write_completion_verifier(
+        execution_contract["post_write_completion_verifier_contract"],
+        mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE.value,
+        route="/api/v1/stealth/orders",
+        service_method="create_stealth_order",
+        identity_value=body["stealth_order_id"],
+        proof_id="post-write-proof-create-exact-context",
         exact_context_present=True,
     )
     assert execution_contract["canonical_execution_path"] == [
@@ -5866,7 +5980,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2841-2860"
+    assert readback_payload["approved_phase_range"] == "2861-2880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -6080,7 +6194,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2841-2860"
+    assert readback_payload["approved_phase_range"] == "2861-2880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7585,6 +7699,15 @@ def test_admin_api_stealth_reconciliation_execution_contract_resolves_proof(
     assert post_write_reconciliation["proof_lookup_authority"] == (
         "backend_store_read_only_no_execution"
     )
+    _assert_stealth_post_write_completion_verifier(
+        contract["post_write_completion_verifier_contract"],
+        mutation_family=AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
+        route=route,
+        service_method="reconcile_stealth_order_by_stealth_order_id",
+        identity_value=stealth_order_id,
+        proof_id="post-write-proof-reconciliation-exact-context",
+        exact_context_present=True,
+    )
     assert (
         StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
         in contract["missing_prerequisites"]
@@ -8371,7 +8494,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2841-2860"
+    assert readback_payload["approved_phase_range"] == "2861-2880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -8586,7 +8709,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2841-2860"
+    assert readback_payload["approved_phase_range"] == "2861-2880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10813,7 +10936,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2841-2860"
+    assert payload["approved_phase_range"] == "2861-2880"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -12635,7 +12758,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2841-2860"
+    assert live_payload["approved_phase_range"] == "2861-2880"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -13198,7 +13321,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2841-2860"
+    assert enterprise_payload["approved_phase_range"] == "2861-2880"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -13796,7 +13919,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2841-2860"
+    assert recovery_preview_payload["approved_phase_range"] == "2861-2880"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

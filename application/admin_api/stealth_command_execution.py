@@ -67,7 +67,9 @@ from .stealth_exchange_truth_boundary import (
 from .stealth_post_write_reconciliation import (
     FileStealthPostWriteReconciliationProofStore,
     StealthPostWriteReconciliationProofRecord,
+    build_stealth_post_write_completion_verifier_contract,
     build_stealth_post_write_reconciliation_boundary,
+    is_safe_stealth_post_write_reconciliation_proof_record,
 )
 
 
@@ -365,6 +367,15 @@ def build_stealth_command_execution_contract(
         metadata=metadata,
         resolution=resolution,
     )
+    post_write_reconciliation_proof_record = (
+        _find_matching_post_write_reconciliation_proof(
+            store=stealth_post_write_reconciliation_proof_store,
+            metadata=metadata,
+            admission_decision=admission_decision,
+        )
+        if stealth_post_write_reconciliation_proof_store is not None
+        else None
+    )
 
     return StealthCommandExecutionContractEvidence(
         mutation_family=metadata.mutation_family,
@@ -544,6 +555,16 @@ def build_stealth_command_execution_contract(
                 service_method=metadata.service_method,
                 stealth_order_id=admission_decision.identity_value,
                 admission_decision=admission_decision,
+            )
+        ),
+        post_write_completion_verifier_contract=(
+            build_stealth_post_write_completion_verifier_contract(
+                mutation_family=metadata.mutation_family,
+                command_route=metadata.route,
+                service_method=metadata.service_method,
+                stealth_order_id=admission_decision.identity_value,
+                admission_decision=admission_decision,
+                proof_record=post_write_reconciliation_proof_record,
             )
         ),
         canonical_execution_path=list(metadata.manager_methods),
@@ -1367,7 +1388,7 @@ def _resolve_post_write_reconciliation_proof(
             ),
         )
 
-    if not _is_safe_post_write_reconciliation_proof(record):
+    if not is_safe_stealth_post_write_reconciliation_proof_record(record):
         return _resolver_item(
             prerequisite=prerequisite,
             metadata=metadata,
@@ -1560,35 +1581,6 @@ def _is_safe_cancel_replace_proof(
         and record.cancel_replace_proof_verified is False
         and record.manager_invocation_ran is False
         and record.cancel_replace_plan_built is False
-        and record.coinbase_read_attempted is False
-        and record.coinbase_read_succeeded is False
-        and record.coinbase_rest_read_ran is False
-        and record.coinbase_order_submitted is False
-        and record.coinbase_order_cancel_submitted is False
-        and record.active_placement_cancel_replace_ran is False
-        and record.reconciliation_executed is False
-        and record.order_state_mutated is False
-        and record.lifecycle_state_mutated is False
-        and record.exchange_state_mutated is False
-        and record.live_exchange_submitted is False
-        and record.live_coinbase_orders_ran is False
-        and record.browser_authority == "display_only"
-        and record.bff_authority == "forward_only_no_execution"
-    )
-
-
-def _is_safe_post_write_reconciliation_proof(
-    record: StealthPostWriteReconciliationProofRecord,
-) -> bool:
-    return (
-        record.proof_persisted is True
-        and record.route_bound_reconciliation_plan_recorded is True
-        and record.execution_journal_accepted is False
-        and record.completion_proof_recorded is True
-        and record.post_write_reconciliation_verified is False
-        and record.manager_invocation_ran is False
-        and record.reconciliation_plan_built is False
-        and record.reconciliation_execution_ran is False
         and record.coinbase_read_attempted is False
         and record.coinbase_read_succeeded is False
         and record.coinbase_rest_read_ran is False

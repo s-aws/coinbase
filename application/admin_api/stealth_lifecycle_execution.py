@@ -36,7 +36,9 @@ from .stealth_lifecycle_write import (
 from .stealth_post_write_reconciliation import (
     FileStealthPostWriteReconciliationProofStore,
     StealthPostWriteReconciliationProofRecord,
+    build_stealth_post_write_completion_verifier_contract,
     build_stealth_post_write_reconciliation_boundary,
+    is_safe_stealth_post_write_reconciliation_proof_record,
 )
 
 
@@ -161,6 +163,17 @@ def build_stealth_create_lifecycle_write_execution_contract(
     execution_readiness_stages = _build_execution_readiness_stages(
         resolution=resolution,
     )
+    post_write_reconciliation_proof_record = (
+        _find_matching_post_write_reconciliation_proof(
+            store=post_write_reconciliation_proof_store,
+            stealth_order_id=stealth_order_id,
+            admission_decision=admission_decision,
+        )
+        if post_write_reconciliation_proof_store is not None
+        and stealth_order_id
+        and admission_decision is not None
+        else None
+    )
 
     return StealthCreateLifecycleWriteExecutionContractEvidence(
         stealth_order_id=stealth_order_id,
@@ -267,6 +280,16 @@ def build_stealth_create_lifecycle_write_execution_contract(
                 service_method=STEALTH_CREATE_SERVICE_METHOD,
                 stealth_order_id=stealth_order_id,
                 admission_decision=admission_decision,
+            )
+        ),
+        post_write_completion_verifier_contract=(
+            build_stealth_post_write_completion_verifier_contract(
+                mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+                command_route=STEALTH_CREATE_ROUTE,
+                service_method=STEALTH_CREATE_SERVICE_METHOD,
+                stealth_order_id=stealth_order_id,
+                admission_decision=admission_decision,
+                proof_record=post_write_reconciliation_proof_record,
             )
         ),
         canonical_execution_path=[
@@ -651,7 +674,7 @@ def _resolve_post_write_reconciliation_proof(
             ),
         )
 
-    if not _is_safe_post_write_reconciliation_proof(record):
+    if not is_safe_stealth_post_write_reconciliation_proof_record(record):
         return _resolver_item(
             prerequisite=prerequisite,
             identity_value=stealth_order_id,
@@ -721,35 +744,6 @@ def _post_write_reconciliation_proof_matches_admission(
         and record.approval_snapshot_id == admission_decision.approval_snapshot_id
         and record.admission_audit_id == admission_decision.admission_audit_id
         and record.cap_guard_decision_id == admission_decision.cap_guard_decision_id
-    )
-
-
-def _is_safe_post_write_reconciliation_proof(
-    record: StealthPostWriteReconciliationProofRecord,
-) -> bool:
-    return (
-        record.proof_persisted is True
-        and record.route_bound_reconciliation_plan_recorded is True
-        and record.execution_journal_accepted is False
-        and record.completion_proof_recorded is True
-        and record.post_write_reconciliation_verified is False
-        and record.manager_invocation_ran is False
-        and record.reconciliation_plan_built is False
-        and record.reconciliation_execution_ran is False
-        and record.coinbase_read_attempted is False
-        and record.coinbase_read_succeeded is False
-        and record.coinbase_rest_read_ran is False
-        and record.coinbase_order_submitted is False
-        and record.coinbase_order_cancel_submitted is False
-        and record.active_placement_cancel_replace_ran is False
-        and record.reconciliation_executed is False
-        and record.order_state_mutated is False
-        and record.lifecycle_state_mutated is False
-        and record.exchange_state_mutated is False
-        and record.live_exchange_submitted is False
-        and record.live_coinbase_orders_ran is False
-        and record.browser_authority == "display_only"
-        and record.bff_authority == "forward_only_no_execution"
     )
 
 

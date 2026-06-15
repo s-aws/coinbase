@@ -157,6 +157,12 @@ explicit. It binds the stealth command route and exact command context, names
 lists missing post-write evidence, and reports no plan write, no reconciliation
 execution, no Coinbase call, and no state mutation. It is not a reconciliation
 executor and it is not browser/BFF authority.
+Exact command execution contracts may also include
+`post_write_completion_verifier_contract`. That object keeps the handoff
+blocked after a proof id is found unless accepted execution-journal evidence
+and verified post-write reconciliation are separately present. It is
+display-only evidence and grants no command, Coinbase, reconciliation, state
+mutation, browser, or BFF authority.
 Post-write reconciliation proof records are exposed through
 `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`
 and persisted through

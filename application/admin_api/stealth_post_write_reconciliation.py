@@ -25,6 +25,7 @@ from .live_execution import (
 from .models import (
     AdminLiveAdmissionDecisionEvidence,
     StealthPostWriteReconciliationBoundaryEvidence,
+    StealthPostWriteReconciliationCompletionVerifierEvidence,
 )
 
 
@@ -32,6 +33,12 @@ POST_WRITE_RECONCILIATION_REQUIRED_EVIDENCE: tuple[str, ...] = (
     "route_bound_reconciliation_plan",
     "post_write_execution_journal",
     "post_write_completion_proof",
+)
+
+POST_WRITE_RECONCILIATION_COMPLETION_REQUIRED_EVIDENCE: tuple[str, ...] = (
+    "safe_post_write_reconciliation_proof",
+    "accepted_execution_journal",
+    "verified_post_write_reconciliation",
 )
 
 
@@ -241,5 +248,130 @@ def build_stealth_post_write_reconciliation_boundary(
             "a future stealth write can be considered complete. This evidence "
             "does not run that plan, execute reconciliation, call Coinbase, or "
             "mutate local state."
+        ),
+    )
+
+
+def is_safe_stealth_post_write_reconciliation_proof_record(
+    record: StealthPostWriteReconciliationProofRecord,
+) -> bool:
+    """Return whether a proof record is no-live/no-mutation evidence only."""
+
+    return (
+        record.proof_persisted is True
+        and record.route_bound_reconciliation_plan_recorded is True
+        and record.execution_journal_accepted is False
+        and record.completion_proof_recorded is True
+        and record.post_write_reconciliation_verified is False
+        and record.manager_invocation_ran is False
+        and record.reconciliation_plan_built is False
+        and record.reconciliation_execution_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
+def build_stealth_post_write_completion_verifier_contract(
+    *,
+    mutation_family: AdminApiMutationFamilyType,
+    command_route: str,
+    service_method: str,
+    stealth_order_id: str | None,
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None,
+    proof_record: StealthPostWriteReconciliationProofRecord | None,
+) -> StealthPostWriteReconciliationCompletionVerifierEvidence:
+    """Build fail-closed completion verifier evidence for post-write reconciliation."""
+
+    exact_context_present = admission_decision is not None
+    proof_safe = (
+        proof_record is not None
+        and is_safe_stealth_post_write_reconciliation_proof_record(proof_record)
+    )
+    missing_evidence: list[str] = []
+    if not proof_safe:
+        missing_evidence.append("safe_post_write_reconciliation_proof")
+    if proof_record is None or proof_record.execution_journal_accepted is False:
+        missing_evidence.append("accepted_execution_journal")
+    if (
+        proof_record is None
+        or proof_record.post_write_reconciliation_verified is False
+    ):
+        missing_evidence.append("verified_post_write_reconciliation")
+
+    return StealthPostWriteReconciliationCompletionVerifierEvidence(
+        mutation_family=mutation_family,
+        command_route=command_route,
+        service_method=service_method,
+        stealth_order_id=stealth_order_id,
+        command_context_bound=exact_context_present,
+        payload_bound=exact_context_present,
+        idempotency_bound=exact_context_present,
+        operator_intent_bound=exact_context_present,
+        idempotency_key=(
+            admission_decision.idempotency_key
+            if admission_decision is not None
+            else None
+        ),
+        payload_hash=(
+            admission_decision.payload_hash
+            if admission_decision is not None
+            else None
+        ),
+        operator_intent=(
+            admission_decision.operator_intent
+            if admission_decision is not None
+            else None
+        ),
+        post_write_reconciliation_proof_id=(
+            proof_record.post_write_reconciliation_proof_id
+            if proof_record is not None
+            else None
+        ),
+        post_write_proof_found=proof_record is not None,
+        post_write_proof_safe=proof_safe,
+        execution_journal_accepted=(
+            proof_record.execution_journal_accepted
+            if proof_record is not None
+            else False
+        ),
+        post_write_reconciliation_verified=(
+            proof_record.post_write_reconciliation_verified
+            if proof_record is not None
+            else False
+        ),
+        completion_proof_recorded=(
+            proof_record.completion_proof_recorded
+            if proof_record is not None
+            else False
+        ),
+        required_evidence=list(
+            POST_WRITE_RECONCILIATION_COMPLETION_REQUIRED_EVIDENCE
+        ),
+        missing_evidence=missing_evidence,
+        execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,
+        evidence=[
+            "Completion verifier evidence is backend-owned and fail-closed.",
+            "A found post-write proof id is not sufficient to satisfy execution.",
+            "Accepted execution-journal evidence and verified post-write reconciliation remain required.",
+            "The verifier does not invoke managers, call Coinbase, execute reconciliation, or mutate state.",
+        ],
+        detail=(
+            f"{command_route} post-write reconciliation completion remains "
+            "blocked until a safe proof record is paired with accepted "
+            "execution-journal evidence and verified post-write reconciliation. "
+            "This verifier is read-only evidence and grants no browser, BFF, "
+            "Coinbase, manager, reconciliation, or state-mutation authority."
         ),
     )

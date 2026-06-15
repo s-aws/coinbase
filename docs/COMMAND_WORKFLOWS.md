@@ -264,6 +264,13 @@ reported as evidence with `resolved_evidence_id`,
 `missing_reason=post_write_reconciliation_proof_not_sufficient`; the
 prerequisite remains missing until a separately approved phase accepts the
 execution journal and verifies post-write reconciliation.
+Both exact create and non-create contracts may also include
+`post_write_completion_verifier_contract`. Workflows may display proof id,
+proof safety, missing `accepted_execution_journal`, missing
+`verified_post_write_reconciliation`, no-run flags, state-mutation flags, and
+display/forward-only authority. The verifier is not journal acceptance,
+reconciliation verification, command enablement, Coinbase authority, manager
+authority, state-mutation authority, or BFF execution authority.
 Both contracts also include a nested `live_execution_adapter_contract` from
 the shared live-execution adapter evidence builder. Workflows may display its
 route, `AdminApiCommandService.*` reference, forbidden methods, disabled
