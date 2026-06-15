@@ -33,6 +33,9 @@ from application.admin_api.models import (
     StealthCreateLifecycleWriteGuardProofCommand,
     StealthCreateLifecycleWriteGuardProofRequest,
     StealthCreateLifecycleWriteGuardReadResponse,
+    StealthCancelReplaceProofCommand,
+    StealthCancelReplaceProofReadResponse,
+    StealthCancelReplaceProofRequest,
     StealthMutationClaimSnapshotProofCommand,
     StealthMutationClaimSnapshotProofRequest,
     StealthMutationClaimSnapshotReadResponse,
@@ -388,6 +391,28 @@ def get_stealth_reconciliation_proof(
     return _read_model_response(
         StealthReconciliationProofReadResponse,
         service.build_stealth_reconciliation_proof(
+            stealth_order_id=stealth_order_id
+        ),
+    )
+
+
+@router.get(
+    "/stealth/orders/{stealth_order_id}/cancel-replace-proof",
+    response_model=StealthCancelReplaceProofReadResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth cancel/replace proof evidence by stealth_order_id",
+)
+def get_stealth_cancel_replace_proof(
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read cancel/replace proof evidence without manager or Coinbase writes."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_model_response(
+        StealthCancelReplaceProofReadResponse,
+        service.build_stealth_cancel_replace_proof(
             stealth_order_id=stealth_order_id
         ),
     )
@@ -1386,6 +1411,85 @@ def record_stealth_reconciliation_proof(
         command_runner_with_admission=lambda admission_decision: (
             service.record_stealth_reconciliation_proof(
                 StealthReconciliationProofCommand(
+                    envelope=envelope,
+                    stealth_order_id=stealth_order_id,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
+        ),
+    )
+
+
+@router.post(
+    "/stealth/orders/{stealth_order_id}/cancel-replace-proofs",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Record stealth cancel/replace proof evidence",
+)
+def record_stealth_cancel_replace_proof(
+    request: Request,
+    body: StealthCancelReplaceProofRequest,
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for backend-owned no-live cancel/replace proofs."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope: AdminApiCommandEnvelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+        path_params={"stealth_order_id": stealth_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.STEALTH_CANCEL_REPLACE_RECORD,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method="record_stealth_cancel_replace_proof",
+        route_template="/api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        stealth_order_id=stealth_order_id,
+        command_runner_with_admission=lambda admission_decision: (
+            service.record_stealth_cancel_replace_proof(
+                StealthCancelReplaceProofCommand(
                     envelope=envelope,
                     stealth_order_id=stealth_order_id,
                     request=body,

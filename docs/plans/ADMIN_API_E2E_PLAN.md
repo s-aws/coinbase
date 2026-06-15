@@ -38,100 +38,104 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Evidence Parity And Cancel/Replace Boundary Batch - Phases 2541-2560
+## Active M55 Cancel/Replace Proof Record Batch - Phases 2561-2580
 
-These phases continue M55 after resolver-backed stealth reconciliation proof
-evidence. The next explicit gap is parity and boundary hardening for
-active-placement cancel/replace prerequisites. Backend command-suite
-reconciliation evidence must list the same
-`GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` read
-surface consumed by the frontend. The remaining work defines cancel/replace
-proof boundaries for cancel, move, and reprice as backend-owned evidence
-only. It may add route/readiness evidence, tests, docs, and no-live local
-proof contracts, but it must not call Coinbase, cancel/replace active
-placements, invoke `StealthOrderManager`, execute reconciliation, mutate
-stealth/order/exchange state, approve live admission, or grant browser/BFF
-execution authority.
+These phases continue M55 after reconciliation read parity and cancel/replace
+boundary evidence. The next explicit gap is append-only cancel/replace proof
+records and readback for stealth cancel, stealth move, and movement reprice.
+The backend may add proof models, stores, services, routes, command-suite
+linkage, route inventory, OpenAPI, tests, docs, and frontend association. It
+must not call Coinbase, cancel/replace active placements, invoke
+`StealthOrderManager`, execute reconciliation, mutate stealth/order/exchange
+state, approve live admission, or grant browser/BFF execution authority.
 
-### Phase 2541 - Advance Active Queue Range
+### Phase 2561 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2521-2540 to active phases 2541-2560 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2541-2560 to active phases 2561-2580 while preserving no-live defaults and cap policy.
 
-### Phase 2542 - Prior Range Completion Evidence
+### Phase 2562 - Prior Range Completion Evidence
 
-- Record phases 2521-2540 as completed reconciliation proof resolver work with no live Coinbase execution and no active-placement cancel/replace behavior.
+- Record phases 2541-2560 as completed reconciliation read parity and cancel/replace boundary evidence with no live Coinbase execution and no active-placement cancel/replace behavior.
 
-### Phase 2543 - Reconciliation Read Evidence Parity
+### Phase 2563 - Cancel/Replace Proof Enum Contract
 
-- Add the stealth reconciliation-proof read route to backend command-suite reconciliation current-read evidence so backend and frontend agree on the evidence surface.
+- Add backend enum values for stealth cancel/replace proof mutation family, permission, and evidence source.
 
-### Phase 2544 - Parity Regression Coverage
+### Phase 2564 - Cancel/Replace Proof Record Store
 
-- Lock the reconciliation current-read evidence route and `build_stealth_reconciliation_proof` shared method with backend regression assertions.
+- Add an append-only, locked, JSONL-backed stealth cancel/replace proof store keyed by `stealth_order_id` and proof id.
 
-### Phase 2545 - Command-Suite Documentation Parity
+### Phase 2565 - Cancel/Replace Proof Service Validation
 
-- Update command-suite docs and examples so contextless agents see the same reconciliation proof read surface as the API response.
+- Validate route inventory, admission prerequisites, guarded command context, dry-run posture, and no-live flags before persistence.
 
-### Phase 2546 - Cancel/Replace Boundary Scope
+### Phase 2566 - Guarded Command Family Coverage
 
-- Define active-placement cancel/replace proof evidence as a backend-owned prerequisite for cancel, move, and reprice, not live cancel behavior, manager invocation, or exchange verification.
+- Support only guarded stealth cancel, stealth move, and movement reprice contexts, with mutation-claim evidence required for move and reprice.
 
-### Phase 2547 - Existing Cancel/Replace Path Inventory
+### Phase 2567 - Cancel/Replace Proof Write Route
 
-- Inventory existing stealth cancel, move, reprice, bridge, and manager paths to identify the single canonical future cancel/replace behavior path without adding a parallel implementation.
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs` through the shared command gate chain.
 
-### Phase 2548 - Cancel Proof Contract Plan
+### Phase 2568 - Cancel/Replace Proof Readback Route
 
-- Specify the route-bound proof data needed before stealth cancel may locally transition revealed state, including active-placement exchange-truth proof, cancellation evidence refs, and reconciliation refs.
+- Add `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof` as read-only evidence.
 
-### Phase 2549 - Move Cancel/Replace Proof Contract Plan
+### Phase 2569 - Command-Suite Linkage
 
-- Specify the route-bound proof data needed before stealth move may replace an active revealed placement while preserving `stealth_order_id` command identity and exchange id as evidence only.
+- Link cancel/replace proof record/readback surfaces into stealth command-suite boundary and gap evidence for cancel, move, and reprice.
 
-### Phase 2550 - Reprice Cancel/Replace Proof Contract Plan
+### Phase 2570 - Mutation Taxonomy Linkage
 
-- Specify the route-bound proof data needed before movement reprice may replace an active revealed placement without clearing cooldowns or invoking repricing execution from the Admin API route.
+- Add route-bound mutation taxonomy evidence without marking cancel/replace execution supported.
 
-### Phase 2551 - Command-Suite Gap Ledger Sync
+### Phase 2571 - OpenAPI And Route Inventory Sync
 
-- Update command-suite gap evidence so cancel, move, and reprice point at explicit missing cancel/replace proof contracts and no-live authority flags.
+- Regenerate OpenAPI and route inventory docs.
 
-### Phase 2552 - Contextless Boundary Docs
+### Phase 2572 - Backend Regression Coverage
 
-- Update Admin API, stealth command-suite, and agent handoff docs to explain why cancel/replace proof evidence does not authorize cancel/replace execution.
+- Add regression tests for proof records, no-live flags, readback, route inventory, permission, and persistence.
 
-### Phase 2553 - Frontend Association Sync
+### Phase 2573 - Backend Documentation Sync
 
-- Sync frontend mocks, route coverage, docs, and no-live evidence only if backend response shapes change.
+- Update Admin API, stealth command-suite, examples, handoff, docs index, and active queue docs.
 
-### Phase 2554 - Validator Range Sync
+### Phase 2574 - Frontend Schema Intake
 
-- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2541-2560.
+- Regenerate the frontend API schema from backend OpenAPI and add canonical wrapper/BFF/mock coverage if route shapes changed.
 
-### Phase 2555 - Focused Backend Gates
+### Phase 2575 - Frontend Evidence Rendering
 
-- Run focused Admin API command-suite/proof tests, ownership checks, and autonomous queue validation.
+- Render cancel/replace proof readback and command-suite linkage as display-only evidence.
 
-### Phase 2556 - Focused Frontend Gates
+### Phase 2576 - Frontend Documentation Sync
 
-- Run focused frontend route/API/autonomous checks when frontend files change.
+- Update frontend API contract, command workflow, stealth read, testing, and handoff docs.
 
-### Phase 2557 - No-Live Drift Scan
+### Phase 2577 - Validator Range Sync
 
-- Search for wording or code implying reconciliation proof, cancel proof, move proof, or reprice proof performs Coinbase reads, cancel/replace, manager invocation, or state mutation.
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2561-2580.
 
-### Phase 2558 - Blind Contextless Review
+### Phase 2578 - No-Live Drift Scan
 
-- Run blind/contextless review asking whether a fresh agent can explain the reconciliation evidence parity and cancel/replace proof boundary without inventing an execution path.
+- Search for wording or code implying proof records perform Coinbase reads, live cancel/replace, manager invocation, reconciliation execution, or state mutation.
 
-### Phase 2559 - Full Gates
+### Phase 2579 - Blind Contextless Review And Gates
 
-- Run backend full regression and frontend `npm run release:gate` after implementation-impacting backend/frontend changes.
+- Run blind/contextless review plus focused backend/frontend checks.
 
-### Phase 2560 - Push And Next Range
+### Phase 2580 - Full Gates, Push, And Next Range
 
-- Commit and push synchronized repos after gates pass, confirm no live Coinbase execution and `$0` frontend notional, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+- Run backend full regression and frontend `npm run release:gate`, commit and push synchronized repos, report no live Coinbase execution and `$0` notional, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed M55 Evidence Parity And Cancel/Replace Boundary Batch - Phases 2541-2560
+
+These phases added reconciliation-proof current-read parity and command-suite
+cancel/replace boundary evidence for stealth cancel, stealth move, and
+movement reprice. The boundary rows remain no-live evidence only and do not
+call Coinbase, invoke managers, cancel/replace active placements, execute
+reconciliation, mutate state, or grant browser/BFF execution authority.
 
 ## Completed M55 Reconciliation Proof Resolver Batch - Phases 2521-2540
 

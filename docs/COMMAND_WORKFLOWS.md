@@ -288,6 +288,21 @@ For active-placement-sensitive commands, the contract may resolve only
 store when a safe same-`stealth_order_id` record exists. The resolver is local
 proof readback only; it is not Coinbase verification, manager invocation,
 cancel/replace execution, or reconciliation authority.
+Stealth cancel/replace proof evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof` and
+persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs`.
+The writer supports guarded contexts for stealth cancel, stealth move, and
+movement reprice and requires `stealth_cancel_replace:record`. It is
+append-only local evidence only; it does not invoke `StealthOrderManager`,
+build cancel/replace plans, call Coinbase, cancel or replace active
+placements, execute reconciliation, mutate lifecycle/order/exchange state, or
+grant browser/BFF authority.
+Its `active_placement_evidence_ref`, `mutation_claim_evidence_ref`, and
+`cancel_replace_evidence_ref` values are opaque operator/backend references:
+the writer validates required presence and guarded-context matching, but does
+not dereference them, verify another proof-store row, or treat them as
+execution authority.
 For recovery commands, the same contract may resolve only `recovery_proof`
 from the backend append-only recovery proof store when the latest safe
 same-`stealth_order_id` record exactly matches route, method, service method,

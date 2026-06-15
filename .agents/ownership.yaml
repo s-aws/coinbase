@@ -72,6 +72,7 @@ owners:
       - README.stealth-exchange-truth-proofs.md
       - README.stealth-mutation-claim-proofs.md
       - README.stealth-reconciliation-proofs.md
+      - README.stealth-cancel-replace-proofs.md
       - README.stealth-recovery-proofs.md
       - README.stealth-reveal-trigger-proofs.md
       - docs/PUBLIC_RELEASE_READINESS.md

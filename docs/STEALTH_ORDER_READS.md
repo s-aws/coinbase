@@ -12,6 +12,7 @@ platform, not the legacy dashboard command plane.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof`
 - `GET /api/v1/stealth/command-suite`
 
 The list/detail routes read local stealth lifecycle rows and report active
@@ -142,6 +143,17 @@ backend local evidence only after exact admission prerequisites match, and
 does not execute reconciliation, invoke managers, build plans, read Coinbase,
 cancel/replace active placements, submit/cancel orders, or mutate lifecycle,
 order, or exchange state.
+
+Stealth cancel/replace proof evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof` and
+persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs`.
+The writer route requires `stealth_cancel_replace:record`, stores append-only
+backend local evidence only after exact admission prerequisites match, and
+supports guarded contexts for stealth cancel, stealth move, and movement
+reprice. It does not build cancel/replace plans, invoke managers, read
+Coinbase, cancel or replace active placements, submit/cancel orders, execute
+reconciliation, or mutate lifecycle, order, or exchange state.
 
 The command-suite `create_lifecycle_write_audit.execution_contract` block
 reports the backend-owned stealth create execution-contract boundary without

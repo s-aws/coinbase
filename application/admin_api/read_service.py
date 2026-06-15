@@ -131,6 +131,8 @@ from .models import (
     StealthCreateLifecycleWriteGuardReadResponse,
     StealthMutationClaimSnapshotProofRecordItem,
     StealthMutationClaimSnapshotReadResponse,
+    StealthCancelReplaceProofReadResponse,
+    StealthCancelReplaceProofRecordItem,
     StealthRevealTriggerProofReadResponse,
     StealthRevealTriggerProofRecordItem,
     StealthReconciliationProofReadResponse,
@@ -219,12 +221,16 @@ from .stealth_reconciliation_proof import (
     FileStealthReconciliationProofStore,
     StealthReconciliationProofRecord,
 )
+from .stealth_cancel_replace_proof import (
+    FileStealthCancelReplaceProofStore,
+    StealthCancelReplaceProofRecord,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2541-2560"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2561-2580"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3356,6 +3362,74 @@ def _stealth_reconciliation_proof_item_from_record(
     )
 
 
+def _stealth_cancel_replace_proof_item_from_record(
+    record: StealthCancelReplaceProofRecord,
+) -> StealthCancelReplaceProofRecordItem:
+    return StealthCancelReplaceProofRecordItem(
+        cancel_replace_proof_id=record.cancel_replace_proof_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        stealth_order_id=record.stealth_order_id,
+        guarded_command_route=record.guarded_command_route,
+        guarded_command_method=record.guarded_command_method,
+        guarded_service_method=record.guarded_service_method,
+        guarded_mutation_family=record.guarded_mutation_family,
+        guarded_actor_id=record.guarded_actor_id,
+        guarded_operator_intent=record.guarded_operator_intent,
+        guarded_idempotency_key=record.guarded_idempotency_key,
+        guarded_payload_hash=record.guarded_payload_hash,
+        active_placement_evidence_ref=record.active_placement_evidence_ref,
+        mutation_claim_evidence_ref=record.mutation_claim_evidence_ref,
+        cancel_replace_evidence_ref=record.cancel_replace_evidence_ref,
+        evidence_source=record.evidence_source,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        proof_persisted=record.proof_persisted,
+        cancel_replace_proof_verified=record.cancel_replace_proof_verified,
+        manager_invocation_ran=record.manager_invocation_ran,
+        cancel_replace_plan_built=record.cancel_replace_plan_built,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth cancel/replace proof is backend-owned append-only "
+            "evidence only. It does not invoke managers, call Coinbase, "
+            "cancel or replace placements, mutate lifecycle/order/exchange "
+            "state, or execute reconciliation."
+        ),
+    )
+
+
 def _spot_recovery_execution_item_from_record(
     record: SpotRecoveryExecutionRecord,
 ) -> SpotRecoveryExecutionRecordItem:
@@ -3573,6 +3647,9 @@ class AdminApiReadService:
         stealth_reconciliation_proof_store: (
             FileStealthReconciliationProofStore | None
         ) = None,
+        stealth_cancel_replace_proof_store: (
+            FileStealthCancelReplaceProofStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -3617,6 +3694,10 @@ class AdminApiReadService:
         self.stealth_reconciliation_proof_store = (
             stealth_reconciliation_proof_store
             or FileStealthReconciliationProofStore()
+        )
+        self.stealth_cancel_replace_proof_store = (
+            stealth_cancel_replace_proof_store
+            or FileStealthCancelReplaceProofStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -7656,6 +7737,65 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs",
+                mutation_id="stealth.cancel_replace_proof",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL_REPLACE_PROOF,
+                workflow_id="stealth.cancel_replace_proof_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth cancel/replace proof recording is append-only "
+                    "local evidence keyed by stealth_order_id and guarded "
+                    "cancel, move, or movement-reprice command context; it "
+                    "does not invoke managers, call Coinbase, cancel or replace "
+                    "placements, mutate exchange state, or mutate lifecycle state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_cancel_replace_proof",
+                    "application/admin_api/command_service.py::record_stealth_cancel_replace_proof",
+                    "application/admin_api/stealth_cancel_replace_proof_service.py",
+                    "application/admin_api/stealth_cancel_replace_proof.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthCancelReplaceProof",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "README.stealth-command-suite.md",
+                    "docs/examples/stealth-command-suite.md",
+                ],
+                required_next_contract=(
+                    "Future executable cancel/replace paths must prove "
+                    "backend active-placement truth, mutation-claim authority "
+                    "where required, actual cancel/replace completion, approval, "
+                    "cap, audit, and post-write reconciliation through "
+                    "backend-owned contracts; this proof route is local "
+                    "admission evidence only."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "manager_invocation_disabled",
+                    "active_placement_cancel_replace_disabled",
+                    "coinbase_cancel_disabled",
+                    "coinbase_submit_disabled",
+                    "post-write reconciliation proof missing",
+                ],
+                frontend_boundary=(
+                    "Do not use browser proof records as cancel authority, "
+                    "replace authority, manager authority, active-placement "
+                    "truth, Coinbase authority, or lifecycle mutation input."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard "
+                    "evidence; stealth cancel/replace proof recording is not "
+                    "sell authority or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -9245,6 +9385,70 @@ class AdminApiReadService:
             ),
         )
 
+    def build_stealth_cancel_replace_proof(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthCancelReplaceProofReadResponse:
+        """Return persisted no-live cancel/replace proof evidence."""
+
+        proofs = [
+            _stealth_cancel_replace_proof_item_from_record(record)
+            for record in (
+                self.stealth_cancel_replace_proof_store.read_for_stealth_order_id(
+                    stealth_order_id,
+                    limit=20,
+                )
+            )
+        ]
+        latest_proof_id = proofs[0].cancel_replace_proof_id if proofs else None
+        missing_contracts = [
+            "stealth_cancel_replace_executor",
+            "stealth_cancel_replace_live_cancel_proof",
+            "stealth_cancel_replace_post_write_reconciliation_proof",
+        ]
+        return StealthCancelReplaceProofReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            cancel_replace_proof_verified=False,
+            persisted_proof_count=len(proofs),
+            persisted_proofs=proofs,
+            latest_cancel_replace_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            proof_records_created=bool(proofs),
+            manager_invocation_allowed=False,
+            manager_invocation_ran=False,
+            cancel_replace_plan_build_allowed=False,
+            cancel_replace_plan_built=False,
+            active_placement_cancel_replace_allowed=False,
+            active_placement_cancel_replace_ran=False,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            reconciliation_required=True,
+            reconciliation_executed=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth cancel/replace proof records are "
+                "backend-owned evidence only. They do not invoke managers, "
+                "call Coinbase, cancel or replace active placements, mutate "
+                "lifecycle/order/exchange state, or execute reconciliation."
+            ),
+        )
+
     def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
         """Return read-only M55 stealth command-suite readiness evidence."""
 
@@ -9932,6 +10136,13 @@ class AdminApiReadService:
             ],
             (
                 "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                "cancel-replace-proof"
+            ): [
+                "README.stealth-command-suite.md",
+                "docs/examples/stealth-command-suite.md",
+            ],
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/"
                 "lifecycle-write-guard-proof"
             ): [
                 "README.admin-api.md",
@@ -10003,11 +10214,22 @@ class AdminApiReadService:
             ),
             "GET /api/v1/stealth/command-suite",
         ]
+        cancel_surfaces = [
+            *stealth_detail_surfaces,
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                "cancel-replace-proof"
+            ),
+        ]
         movement_stealth_surfaces = [
             "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
             (
                 "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
                 "exchange-truth-proof"
+            ),
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                "cancel-replace-proof"
             ),
             "GET /api/v1/stealth/command-suite",
         ]
@@ -10037,7 +10259,7 @@ class AdminApiReadService:
         exchange_truth_surfaces_by_family = {
             AdminApiMutationFamilyType.STEALTH_CREATE: stealth_read_surfaces,
             AdminApiMutationFamilyType.STEALTH_REVEAL: stealth_detail_surfaces,
-            AdminApiMutationFamilyType.STEALTH_CANCEL: stealth_detail_surfaces,
+            AdminApiMutationFamilyType.STEALTH_CANCEL: cancel_surfaces,
             AdminApiMutationFamilyType.STEALTH_MOVE: movement_stealth_surfaces,
             AdminApiMutationFamilyType.STEALTH_RECOVERY: recovery_surfaces,
             AdminApiMutationFamilyType.STEALTH_RECONCILIATION: reconciliation_surfaces,
@@ -10060,6 +10282,7 @@ class AdminApiReadService:
             AdminApiMutationFamilyType.STEALTH_CANCEL: [
                 "stealth_active_placement_exchange_truth_snapshot_contract",
                 "stealth_active_placement_exchange_truth_proof_contract",
+                "stealth_cancel_replace_proof_record_contract",
                 "stealth_cancel_active_placement_cancel_proof",
                 "stealth_cancel_exchange_reconciliation_proof",
                 "stealth_cancel_state_transition_audit",
@@ -10067,6 +10290,7 @@ class AdminApiReadService:
             AdminApiMutationFamilyType.STEALTH_MOVE: [
                 "stealth_active_placement_exchange_truth_snapshot_contract",
                 "stealth_active_placement_exchange_truth_proof_contract",
+                "stealth_cancel_replace_proof_record_contract",
                 "stealth_move_active_placement_cancel_replace_proof",
                 "stealth_move_mutation_claim_snapshot_contract",
                 "stealth_move_reconciliation_proof",
@@ -10089,6 +10313,7 @@ class AdminApiReadService:
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: [
                 "stealth_active_placement_exchange_truth_snapshot_contract",
                 "stealth_active_placement_exchange_truth_proof_contract",
+                "stealth_cancel_replace_proof_record_contract",
                 "stealth_reprice_active_placement_cancel_replace_proof",
                 "stealth_reprice_cooldown_claim_contract",
                 "stealth_reprice_reconciliation_proof",
@@ -10207,6 +10432,7 @@ class AdminApiReadService:
         cancel_replace_contracts_by_family = {
             AdminApiMutationFamilyType.STEALTH_CANCEL: [
                 "stealth_active_placement_exchange_truth_proof_contract",
+                "stealth_cancel_replace_proof_record_contract",
                 "stealth_cancel_active_placement_cancel_proof",
                 "stealth_cancel_exchange_reconciliation_proof",
                 "stealth_cancel_state_transition_audit",
@@ -10214,12 +10440,14 @@ class AdminApiReadService:
             AdminApiMutationFamilyType.STEALTH_MOVE: [
                 "stealth_active_placement_exchange_truth_proof_contract",
                 "stealth_move_mutation_claim_snapshot_contract",
+                "stealth_cancel_replace_proof_record_contract",
                 "stealth_move_active_placement_cancel_replace_proof",
                 "stealth_move_reconciliation_proof",
             ],
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: [
                 "stealth_active_placement_exchange_truth_proof_contract",
                 "stealth_reprice_cooldown_claim_contract",
+                "stealth_cancel_replace_proof_record_contract",
                 "stealth_reprice_active_placement_cancel_replace_proof",
                 "stealth_reprice_reconciliation_proof",
             ],

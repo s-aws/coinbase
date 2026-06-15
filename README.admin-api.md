@@ -341,6 +341,16 @@ append-only local evidence only. It does not execute reconciliation, invoke
 managers, build plans, read Coinbase, submit/cancel orders, cancel/replace
 active placements, mutate order/exchange/lifecycle state, or authorize
 browser/BFF proof authority.
+Stealth cancel/replace proof evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof` and
+persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs`.
+The writer requires `stealth_cancel_replace:record`, supports exact guarded
+contexts for stealth cancel, stealth move, and movement reprice, and persists
+append-only local evidence only. It does not build cancel/replace plans,
+invoke managers, read Coinbase, submit/cancel Coinbase orders, cancel or
+replace active placements, execute reconciliation, mutate
+order/exchange/lifecycle state, or authorize browser/BFF proof authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

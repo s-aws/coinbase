@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2541-2560",
+  "approved_phase_range": "2561-2580",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,

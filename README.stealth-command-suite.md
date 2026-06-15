@@ -30,6 +30,11 @@ The route requires Admin API authentication and `analytics:read`. It returns
   the canonical future backend behavior path, required proof contracts,
   accepted/rejected identities, and no-live/no-mutation flags without
   invoking managers or Coinbase
+- per-order cancel/replace proof readback evidence from
+  `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof`
+  plus the backend-owned proof writer contract
+  `POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs`
+  for route-bound local evidence
 - `admission_readiness` rows that bind each command route to required
   backend proof evidence: approval request, approval decision, admission
   audit, cap/guard decision, reconciliation plan, active-placement exchange
@@ -113,6 +118,14 @@ approval, admission-audit, cap/guard, reconciliation-plan, and active-placement
 proofs exist. They do not call Coinbase, invoke `StealthOrderManager`, build
 or execute move/reprice plans, cancel/replace placements, mutate lifecycle,
 order, or exchange state, or grant browser/BFF authority.
+Cancel/replace proof records are append-only local evidence for the guarded
+cancel, move, or reprice command context. The writer requires
+`stealth_cancel_replace:record`, remains path-keyed by `stealth_order_id`, and
+keeps `cancel_replace_plan_built=false` and
+`active_placement_cancel_replace_ran=false`. It does not call Coinbase,
+invoke managers, build plans, cancel or replace placements, execute
+reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
+authority.
 Admission-readiness rows are blocked read evidence over the same backend proof
 chain. They do not approve admission, execute commands, read Coinbase, invoke
 `StealthOrderManager`, cancel/replace active placements, execute
@@ -172,6 +185,12 @@ execution authority.
   Coinbase cancel/submit/read authority, manager invocation, move/reprice
   execution, lifecycle/order/exchange-state mutation, reconciliation
   execution, command enablement, or BFF execution authority.
+- `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof` and
+  `POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs` are
+  local proof evidence surfaces only. They must not be converted into
+  Coinbase reads, active-placement cancel/replace behavior, manager
+  invocation, plan building, reconciliation execution, state mutation, command
+  enablement, or BFF execution authority.
 - `admission_readiness` is blocked read evidence only. It must not be
   converted into approval, execution, reconciliation, Coinbase reads,
   `StealthOrderManager` invocation, active-placement cancel/replace behavior,
@@ -198,4 +217,6 @@ execution authority.
 - [Stealth Command Suite Examples](docs/examples/stealth-command-suite.md)
 - [Stealth Active-Placement Exchange-Truth Evidence](README.stealth-exchange-truth-proofs.md)
 - [Stealth Active-Placement Exchange-Truth Examples](docs/examples/stealth-exchange-truth-proofs.md)
+- [Stealth Cancel/Replace Proofs](README.stealth-cancel-replace-proofs.md)
+- [Stealth Cancel/Replace Proof Examples](docs/examples/stealth-cancel-replace-proofs.md)
 - [Public Invariants](docs/agents/INVARIANTS.md)

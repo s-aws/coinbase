@@ -151,6 +151,7 @@ class AdminApiPermission(str, Enum):
     STEALTH_REVEAL_TRIGGER_RECORD = "stealth_reveal_trigger:record"
     STEALTH_RECOVERY_RECORD = "stealth_recovery:record"
     STEALTH_RECONCILIATION_RECORD = "stealth_reconciliation:record"
+    STEALTH_CANCEL_REPLACE_RECORD = "stealth_cancel_replace:record"
     STEALTH_RECOVERY_EXECUTE = "stealth_recovery:execute"
     STEALTH_RECONCILIATION_EXECUTE = "stealth_reconciliation:execute"
     CONFIG_UPDATE = "config:update"
@@ -284,6 +285,7 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_REVEAL_TRIGGER_PROOF = "stealth_reveal_trigger_proof"
     STEALTH_RECOVERY_PROOF = "stealth_recovery_proof"
     STEALTH_RECONCILIATION_PROOF = "stealth_reconciliation_proof"
+    STEALTH_CANCEL_REPLACE_PROOF = "stealth_cancel_replace_proof"
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
@@ -490,6 +492,14 @@ class StealthReconciliationProofEvidenceSource(str, Enum):
     MANUAL_REVIEW = "manual_review"
     TEST_EVIDENCE = "test_evidence"
     RECONCILIATION_RUNBOOK_REVIEW = "reconciliation_runbook_review"
+
+
+class StealthCancelReplaceProofEvidenceSource(str, Enum):
+    """Source posture for stealth cancel/replace proof evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    CANCEL_REPLACE_RUNBOOK_REVIEW = "cancel_replace_runbook_review"
 
 
 class AdminApiApprovalLifecycleStatus(str, Enum):

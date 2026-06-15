@@ -2,6 +2,45 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## M55 Cancel/Replace Proof Record Review - Phases 2561-2580
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- trace backend models, routes, services, stores, enums, route inventory,
+  OpenAPI, and tests for
+  `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof` and
+  `POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs`
+- trace frontend wrappers, runtime loading, BFF allowlists, mutation
+  metadata, mocks, docs, and UI evidence for the same routes
+- verify the proof writer is append-only local evidence for stealth cancel,
+  stealth move, and movement reprice only
+- verify it does not call Coinbase, invoke managers, build cancel/replace
+  plans, cancel/replace active placements, execute reconciliation, mutate
+  order/lifecycle/exchange state, or grant browser/BFF execution authority
+- identify confusing gaps likely to mislead a contextless maintainer
+
+Findings:
+
+- PASS: blind/contextless review traced the backend proof writer/readback and
+  found a single route/service/store path keyed by `stealth_order_id`.
+- PASS: reviewer confirmed guarded command support is limited to stealth
+  cancel, stealth move, and movement reprice; move/reprice require mutation
+  claim evidence, and cancel does not.
+- PASS: reviewer confirmed the proof path is no-live local evidence only and
+  does not call Coinbase, invoke managers, build cancel/replace plans, execute
+  reconciliation, mutate state, or grant browser/BFF authority.
+- NOTE: reviewer found the `*_evidence_ref` fields could be mistaken for
+  verified proof-store lookups. Backend and frontend docs now state they are
+  opaque operator/backend references; the writer validates required presence
+  and guarded-context matching only.
+- Live Coinbase execution: not run; notional `$0`.
+
 ## M55 Lifecycle-Write Guard Proof Association Review - Phases 2361-2380
 
 Review scope:
