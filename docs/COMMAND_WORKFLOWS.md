@@ -273,6 +273,13 @@ resolution authority, Coinbase read authority, manager authority,
 reconciliation execution, state mutation, or command execution. Stealth cancel
 has an empty list because its additional proof boundaries are exchange truth
 and cancel/replace.
+Exact non-create stealth command responses also include
+`execution_readiness_stages`. Workflows may display stage order,
+prerequisite, lookup status, workflow family, next required backend contract,
+and display/forward-only authority only. The rows are derived from the
+backend prerequisite resolver and must not become proof lookup, Coinbase
+read/write, manager invocation, recovery/reconciliation execution, state
+mutation, or browser/BFF command authority.
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase

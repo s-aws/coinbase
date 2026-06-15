@@ -92,6 +92,13 @@ display-only rows and do not record proofs, resolve proof authority through
 the frontend, read Coinbase, invoke managers, execute recovery or
 reconciliation, mutate state, or authorize browser/BFF execution. Stealth
 cancel returns an empty command-specific proof list.
+Exact non-create command responses now also expose
+`execution_readiness_stages`. The ordered rows reuse backend prerequisite
+resolver evidence to show each required stage, workflow family, lookup status,
+next required backend contract, and no-live authority boundary. They are
+display-only evidence and do not record proofs, query Coinbase, execute
+cancel/replace, invoke managers, execute recovery/reconciliation, mutate
+state, or authorize browser/BFF execution.
 
 The command-suite response also reports `admission_readiness` rows. This
 ledger binds each stealth command route to the backend evidence that must

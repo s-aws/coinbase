@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2761-2780**.
+- Approved phase range: **2781-2800**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,100 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2761-2780
+## Active Phases 2781-2800
+
+These phases continue M55 after exact command-specific proof-route contracts.
+The next explicit gap is making exact stealth command execution responses
+carry an ordered, backend-owned execution-readiness stage ledger derived from
+the existing prerequisite resolver. The ledger must show which approval,
+audit, cap/guard, reconciliation, exchange-truth, proof, disabled live service,
+adapter, and post-write stages are passed or blocked before any command can
+be executable. It must not add a new resolver, record proofs, read Coinbase,
+execute cancel/replace, invoke `StealthOrderManager`, execute recovery or
+reconciliation, mutate stealth/order/exchange state, approve live admission,
+or grant browser/BFF execution authority.
+
+### Phase 2781 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2761-2780 to active phases 2781-2800 while preserving no-live defaults and cap policy.
+
+### Phase 2782 - Prior Range Completion Evidence
+
+- Record phases 2761-2780 as completed command-specific proof-route contract evidence with no live Coinbase execution, no proof write/lookup authority, no manager invocation, no reconciliation execution, and no state mutation.
+
+### Phase 2783 - Readiness Stage Model
+
+- Add typed backend execution-readiness stage evidence for exact non-create stealth command execution contracts using existing stealth prerequisite and workflow enums.
+
+### Phase 2784 - Stage Builder Reuse
+
+- Build stage rows from the existing prerequisite-resolution output so the exact command response has one source for resolver and stage evidence.
+
+### Phase 2785 - Stage Counts
+
+- Add total, blocked, and passed readiness-stage counts to exact stealth command execution evidence without changing execution eligibility.
+
+### Phase 2786 - Workflow Family Mapping
+
+- Map reveal, cancel, move, reprice, recovery, and reconciliation execution stages to the existing stealth command-suite workflow-gap families.
+
+### Phase 2787 - Next Required Contract Evidence
+
+- Attach the next backend-owned required contract for each stage as display evidence only.
+
+### Phase 2788 - Backend Regression Coverage
+
+- Assert stage order, workflow family, status, identity, required contract, no-live flags, and browser/BFF non-authority for exact stealth command responses.
+
+### Phase 2789 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after adding execution-readiness stage fields.
+
+### Phase 2790 - Frontend Schema Intake
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2791 - Frontend Mock Stage Sync
+
+- Update frontend mocks to expose execution-readiness stage evidence derived from the same mock prerequisite-resolution rows.
+
+### Phase 2792 - Dry-Submit Stage Summary
+
+- Display readiness-stage count, prerequisite, status, lookup status, workflow family, next required contract, and authority as evidence only.
+
+### Phase 2793 - Runtime Fixture Type Safety
+
+- Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
+### Phase 2794 - Documentation Update
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for exact command execution-readiness stages.
+
+### Phase 2795 - Validator And Artifact Sync
+
+- Update autonomous validators, release/deployment artifacts, runtime fixtures, and tests for phases 2781-2800.
+
+### Phase 2796 - Focused Backend Checks
+
+- Run focused backend contract tests for exact stealth command execution stage evidence and OpenAPI schema.
+
+### Phase 2797 - Focused Frontend Checks
+
+- Run focused frontend mock, dry-submit, schema, and typecheck gates for stage rendering.
+
+### Phase 2798 - No-Live Drift Scan
+
+- Search for wording or code implying stage rows execute commands, record proofs, verify Coinbase, invoke managers, execute recovery/reconciliation, mutate state, or enable browser/BFF authority.
+
+### Phase 2799 - Blind Contextless Reviews
+
+- Run blind/contextless backend and frontend reviews asking whether a fresh agent can explain readiness stages as display-only backend-owned execution prerequisites.
+
+### Phase 2800 - Focused And Full Gates, Commit, Push, And Next Range
+
+- Run focused backend/frontend tests, schema checks, autonomous checks, backend full regression, and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional; commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed Phases 2761-2780
 
 These phases continue M55 after nested active-placement exchange-truth
 boundary evidence. The next explicit gap is making command-specific proof

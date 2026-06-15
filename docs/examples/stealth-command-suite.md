@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2761-2780",
+  "approved_phase_range": "2781-2800",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -162,6 +162,23 @@ blocked even when exact command-envelope context is present:
       "bff_authority": "forward_only_no_execution"
     },
     "command_specific_proof_contracts": [],
+    "execution_readiness_stage_count": 4,
+    "blocked_execution_readiness_stage_count": 4,
+    "passed_execution_readiness_stage_count": 0,
+    "execution_readiness_stages": [
+      {
+        "stage_order": 1,
+        "workflow_family": "stealth_cancel_exchange_handling",
+        "mutation_family": "stealth_cancel",
+        "prerequisite": "approval_snapshot",
+        "lookup_status": "missing",
+        "status": "blocked",
+        "next_required_contract": "POST /api/v1/admin/approvals/requests",
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "no_live_execution": true
+      }
+    ],
     "live_execution_adapter_source": "disabled_stealth_command_live_adapter",
     "live_execution_adapter_status": "live_disabled",
     "live_execution_adapter_missing_reason": "live_execution_adapter_disabled",
@@ -230,6 +247,14 @@ blocked even when exact command-envelope context is present:
   }
 }
 ```
+
+Exact non-create command responses also include
+`execution_readiness_stages`. These ordered rows are derived from the backend
+prerequisite resolver and show the workflow family, prerequisite, lookup
+status, next required contract, and no-live authority boundary. They are
+display-only evidence; they do not record proofs, read Coinbase, invoke
+managers, execute recovery/reconciliation, mutate state, or authorize
+browser/BFF execution.
 
 Reveal, move, reprice, recovery, and reconciliation responses use the same
 field for their command-specific blocked proof routes. For reveal:

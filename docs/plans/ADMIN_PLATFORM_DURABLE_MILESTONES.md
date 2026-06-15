@@ -2706,25 +2706,23 @@ Current backend evidence:
   now advances to phases 2741-2760 to expose nested active-placement
   exchange-truth boundary evidence on exact stealth cancel, move, recovery,
   reconciliation, and movement/reprice command responses by reusing the
-  command-suite exchange-truth builder. It now advances to phases 2761-2780
-  to expose command-specific proof-route contracts on exact stealth reveal,
+  command-suite exchange-truth builder. The completed phases 2761-2780
+  exposed command-specific proof-route contracts on exact stealth reveal,
   move, reprice, recovery, and reconciliation command responses by reusing the
-  command-suite proof-route shape.
+  command-suite proof-route shape. It now advances to phases 2781-2800 to
+  expose ordered execution-readiness stages derived from exact command
+  prerequisite resolver evidence.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Command-specific proof-route contracts for exact stealth reveal, move,
-  reprice, recovery, and reconciliation command responses are the active
-  2761-2780 slice. This evidence may explain route-bound reveal-trigger,
-  mutation-claim, recovery-proof, and reconciliation-proof record routes,
-  required permissions, shared backend methods, identity keys, blocked status,
-  and display-only browser/BFF boundaries, but it must not record proofs,
+- Execution-readiness stage evidence for exact stealth command responses is
+  the active 2781-2800 slice. This evidence may explain ordered approval,
+  audit, cap/guard, reconciliation, exchange-truth, proof, disabled live
+  service, adapter, and post-write stages, but it must not record proofs,
   resolve proof authority through the frontend, read Coinbase, execute
   cancel/replace, build move/reprice plans, invoke managers, mutate state,
   execute recovery or reconciliation, resolve disabled prerequisites, or grant
-  browser/BFF authority. Stealth cancel must remain an empty
-  command-specific proof-route list because its command-specific boundaries
-  are already active-placement exchange truth and cancel/replace.
+  browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
   and post-write reconciliation execution remain blocked.

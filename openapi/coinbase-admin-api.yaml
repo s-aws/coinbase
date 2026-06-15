@@ -20154,6 +20154,26 @@ components:
             $ref: '#/components/schemas/StealthCommandExecutionPrerequisiteResolverItem'
           type: array
           title: Prerequisite Resolution
+        execution_readiness_stage_count:
+          type: integer
+          minimum: 0.0
+          title: Execution Readiness Stage Count
+          default: 0
+        blocked_execution_readiness_stage_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Execution Readiness Stage Count
+          default: 0
+        passed_execution_readiness_stage_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Execution Readiness Stage Count
+          default: 0
+        execution_readiness_stages:
+          items:
+            $ref: '#/components/schemas/StealthCommandExecutionReadinessStageItem'
+          type: array
+          title: Execution Readiness Stages
         command_specific_proof_contracts:
           items:
             $ref: '#/components/schemas/StealthCommandSuiteProofRouteItem'
@@ -20549,6 +20569,125 @@ components:
       - detail
       title: StealthCommandExecutionPrerequisiteResolverItem
       description: Read-only prerequisite lookup evidence for non-create stealth execution.
+    StealthCommandExecutionReadinessStageItem:
+      properties:
+        stage_order:
+          type: integer
+          minimum: 1.0
+          title: Stage Order
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        prerequisite:
+          $ref: '#/components/schemas/StealthCommandExecutionPrerequisite'
+        source:
+          type: string
+          minLength: 1
+          title: Source
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: POST
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
+        lookup_status:
+          $ref: '#/components/schemas/StealthCommandExecutionPrerequisiteLookupStatus'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        resolved_evidence_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Evidence Id
+        missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Missing Reason
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        coinbase_write_allowed:
+          type: boolean
+          title: Coinbase Write Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - stage_order
+      - workflow_family
+      - mutation_family
+      - prerequisite
+      - source
+      - route
+      - lookup_status
+      - next_required_contract
+      - detail
+      title: StealthCommandExecutionReadinessStageItem
+      description: Ordered fail-closed stage evidence before stealth command execution.
     StealthCommandSuiteAdmissionContextItem:
       properties:
         field_name:

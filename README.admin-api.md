@@ -390,6 +390,13 @@ method, permission, shared backend method, identity key, and display-only
 authority, but they do not record proofs, resolve proof authority through the
 frontend, read Coinbase, invoke managers, execute recovery or reconciliation,
 mutate state, or grant browser/BFF authority.
+Exact non-create stealth command responses also expose
+`execution_readiness_stages`, an ordered ledger derived from the same
+prerequisite resolver rows. Each stage maps the exact command to its stealth
+workflow family, prerequisite, lookup status, next required backend contract,
+and display/forward-only authority. The stage ledger is not a second
+resolver, live preflight, proof writer, Coinbase verification path, manager
+invocation path, reconciliation executor, or state mutation authority.
 For stealth reconciliation, the same contract may resolve
 `reconciliation_proof` from
 `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and

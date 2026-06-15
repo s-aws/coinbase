@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from core.enums import (
+    AdminApiGateStatus,
     AdminApiMutationFamilyType,
     AdminApiStealthAdmissionContextField,
+    AdminApiStealthCommandSuiteGapFamily,
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
     StealthCommandExecutionPrerequisiteLookupStatus,
@@ -16,6 +18,7 @@ from .models import (
     AdminLiveAdmissionDecisionEvidence,
     StealthCommandExecutionContractEvidence,
     StealthCommandExecutionPrerequisiteResolverItem,
+    StealthCommandExecutionReadinessStageItem,
 )
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
@@ -227,6 +230,78 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
     ),
 }
 
+WORKFLOW_FAMILY_BY_MUTATION_FAMILY: dict[
+    AdminApiMutationFamilyType,
+    AdminApiStealthCommandSuiteGapFamily,
+] = {
+    AdminApiMutationFamilyType.STEALTH_REVEAL: (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW
+    ),
+    AdminApiMutationFamilyType.STEALTH_CANCEL: (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING
+    ),
+    AdminApiMutationFamilyType.STEALTH_MOVE: (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW
+    ),
+    AdminApiMutationFamilyType.MOVEMENT_REPRICE: (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW
+    ),
+    AdminApiMutationFamilyType.STEALTH_RECOVERY: (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW
+    ),
+    AdminApiMutationFamilyType.STEALTH_RECONCILIATION: (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW
+    ),
+}
+
+NEXT_REQUIRED_CONTRACT_BY_PREREQUISITE: dict[
+    StealthCommandExecutionPrerequisite,
+    str,
+] = {
+    StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT: (
+        "POST /api/v1/admin/approvals/requests"
+    ),
+    StealthCommandExecutionPrerequisite.ADMISSION_AUDIT: (
+        "POST /api/v1/admin/admission-audits"
+    ),
+    StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION: (
+        "POST /api/v1/admin/cap-guard/decisions"
+    ),
+    StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN: (
+        "POST /api/v1/admin/reconciliation/plans"
+    ),
+    StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "active-placement-exchange-truth-proofs"
+    ),
+    StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs"
+    ),
+    StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs"
+    ),
+    StealthCommandExecutionPrerequisite.RECOVERY_PROOF: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs"
+    ),
+    StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs"
+    ),
+    StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs"
+    ),
+    StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE: (
+        "application/admin_api/live_execution.py::"
+        "build_live_execution_service_contract"
+    ),
+    StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER: (
+        "application/admin_api/live_execution.py::"
+        "build_live_execution_adapter_contract"
+    ),
+    StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION: (
+        "POST /api/v1/admin/reconciliation/plans"
+    ),
+}
+
 
 def build_stealth_command_execution_contract(
     admission_decision: AdminLiveAdmissionDecisionEvidence,
@@ -277,6 +352,10 @@ def build_stealth_command_execution_contract(
     ]
     blockers = list(BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS)
     blockers.extend(f"{prerequisite}_missing" for prerequisite in missing)
+    execution_readiness_stages = _build_execution_readiness_stages(
+        metadata=metadata,
+        resolution=resolution,
+    )
 
     return StealthCommandExecutionContractEvidence(
         mutation_family=metadata.mutation_family,
@@ -294,6 +373,14 @@ def build_stealth_command_execution_contract(
         resolved_prerequisites=resolved,
         prerequisite_resolver_lookup_ran=True,
         prerequisite_resolution=resolution,
+        execution_readiness_stage_count=len(execution_readiness_stages),
+        blocked_execution_readiness_stage_count=sum(
+            1 for item in execution_readiness_stages if item.blocking
+        ),
+        passed_execution_readiness_stage_count=sum(
+            1 for item in execution_readiness_stages if item.resolved
+        ),
+        execution_readiness_stages=execution_readiness_stages,
         command_specific_proof_contracts=(
             build_stealth_command_specific_proof_route_contracts(
                 mutation_family=metadata.mutation_family,
@@ -541,6 +628,55 @@ def _build_prerequisite_resolution(
         if prerequisite not in COMMON_PREREQUISITES
     ]
     return common + command_specific
+
+
+def _build_execution_readiness_stages(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    resolution: list[StealthCommandExecutionPrerequisiteResolverItem],
+) -> list[StealthCommandExecutionReadinessStageItem]:
+    """Summarize exact command prerequisites as ordered no-live stages."""
+
+    resolution_by_prerequisite = {item.prerequisite: item for item in resolution}
+    workflow_family = WORKFLOW_FAMILY_BY_MUTATION_FAMILY[metadata.mutation_family]
+    stages: list[StealthCommandExecutionReadinessStageItem] = []
+    for stage_order, prerequisite in enumerate(metadata.prerequisites, start=1):
+        item = resolution_by_prerequisite[prerequisite]
+        stages.append(
+            StealthCommandExecutionReadinessStageItem(
+                stage_order=stage_order,
+                workflow_family=workflow_family,
+                mutation_family=metadata.mutation_family,
+                prerequisite=prerequisite,
+                source=item.source,
+                route=item.route,
+                method=item.method,
+                identity_key=item.identity_key,
+                identity_value=item.identity_value,
+                lookup_status=item.lookup_status,
+                status=(
+                    AdminApiGateStatus.PASSED
+                    if item.resolved
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                required=True,
+                resolved=item.resolved,
+                blocking=not item.resolved,
+                resolved_evidence_id=item.resolved_evidence_id,
+                missing_reason=item.missing_reason,
+                next_required_contract=NEXT_REQUIRED_CONTRACT_BY_PREREQUISITE[
+                    prerequisite
+                ],
+                detail=(
+                    f"{prerequisite.value} stage for "
+                    f"{metadata.mutation_family.value} remains "
+                    f"{'resolved' if item.resolved else 'blocked'}; this stage "
+                    "is evidence only and does not execute the stealth manager, "
+                    "call Coinbase, or mutate state."
+                ),
+            )
+        )
+    return stages
 
 
 def _resolver_item_from_flag(

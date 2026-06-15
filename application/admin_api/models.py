@@ -5140,6 +5140,41 @@ class StealthCommandExecutionPrerequisiteResolverItem(BaseModel):
     detail: str
 
 
+class StealthCommandExecutionReadinessStageItem(BaseModel):
+    """Ordered fail-closed stage evidence before stealth command execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage_order: int = Field(ge=1)
+    workflow_family: AdminApiStealthCommandSuiteGapFamily
+    mutation_family: AdminApiMutationFamilyType
+    prerequisite: StealthCommandExecutionPrerequisite
+    source: str = Field(min_length=1)
+    route: str
+    method: str = "POST"
+    identity_key: str = "stealth_order_id"
+    identity_value: str | None = None
+    lookup_status: StealthCommandExecutionPrerequisiteLookupStatus
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    resolved: bool = False
+    blocking: bool = True
+    resolved_evidence_id: str | None = None
+    missing_reason: str | None = None
+    next_required_contract: str
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    no_live_execution: bool = True
+    manager_invocation_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    coinbase_write_allowed: bool = False
+    state_mutation_allowed: bool = False
+    detail: str
+
+
 class StealthPostWriteReconciliationBoundaryEvidence(BaseModel):
     """Fail-closed post-write reconciliation boundary for stealth commands."""
 
@@ -5240,6 +5275,12 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     prerequisite_resolver_authority: str = "read_only_no_execution"
     prerequisite_resolution: list[
         StealthCommandExecutionPrerequisiteResolverItem
+    ] = Field(default_factory=list)
+    execution_readiness_stage_count: int = Field(default=0, ge=0)
+    blocked_execution_readiness_stage_count: int = Field(default=0, ge=0)
+    passed_execution_readiness_stage_count: int = Field(default=0, ge=0)
+    execution_readiness_stages: list[
+        StealthCommandExecutionReadinessStageItem
     ] = Field(default_factory=list)
     command_specific_proof_contracts: list[StealthCommandSuiteProofRouteItem] = (
         Field(default_factory=list)
