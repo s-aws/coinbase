@@ -57,6 +57,7 @@ from .models import (
     StealthActivePlacementExchangeTruthProofCommand,
     StealthActivePlacementExchangeTruthSnapshotCommand,
     StealthCancelCommand,
+    StealthCreateLifecycleWriteGuardProofCommand,
     StealthCreateCommand,
     StealthMoveCommand,
     StealthRecoveryCommand,
@@ -101,6 +102,14 @@ from .stealth_exchange_truth import (
 from .stealth_exchange_truth_service import (
     AdminApiStealthExchangeTruthService,
     StealthExchangeTruthError,
+)
+from .stealth_lifecycle_write import (
+    FileStealthLifecycleWriteGuardProofStore,
+    StealthCreateLifecycleWriteGuardProofRecord,
+)
+from .stealth_lifecycle_write_service import (
+    AdminApiStealthLifecycleWriteGuardService,
+    StealthLifecycleWriteGuardError,
 )
 
 
@@ -166,6 +175,10 @@ class AdminApiCommandDependencies:
         [],
         FileStealthExchangeTruthProofStore,
     ] = FileStealthExchangeTruthProofStore
+    stealth_lifecycle_write_guard_proof_store_getter: Callable[
+        [],
+        FileStealthLifecycleWriteGuardProofStore,
+    ] = FileStealthLifecycleWriteGuardProofStore
     audit_store_getter: Callable[[], FileAdminApiAuditStore] = FileAdminApiAuditStore
     spot_recovery_proof_service: AdminApiSpotRecoveryProofService = field(
         default_factory=AdminApiSpotRecoveryProofService
@@ -179,6 +192,9 @@ class AdminApiCommandDependencies:
     stealth_exchange_truth_service: AdminApiStealthExchangeTruthService = field(
         default_factory=AdminApiStealthExchangeTruthService
     )
+    stealth_lifecycle_write_guard_service: (
+        AdminApiStealthLifecycleWriteGuardService
+    ) = field(default_factory=AdminApiStealthLifecycleWriteGuardService)
 
 
 def direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
@@ -453,6 +469,38 @@ def _stealth_exchange_truth_proof_response_data(
         "snapshot_recorded": False,
         "proof_persisted": True,
         "exchange_truth_verified": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "coinbase_order_cancel_submitted": False,
+        "active_placement_cancel_replace_ran": False,
+        "reconciliation_executed": False,
+        "order_state_mutated": False,
+        "lifecycle_state_mutated": False,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _stealth_lifecycle_write_guard_proof_response_data(
+    record: StealthCreateLifecycleWriteGuardProofRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted lifecycle-write proof."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "proof_persisted": True,
+        "lifecycle_write_guard_verified": False,
+        "manager_invocation_ran": False,
+        "stealth_row_write_ran": False,
+        "order_parent_write_ran": False,
+        "lifecycle_event_dispatch_ran": False,
+        "local_lifecycle_mutation_ran": False,
         "coinbase_read_attempted": False,
         "coinbase_read_succeeded": False,
         "coinbase_rest_read_ran": False,
@@ -1813,6 +1861,132 @@ class AdminApiCommandService:
             audit_id=record.audit_id,
             live_exchange_submitted=False,
             data=_stealth_exchange_truth_proof_response_data(record),
+        )
+
+    def _rejected_stealth_lifecycle_write_guard_response(
+        self,
+        *,
+        command: StealthCreateLifecycleWriteGuardProofCommand,
+        message: str,
+    ) -> AdminApiCommandResponse:
+        request = command.request
+        data: dict[str, Any] = {
+            "mutation_family": (
+                AdminApiMutationFamilyType.STEALTH_CREATE_LIFECYCLE_WRITE_GUARD_PROOF.value
+            ),
+            "stealth_order_id": command.stealth_order_id,
+            "lifecycle_write_guard_proof_id": (
+                request.lifecycle_write_guard_proof_id
+            ),
+            "guarded_command_route": request.guarded_command_route,
+            "guarded_command_method": request.guarded_command_method,
+            "guarded_service_method": request.guarded_service_method,
+            "guarded_actor_id": request.guarded_actor_id,
+            "guarded_operator_intent": request.guarded_operator_intent,
+            "guarded_idempotency_key": request.guarded_idempotency_key,
+            "guarded_payload_hash": request.guarded_payload_hash,
+            "product_id": request.product_id,
+            "side": request.side.value,
+            "total_size": request.total_size,
+            "limit_price": request.limit_price,
+            "evidence_source": request.evidence_source.value,
+            "guard_evidence_ref": request.guard_evidence_ref,
+            "approval_snapshot_id": request.approval_snapshot_id,
+            "admission_audit_id": request.admission_audit_id,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "dry_run": request.dry_run,
+            "operator_reason": request.operator_reason,
+            "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "proof_persisted": False,
+            "lifecycle_write_guard_verified": False,
+            "manager_invocation_ran": False,
+            "stealth_row_write_ran": False,
+            "order_parent_write_ran": False,
+            "lifecycle_event_dispatch_ran": False,
+            "local_lifecycle_mutation_ran": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "coinbase_rest_read_ran": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "active_placement_cancel_replace_ran": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "lifecycle_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD,
+            service_method="record_stealth_create_lifecycle_write_guard_proof",
+            message=message,
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            data=data,
+            failure_stage="proof_prerequisite",
+        )
+
+    def record_stealth_create_lifecycle_write_guard_proof(
+        self,
+        command: StealthCreateLifecycleWriteGuardProofCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned stealth create lifecycle-write guard evidence."""
+
+        if command.admission_decision is None:
+            return self._rejected_stealth_lifecycle_write_guard_response(
+                command=command,
+                message=(
+                    "Stealth lifecycle-write guard proof admission evidence is "
+                    "missing."
+                ),
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.stealth_lifecycle_write_guard_service.record_proof(
+                proof_store=(
+                    deps.stealth_lifecycle_write_guard_proof_store_getter()
+                ),
+                stealth_order_id=command.stealth_order_id,
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except StealthLifecycleWriteGuardError as exc:
+            return self._rejected_stealth_lifecycle_write_guard_response(
+                command=command,
+                message=str(exc),
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD,
+            service_method="record_stealth_create_lifecycle_write_guard_proof",
+            message=(
+                "Stealth lifecycle-write guard proof recorded as evidence only; "
+                "the create lifecycle was not written and Coinbase was not called."
+            ),
+            stealth_order_id=record.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_stealth_lifecycle_write_guard_proof_response_data(record),
         )
 
     def execute_spot_recovery_apply(

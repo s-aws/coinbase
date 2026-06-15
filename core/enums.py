@@ -146,6 +146,7 @@ class AdminApiPermission(str, Enum):
     SPOT_RECOVERY_EXECUTE = "spot_recovery:execute"
     SPOT_RECOVERY_RECORD = "spot_recovery:record"
     STEALTH_EXCHANGE_TRUTH_RECORD = "stealth_exchange_truth:record"
+    STEALTH_LIFECYCLE_WRITE_RECORD = "stealth_lifecycle_write:record"
     STEALTH_RECOVERY_EXECUTE = "stealth_recovery:execute"
     STEALTH_RECONCILIATION_EXECUTE = "stealth_reconciliation:execute"
     CONFIG_UPDATE = "config:update"
@@ -270,6 +271,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_ACTIVE_PLACEMENT_EXCHANGE_TRUTH_PROOF = (
         "stealth_active_placement_exchange_truth_proof"
     )
+    STEALTH_CREATE_LIFECYCLE_WRITE_GUARD_PROOF = (
+        "stealth_create_lifecycle_write_guard_proof"
+    )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
@@ -345,6 +349,14 @@ class StealthExchangeTruthEvidenceSource(str, Enum):
     LIVE_COINBASE_DISABLED = "live_coinbase_disabled"
 
 
+class StealthLifecycleWriteGuardEvidenceSource(str, Enum):
+    """Source posture for stealth create lifecycle-write guard evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    LIVE_COINBASE_DISABLED = "live_coinbase_disabled"
+
+
 class AdminApiApprovalLifecycleStatus(str, Enum):
     """Lifecycle state for backend-owned approval records."""
 
@@ -416,6 +428,7 @@ class AdminApiLivePreflightCategory(str, Enum):
     CAP_GUARD = "cap_guard"
     AUDIT = "audit"
     RECONCILIATION = "reconciliation"
+    LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     BROWSER_AUTHORITY = "browser_authority"
 

@@ -38,7 +38,101 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Command Admission Context Echo Batch - Phases 2341-2360
+## Active M55 Lifecycle-Write Guard Proof Batch - Phases 2361-2380
+
+These phases continue M55 after command-response admission context echo. The
+next explicit gap is backend-owned stealth create lifecycle-write guard proof
+records. This range may add enum-backed permission and mutation-family values,
+an append-only JSONL proof store, an exact-admission proof service, route
+inventory entries, readback and writer routes, command-suite proof-route
+linkage, OpenAPI/schema sync, frontend mock/client/read evidence, docs, tests,
+and contextless review. It must not invoke `StealthOrderManager`, write
+`stealth_orders` or `order_parent` rows, dispatch lifecycle events, submit or
+read Coinbase, cancel/replace placements, execute reconciliation, mutate
+stealth/order/exchange state, approve live admission, or grant browser/BFF
+execution authority.
+
+### Phase 2361 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2341-2360 to active phases 2361-2380 while preserving no-live defaults and cap policy.
+
+### Phase 2362 - Lifecycle-Write Guard Proof Scope
+
+- Define lifecycle-write guard proof records as backend-owned evidence for a proposed stealth create command, not create execution, manager invocation, lifecycle writing, or approval authority.
+
+### Phase 2363 - Enum And Permission Contract
+
+- Add enum-backed mutation-family, permission, evidence-source, and proof-route category values for stealth lifecycle-write guard records.
+
+### Phase 2364 - Append-Only Proof Store
+
+- Add a lock-protected JSONL store for lifecycle-write guard proof records keyed by `stealth_order_id` and proof id.
+
+### Phase 2365 - Exact Admission Proof Service
+
+- Add a service that accepts proof records only when route, method, module, identity, action class, permission, service method, approval snapshot, admission audit, cap/guard decision, reconciliation plan, idempotency key, operator intent, and payload hash match the exact command envelope.
+
+### Phase 2366 - Route Inventory And Readback
+
+- Add route inventory and readback evidence for `GET /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof` without Coinbase reads or lifecycle writes.
+
+### Phase 2367 - Command Service Linkage
+
+- Add a shared command-service method that persists lifecycle-write guard proofs through the new service and returns accepted/rejected no-live evidence.
+
+### Phase 2368 - FastAPI Proof Writer
+
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs` through the existing idempotency, audit, approval, cap/guard, reconciliation, and disabled-live executor path.
+
+### Phase 2369 - Command-Suite Audit Linkage
+
+- Update stealth command-suite create lifecycle-write audit and admission-readiness rows to point at the new proof route while keeping lifecycle execution blocked.
+
+### Phase 2370 - Backend Contract Tests
+
+- Cover RBAC, `order_id` rejection, missing-prerequisite rejection, exact-admission acceptance, idempotency replay, readback, audit evidence, no-live flags, and no manager/DB/Coinbase mutation.
+
+### Phase 2371 - Backend Generated Artifacts
+
+- Regenerate OpenAPI and route-inventory artifacts after the new backend contract is implemented.
+
+### Phase 2372 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI without hand-editing generated files.
+
+### Phase 2373 - Frontend Client And Mock Sync
+
+- Add frontend API-client wrappers, mock backend routes, and fixtures for lifecycle-write guard proof readback/writer evidence.
+
+### Phase 2374 - Frontend Evidence Rendering
+
+- Render lifecycle-write guard readback and command-suite proof-route evidence as display-only evidence without adding create execution controls.
+
+### Phase 2375 - Documentation Update
+
+- Update Admin API, stealth command-suite, command-workflow, route-inventory, examples, maintainer handoff, agent state, and roadmap docs for the proof-record boundary.
+
+### Phase 2376 - Validator Sync
+
+- Update autonomous queue, release, deployment, runtime, and quality validators to require phases 2361-2380 and lifecycle-write guard proof evidence.
+
+### Phase 2377 - Drift Scan
+
+- Search for stale 2341-2360 active-range text and stale `stealth_create_lifecycle_write_contract` wording that conflicts with the new guard-proof/execution-contract split.
+
+### Phase 2378 - Blind Contextless Review
+
+- Run a contextless review asking whether a fresh agent can explain how stealth create lifecycle-write guard proof records work and why they do not execute create.
+
+### Phase 2379 - Focused Gate Prep
+
+- Run backend focused tests, frontend focused tests, autonomous validators, schema checks, and resolve any route/schema/doc drift.
+
+### Phase 2380 - Full Gates, Push, And Next Range
+
+- Run backend full regression, frontend `npm run release:gate`, confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed M55 Command Admission Context Echo Batch - Phases 2341-2360
 
 These phases continue M55 by aligning live-disabled stealth command
 dry-submit responses with the command-suite admission context ledger. The

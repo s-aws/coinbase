@@ -2625,13 +2625,14 @@ Current backend evidence:
   exchange-truth ledgers, detail-route audit evidence, lifecycle-write and
   proof-route linkage, coverage-gap read-evidence linkage, and
   exchange-truth read-evidence linkage, route-bound live-disabled stealth
-  recovery and reconciliation command contracts, and backend-owned
-  append-only active-placement exchange-truth evidence, and backend-owned
-  command-suite admission-readiness binding plus command-envelope context
-  requirements without adding live Coinbase reads or live execution. It now
-  advances to phases 2341-2360 for command-response admission context echo so
-  live-disabled stealth dry-submit responses expose exact request context as
-  backend evidence while preserving no-live authority.
+  recovery and reconciliation command contracts, backend-owned append-only
+  active-placement exchange-truth evidence, command-suite admission-readiness
+  binding, command-envelope context requirements, and command-response
+  admission context echo without adding live Coinbase reads or live execution.
+  It now advances to phases 2361-2380 for stealth create lifecycle-write guard
+  proof records so backend-owned proof evidence can be persisted and read back
+  while preserving no manager invocation, no lifecycle writes, and no-live
+  authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

@@ -77,6 +77,9 @@ from application.admin_api.stealth_exchange_truth import (
     FileStealthExchangeTruthProofStore,
     FileStealthExchangeTruthSnapshotStore,
 )
+from application.admin_api.stealth_lifecycle_write import (
+    FileStealthLifecycleWriteGuardProofStore,
+)
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -103,6 +106,7 @@ from application.admin_api.models import (
     SpotRecoveryRollbackExecutionRequest,
     StealthActivePlacementExchangeTruthProofRequest,
     StealthActivePlacementExchangeTruthSnapshotRequest,
+    StealthCreateLifecycleWriteGuardProofRequest,
 )
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
@@ -134,6 +138,7 @@ from core.enums import (
     AdminApiVerifierReadinessStatus,
     StealthMutationKind,
     StealthExchangeTruthEvidenceSource,
+    StealthLifecycleWriteGuardEvidenceSource,
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
@@ -221,6 +226,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     stealth_exchange_truth_proof_store = FileStealthExchangeTruthProofStore(
         store_dir / "stealth_exchange_truth_proofs.jsonl"
     )
+    stealth_lifecycle_write_guard_proof_store = (
+        FileStealthLifecycleWriteGuardProofStore(
+            store_dir / "stealth_lifecycle_write_guard_proofs.jsonl"
+        )
+    )
     order_command_service = AdminApiCommandService(
         AdminApiCommandDependencies(
             spot_recovery_proof_store_getter=lambda: spot_recovery_proof_store,
@@ -239,6 +249,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             ),
             stealth_exchange_truth_proof_store_getter=lambda: (
                 stealth_exchange_truth_proof_store
+            ),
+            stealth_lifecycle_write_guard_proof_store_getter=lambda: (
+                stealth_lifecycle_write_guard_proof_store
             ),
             audit_store_getter=lambda: audit_store,
         )
@@ -304,6 +317,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         stealth_routes.AdminApiReadService(
             stealth_exchange_truth_snapshot_store=stealth_exchange_truth_snapshot_store,
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
+            stealth_lifecycle_write_guard_proof_store=(
+                stealth_lifecycle_write_guard_proof_store
+            ),
         )
     )
     client = TestClient(app)
@@ -332,6 +348,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client.admin_api_test_stealth_exchange_truth_proof_store = (
         stealth_exchange_truth_proof_store
+    )
+    client.admin_api_test_stealth_lifecycle_write_guard_proof_store = (
+        stealth_lifecycle_write_guard_proof_store
     )
     return client
 
@@ -1310,6 +1329,156 @@ def _append_stealth_exchange_truth_admission_chain(
         max_submitted_notional_usdc="0",
         max_executed_notional_usdc="0",
         reason="Exact backend-owned stealth exchange-truth reconciliation plan.",
+    )
+    reconciliation_store.append(reconciliation)
+    return approval, audit_event, cap_guard, reconciliation
+
+
+def _append_stealth_lifecycle_write_guard_admission_chain(
+    *,
+    approval_store: FileAdminApiApprovalStore,
+    audit_store: FileAdminApiAuditStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
+    reconciliation_store: FileAdminApiReconciliationStore,
+    route: str,
+    service_method: str,
+    stealth_order_id: str,
+    idempotency_key: str,
+    operator_intent: str,
+    payload_hash: str,
+    approval_snapshot_id: str,
+    admission_audit_id: str,
+    cap_guard_decision_id: str,
+    reconciliation_plan_id: str,
+) -> tuple[AdminApiApprovalRecord, AdminApiAuditEvent, CapGuardDecisionRecord, ReconciliationPlanRecord]:
+    now = datetime.now(timezone.utc)
+    approval = AdminApiApprovalRecord(
+        approval_id=approval_snapshot_id,
+        expires_at=now + timedelta(minutes=5),
+        approved_by_actor_id="approver-001",
+        requested_by_actor_id="operator-001",
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        cap_guard_decision_ref=cap_guard_decision_id,
+        reconciliation_plan_ref=reconciliation_plan_id,
+    )
+    approval_store.append(approval)
+    admission_decision = AdminLiveAdmissionDecisionEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        allowed=False,
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD,
+        service_method=service_method,
+        actor_id="operator-001",
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_required=True,
+        approval_store_required=True,
+        admission_audit_required=True,
+        cap_guard_required=True,
+        reconciliation_required=True,
+        approval_snapshot_present=True,
+        approval_snapshot_id=approval_snapshot_id,
+        approval_snapshot_source="approval_store",
+        approval_snapshot_approved_by_actor_id=approval.approved_by_actor_id,
+        approval_snapshot_requested_by_actor_id=approval.requested_by_actor_id,
+        approval_snapshot_expires_at=approval.expires_at.isoformat(),
+        admission_audit_present=False,
+        cap_guard_present=False,
+        reconciliation_plan_present=False,
+        browser_authority="rejected",
+        live_exchange_submitted=False,
+        blockers=[
+            AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+            AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+        ],
+        evidence=["prior append-only stealth lifecycle-write guard admission audit"],
+        detail="Prior backend-owned stealth lifecycle-write guard admission audit.",
+    )
+    audit_event = AdminApiAuditEvent(
+        audit_id=admission_audit_id,
+        actor_id="operator-001",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD,
+        endpoint=f"POST {route}",
+        request_id="corr-stealth-lifecycle-write-guard-admission",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        approval_id=approval_snapshot_id,
+        stealth_order_id=stealth_order_id,
+        status=AdminApiCommandStatus.REJECTED,
+        failure_stage="approval",
+        message="Prior stealth lifecycle-write guard admission audit.",
+        admission_decision=admission_decision,
+    )
+    audit_store.append(audit_event)
+    cap_guard = CapGuardDecisionRecord(
+        decision_id=cap_guard_decision_id,
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD,
+        service_method=service_method,
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        approval_snapshot_id=approval_snapshot_id,
+        admission_audit_id=admission_audit_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        cap_policy_ref="stealth_lifecycle_write_guard_record_cap:local_only",
+        guard_policy_ref="stealth_lifecycle_write_guard_prerequisites",
+        product_scope="stealth create lifecycle-write guard scope",
+        max_submitted_notional_usdc="0",
+        max_executed_notional_usdc="0",
+        reason="Exact backend-owned stealth lifecycle-write guard evidence.",
+    )
+    cap_guard_store.append(cap_guard)
+    reconciliation = ReconciliationPlanRecord(
+        plan_id=reconciliation_plan_id,
+        route=route,
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD,
+        service_method=service_method,
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        approval_snapshot_id=approval_snapshot_id,
+        admission_audit_id=admission_audit_id,
+        cap_guard_decision_id=cap_guard_decision_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        reconciliation_policy_ref="stealth_lifecycle_write_guard_record_reconciliation",
+        product_scope="stealth create lifecycle-write guard scope",
+        exchange_submission_required=False,
+        post_submit_reconciliation_required=False,
+        retained_inventory_required=True,
+        max_submitted_notional_usdc="0",
+        max_executed_notional_usdc="0",
+        reason="Exact backend-owned stealth lifecycle-write guard reconciliation plan.",
     )
     reconciliation_store.append(reconciliation)
     return approval, audit_event, cap_guard, reconciliation
@@ -3405,6 +3574,232 @@ def test_admin_api_stealth_exchange_truth_records_are_no_live_and_path_keyed(
     ]
     assert {row.audit_id for row in proof_audit_rows} >= {
         snapshot_payload["audit_id"],
+        proof_payload["audit_id"],
+    }
+    assert all(row.coinbase_order_id is None for row in proof_audit_rows)
+    assert all(
+        row.admission_decision is not None
+        and row.admission_decision.live_exchange_submitted is False
+        for row in proof_audit_rows
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed(
+    monkeypatch,
+):
+    import configuration
+
+    def poison(*_args, **_kwargs):
+        raise AssertionError(
+            "stealth lifecycle-write guard proof must not contact Coinbase"
+        )
+
+    monkeypatch.setattr(configuration, "get_rest_client", poison)
+
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-life-write-001"
+    proof_route = (
+        "/api/v1/stealth/orders/{stealth_order_id}/"
+        "lifecycle-write-guard-proofs"
+    )
+    proof_path = (
+        f"/api/v1/stealth/orders/{stealth_order_id}/"
+        "lifecycle-write-guard-proofs"
+    )
+    read_path = (
+        f"/api/v1/stealth/orders/{stealth_order_id}/"
+        "lifecycle-write-guard-proof"
+    )
+    proof_body = {
+        "stealth_order_id": stealth_order_id,
+        "guarded_command_route": "/api/v1/stealth/orders",
+        "guarded_command_method": "POST",
+        "guarded_service_method": "create_stealth_order",
+        "guarded_actor_id": "operator-001",
+        "guarded_operator_intent": "stealth_create_lifecycle_write_review",
+        "guarded_idempotency_key": "stealth-create-command-001",
+        "guarded_payload_hash": "a" * 64,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "total_size": "0.001",
+        "limit_price": "65000.00",
+        "evidence_source": StealthLifecycleWriteGuardEvidenceSource.TEST_EVIDENCE.value,
+        "guard_evidence_ref": "local-lifecycle-write-guard-ref-001",
+        "reconciliation_plan_id": "stealth-life-write-recon-plan-001",
+        "approval_snapshot_id": "stealth-life-write-approval-001",
+        "admission_audit_id": "stealth-life-write-admission-audit-001",
+        "cap_guard_decision_id": "stealth-life-write-cap-guard-001",
+        "lifecycle_write_guard_proof_id": "stealth-life-write-proof-001",
+        "dry_run": True,
+        "operator_reason": "contract evidence only",
+        "manual_live_acknowledgement": False,
+    }
+
+    denied = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(roles=AdminApiRole.TRADER.value),
+    )
+    assert denied.status_code == 403
+    assert denied.json()["live_coinbase_orders_ran"] is False
+
+    rejected_order_id = client.post(
+        proof_path,
+        json={**proof_body, "order_id": "exchange-order-id"},
+        headers=_headers(
+            idempotency_key="stealth-life-write-order-id-rejected",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert rejected_order_id.status_code == 422
+
+    missing_prereq = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(
+            idempotency_key="stealth-life-write-missing-prereq",
+            operator_intent="stealth_lifecycle_write_guard_review",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert missing_prereq.status_code == 400
+    missing_payload = missing_prereq.json()
+    assert missing_payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert missing_payload["required_permission"] == (
+        AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD.value
+    )
+    assert missing_payload["data"]["proof_persisted"] is False
+    assert missing_payload["data"]["manager_invocation_ran"] is False
+    assert (
+        client.admin_api_test_stealth_lifecycle_write_guard_proof_store.read_recent()
+        == []
+    )
+
+    proof_payload_hash = _stealth_exchange_truth_payload_hash(
+        endpoint=f"POST {proof_path}",
+        stealth_order_id=stealth_order_id,
+        body=proof_body,
+        model=StealthCreateLifecycleWriteGuardProofRequest,
+        operator_intent="stealth_lifecycle_write_guard_review",
+    )
+    _append_stealth_lifecycle_write_guard_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=proof_route,
+        service_method="record_stealth_create_lifecycle_write_guard_proof",
+        stealth_order_id=stealth_order_id,
+        idempotency_key="stealth-life-write-proof-001",
+        operator_intent="stealth_lifecycle_write_guard_review",
+        payload_hash=proof_payload_hash,
+        approval_snapshot_id="stealth-life-write-approval-001",
+        admission_audit_id="stealth-life-write-admission-audit-001",
+        cap_guard_decision_id="stealth-life-write-cap-guard-001",
+        reconciliation_plan_id="stealth-life-write-recon-plan-001",
+    )
+    proof_created = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(
+            idempotency_key="stealth-life-write-proof-001",
+            operator_intent="stealth_lifecycle_write_guard_review",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert proof_created.status_code == 200
+    proof_payload = proof_created.json()
+    assert proof_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert proof_payload["stealth_order_id"] == stealth_order_id
+    assert proof_payload["client_order_id"] is None
+    assert proof_payload["coinbase_order_id"] is None
+    assert proof_payload["required_permission"] == (
+        AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD.value
+    )
+    assert proof_payload["data"]["lifecycle_write_guard_proof_id"] == (
+        "stealth-life-write-proof-001"
+    )
+    assert proof_payload["data"]["proof_persisted"] is True
+    assert proof_payload["data"]["lifecycle_write_guard_verified"] is False
+    assert proof_payload["data"]["manager_invocation_ran"] is False
+    assert proof_payload["data"]["stealth_row_write_ran"] is False
+    assert proof_payload["data"]["order_parent_write_ran"] is False
+    assert proof_payload["data"]["lifecycle_event_dispatch_ran"] is False
+    assert proof_payload["data"]["local_lifecycle_mutation_ran"] is False
+    assert proof_payload["data"]["coinbase_read_attempted"] is False
+    assert proof_payload["data"]["coinbase_read_succeeded"] is False
+    assert proof_payload["data"]["coinbase_rest_read_ran"] is False
+    assert proof_payload["data"]["coinbase_order_submitted"] is False
+    assert proof_payload["data"]["coinbase_order_cancel_submitted"] is False
+    assert proof_payload["data"]["reconciliation_executed"] is False
+    assert proof_payload["data"]["order_state_mutated"] is False
+    assert proof_payload["data"]["lifecycle_state_mutated"] is False
+    assert proof_payload["data"]["exchange_state_mutated"] is False
+    assert proof_payload["live_exchange_submitted"] is False
+    assert '"order_id"' not in json.dumps(proof_payload)
+
+    proof_replay = client.post(
+        proof_path,
+        json=proof_body,
+        headers=_headers(
+            idempotency_key="stealth-life-write-proof-001",
+            operator_intent="stealth_lifecycle_write_guard_review",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+    )
+    assert proof_replay.status_code == 200
+    assert proof_replay.headers["X-Idempotency-Replayed"] == "true"
+    assert proof_replay.json()["audit_id"] == proof_payload["audit_id"]
+
+    proof_records = (
+        client.admin_api_test_stealth_lifecycle_write_guard_proof_store.read_recent()
+    )
+    assert [record.lifecycle_write_guard_proof_id for record in proof_records] == [
+        "stealth-life-write-proof-001"
+    ]
+
+    readback = client.get(
+        read_path,
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["approved_phase_range"] == "2361-2380"
+    assert readback_payload["stealth_order_id"] == stealth_order_id
+    assert readback_payload["lifecycle_write_guard_verified"] is False
+    assert readback_payload["persisted_proof_count"] == 1
+    assert readback_payload["latest_lifecycle_write_guard_proof_id"] == (
+        "stealth-life-write-proof-001"
+    )
+    assert readback_payload["proof_records_created"] is True
+    assert readback_payload["manager_invocation_ran"] is False
+    assert readback_payload["stealth_row_write_ran"] is False
+    assert readback_payload["order_parent_write_ran"] is False
+    assert readback_payload["lifecycle_event_dispatch_ran"] is False
+    assert readback_payload["local_lifecycle_mutation_ran"] is False
+    assert readback_payload["coinbase_rest_read_ran"] is False
+    assert readback_payload["coinbase_order_submitted"] is False
+    assert readback_payload["reconciliation_executed"] is False
+    assert readback_payload["order_state_mutated"] is False
+    assert readback_payload["lifecycle_state_mutated"] is False
+    assert readback_payload["exchange_state_mutated"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_read_ran"] is False
+    assert all(
+        proof["required_permission"]
+        == AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD.value
+        for proof in readback_payload["persisted_proofs"]
+    )
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=80)
+    proof_audit_rows = [
+        row
+        for row in audit_rows
+        if row.permission == AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD
+        and row.endpoint == f"POST {proof_path}"
+    ]
+    assert {row.audit_id for row in proof_audit_rows} >= {
         proof_payload["audit_id"],
     }
     assert all(row.coinbase_order_id is None for row in proof_audit_rows)
@@ -5542,7 +5937,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2341-2360"
+    assert payload["approved_phase_range"] == "2361-2380"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -5578,7 +5973,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     ]
     assert create_lifecycle_write_audit["lifecycle_write_required"] is True
     assert (
-        create_lifecycle_write_audit["lifecycle_write_contract_configured"] is False
+        create_lifecycle_write_audit["lifecycle_write_contract_configured"] is True
     )
     assert create_lifecycle_write_audit["lifecycle_write_guard_resolved"] is False
     assert create_lifecycle_write_audit["manager_invocation_allowed"] is False
@@ -5598,13 +5993,13 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert (
         create_lifecycle_write_audit["post_write_reconciliation_satisfied"] is False
     )
-    assert "stealth_create_lifecycle_write_contract" in create_lifecycle_write_audit[
-        "required_contracts"
-    ]
+    assert "stealth_create_lifecycle_write_guard_proof" in (
+        create_lifecycle_write_audit["required_contracts"]
+    )
     assert create_lifecycle_write_audit["required_contracts"] == (
         create_lifecycle_write_audit["missing_contracts"]
     )
-    assert "stealth_create_lifecycle_write_contract_missing" in (
+    assert "stealth_create_lifecycle_write_guard_proof_missing" in (
         create_lifecycle_write_audit["blockers"]
     )
     assert "approval_snapshot" in create_lifecycle_write_audit[
@@ -5622,8 +6017,8 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert "live_execution_disabled" in create_lifecycle_write_audit[
         "missing_gate_chain"
     ]
-    assert create_lifecycle_write_audit["proof_route_count"] == 5
-    assert create_lifecycle_write_audit["blocking_proof_route_count"] == 5
+    assert create_lifecycle_write_audit["proof_route_count"] == 6
+    assert create_lifecycle_write_audit["blocking_proof_route_count"] == 6
     proof_routes = create_lifecycle_write_audit["proof_routes"]
     assert {route["route"] for route in proof_routes} == {
         "/api/v1/admin/approvals/requests",
@@ -5631,6 +6026,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         "/api/v1/admin/admission-audits",
         "/api/v1/admin/cap-guard/decisions",
         "/api/v1/admin/reconciliation/plans",
+        "/api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs",
     }
     assert {route["shared_method"] for route in proof_routes} == {
         "create_approval_request",
@@ -5638,6 +6034,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         "record_admission_audit",
         "record_cap_guard_decision",
         "record_reconciliation_plan",
+        "record_stealth_create_lifecycle_write_guard_proof",
     }
     assert all(route["command_identity_key"] == "stealth_order_id" for route in proof_routes)
     assert all(route["browser_authority"] == "display_only" for route in proof_routes)
@@ -6049,7 +6446,9 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
     )
     assert create_gap["command_route"] == "/api/v1/stealth/orders"
-    assert "stealth_create_lifecycle_write_contract" in create_gap["missing_contracts"]
+    assert "stealth_create_lifecycle_write_guard_proof" in (
+        create_gap["missing_contracts"]
+    )
     assert create_gap["detail"].endswith("mutate local lifecycle state.")
     reveal_gap = coverage_gaps[
         AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW.value
@@ -6920,6 +7319,9 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
         viewer, AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD
     )
     assert not actor_has_permission(
+        viewer, AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD
+    )
+    assert not actor_has_permission(
         viewer, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
     )
     assert not actor_has_permission(
@@ -6933,6 +7335,9 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
     assert not actor_has_permission(operator, AdminApiPermission.SPOT_RECOVERY_RECORD)
     assert not actor_has_permission(
         operator, AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD
+    )
+    assert not actor_has_permission(
+        operator, AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD
     )
     assert not actor_has_permission(
         operator, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
@@ -6949,6 +7354,9 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
         trader, AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD
     )
     assert not actor_has_permission(
+        trader, AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD
+    )
+    assert not actor_has_permission(
         trader, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
     )
     assert not actor_has_permission(
@@ -6959,6 +7367,9 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
         admin, AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD
     )
     assert actor_has_permission(
+        admin, AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD
+    )
+    assert actor_has_permission(
         admin, AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE
     )
     assert not actor_has_permission(emergency, AdminApiPermission.ORDER_CANCEL)
@@ -6966,6 +7377,9 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
     assert not actor_has_permission(emergency, AdminApiPermission.SPOT_RECOVERY_RECORD)
     assert not actor_has_permission(
         emergency, AdminApiPermission.STEALTH_EXCHANGE_TRUTH_RECORD
+    )
+    assert not actor_has_permission(
+        emergency, AdminApiPermission.STEALTH_LIFECYCLE_WRITE_RECORD
     )
     assert not actor_has_permission(
         emergency, AdminApiPermission.STEALTH_RECOVERY_EXECUTE
@@ -7107,7 +7521,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2341-2360"
+    assert live_payload["approved_phase_range"] == "2361-2380"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -7670,7 +8084,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2341-2360"
+    assert enterprise_payload["approved_phase_range"] == "2361-2380"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -8253,7 +8667,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2341-2360"
+    assert recovery_preview_payload["approved_phase_range"] == "2361-2380"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

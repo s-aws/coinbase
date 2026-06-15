@@ -227,6 +227,16 @@ evidence only after backend admission prerequisites match. They do not read
 Coinbase, verify exchange truth, cancel/replace active placements, execute
 reconciliation, mutate order/exchange/lifecycle state, or authorize browser/BFF
 proof authority.
+Stealth create lifecycle-write guard evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof`
+and persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs`.
+The writer route requires `stealth_lifecycle_write:record`, uses path
+`stealth_order_id` as the command identity, and persists append-only local
+proof evidence only after backend admission prerequisites match. It does not
+invoke `StealthOrderManager`, write `stealth_orders` or `order_parent` rows,
+dispatch lifecycle events, submit or read Coinbase, execute reconciliation, or
+authorize browser/BFF lifecycle-write authority.
 The same command-suite response now includes `admission_readiness` rows that
 bind each stealth command route to the backend-owned evidence required before
 execution can ever be considered: approval request/decision, admission audit,

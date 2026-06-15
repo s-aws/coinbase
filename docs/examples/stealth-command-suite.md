@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2341-2360",
+  "approved_phase_range": "2361-2380",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -152,13 +152,25 @@ live-disabled create workflow:
       "command_identity_key": "stealth_order_id",
       "browser_authority": "display_only",
       "bff_authority": "forward_only_no_execution"
+    },
+    {
+      "gate": "lifecycle_write_guard",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs",
+      "method": "POST",
+      "required_permission": "stealth_lifecycle_write:record",
+      "shared_method": "record_stealth_create_lifecycle_write_guard_proof",
+      "identity_key": "stealth_order_id",
+      "command_identity_key": "stealth_order_id",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
     }
   ],
   "required_contracts": [
     "stealth_create_guard_contract",
     "stealth_create_admission_audit",
     "stealth_create_reconciliation_plan",
-    "stealth_create_lifecycle_write_contract"
+    "stealth_create_lifecycle_write_guard_proof",
+    "stealth_create_lifecycle_write_execution_contract"
   ]
 }
 ```
@@ -189,6 +201,18 @@ idempotent, RBAC-gated, audited routes:
 POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots
 POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs
 ```
+
+Create lifecycle-write guard evidence is read back and written through:
+
+```http
+GET /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof
+POST /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs
+```
+
+Those lifecycle-write guard proof records are append-only local evidence. They
+do not invoke `StealthOrderManager`, write stealth or `order_parent` rows,
+dispatch lifecycle events, submit/read Coinbase, execute reconciliation, or
+grant browser/BFF execution authority.
 
 These records remain local evidence. They do not read Coinbase, cancel or
 replace active placements, execute reconciliation, mutate lifecycle state, or

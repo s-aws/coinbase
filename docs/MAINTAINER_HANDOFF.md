@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2341-2360`.
+- Active autonomous range: `2361-2380`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -268,15 +268,21 @@ notional, retained inventory, reconciliation result, and audit ids.
   reconcile, read Coinbase, call `StealthOrderManager`, cancel/replace active
   placements, mutate lifecycle/order/exchange state, or grant browser/BFF
   command authority. The completed 2321-2340 range added command-envelope
-  context requirements to those admission-readiness rows. The active
-  2341-2360 range adds command-response context echo evidence for
+  context requirements to those admission-readiness rows. The completed
+  2341-2360 range added command-response context echo evidence for
   live-disabled stealth dry-submit responses. Command-suite reads still show
   missing exact context, while a concrete command response may show exact
   route, identity, actor, idempotency, operator-intent, and payload-hash
   context as backend evidence. It must not approve admission, execute
   commands, reconcile, read Coinbase, call `StealthOrderManager`,
   cancel/replace active placements, mutate lifecycle/order/exchange state, or
-  grant browser/BFF authority.
+  grant browser/BFF authority. The active 2361-2380 range adds backend-owned
+  stealth create lifecycle-write guard proof records, readback, command-suite
+  proof-route linkage, OpenAPI/frontend sync, and tests. It must not invoke
+  `StealthOrderManager`, write `stealth_orders` or `order_parent` rows,
+  dispatch lifecycle events, submit or read Coinbase, cancel/replace
+  placements, execute reconciliation, mutate stealth/order/exchange state,
+  approve live admission, or grant browser/BFF execution authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

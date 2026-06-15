@@ -127,6 +127,8 @@ from .models import (
     StealthActivePlacementExchangeTruthProofRecordItem,
     StealthActivePlacementExchangeTruthReadResponse,
     StealthActivePlacementExchangeTruthSnapshotRecordItem,
+    StealthCreateLifecycleWriteGuardProofRecordItem,
+    StealthCreateLifecycleWriteGuardReadResponse,
     SpotCommandSuiteCommandItem,
     SpotCommandSuiteCoverageGapEvidenceRouteItem,
     SpotCommandSuiteCoverageGapItem,
@@ -185,12 +187,16 @@ from .stealth_exchange_truth import (
     StealthActivePlacementExchangeTruthProofRecord,
     StealthActivePlacementExchangeTruthSnapshotRecord,
 )
+from .stealth_lifecycle_write import (
+    FileStealthLifecycleWriteGuardProofStore,
+    StealthCreateLifecycleWriteGuardProofRecord,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2341-2360"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2361-2380"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1535,10 +1541,12 @@ def _stealth_create_lifecycle_write_audit(
         "stealth_create_guard_contract",
         "stealth_create_admission_audit",
         "stealth_create_reconciliation_plan",
-        "stealth_create_lifecycle_write_contract",
+        "stealth_create_lifecycle_write_guard_proof",
+        "stealth_create_lifecycle_write_execution_contract",
     ]
     blockers = [
-        "stealth_create_lifecycle_write_contract_missing",
+        "stealth_create_lifecycle_write_guard_proof_missing",
+        "stealth_create_lifecycle_write_execution_contract_missing",
         "stealth_create_guard_contract_missing",
         "stealth_create_admission_audit_missing",
         "stealth_create_reconciliation_plan_missing",
@@ -1554,9 +1562,11 @@ def _stealth_create_lifecycle_write_audit(
         ],
         read_evidence_routes=[
             "/api/v1/stealth/orders",
+            "/api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof",
             "/api/v1/stealth/command-suite",
             "/api/v1/admin/reconciliation/plans",
         ],
+        lifecycle_write_contract_configured=True,
         required_contracts=required_contracts,
         missing_contracts=list(required_contracts),
         blockers=blockers,
@@ -2964,6 +2974,78 @@ def _stealth_exchange_truth_proof_item_from_record(
     )
 
 
+def _stealth_lifecycle_write_guard_item_from_record(
+    record: StealthCreateLifecycleWriteGuardProofRecord,
+) -> StealthCreateLifecycleWriteGuardProofRecordItem:
+    return StealthCreateLifecycleWriteGuardProofRecordItem(
+        lifecycle_write_guard_proof_id=record.lifecycle_write_guard_proof_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        stealth_order_id=record.stealth_order_id,
+        guarded_command_route=record.guarded_command_route,
+        guarded_command_method=record.guarded_command_method,
+        guarded_service_method=record.guarded_service_method,
+        guarded_actor_id=record.guarded_actor_id,
+        guarded_operator_intent=record.guarded_operator_intent,
+        guarded_idempotency_key=record.guarded_idempotency_key,
+        guarded_payload_hash=record.guarded_payload_hash,
+        product_id=record.product_id,
+        side=record.side,
+        total_size=record.total_size,
+        limit_price=record.limit_price,
+        evidence_source=record.evidence_source,
+        guard_evidence_ref=record.guard_evidence_ref,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        proof_persisted=record.proof_persisted,
+        lifecycle_write_guard_verified=record.lifecycle_write_guard_verified,
+        manager_invocation_ran=record.manager_invocation_ran,
+        stealth_row_write_ran=record.stealth_row_write_ran,
+        order_parent_write_ran=record.order_parent_write_ran,
+        lifecycle_event_dispatch_ran=record.lifecycle_event_dispatch_ran,
+        local_lifecycle_mutation_ran=record.local_lifecycle_mutation_ran,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth create lifecycle-write guard proof is backend-owned "
+            "append-only evidence only. It does not invoke StealthOrderManager, "
+            "write stealth/order_parent rows, dispatch lifecycle events, call "
+            "Coinbase, or execute reconciliation."
+        ),
+    )
+
+
 def _spot_recovery_execution_item_from_record(
     record: SpotRecoveryExecutionRecord,
 ) -> SpotRecoveryExecutionRecordItem:
@@ -3166,6 +3248,9 @@ class AdminApiReadService:
         stealth_exchange_truth_proof_store: (
             FileStealthExchangeTruthProofStore | None
         ) = None,
+        stealth_lifecycle_write_guard_proof_store: (
+            FileStealthLifecycleWriteGuardProofStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -3190,6 +3275,10 @@ class AdminApiReadService:
         )
         self.stealth_exchange_truth_proof_store = (
             stealth_exchange_truth_proof_store or FileStealthExchangeTruthProofStore()
+        )
+        self.stealth_lifecycle_write_guard_proof_store = (
+            stealth_lifecycle_write_guard_proof_store
+            or FileStealthLifecycleWriteGuardProofStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -6569,6 +6658,68 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "lifecycle-write-guard-proofs"
+                ),
+                mutation_id="stealth.create_lifecycle_write_guard_proof",
+                mutation_family=(
+                    AdminApiMutationFamilyType
+                    .STEALTH_CREATE_LIFECYCLE_WRITE_GUARD_PROOF
+                ),
+                workflow_id="stealth.create_lifecycle_write_guard_proof",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth create lifecycle-write guard proof recording is "
+                    "append-only local evidence keyed by stealth_order_id; it "
+                    "proves the create path is still no-live and no-write before "
+                    "the execution contract exists."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_create_lifecycle_write_guard_proof",
+                    "application/admin_api/command_service.py::record_stealth_create_lifecycle_write_guard_proof",
+                    "application/admin_api/stealth_lifecycle_write_service.py",
+                    "application/admin_api/stealth_lifecycle_write.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthCreateLifecycleWriteGuardProof",
+                    "src/shared/api/contracts/commandDrySubmit.ts::drySubmitStealthLifecycleWriteGuardProof",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/examples/stealth-command-suite.md",
+                ],
+                required_next_contract=(
+                    "Future create execution must prove lifecycle-write guard, "
+                    "approval, admission audit, cap/guard, reconciliation, and "
+                    "post-write recovery handling before invoking the stealth "
+                    "manager or mutating lifecycle state."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "stealth_manager_invocation_disabled",
+                    "stealth_create_lifecycle_write_execution_contract_missing",
+                ],
+                frontend_boundary=(
+                    "Do not treat a browser-submitted proof record as stealth "
+                    "create authority; it is display and backend-forwarded "
+                    "evidence only."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and no-shorting rules remain backend guard "
+                    "evidence; this proof record is not spot inventory or sell "
+                    "authority."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
                 mutation_id="stealth.cancel",
                 mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL,
@@ -8185,6 +8336,77 @@ class AdminApiReadService:
             ),
         )
 
+    def build_stealth_create_lifecycle_write_guard(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthCreateLifecycleWriteGuardReadResponse:
+        """Return persisted no-live create lifecycle-write guard evidence."""
+
+        proofs = [
+            _stealth_lifecycle_write_guard_item_from_record(record)
+            for record in self.stealth_lifecycle_write_guard_proof_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=20,
+            )
+        ]
+        latest_proof_id = (
+            proofs[0].lifecycle_write_guard_proof_id if proofs else None
+        )
+        missing_contracts = [
+            "stealth_create_lifecycle_write_execution_contract",
+            "stealth_create_manager_invocation_contract",
+            "stealth_create_post_write_reconciliation_execution_proof",
+        ]
+        return StealthCreateLifecycleWriteGuardReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            lifecycle_write_guard_verified=False,
+            persisted_proof_count=len(proofs),
+            persisted_proofs=proofs,
+            latest_lifecycle_write_guard_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            proof_records_created=bool(proofs),
+            manager_invocation_allowed=False,
+            manager_invocation_ran=False,
+            stealth_row_write_allowed=False,
+            stealth_row_write_ran=False,
+            order_parent_write_allowed=False,
+            order_parent_write_ran=False,
+            lifecycle_event_dispatch_allowed=False,
+            lifecycle_event_dispatch_ran=False,
+            local_lifecycle_mutation_allowed=False,
+            local_lifecycle_mutation_ran=False,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            active_placement_cancel_replace_ran=False,
+            reconciliation_required=True,
+            reconciliation_executed=False,
+            post_write_reconciliation_satisfied=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth create lifecycle-write guard records are "
+                "backend-owned evidence only. They do not invoke the stealth "
+                "manager, write stealth/order_parent rows, dispatch lifecycle "
+                "events, call Coinbase, execute reconciliation, or mutate "
+                "stealth/order/exchange state."
+            ),
+        )
+
     def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
         """Return read-only M55 stealth command-suite readiness evidence."""
 
@@ -8271,10 +8493,31 @@ class AdminApiReadService:
                     "stealth/order/exchange state."
                 ),
             ),
+            (
+                AdminApiLivePreflightCategory.LIFECYCLE_WRITE_GUARD,
+                (
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "lifecycle-write-guard-proofs"
+                ),
+                "stealth_order_id",
+                [
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                ],
+                (
+                    "Record backend-owned lifecycle-write guard proof for a "
+                    "stealth create command. This does not invoke the stealth "
+                    "manager, write stealth/order_parent rows, dispatch "
+                    "lifecycle events, call Coinbase, or execute reconciliation."
+                ),
+            ),
         )
 
         def proof_routes_for_command(
             command_identity_key: str,
+            *,
+            include_lifecycle_write_guard: bool = False,
         ) -> list[StealthCommandSuiteProofRouteItem]:
             proof_routes: list[StealthCommandSuiteProofRouteItem] = []
             for (
@@ -8284,6 +8527,11 @@ class AdminApiReadService:
                 documentation_refs,
                 detail,
             ) in proof_route_specs:
+                if (
+                    gate == AdminApiLivePreflightCategory.LIFECYCLE_WRITE_GUARD
+                    and not include_lifecycle_write_guard
+                ):
+                    continue
                 item = inventory_by_surface[surface]
                 method, route = _surface_method_and_path(item.surface)
                 proof_routes.append(
@@ -8639,7 +8887,16 @@ class AdminApiReadService:
                     backend_contract_refs=list(metadata["backend_contract_refs"]),
                     frontend_contract_refs=list(metadata["frontend_contract_refs"]),
                     documentation_refs=list(metadata["documentation_refs"]),
-                    proof_routes=proof_routes_for_command(str(metadata["identity_key"])),
+                    proof_routes=proof_routes_for_command(
+                        str(metadata["identity_key"]),
+                        include_lifecycle_write_guard=(
+                            mutation_family
+                            in {
+                                AdminApiMutationFamilyType.STEALTH_CREATE,
+                                AdminApiMutationFamilyType.STEALTH_REVEAL,
+                            }
+                        ),
+                    ),
                     evidence=[
                         "Derived from ADMIN_API_ROUTE_INVENTORY and live-enablement readiness evidence.",
                         "Stealth command execution must use the existing stealth manager, bridge, mutation claims, and exchange-reality reconciliation path.",
@@ -8709,6 +8966,14 @@ class AdminApiReadService:
                 "README.stealth-exchange-truth-proofs.md",
                 "docs/examples/stealth-exchange-truth-proofs.md",
             ],
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                "lifecycle-write-guard-proof"
+            ): [
+                "README.admin-api.md",
+                "docs/COMMAND_WORKFLOWS.md",
+                "docs/STEALTH_ORDER_READS.md",
+            ],
             "GET /api/v1/admin/recovery-gate": [
                 "README.admin-api.md",
                 "docs/COMMAND_WORKFLOWS.md",
@@ -8759,6 +9024,10 @@ class AdminApiReadService:
 
         stealth_read_surfaces = [
             "GET /api/v1/stealth/orders",
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                "lifecycle-write-guard-proof"
+            ),
             "GET /api/v1/stealth/orders/{stealth_order_id}",
             "GET /api/v1/stealth/command-suite",
         ]
@@ -8811,7 +9080,8 @@ class AdminApiReadService:
                 "stealth_create_guard_contract",
                 "stealth_create_admission_audit",
                 "stealth_create_reconciliation_plan",
-                "stealth_create_lifecycle_write_contract",
+                "stealth_create_lifecycle_write_guard_proof",
+                "stealth_create_lifecycle_write_execution_contract",
             ],
             AdminApiMutationFamilyType.STEALTH_REVEAL: [
                 "stealth_reveal_trigger_guard",
@@ -8972,6 +9242,9 @@ class AdminApiReadService:
             "record_admission_audit": AdminApiStealthAdmissionEvidence.ADMISSION_AUDIT,
             "record_cap_guard_decision": AdminApiStealthAdmissionEvidence.CAP_GUARD_DECISION,
             "record_reconciliation_plan": AdminApiStealthAdmissionEvidence.RECONCILIATION_PLAN,
+            "record_stealth_create_lifecycle_write_guard_proof": (
+                AdminApiStealthAdmissionEvidence.LIFECYCLE_WRITE_GUARD
+            ),
         }
 
         def admission_requirement_from_surface(
@@ -9118,20 +9391,27 @@ class AdminApiReadService:
                     )
                 )
             else:
-                requirements.append(
-                    admission_requirement_from_surface(
-                        surface="GET /api/v1/stealth/command-suite",
-                        evidence_name=AdminApiStealthAdmissionEvidence.LIFECYCLE_WRITE_GUARD,
-                        source="lifecycle_write_readiness",
-                        identity_key="stealth_order_id",
-                        bff_authority="read_only_forward",
-                        detail=(
-                            "Read lifecycle-write readiness evidence for the exact "
-                            "stealth command. This does not invoke StealthOrderManager "
-                            "or mutate lifecycle state."
-                        ),
+                if not any(
+                    requirement.evidence_name
+                    == AdminApiStealthAdmissionEvidence.LIFECYCLE_WRITE_GUARD
+                    for requirement in requirements
+                ):
+                    requirements.append(
+                        admission_requirement_from_surface(
+                            surface="GET /api/v1/stealth/command-suite",
+                            evidence_name=(
+                                AdminApiStealthAdmissionEvidence.LIFECYCLE_WRITE_GUARD
+                            ),
+                            source="lifecycle_write_readiness",
+                            identity_key="stealth_order_id",
+                            bff_authority="read_only_forward",
+                            detail=(
+                                "Read lifecycle-write readiness evidence for the "
+                                "exact stealth command. This does not invoke "
+                                "StealthOrderManager or mutate lifecycle state."
+                            ),
+                        )
                     )
-                )
             requirements.append(
                 StealthCommandSuiteAdmissionRequirementItem(
                     evidence_name=AdminApiStealthAdmissionEvidence.LIVE_EXECUTION_ADAPTER,
@@ -9289,7 +9569,8 @@ class AdminApiReadService:
                     "stealth_create_guard_contract",
                     "stealth_create_admission_audit",
                     "stealth_create_reconciliation_plan",
-                    "stealth_create_lifecycle_write_contract",
+                    "stealth_create_lifecycle_write_guard_proof",
+                    "stealth_create_lifecycle_write_execution_contract",
                 ],
                 stealth_rule_boundary=stealth_boundary,
                 documentation_refs=[
@@ -9529,7 +9810,10 @@ class AdminApiReadService:
             create_lifecycle_write_audit=_stealth_create_lifecycle_write_audit(
                 required_gate_chain=stealth_create_gate_chain,
                 missing_gate_chain=stealth_create_missing_gate_chain,
-                proof_routes=proof_routes_for_command("stealth_order_id"),
+                proof_routes=proof_routes_for_command(
+                    "stealth_order_id",
+                    include_lifecycle_write_guard=True,
+                ),
             ),
             read_routes=read_routes,
             evidence=[
