@@ -330,6 +330,8 @@ The disabled live rows also expose route-specific evidence fields such as
 `canonical_execution_path`, and `execution_boundary_authority`. These fields
 document the backend-owned future handoff; they do not resolve prerequisites,
 construct adapters, execute reconciliation, or authorize browser/BFF commands.
+Stealth create lifecycle execution contracts expose the same boundary fields
+so create and non-create command posture share one disabled execution model.
 For commands that require active-placement exchange truth, the contract may
 resolve that single prerequisite from the existing append-only backend proof
 store when a safe same-`stealth_order_id` proof record exists. That resolver

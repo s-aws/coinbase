@@ -18,6 +18,13 @@ from core.enums import (
 
 
 DISABLED_LIVE_EXECUTION_SERVICE_SOURCE = "disabled_backend_service"
+DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE = (
+    "disabled_stealth_command_live_adapter"
+)
+POST_WRITE_RECONCILIATION_ROUTE = "/api/v1/admin/reconciliation/plans"
+POST_WRITE_RECONCILIATION_METHOD = "POST"
+POST_WRITE_RECONCILIATION_SOURCE = "post_write_reconciliation_contract"
+EXECUTION_BOUNDARY_AUTHORITY = "backend_contract_only_no_execution"
 LIVE_EXECUTION_DISABLED_REASON = "live_execution_disabled"
 DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS = (
     "create_order",

@@ -63,6 +63,7 @@ from .auth import (
 )
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+    DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
     build_live_execution_adapter_contract,
 )
 from .models import (
@@ -230,7 +231,7 @@ from .stealth_cancel_replace_proof import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2601-2620"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2621-2640"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -10795,7 +10796,7 @@ class AdminApiReadService:
             requirements.append(
                 StealthCommandSuiteAdmissionRequirementItem(
                     evidence_name=AdminApiStealthAdmissionEvidence.LIVE_EXECUTION_ADAPTER,
-                    source="disabled_live_execution_service",
+                    source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
                     route=command.route,
                     method=command.method,
                     action_class=command.action_class,

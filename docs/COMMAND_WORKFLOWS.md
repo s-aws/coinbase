@@ -222,6 +222,10 @@ require active-placement exchange truth before execution can be considered.
 Create and reveal are command drafts that do not require active-placement
 evidence before the draft response, but they still remain blocked until
 lifecycle/trigger, live adapter, and reconciliation gates exist. The stealth
+create lifecycle execution contract now reports the same disabled live
+service, adapter, post-write reconciliation, canonical execution path, and
+boundary-authority evidence used by non-create contracts; this is evidence
+only and does not make create execution callable.
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase

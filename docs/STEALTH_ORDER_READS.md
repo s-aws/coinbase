@@ -180,7 +180,10 @@ The same block exposes read-only prerequisite resolver evidence:
 `resolved_prerequisites`, `prerequisite_resolver_lookup_ran`,
 `prerequisite_resolver_authority`, and per-prerequisite lookup rows with
 status, resolved evidence id or missing reason, no-write flags, and no-Coinbase
-read flags.
+read flags. It also exposes the same disabled `live_execution_service`,
+`live_execution_adapter`, `post_write_reconciliation`, canonical execution
+path, and `execution_boundary_authority` fields used by non-create stealth
+execution contracts.
 Both surfaces remain evidence only: they do not resolve proof records as
 authority, invoke `StealthOrderManager`, write `stealth_orders` or
 `order_parent` rows, dispatch lifecycle events, read/submit/cancel Coinbase,

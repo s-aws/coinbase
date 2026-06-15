@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2601-2620",
+  "approved_phase_range": "2621-2640",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -122,6 +122,26 @@ live-disabled create workflow:
   "coinbase_order_submit_ran": false,
   "live_coinbase_read_ran": false,
   "reconciliation_executed": false,
+  "execution_contract": {
+    "execution_allowed": false,
+    "live_execution_service_source": "disabled_backend_service",
+    "live_execution_service_missing_reason": "live_execution_disabled",
+    "live_execution_adapter_source": "disabled_stealth_command_live_adapter",
+    "live_execution_adapter_status": "live_disabled",
+    "live_execution_adapter_missing_reason": "live_execution_adapter_disabled",
+    "post_write_reconciliation_route": "/api/v1/admin/reconciliation/plans",
+    "post_write_reconciliation_method": "POST",
+    "post_write_reconciliation_source": "post_write_reconciliation_contract",
+    "post_write_reconciliation_missing_reason": "post_write_reconciliation_missing",
+    "canonical_execution_path": [
+      "core/stealth_order_manager.py::create_stealth_order"
+    ],
+    "execution_boundary_authority": "backend_contract_only_no_execution",
+    "manager_invocation_ran": false,
+    "coinbase_order_submit_ran": false,
+    "live_coinbase_read_ran": false,
+    "reconciliation_executed": false
+  },
   "required_gate_chain": [
     "route_inventory_contract",
     "idempotency",

@@ -17,7 +17,14 @@ from .models import (
     StealthCommandExecutionContractEvidence,
     StealthCommandExecutionPrerequisiteResolverItem,
 )
-from .live_execution import DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
+from .live_execution import (
+    DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+    DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+    EXECUTION_BOUNDARY_AUTHORITY,
+    POST_WRITE_RECONCILIATION_METHOD,
+    POST_WRITE_RECONCILIATION_ROUTE,
+    POST_WRITE_RECONCILIATION_SOURCE,
+)
 from .stealth_exchange_truth import (
     FileStealthExchangeTruthProofStore,
     StealthActivePlacementExchangeTruthProofRecord,
@@ -72,17 +79,6 @@ DISABLED_LIVE_PREREQUISITES: tuple[StealthCommandExecutionPrerequisite, ...] = (
     StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE,
     StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER,
     StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION,
-)
-
-STEALTH_COMMAND_LIVE_EXECUTION_ADAPTER_SOURCE = (
-    "disabled_stealth_command_live_adapter"
-)
-STEALTH_COMMAND_POST_WRITE_RECONCILIATION_ROUTE = (
-    "/api/v1/admin/reconciliation/plans"
-)
-STEALTH_COMMAND_POST_WRITE_RECONCILIATION_METHOD = "POST"
-STEALTH_COMMAND_POST_WRITE_RECONCILIATION_SOURCE = (
-    "post_write_reconciliation_contract"
 )
 
 BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS: tuple[str, ...] = (
@@ -350,21 +346,16 @@ def build_stealth_command_execution_contract(
             admission_decision.live_execution_service_missing_reason
             or "live_execution_disabled"
         ),
-        live_execution_adapter_source=STEALTH_COMMAND_LIVE_EXECUTION_ADAPTER_SOURCE,
+        live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
         live_execution_adapter_missing_reason="live_execution_adapter_disabled",
-        post_write_reconciliation_route=(
-            STEALTH_COMMAND_POST_WRITE_RECONCILIATION_ROUTE
-        ),
-        post_write_reconciliation_method=(
-            STEALTH_COMMAND_POST_WRITE_RECONCILIATION_METHOD
-        ),
-        post_write_reconciliation_source=(
-            STEALTH_COMMAND_POST_WRITE_RECONCILIATION_SOURCE
-        ),
+        post_write_reconciliation_route=POST_WRITE_RECONCILIATION_ROUTE,
+        post_write_reconciliation_method=POST_WRITE_RECONCILIATION_METHOD,
+        post_write_reconciliation_source=POST_WRITE_RECONCILIATION_SOURCE,
         post_write_reconciliation_missing_reason=(
             "post_write_reconciliation_missing"
         ),
         canonical_execution_path=list(metadata.manager_methods),
+        execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,
         evidence=[
             "Execution posture is backend-owned and no-live.",
             "Prerequisite rows are read-only and no-authority.",
@@ -534,7 +525,7 @@ def _command_specific_prerequisite(
             prerequisite=prerequisite,
             metadata=metadata,
             admission_decision=admission_decision,
-            source=STEALTH_COMMAND_LIVE_EXECUTION_ADAPTER_SOURCE,
+            source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
             lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.DISABLED,
             missing_reason="live_execution_adapter_disabled",
             lookup_ran=True,
@@ -545,7 +536,7 @@ def _command_specific_prerequisite(
             prerequisite=prerequisite,
             metadata=metadata,
             admission_decision=admission_decision,
-            source=STEALTH_COMMAND_POST_WRITE_RECONCILIATION_SOURCE,
+            source=POST_WRITE_RECONCILIATION_SOURCE,
             lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.DISABLED,
             missing_reason="post_write_reconciliation_missing",
             lookup_ran=True,

@@ -2684,19 +2684,21 @@ Current backend evidence:
   completed phases 2561-2580 added append-only cancel/replace proof records
   and readback for stealth cancel, stealth move, and movement reprice without
   execution authority. The completed phases 2581-2600 added exact-context
-  prerequisite resolver linkage for those cancel/replace proof records. It now
-  advances to phases 2601-2620 for route-specific disabled live-service,
+  prerequisite resolver linkage for those cancel/replace proof records. The
+  completed phases 2601-2620 added route-specific disabled live-service,
   live-adapter, post-write reconciliation, and canonical execution-path
-  evidence.
+  evidence for non-create stealth command execution posture. It now advances
+  to phases 2621-2640 to bring stealth create lifecycle execution contracts
+  and command-suite admission evidence into parity with the same disabled
+  boundary fields.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Disabled execution-boundary evidence for `live_execution_service`,
-  `live_execution_adapter`, `post_write_reconciliation`, and canonical backend
-  execution paths is the active 2601-2620 slice. These fields may explain the
-  backend-owned future handoff, but they must not resolve the disabled
-  prerequisites, construct adapters, invoke managers, call Coinbase, execute
-  reconciliation, mutate state, or grant browser/BFF authority.
+- Disabled execution-boundary evidence for stealth create lifecycle contracts
+  and command-suite admission is the active 2621-2640 slice. These fields may
+  explain the backend-owned future handoff, but they must not resolve the
+  disabled prerequisites, construct adapters, invoke managers, call Coinbase,
+  execute reconciliation, mutate state, or grant browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace, live service enablement, live adapter construction, and
   post-write reconciliation execution remain blocked.

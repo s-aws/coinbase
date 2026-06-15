@@ -14,6 +14,14 @@ from .models import (
     StealthCreateLifecyclePrerequisiteResolverItem,
     StealthCreateLifecycleWriteExecutionContractEvidence,
 )
+from .live_execution import (
+    DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+    DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+    EXECUTION_BOUNDARY_AUTHORITY,
+    POST_WRITE_RECONCILIATION_METHOD,
+    POST_WRITE_RECONCILIATION_ROUTE,
+    POST_WRITE_RECONCILIATION_SOURCE,
+)
 from .stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
     StealthCreateLifecycleWriteGuardProofRecord,
@@ -125,6 +133,26 @@ def build_stealth_create_lifecycle_write_execution_contract(
             and item.lookup_ran
             for item in resolution
         ),
+        live_execution_service_source=(
+            admission_decision.live_execution_service_source
+            if admission_decision is not None
+            else DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
+        ),
+        live_execution_service_missing_reason=(
+            admission_decision.live_execution_service_missing_reason
+            if admission_decision is not None
+            else "live_execution_disabled"
+        ),
+        live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+        live_execution_adapter_missing_reason="live_execution_adapter_disabled",
+        post_write_reconciliation_route=POST_WRITE_RECONCILIATION_ROUTE,
+        post_write_reconciliation_method=POST_WRITE_RECONCILIATION_METHOD,
+        post_write_reconciliation_source=POST_WRITE_RECONCILIATION_SOURCE,
+        post_write_reconciliation_missing_reason=(
+            "post_write_reconciliation_missing"
+        ),
+        canonical_execution_path=["core/stealth_order_manager.py::create_stealth_order"],
+        execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,
         evidence=[
             "Execution-contract evidence is backend-owned and no-live.",
             "Prerequisite resolver evidence is read-only and no-authority.",
@@ -252,7 +280,7 @@ def _build_prerequisite_resolution(
             ),
             identity_value=stealth_order_id,
             source=admission_decision.live_execution_service_source
-            or "disabled_live_execution_service",
+            or DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
             lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.DISABLED,
             missing_reason=admission_decision.live_execution_service_missing_reason
             or "live_execution_disabled",
@@ -263,7 +291,7 @@ def _build_prerequisite_resolution(
                 StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER
             ),
             identity_value=stealth_order_id,
-            source="live_execution_adapter",
+            source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
             lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.DISABLED,
             missing_reason="live_execution_adapter_disabled",
             detail="Live execution adapter is not enabled for stealth create.",
@@ -273,7 +301,7 @@ def _build_prerequisite_resolution(
                 StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION
             ),
             identity_value=stealth_order_id,
-            source="post_write_reconciliation",
+            source=POST_WRITE_RECONCILIATION_SOURCE,
             lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.DISABLED,
             missing_reason="post_write_reconciliation_missing",
             detail="Post-write reconciliation proof is required before execution.",
