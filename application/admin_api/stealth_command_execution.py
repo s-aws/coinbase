@@ -54,6 +54,9 @@ from .stealth_cancel_replace_proof import (
 from .stealth_cancel_replace_boundary import (
     build_stealth_active_placement_cancel_replace_contract,
 )
+from .stealth_command_proof_routes import (
+    build_stealth_command_specific_proof_route_contracts,
+)
 from .stealth_exchange_truth_boundary import (
     EXCHANGE_TRUTH_SURFACES_BY_FAMILY,
     build_stealth_active_placement_exchange_truth_contract,
@@ -291,6 +294,12 @@ def build_stealth_command_execution_contract(
         resolved_prerequisites=resolved,
         prerequisite_resolver_lookup_ran=True,
         prerequisite_resolution=resolution,
+        command_specific_proof_contracts=(
+            build_stealth_command_specific_proof_route_contracts(
+                mutation_family=metadata.mutation_family,
+                command_identity_key="stealth_order_id",
+            )
+        ),
         blockers=blockers,
         active_placement_exchange_truth_required=(
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value

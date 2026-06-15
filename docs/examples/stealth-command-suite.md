@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2741-2760",
+  "approved_phase_range": "2761-2780",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -161,6 +161,7 @@ blocked even when exact command-envelope context is present:
       "browser_authority": "display_only",
       "bff_authority": "forward_only_no_execution"
     },
+    "command_specific_proof_contracts": [],
     "live_execution_adapter_source": "disabled_stealth_command_live_adapter",
     "live_execution_adapter_status": "live_disabled",
     "live_execution_adapter_missing_reason": "live_execution_adapter_disabled",
@@ -227,6 +228,33 @@ blocked even when exact command-envelope context is present:
     "browser_authority": "display_only",
     "bff_authority": "forward_only_no_execution"
   }
+}
+```
+
+Reveal, move, reprice, recovery, and reconciliation responses use the same
+field for their command-specific blocked proof routes. For reveal:
+
+```json
+{
+  "command_specific_proof_contracts": [
+    {
+      "gate": "reveal_trigger",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs",
+      "method": "POST",
+      "action_class": "local_state_mutation",
+      "required_permission": "stealth_reveal_trigger:record",
+      "shared_method": "record_stealth_reveal_trigger_proof",
+      "status": "blocked",
+      "required": true,
+      "blocking": true,
+      "identity_key": "stealth_order_id",
+      "command_identity_key": "stealth_order_id",
+      "backend_owned": true,
+      "route_bound": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ]
 }
 ```
 

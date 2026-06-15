@@ -20154,6 +20154,11 @@ components:
             $ref: '#/components/schemas/StealthCommandExecutionPrerequisiteResolverItem'
           type: array
           title: Prerequisite Resolution
+        command_specific_proof_contracts:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteProofRouteItem'
+          type: array
+          title: Command Specific Proof Contracts
         blockers:
           items:
             type: string

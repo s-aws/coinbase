@@ -84,6 +84,14 @@ but it does not read Coinbase, prove live exchange truth, execute
 cancel/replace, invoke managers, execute recovery or reconciliation, mutate
 state, or authorize browser/BFF execution. Create and reveal responses do not
 fabricate this active-placement prerequisite object.
+Exact non-create stealth command responses now also expose
+`command_specific_proof_contracts`. The rows reuse the command-suite
+proof-route shape for reveal-trigger, mutation-claim, recovery-proof, or
+reconciliation-proof route evidence. They are blocked, backend-owned,
+display-only rows and do not record proofs, resolve proof authority through
+the frontend, read Coinbase, invoke managers, execute recovery or
+reconciliation, mutate state, or authorize browser/BFF execution. Stealth
+cancel returns an empty command-specific proof list.
 
 The command-suite response also reports `admission_readiness` rows. This
 ledger binds each stealth command route to the backend evidence that must

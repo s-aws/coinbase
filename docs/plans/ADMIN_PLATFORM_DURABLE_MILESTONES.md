@@ -2706,20 +2706,25 @@ Current backend evidence:
   now advances to phases 2741-2760 to expose nested active-placement
   exchange-truth boundary evidence on exact stealth cancel, move, recovery,
   reconciliation, and movement/reprice command responses by reusing the
-  command-suite exchange-truth builder.
+  command-suite exchange-truth builder. It now advances to phases 2761-2780
+  to expose command-specific proof-route contracts on exact stealth reveal,
+  move, reprice, recovery, and reconciliation command responses by reusing the
+  command-suite proof-route shape.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Nested active-placement exchange-truth boundary evidence for exact stealth
-  cancel, stealth move, recovery, reconciliation, and movement/reprice command
-  responses is the active 2741-2760 slice. This evidence may explain
-  route-bound exchange-truth proof requirements, resolved local proof ids,
-  rejected `client_order_id` and `order_id` command identities, evidence
-  routes, missing contracts, no-live flags, and display-only browser/BFF
-  boundaries, but it must not read Coinbase, prove live exchange truth,
-  execute cancel/replace, build move/reprice plans, invoke managers, mutate
-  state, execute recovery or reconciliation, resolve disabled prerequisites,
-  or grant browser/BFF authority.
+- Command-specific proof-route contracts for exact stealth reveal, move,
+  reprice, recovery, and reconciliation command responses are the active
+  2761-2780 slice. This evidence may explain route-bound reveal-trigger,
+  mutation-claim, recovery-proof, and reconciliation-proof record routes,
+  required permissions, shared backend methods, identity keys, blocked status,
+  and display-only browser/BFF boundaries, but it must not record proofs,
+  resolve proof authority through the frontend, read Coinbase, execute
+  cancel/replace, build move/reprice plans, invoke managers, mutate state,
+  execute recovery or reconciliation, resolve disabled prerequisites, or grant
+  browser/BFF authority. Stealth cancel must remain an empty
+  command-specific proof-route list because its command-specific boundaries
+  are already active-placement exchange truth and cancel/replace.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
   and post-write reconciliation execution remain blocked.

@@ -5241,6 +5241,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     prerequisite_resolution: list[
         StealthCommandExecutionPrerequisiteResolverItem
     ] = Field(default_factory=list)
+    command_specific_proof_contracts: list[StealthCommandSuiteProofRouteItem] = (
+        Field(default_factory=list)
+    )
     blockers: list[str] = Field(default_factory=list)
     active_placement_exchange_truth_required: bool = False
     active_placement_exchange_truth_resolved: bool = False

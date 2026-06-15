@@ -9,8 +9,8 @@ Keep it short. Keep it factual.
 - Updated by: Codex
 - Branch: main
 - Commit (optional): backend/frontend commit hashes pending for active range
-  `2741-2760`; completed range `2721-2740` is backend `09d55b8`,
-  frontend `c59e271`.
+  `2761-2780`; completed range `2741-2760` is backend `f360be8`,
+  frontend `80cc745`.
 
 ## Current Objective
 
@@ -38,15 +38,16 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2721-2740`.
-- Latest completed milestone slice: M55 - Active Placement Cancel/Replace
+- Latest completed autonomous range: `2741-2760`.
+- Latest completed milestone slice: M55 - Active Placement Exchange-Truth
   Contract Evidence.
 - Completed files: backend-owned shared
-  `active_placement_cancel_replace_contract` evidence for exact stealth
-  cancel, stealth move, and movement/reprice command responses, nullable
-  OpenAPI, frontend schema/mocks, dry-submit rendering, docs/tests, full
-  gates, and contextless review. Create, reveal, recovery, and reconciliation
-  command responses do not fabricate the nested cancel/replace boundary.
+  `active_placement_exchange_truth_contract` evidence for exact stealth
+  cancel, stealth move, recovery, reconciliation, and movement/reprice command
+  responses, nullable OpenAPI, frontend schema/mocks, dry-submit rendering,
+  docs/tests, full gates, and contextless review. Create and reveal command
+  responses do not fabricate the nested active-placement exchange-truth
+  boundary.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -220,13 +221,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2741-2760`.
+- Active autonomous range: `2761-2780`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete nested
-  `active_placement_exchange_truth_contract` evidence for exact stealth
-  cancel, stealth move, recovery, reconciliation, and movement/reprice command
-  responses without live Coinbase reads/execution unless a phase explicitly
-  says otherwise.
+- Current direction: complete exact-command
+  `command_specific_proof_contracts` evidence for stealth reveal, move,
+  reprice, recovery, and reconciliation responses by reusing command-suite
+  proof-route contracts, without proof writes, live Coinbase reads/execution,
+  manager invocation, reconciliation execution, state mutation, or frontend
+  authority.
 
 ## Decisions (Durable)
 
@@ -519,7 +521,7 @@ Keep it short. Keep it factual.
   deselected, 1 warning.
 - Last backend autonomous queue check: 2026-06-15
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M55 range `2721-2740` passed after validator sync. Live Coinbase
+- Result: M55 range `2741-2760` passed after validator sync. Live Coinbase
   execution `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-15
   `python -m pytest --basetemp runtime_state\pytest_full_2721_2740 tests\regression\ -q --tb=short`
@@ -532,19 +534,18 @@ Keep it short. Keep it factual.
   frontend `npm run release:gate` passed after review fixes with 244 unit
   tests and 3 Playwright tests.
 - Last blind/contextless M55 review: 2026-06-15
-- Result: 2721-2740 cancel/replace boundary review passed. Backend review
+- Result: 2741-2760 exchange-truth boundary review passed. Backend review
   found no blockers and confirmed the shared helper is the single boundary
-  source. Frontend review initially found movement/reprice coverage gaps,
-  negative-test gaps, and stale cancel/replace proof docs/examples; those were
-  fixed and corrected frontend review passed.
+  source. Frontend review passed after schema, mock, dry-submit, and docs
+  alignment.
 - Live Coinbase execution for M55: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Finish backend/frontend `2741-2760` exchange-truth boundary gates and
-   contextless reviews.
-2. Commit and push the synchronized backend/frontend 2741-2760 contract work,
+1. Finish backend/frontend `2761-2780` command-specific proof-route contract
+   evidence and contextless reviews.
+2. Commit and push the synchronized backend/frontend 2761-2780 contract work,
    then advance to the next approved M55 slice that closes a real stealth
    command-suite live-enablement gap without enabling live Coinbase execution
    by default.
@@ -656,7 +657,7 @@ Keep it short. Keep it factual.
   no-reconciliation-execution, no-state-mutation, and no browser/BFF execution
   authority. Create, reveal, recovery, and reconciliation do not fabricate the
   nested cancel/replace boundary.
-- What is active for M55 2741-2760: backend and frontend expose nested
+- What is done through M55 2741-2760: backend and frontend expose nested
   `active_placement_exchange_truth_contract` evidence to exact stealth cancel,
   stealth move, recovery, reconciliation, and movement/reprice command
   responses by reusing the same backend-owned exchange-truth boundary contract
@@ -665,7 +666,15 @@ Keep it short. Keep it factual.
   no-state-mutation, and no browser/BFF execution authority. Create and
   reveal must not fabricate the nested active-placement exchange-truth
   boundary.
+- What is active for M55 2761-2780: backend and frontend expose
+  `command_specific_proof_contracts` evidence to exact stealth reveal, move,
+  reprice, recovery, and reconciliation command responses by reusing the
+  command-suite proof-route contract shape. The evidence must remain blocked,
+  display-only, no-proof-write, no-Coinbase-read, no-manager,
+  no-reconciliation-execution, no-state-mutation, and no browser/BFF
+  execution authority. Stealth cancel must keep an empty command-specific
+  proof-route list.
 - What is blocked: Nothing currently known.
-- Exact next command: finish backend/frontend 2741-2760 gates, run
+- Exact next command: finish backend/frontend 2761-2780 gates, run
   contextless reviews, commit and push both repos, then advance to the next
   approved M55 slice.

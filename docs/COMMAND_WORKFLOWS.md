@@ -263,6 +263,16 @@ authority only. It does not read Coinbase, prove live exchange truth, invoke
 managers, execute recovery or reconciliation, mutate state, or make the
 command executable. Create and reveal responses must leave this nested
 active-placement prerequisite absent.
+Exact non-create stealth command responses also include
+`command_specific_proof_contracts`. Workflows may display the blocked
+reveal-trigger, mutation-claim, recovery-proof, or reconciliation-proof route
+that applies to the exact command family, along with method, permission,
+shared backend method, identity key, and display/forward-only authority.
+Workflows must not treat these rows as proof-writing authority, proof
+resolution authority, Coinbase read authority, manager authority,
+reconciliation execution, state mutation, or command execution. Stealth cancel
+has an empty list because its additional proof boundaries are exchange truth
+and cancel/replace.
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase

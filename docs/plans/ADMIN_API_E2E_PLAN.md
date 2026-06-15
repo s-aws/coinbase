@@ -38,100 +38,196 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Active Placement Exchange-Truth Contract Batch - Phases 2741-2760
+## Active M55 Command-Specific Proof-Route Contract Batch - Phases 2761-2780
 
-These phases continue M55 after nested active-placement cancel/replace
-boundary evidence. The next explicit gap is making active-placement
-exchange-truth proof requirements typed and nested on exact stealth command
-execution responses that require an already-live active placement: stealth
-cancel, stealth move, stealth recovery, stealth reconciliation, and movement
-reprice. This range must reuse the same backend-owned exchange-truth builder
-used by command-suite `exchange_truth_checks`; it must not create a second
-exchange-truth model, read Coinbase, verify live exchange truth, execute
-cancel/replace, invoke `StealthOrderManager`, execute recovery or
-reconciliation, mutate stealth/order/exchange state, approve live admission,
-or grant browser/BFF execution authority. Create and reveal responses must
-not fabricate an active-placement prerequisite contract.
+These phases continue M55 after nested active-placement exchange-truth
+boundary evidence. The next explicit gap is making command-specific proof
+routes visible on exact stealth command execution responses by reusing the
+same backend-owned proof-route contract shape already used by command-suite
+`proof_routes`. The exact command response may name reveal-trigger,
+mutation-claim, recovery-proof, or reconciliation-proof routes as
+display-only evidence, but it must not record proofs, resolve proofs through
+the browser/BFF, read Coinbase, execute cancel/replace, invoke
+`StealthOrderManager`, execute recovery or reconciliation, mutate
+stealth/order/exchange state, approve live admission, or grant browser/BFF
+execution authority. Stealth cancel has no extra command-specific proof-route
+contract beyond its active-placement exchange-truth and cancel/replace
+boundaries.
 
-### Phase 2741 - Advance Active Queue Range
+### Phase 2761 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2721-2740 to active phases 2741-2760 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2741-2760 to active phases 2761-2780 while preserving no-live defaults and cap policy.
 
-### Phase 2742 - Prior Range Completion Evidence
+### Phase 2762 - Prior Range Completion Evidence
 
-- Record phases 2721-2740 as completed nested cancel/replace boundary evidence with no live Coinbase execution, no manager invocation, no reconciliation execution, and no state mutation.
+- Record phases 2741-2760 as completed nested active-placement exchange-truth boundary evidence with no live Coinbase execution, no manager invocation, no reconciliation execution, and no state mutation.
 
-### Phase 2743 - Shared Exchange-Truth Boundary Builder
+### Phase 2763 - Shared Command Proof-Route Builder
 
-- Extract command-suite exchange-truth boundary construction into a shared backend helper so exact command responses and command-suite reads use one contract source.
+- Extract stealth command-specific proof-route construction into a shared backend helper so exact command responses and command-suite reads use one contract source.
 
-### Phase 2744 - Exchange-Truth Model Fields
+### Phase 2764 - Execution Contract Field
 
-- Add proof-resolution fields needed by exact command responses without changing no-live defaults or command-suite read-only posture.
+- Add `command_specific_proof_contracts` to exact non-create stealth command execution evidence without changing no-live defaults or command-suite read-only posture.
 
-### Phase 2745 - Exact Command Exchange-Truth Attachment
+### Phase 2765 - Reveal Proof-Route Contract
 
-- Attach nested `active_placement_exchange_truth_contract` evidence only to exact stealth command execution contracts that require active-placement exchange truth.
+- Attach reveal-trigger proof-route evidence to exact stealth reveal responses as blocked, backend-owned, display-only, forward-only contract metadata.
 
-### Phase 2746 - Non-Active-Placement Null Boundary
+### Phase 2766 - Move And Reprice Proof-Route Contract
 
-- Keep create and reveal execution evidence from fabricating active-placement exchange-truth boundary objects when that command path does not require active-placement proof.
+- Attach mutation-claim proof-route evidence to exact stealth move and movement/reprice responses as blocked, backend-owned, display-only, forward-only contract metadata.
 
-### Phase 2747 - Resolved Proof Projection
+### Phase 2767 - Recovery Proof-Route Contract
 
-- Project resolved active-placement exchange-truth proof ids into the nested boundary as read-only evidence without allowing execution.
+- Attach recovery-proof route evidence to exact stealth recovery responses as blocked, backend-owned, display-only, forward-only contract metadata.
 
-### Phase 2748 - Command-Suite Reuse
+### Phase 2768 - Reconciliation Proof-Route Contract
 
-- Make command-suite `exchange_truth_checks` consume the same shared exchange-truth boundary helper and route evidence surface lists used by exact command responses.
+- Attach reconciliation-proof route evidence to exact stealth reconciliation responses as blocked, backend-owned, display-only, forward-only contract metadata.
 
-### Phase 2749 - Backend Regression Coverage
+### Phase 2769 - Cancel Empty Specific Proof Contract
 
-- Assert the nested exchange-truth contract is backend-owned, route-bound, blocked, non-executable, display/forward-only, rejects `client_order_id` and `order_id` command identity, and reports no Coinbase reads, manager calls, reconciliation, or state mutation.
+- Assert stealth cancel exact responses expose an empty command-specific proof-route list because cancel has no additional command-specific proof route beyond exchange truth and cancel/replace boundaries.
 
-### Phase 2750 - OpenAPI Sync
+### Phase 2770 - Command-Suite Reuse
 
-- Regenerate backend OpenAPI after the nested exchange-truth contract shape change.
+- Make command-suite `proof_routes` consume the same shared command-specific proof-route helper for reveal, move, reprice, recovery, and reconciliation rows.
 
-### Phase 2751 - Frontend Schema Intake
+### Phase 2771 - Backend Regression Coverage
+
+- Assert command-specific proof contracts are route-bound, blocked, backend-owned, display/forward-only, permission-labeled, and do not imply proof writing, Coinbase reads, manager calls, reconciliation, or state mutation.
+
+### Phase 2772 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after the exact command-specific proof-route contract shape change.
+
+### Phase 2773 - Frontend Schema Intake
 
 - Regenerate the frontend generated schema from the backend OpenAPI contract.
 
-### Phase 2752 - Frontend Mock Boundary Sync
+### Phase 2774 - Frontend Mock Proof-Route Sync
 
-- Update frontend mocks to expose the nested exchange-truth boundary only where the backend command contract supplies it.
+- Update frontend mocks to expose command-specific proof contracts only where the backend command contract supplies them.
 
-### Phase 2753 - Dry-Submit Exchange-Truth Rows
+### Phase 2775 - Dry-Submit Proof-Route Rows
 
-- Display exchange-truth boundary status, route, proof id, rejected identities, evidence routes, missing contracts, no-live flags, and browser/BFF authority as evidence only.
+- Display command-specific proof-contract gate, route, method, permission, shared method, identity key, status, blocking posture, and browser/BFF authority as evidence only.
 
-### Phase 2754 - Runtime Fixture Type Safety
+### Phase 2776 - Runtime Fixture Type Safety
 
 - Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
 
+### Phase 2777 - Documentation And Validator Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, roadmap docs, autonomous validators, runtime artifacts, and tests for phases 2761-2780.
+
+### Phase 2778 - No-Live Drift Scan
+
+- Search for wording or code implying command-specific proof contracts record proofs, verify live proof authority, read Coinbase, invoke managers, execute recovery/reconciliation, mutate state, or enable browser/BFF authority.
+
+### Phase 2779 - Blind Contextless Reviews
+
+- Run blind/contextless backend and frontend reviews asking whether a fresh agent can explain command-specific proof contracts as display-only backend-owned route evidence.
+
+### Phase 2780 - Focused And Full Gates, Commit, Push, And Next Range
+
+- Run focused backend/frontend tests, schema checks, autonomous checks, backend full regression, and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional; commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed M55 Active Placement Exchange-Truth Contract Batch - Phases 2741-2760
+
+These phases continued M55 after nested active-placement cancel/replace
+boundary evidence. They made active-placement exchange-truth proof
+requirements typed and nested on exact stealth command execution responses
+that require an already-live active placement: stealth cancel, stealth move,
+stealth recovery, stealth reconciliation, and movement reprice. The range
+reused the same backend-owned exchange-truth builder used by command-suite
+`exchange_truth_checks`; it did not create a second exchange-truth model, read
+Coinbase, verify live exchange truth, execute cancel/replace, invoke
+`StealthOrderManager`, execute recovery or reconciliation, mutate
+stealth/order/exchange state, approve live admission, or grant browser/BFF
+execution authority. Create and reveal responses do not fabricate an
+active-placement prerequisite contract.
+
+### Phase 2741 - Advance Active Queue Range
+
+- Moved the durable autonomous queue from completed phases 2721-2740 to active phases 2741-2760 while preserving no-live defaults and cap policy.
+
+### Phase 2742 - Prior Range Completion Evidence
+
+- Recorded phases 2721-2740 as completed nested cancel/replace boundary evidence with no live Coinbase execution, no manager invocation, no reconciliation execution, and no state mutation.
+
+### Phase 2743 - Shared Exchange-Truth Boundary Builder
+
+- Extracted command-suite exchange-truth boundary construction into a shared backend helper so exact command responses and command-suite reads use one contract source.
+
+### Phase 2744 - Exchange-Truth Model Fields
+
+- Added proof-resolution fields needed by exact command responses without changing no-live defaults or command-suite read-only posture.
+
+### Phase 2745 - Exact Command Exchange-Truth Attachment
+
+- Attached nested `active_placement_exchange_truth_contract` evidence only to exact stealth command execution contracts that require active-placement exchange truth.
+
+### Phase 2746 - Non-Active-Placement Null Boundary
+
+- Kept create and reveal execution evidence from fabricating active-placement exchange-truth boundary objects when that command path does not require active-placement proof.
+
+### Phase 2747 - Resolved Proof Projection
+
+- Projected resolved active-placement exchange-truth proof ids into the nested boundary as read-only evidence without allowing execution.
+
+### Phase 2748 - Command-Suite Reuse
+
+- Made command-suite `exchange_truth_checks` consume the same shared exchange-truth boundary helper and route evidence surface lists used by exact command responses.
+
+### Phase 2749 - Backend Regression Coverage
+
+- Asserted the nested exchange-truth contract is backend-owned, route-bound, blocked, non-executable, display/forward-only, rejects `client_order_id` and `order_id` command identity, and reports no Coinbase reads, manager calls, reconciliation, or state mutation.
+
+### Phase 2750 - OpenAPI Sync
+
+- Regenerated backend OpenAPI after the nested exchange-truth contract shape change.
+
+### Phase 2751 - Frontend Schema Intake
+
+- Regenerated the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2752 - Frontend Mock Boundary Sync
+
+- Updated frontend mocks to expose the nested exchange-truth boundary only where the backend command contract supplies it.
+
+### Phase 2753 - Dry-Submit Exchange-Truth Rows
+
+- Displayed exchange-truth boundary status, route, proof id, rejected identities, evidence routes, missing contracts, no-live flags, and browser/BFF authority as evidence only.
+
+### Phase 2754 - Runtime Fixture Type Safety
+
+- Updated typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
 ### Phase 2755 - Documentation Sync
 
-- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested exchange-truth boundary contract.
+- Updated Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested exchange-truth boundary contract.
 
 ### Phase 2756 - Validator Range Sync
 
-- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2741-2760.
+- Updated backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2741-2760.
 
 ### Phase 2757 - No-Live Drift Scan
 
-- Search for wording or code implying the boundary reads Coinbase, proves live exchange truth, invokes managers, executes recovery/reconciliation, mutates state, or enables browser/BFF authority.
+- Searched for wording or code implying the boundary reads Coinbase, proves live exchange truth, invokes managers, executes recovery/reconciliation, mutates state, or enables browser/BFF authority.
 
 ### Phase 2758 - Blind Contextless Backend Review
 
-- Run a blind/contextless backend review asking whether a fresh agent can explain the nested exchange-truth boundary without inventing Coinbase read or execution authority.
+- Ran a blind/contextless backend review asking whether a fresh agent can explain the nested exchange-truth boundary without inventing Coinbase read or execution authority.
 
 ### Phase 2759 - Blind Contextless Frontend Review
 
-- Run a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and generated-contract source.
+- Ran a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and generated-contract source.
 
 ### Phase 2760 - Focused And Full Gates, Commit, Push, And Next Range
 
-- Run focused backend/frontend tests, schema checks, autonomous checks, backend full regression, and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional; commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+- Ran focused backend/frontend tests, schema checks, autonomous checks, backend full regression, and frontend `npm run release:gate`, confirmed no live Coinbase execution and `$0` submitted/executed notional, and committed/pushed synchronized repos.
 
 ## Completed M55 Active Placement Cancel/Replace Contract Batch - Phases 2721-2740
 

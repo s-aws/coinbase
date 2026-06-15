@@ -179,6 +179,9 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .stealth_cancel_replace_boundary import (
     build_stealth_active_placement_cancel_replace_contract,
 )
+from .stealth_command_proof_routes import (
+    build_stealth_command_specific_proof_route_contracts,
+)
 from .stealth_exchange_truth_boundary import (
     EXCHANGE_TRUTH_SURFACES_BY_FAMILY,
     build_stealth_active_placement_exchange_truth_contract,
@@ -238,7 +241,7 @@ from .stealth_cancel_replace_proof import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2741-2760"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2761-2780"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -9562,92 +9565,13 @@ class AdminApiReadService:
                     "lifecycle events, call Coinbase, or execute reconciliation."
                 ),
             ),
-            (
-                AdminApiLivePreflightCategory.MUTATION_CLAIM,
-                (
-                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
-                    "mutation-claim-proofs"
-                ),
-                "stealth_order_id",
-                [
-                    "README.admin-api.md",
-                    "docs/COMMAND_WORKFLOWS.md",
-                    "docs/STEALTH_ORDER_READS.md",
-                ],
-                (
-                    "Record backend-owned mutation-claim snapshot proof for "
-                    "stealth move or reprice commands. This does not invoke "
-                    "the stealth manager, acquire or release claims, cancel "
-                    "or replace placements, call Coinbase, or execute "
-                    "reconciliation."
-                ),
-            ),
-            (
-                AdminApiLivePreflightCategory.RECOVERY_PROOF,
-                "POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
-                "stealth_order_id",
-                [
-                    "README.admin-api.md",
-                    "docs/COMMAND_WORKFLOWS.md",
-                    "docs/STEALTH_ORDER_READS.md",
-                ],
-                (
-                    "Record backend-owned recovery proof for the stealth "
-                    "recovery command. This does not invoke managers, repair "
-                    "state, roll back state, call Coinbase, cancel or replace "
-                    "placements, mutate state, or execute reconciliation."
-                ),
-            ),
-            (
-                AdminApiLivePreflightCategory.REVEAL_TRIGGER,
-                (
-                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
-                    "reveal-trigger-proofs"
-                ),
-                "stealth_order_id",
-                [
-                    "README.admin-api.md",
-                    "docs/COMMAND_WORKFLOWS.md",
-                    "docs/STEALTH_ORDER_READS.md",
-                ],
-                (
-                    "Record backend-owned reveal-trigger proof for the stealth "
-                    "reveal command. This does not evaluate triggers, call "
-                    "should_trigger_reveal, call reveal_order_slice, invoke "
-                    "managers, call Coinbase, mutate state, or execute "
-                    "reconciliation."
-                ),
-            ),
-            (
-                AdminApiLivePreflightCategory.RECONCILIATION_PROOF,
-                (
-                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
-                    "reconciliation-proofs"
-                ),
-                "stealth_order_id",
-                [
-                    "README.admin-api.md",
-                    "docs/COMMAND_WORKFLOWS.md",
-                    "docs/STEALTH_ORDER_READS.md",
-                ],
-                (
-                    "Record backend-owned reconciliation proof for the "
-                    "stealth reconciliation command. This does not execute "
-                    "reconciliation, invoke managers, call Coinbase, cancel "
-                    "or replace placements, mutate exchange state, or mutate "
-                    "lifecycle state."
-                ),
-            ),
         )
 
         def proof_routes_for_command(
             command_identity_key: str,
             *,
+            mutation_family: AdminApiMutationFamilyType | None = None,
             include_lifecycle_write_guard: bool = False,
-            include_mutation_claim: bool = False,
-            include_recovery_proof: bool = False,
-            include_reveal_trigger: bool = False,
-            include_reconciliation_proof: bool = False,
         ) -> list[StealthCommandSuiteProofRouteItem]:
             proof_routes: list[StealthCommandSuiteProofRouteItem] = []
             for (
@@ -9660,26 +9584,6 @@ class AdminApiReadService:
                 if (
                     gate == AdminApiLivePreflightCategory.LIFECYCLE_WRITE_GUARD
                     and not include_lifecycle_write_guard
-                ):
-                    continue
-                if (
-                    gate == AdminApiLivePreflightCategory.MUTATION_CLAIM
-                    and not include_mutation_claim
-                ):
-                    continue
-                if (
-                    gate == AdminApiLivePreflightCategory.RECOVERY_PROOF
-                    and not include_recovery_proof
-                ):
-                    continue
-                if (
-                    gate == AdminApiLivePreflightCategory.REVEAL_TRIGGER
-                    and not include_reveal_trigger
-                ):
-                    continue
-                if (
-                    gate == AdminApiLivePreflightCategory.RECONCILIATION_PROOF
-                    and not include_reconciliation_proof
                 ):
                     continue
                 item = inventory_by_surface[surface]
@@ -9707,6 +9611,13 @@ class AdminApiReadService:
                         bff_authority="forward_only_no_execution",
                         documentation_refs=list(documentation_refs),
                         detail=detail,
+                    )
+                )
+            if mutation_family is not None:
+                proof_routes.extend(
+                    build_stealth_command_specific_proof_route_contracts(
+                        mutation_family=mutation_family,
+                        command_identity_key=command_identity_key,
                     )
                 )
             return proof_routes
@@ -10039,31 +9950,13 @@ class AdminApiReadService:
                     documentation_refs=list(metadata["documentation_refs"]),
                     proof_routes=proof_routes_for_command(
                         str(metadata["identity_key"]),
+                        mutation_family=mutation_family,
                         include_lifecycle_write_guard=(
                             mutation_family
                             in {
                                 AdminApiMutationFamilyType.STEALTH_CREATE,
                                 AdminApiMutationFamilyType.STEALTH_REVEAL,
                             }
-                        ),
-                        include_mutation_claim=(
-                            mutation_family
-                            in {
-                                AdminApiMutationFamilyType.STEALTH_MOVE,
-                                AdminApiMutationFamilyType.MOVEMENT_REPRICE,
-                            }
-                        ),
-                        include_recovery_proof=(
-                            mutation_family
-                            == AdminApiMutationFamilyType.STEALTH_RECOVERY
-                        ),
-                        include_reveal_trigger=(
-                            mutation_family
-                            == AdminApiMutationFamilyType.STEALTH_REVEAL
-                        ),
-                        include_reconciliation_proof=(
-                            mutation_family
-                            == AdminApiMutationFamilyType.STEALTH_RECONCILIATION
                         ),
                     ),
                     evidence=[

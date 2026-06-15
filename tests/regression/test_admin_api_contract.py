@@ -2344,6 +2344,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "required_prerequisites" in stealth_command_execution_schema["properties"]
     assert "missing_prerequisites" in stealth_command_execution_schema["properties"]
     assert "prerequisite_resolution" in stealth_command_execution_schema["properties"]
+    assert "command_specific_proof_contracts" in stealth_command_execution_schema[
+        "properties"
+    ]
     assert "manager_invocation_ran" in stealth_command_execution_schema["properties"]
     assert "coinbase_order_cancel_submitted" in stealth_command_execution_schema[
         "properties"
@@ -3817,6 +3820,112 @@ def _assert_active_placement_exchange_truth_contract(
     assert contract["detail"]
 
 
+def _expected_stealth_command_specific_proof_contracts(
+    mutation_family: str,
+) -> tuple[dict[str, str], ...]:
+    proof_contracts_by_family = {
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value: (
+            {
+                "gate": AdminApiLivePreflightCategory.REVEAL_TRIGGER.value,
+                "route": (
+                    "/api/v1/stealth/orders/{stealth_order_id}/"
+                    "reveal-trigger-proofs"
+                ),
+                "required_permission": (
+                    AdminApiPermission.STEALTH_REVEAL_TRIGGER_RECORD.value
+                ),
+                "shared_method": "record_stealth_reveal_trigger_proof",
+            },
+        ),
+        AdminApiMutationFamilyType.STEALTH_MOVE.value: (
+            {
+                "gate": AdminApiLivePreflightCategory.MUTATION_CLAIM.value,
+                "route": (
+                    "/api/v1/stealth/orders/{stealth_order_id}/"
+                    "mutation-claim-proofs"
+                ),
+                "required_permission": (
+                    AdminApiPermission.STEALTH_MUTATION_CLAIM_RECORD.value
+                ),
+                "shared_method": "record_stealth_mutation_claim_snapshot_proof",
+            },
+        ),
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value: (
+            {
+                "gate": AdminApiLivePreflightCategory.MUTATION_CLAIM.value,
+                "route": (
+                    "/api/v1/stealth/orders/{stealth_order_id}/"
+                    "mutation-claim-proofs"
+                ),
+                "required_permission": (
+                    AdminApiPermission.STEALTH_MUTATION_CLAIM_RECORD.value
+                ),
+                "shared_method": "record_stealth_mutation_claim_snapshot_proof",
+            },
+        ),
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value: (
+            {
+                "gate": AdminApiLivePreflightCategory.RECOVERY_PROOF.value,
+                "route": "/api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
+                "required_permission": AdminApiPermission.STEALTH_RECOVERY_RECORD.value,
+                "shared_method": "record_stealth_recovery_proof",
+            },
+        ),
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value: (
+            {
+                "gate": AdminApiLivePreflightCategory.RECONCILIATION_PROOF.value,
+                "route": (
+                    "/api/v1/stealth/orders/{stealth_order_id}/"
+                    "reconciliation-proofs"
+                ),
+                "required_permission": (
+                    AdminApiPermission.STEALTH_RECONCILIATION_RECORD.value
+                ),
+                "shared_method": "record_stealth_reconciliation_proof",
+            },
+        ),
+    }
+    return proof_contracts_by_family.get(mutation_family, ())
+
+
+def _assert_stealth_command_specific_proof_contracts(
+    contract: dict,
+    *,
+    mutation_family: str,
+) -> None:
+    expected_contracts = _expected_stealth_command_specific_proof_contracts(
+        mutation_family
+    )
+    proof_contracts = contract["command_specific_proof_contracts"]
+    assert len(proof_contracts) == len(expected_contracts)
+    by_route = {row["route"]: row for row in proof_contracts}
+    assert set(by_route) == {expected["route"] for expected in expected_contracts}
+    for expected in expected_contracts:
+        proof_contract = by_route[expected["route"]]
+        assert proof_contract["gate"] == expected["gate"]
+        assert proof_contract["method"] == "POST"
+        assert proof_contract["action_class"] == (
+            AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        )
+        assert proof_contract["required_permission"] == (
+            expected["required_permission"]
+        )
+        assert proof_contract["shared_method"] == expected["shared_method"]
+        assert proof_contract["status"] == AdminApiGateStatus.BLOCKED.value
+        assert proof_contract["required"] is True
+        assert proof_contract["blocking"] is True
+        assert proof_contract["identity_key"] == "stealth_order_id"
+        assert proof_contract["command_identity_key"] == "stealth_order_id"
+        assert proof_contract["backend_owned"] is True
+        assert proof_contract["route_bound"] is True
+        assert proof_contract["browser_authority"] == "display_only"
+        assert proof_contract["bff_authority"] == "forward_only_no_execution"
+        assert "README.admin-api.md" in proof_contract["documentation_refs"]
+        assert "docs/COMMAND_WORKFLOWS.md" in proof_contract["documentation_refs"]
+        assert "docs/STEALTH_ORDER_READS.md" in proof_contract["documentation_refs"]
+        assert proof_contract["detail"]
+
+
 def _assert_stealth_command_execution_contract(
     payload: dict,
     *,
@@ -3885,6 +3994,10 @@ def _assert_stealth_command_execution_contract(
     assert resolution_by_prerequisite[
         StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
     ]["source"] == POST_WRITE_RECONCILIATION_SOURCE
+    _assert_stealth_command_specific_proof_contracts(
+        contract,
+        mutation_family=mutation_family,
+    )
     assert contract["live_execution_service_source"] == (
         DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
     )
@@ -5248,7 +5361,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2741-2760"
+    assert readback_payload["approved_phase_range"] == "2761-2780"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -5462,7 +5575,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2741-2760"
+    assert readback_payload["approved_phase_range"] == "2761-2780"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7316,7 +7429,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2741-2760"
+    assert readback_payload["approved_phase_range"] == "2761-2780"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7531,7 +7644,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2741-2760"
+    assert readback_payload["approved_phase_range"] == "2761-2780"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9758,7 +9871,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2741-2760"
+    assert payload["approved_phase_range"] == "2761-2780"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -9960,6 +10073,33 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
             assert proof_route["backend_owned"] is True
             assert proof_route["browser_authority"] == "display_only"
             assert proof_route["bff_authority"] == "forward_only_no_execution"
+        expected_specific_proofs = _expected_stealth_command_specific_proof_contracts(
+            command["mutation_family"]
+        )
+        command_specific_gates = {
+            AdminApiLivePreflightCategory.MUTATION_CLAIM.value,
+            AdminApiLivePreflightCategory.REVEAL_TRIGGER.value,
+            AdminApiLivePreflightCategory.RECOVERY_PROOF.value,
+            AdminApiLivePreflightCategory.RECONCILIATION_PROOF.value,
+        }
+        proof_routes_by_route = {
+            proof_route["route"]: proof_route
+            for proof_route in command["proof_routes"]
+            if proof_route["gate"] in command_specific_gates
+        }
+        assert set(proof_routes_by_route) == {
+            proof_contract["route"] for proof_contract in expected_specific_proofs
+        }
+        for expected_specific_proof in expected_specific_proofs:
+            proof_route = proof_routes_by_route[expected_specific_proof["route"]]
+            assert proof_route["gate"] == expected_specific_proof["gate"]
+            assert proof_route["method"] == "POST"
+            assert proof_route["required_permission"] == (
+                expected_specific_proof["required_permission"]
+            )
+            assert proof_route["shared_method"] == (
+                expected_specific_proof["shared_method"]
+            )
     create_command = command_routes["/api/v1/stealth/orders"]
     assert create_command["mutation_family"] == (
         AdminApiMutationFamilyType.STEALTH_CREATE.value
@@ -11553,7 +11693,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2741-2760"
+    assert live_payload["approved_phase_range"] == "2761-2780"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -12116,7 +12256,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2741-2760"
+    assert enterprise_payload["approved_phase_range"] == "2761-2780"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -12714,7 +12854,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2741-2760"
+    assert recovery_preview_payload["approved_phase_range"] == "2761-2780"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

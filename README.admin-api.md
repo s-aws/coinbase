@@ -378,6 +378,18 @@ reconciliation, mutate state, or grant browser/BFF authority. Create and
 reveal command responses leave this nested active-placement prerequisite
 contract absent because those exact command drafts do not consume an existing
 active placement.
+Exact non-create stealth command responses also expose
+`command_specific_proof_contracts`, a list of blocked backend-owned proof
+routes for the command family. Reveal names the reveal-trigger proof route;
+move and movement/reprice name the mutation-claim proof route; recovery names
+the recovery-proof route; reconciliation names the reconciliation-proof route;
+cancel leaves the list empty because its additional boundaries are
+active-placement exchange truth and cancel/replace. These rows are the same
+proof-route contract shape used by command-suite reads. They may show route,
+method, permission, shared backend method, identity key, and display-only
+authority, but they do not record proofs, resolve proof authority through the
+frontend, read Coinbase, invoke managers, execute recovery or reconciliation,
+mutate state, or grant browser/BFF authority.
 For stealth reconciliation, the same contract may resolve
 `reconciliation_proof` from
 `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and
