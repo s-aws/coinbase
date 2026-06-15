@@ -4962,6 +4962,8 @@ class StealthCommandSuiteExchangeTruthItem(BaseModel):
     status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
     exchange_truth_required: bool = True
     active_placement_evidence_required: bool = True
+    active_placement_exchange_truth_resolved: bool = False
+    active_placement_exchange_truth_proof_id: str | None = None
     accepted_command_identity_keys: list[str] = Field(default_factory=list)
     rejected_command_identity_keys: list[str] = Field(default_factory=list)
     active_placement_client_order_id_authority: str = "evidence_only"
@@ -5242,6 +5244,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     blockers: list[str] = Field(default_factory=list)
     active_placement_exchange_truth_required: bool = False
     active_placement_exchange_truth_resolved: bool = False
+    active_placement_exchange_truth_contract: (
+        StealthCommandSuiteExchangeTruthItem | None
+    ) = None
     reveal_trigger_evidence_required: bool = False
     reveal_trigger_evidence_resolved: bool = False
     mutation_claim_snapshot_required: bool = False

@@ -367,6 +367,17 @@ store when a safe same-`stealth_order_id` proof record exists. That resolver
 does not verify Coinbase, resolve reveal-trigger or mutation-claim evidence,
 resolve recovery/reconciliation proof, approve execution, or grant browser/BFF
 authority.
+Those exact command responses also expose
+`active_placement_exchange_truth_contract`, a nested projection of the same
+backend-owned exchange-truth boundary used by command-suite
+`exchange_truth_checks`. It may show route, method, mutation family, resolved
+local proof id, current read evidence routes, rejected command identities,
+missing contracts, and no-live flags. It is display evidence only; it does not
+read Coinbase, prove live exchange truth, invoke managers, execute recovery or
+reconciliation, mutate state, or grant browser/BFF authority. Create and
+reveal command responses leave this nested active-placement prerequisite
+contract absent because those exact command drafts do not consume an existing
+active placement.
 For stealth reconciliation, the same contract may resolve
 `reconciliation_proof` from
 `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and

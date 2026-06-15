@@ -38,7 +38,102 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Active Placement Cancel/Replace Contract Batch - Phases 2721-2740
+## Active M55 Active Placement Exchange-Truth Contract Batch - Phases 2741-2760
+
+These phases continue M55 after nested active-placement cancel/replace
+boundary evidence. The next explicit gap is making active-placement
+exchange-truth proof requirements typed and nested on exact stealth command
+execution responses that require an already-live active placement: stealth
+cancel, stealth move, stealth recovery, stealth reconciliation, and movement
+reprice. This range must reuse the same backend-owned exchange-truth builder
+used by command-suite `exchange_truth_checks`; it must not create a second
+exchange-truth model, read Coinbase, verify live exchange truth, execute
+cancel/replace, invoke `StealthOrderManager`, execute recovery or
+reconciliation, mutate stealth/order/exchange state, approve live admission,
+or grant browser/BFF execution authority. Create and reveal responses must
+not fabricate an active-placement prerequisite contract.
+
+### Phase 2741 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2721-2740 to active phases 2741-2760 while preserving no-live defaults and cap policy.
+
+### Phase 2742 - Prior Range Completion Evidence
+
+- Record phases 2721-2740 as completed nested cancel/replace boundary evidence with no live Coinbase execution, no manager invocation, no reconciliation execution, and no state mutation.
+
+### Phase 2743 - Shared Exchange-Truth Boundary Builder
+
+- Extract command-suite exchange-truth boundary construction into a shared backend helper so exact command responses and command-suite reads use one contract source.
+
+### Phase 2744 - Exchange-Truth Model Fields
+
+- Add proof-resolution fields needed by exact command responses without changing no-live defaults or command-suite read-only posture.
+
+### Phase 2745 - Exact Command Exchange-Truth Attachment
+
+- Attach nested `active_placement_exchange_truth_contract` evidence only to exact stealth command execution contracts that require active-placement exchange truth.
+
+### Phase 2746 - Non-Active-Placement Null Boundary
+
+- Keep create and reveal execution evidence from fabricating active-placement exchange-truth boundary objects when that command path does not require active-placement proof.
+
+### Phase 2747 - Resolved Proof Projection
+
+- Project resolved active-placement exchange-truth proof ids into the nested boundary as read-only evidence without allowing execution.
+
+### Phase 2748 - Command-Suite Reuse
+
+- Make command-suite `exchange_truth_checks` consume the same shared exchange-truth boundary helper and route evidence surface lists used by exact command responses.
+
+### Phase 2749 - Backend Regression Coverage
+
+- Assert the nested exchange-truth contract is backend-owned, route-bound, blocked, non-executable, display/forward-only, rejects `client_order_id` and `order_id` command identity, and reports no Coinbase reads, manager calls, reconciliation, or state mutation.
+
+### Phase 2750 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after the nested exchange-truth contract shape change.
+
+### Phase 2751 - Frontend Schema Intake
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2752 - Frontend Mock Boundary Sync
+
+- Update frontend mocks to expose the nested exchange-truth boundary only where the backend command contract supplies it.
+
+### Phase 2753 - Dry-Submit Exchange-Truth Rows
+
+- Display exchange-truth boundary status, route, proof id, rejected identities, evidence routes, missing contracts, no-live flags, and browser/BFF authority as evidence only.
+
+### Phase 2754 - Runtime Fixture Type Safety
+
+- Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
+### Phase 2755 - Documentation Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested exchange-truth boundary contract.
+
+### Phase 2756 - Validator Range Sync
+
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2741-2760.
+
+### Phase 2757 - No-Live Drift Scan
+
+- Search for wording or code implying the boundary reads Coinbase, proves live exchange truth, invokes managers, executes recovery/reconciliation, mutates state, or enables browser/BFF authority.
+
+### Phase 2758 - Blind Contextless Backend Review
+
+- Run a blind/contextless backend review asking whether a fresh agent can explain the nested exchange-truth boundary without inventing Coinbase read or execution authority.
+
+### Phase 2759 - Blind Contextless Frontend Review
+
+- Run a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and generated-contract source.
+
+### Phase 2760 - Focused And Full Gates, Commit, Push, And Next Range
+
+- Run focused backend/frontend tests, schema checks, autonomous checks, backend full regression, and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional; commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed M55 Active Placement Cancel/Replace Contract Batch - Phases 2721-2740
 
 These phases continue M55 after nested live execution intent contract evidence.
 The next explicit gap is making active-placement cancel/replace execution

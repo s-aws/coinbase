@@ -20167,6 +20167,10 @@ components:
           type: boolean
           title: Active Placement Exchange Truth Resolved
           default: false
+        active_placement_exchange_truth_contract:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteExchangeTruthItem'
+          - type: 'null'
         reveal_trigger_evidence_required:
           type: boolean
           title: Reveal Trigger Evidence Required
@@ -21352,6 +21356,15 @@ components:
           type: boolean
           title: Active Placement Evidence Required
           default: true
+        active_placement_exchange_truth_resolved:
+          type: boolean
+          title: Active Placement Exchange Truth Resolved
+          default: false
+        active_placement_exchange_truth_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Placement Exchange Truth Proof Id
         accepted_command_identity_keys:
           items:
             type: string

@@ -2700,21 +2700,26 @@ Current backend evidence:
   execution. The completed phases 2701-2720 added nested live execution
   intent contract evidence to exact stealth command responses without
   fabricating payload-bound intent for command-suite reads. It now advances to
-  phases 2721-2740 to expose typed active-placement cancel/replace boundary
+  phases 2721-2740 exposed typed active-placement cancel/replace boundary
   evidence on exact stealth cancel, stealth move, and movement/reprice command
-  responses by reusing the command-suite cancel/replace boundary builder.
+  responses by reusing the command-suite cancel/replace boundary builder. It
+  now advances to phases 2741-2760 to expose nested active-placement
+  exchange-truth boundary evidence on exact stealth cancel, move, recovery,
+  reconciliation, and movement/reprice command responses by reusing the
+  command-suite exchange-truth builder.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Nested active-placement cancel/replace boundary evidence for exact stealth
-  cancel, stealth move, and movement/reprice command responses is the active
-  2721-2740 slice. This evidence may explain route-bound cancel/replace proof
-  requirements, resolved local proof ids, rejected `client_order_id` and
-  `order_id` command identities, missing contracts, no-run flags, and
-  display-only browser/BFF boundaries, but it must not execute
-  cancel/replace, build move/reprice plans, invoke managers, call Coinbase,
-  mutate state, execute reconciliation, resolve disabled prerequisites, or
-  grant browser/BFF authority.
+- Nested active-placement exchange-truth boundary evidence for exact stealth
+  cancel, stealth move, recovery, reconciliation, and movement/reprice command
+  responses is the active 2741-2760 slice. This evidence may explain
+  route-bound exchange-truth proof requirements, resolved local proof ids,
+  rejected `client_order_id` and `order_id` command identities, evidence
+  routes, missing contracts, no-live flags, and display-only browser/BFF
+  boundaries, but it must not read Coinbase, prove live exchange truth,
+  execute cancel/replace, build move/reprice plans, invoke managers, mutate
+  state, execute recovery or reconciliation, resolve disabled prerequisites,
+  or grant browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
   and post-write reconciliation execution remain blocked.

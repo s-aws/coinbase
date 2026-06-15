@@ -3766,6 +3766,57 @@ def _assert_active_placement_cancel_replace_contract(
     assert contract["documentation_refs"]
 
 
+def _assert_active_placement_exchange_truth_contract(
+    contract: dict,
+    *,
+    mutation_family: str,
+    route: str,
+    resolved_exchange_truth: bool = False,
+    exchange_truth_proof_id: str | None = None,
+) -> None:
+    assert contract["mutation_family"] == mutation_family
+    assert contract["route"] == route
+    assert contract["method"] == "POST"
+    assert contract["identity_key"] == "stealth_order_id"
+    assert contract["command_identity_key"] == "stealth_order_id"
+    assert contract["status"] == AdminApiGateStatus.BLOCKED.value
+    assert contract["exchange_truth_required"] is True
+    assert contract["active_placement_evidence_required"] is True
+    assert (
+        contract["active_placement_exchange_truth_resolved"]
+        is resolved_exchange_truth
+    )
+    assert (
+        contract["active_placement_exchange_truth_proof_id"]
+        == exchange_truth_proof_id
+    )
+    assert contract["accepted_command_identity_keys"] == ["stealth_order_id"]
+    assert "client_order_id" in contract["rejected_command_identity_keys"]
+    assert "order_id" in contract["rejected_command_identity_keys"]
+    assert contract["active_placement_client_order_id_authority"] == (
+        "evidence_only"
+    )
+    assert contract["exchange_order_id_authority"] == "evidence_only"
+    assert "active_placement_exchange_truth" in contract["required_gate_chain"]
+    assert "stealth_active_placement_exchange_truth_proof_contract" in (
+        contract["required_contracts"]
+    )
+    if resolved_exchange_truth:
+        assert "stealth_active_placement_exchange_truth_proof_contract" not in (
+            contract["missing_contracts"]
+        )
+    assert contract["backend_owned"] is True
+    assert contract["route_bound"] is True
+    assert contract["browser_authority"] == "display_only"
+    assert contract["bff_authority"] == "forward_only_no_execution"
+    assert contract["live_enabled"] is False
+    assert contract["executable"] is False
+    assert contract["live_coinbase_orders_ran"] is False
+    assert contract["live_coinbase_read_ran"] is False
+    assert contract["current_read_evidence_routes"]
+    assert contract["detail"]
+
+
 def _assert_stealth_command_execution_contract(
     payload: dict,
     *,
@@ -3874,6 +3925,17 @@ def _assert_stealth_command_execution_contract(
     assert contract["live_execution_adapter_missing_reason"] == (
         "live_execution_adapter_disabled"
     )
+    if (
+        StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+        in required_prerequisites
+    ):
+        _assert_active_placement_exchange_truth_contract(
+            contract["active_placement_exchange_truth_contract"],
+            mutation_family=mutation_family,
+            route=route,
+        )
+    else:
+        assert contract["active_placement_exchange_truth_contract"] is None
     _assert_stealth_live_execution_adapter_contract(
         contract["live_execution_adapter_contract"],
         route=route,
@@ -4499,6 +4561,13 @@ def test_admin_api_stealth_move_execution_contract_resolves_exchange_truth_proof
     assert contract["execution_allowed"] is False
     assert contract["execution_contract_available"] is False
     assert contract["active_placement_exchange_truth_resolved"] is True
+    _assert_active_placement_exchange_truth_contract(
+        contract["active_placement_exchange_truth_contract"],
+        mutation_family=AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        route=route,
+        resolved_exchange_truth=True,
+        exchange_truth_proof_id="stealth-move-exchange-truth-proof-001",
+    )
     assert contract["mutation_claim_snapshot_resolved"] is False
     assert contract["live_execution_service_resolved"] is False
     assert (
@@ -4607,6 +4676,13 @@ def test_admin_api_stealth_move_execution_contract_resolves_exchange_truth_proof
     assert unsafe_response.status_code == 501
     unsafe_contract = unsafe_response.json()["stealth_command_execution_contract"]
     assert unsafe_contract["active_placement_exchange_truth_resolved"] is False
+    _assert_active_placement_exchange_truth_contract(
+        unsafe_contract["active_placement_exchange_truth_contract"],
+        mutation_family=AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        route=route,
+        resolved_exchange_truth=False,
+        exchange_truth_proof_id=None,
+    )
     assert (
         StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
         in unsafe_contract["missing_prerequisites"]
@@ -5172,7 +5248,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2721-2740"
+    assert readback_payload["approved_phase_range"] == "2741-2760"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -5386,7 +5462,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2721-2740"
+    assert readback_payload["approved_phase_range"] == "2741-2760"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7240,7 +7316,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2721-2740"
+    assert readback_payload["approved_phase_range"] == "2741-2760"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7455,7 +7531,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2721-2740"
+    assert readback_payload["approved_phase_range"] == "2741-2760"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9682,7 +9758,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2721-2740"
+    assert payload["approved_phase_range"] == "2741-2760"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -9995,6 +10071,8 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert "order_id" in check["rejected_command_identity_keys"]
         assert check["active_placement_client_order_id_authority"] == "evidence_only"
         assert check["exchange_order_id_authority"] == "evidence_only"
+        assert check["active_placement_exchange_truth_resolved"] is False
+        assert check["active_placement_exchange_truth_proof_id"] is None
         assert check["backend_owned"] is True
         assert check["route_bound"] is True
         assert check["browser_authority"] == "display_only"
@@ -11475,7 +11553,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2721-2740"
+    assert live_payload["approved_phase_range"] == "2741-2760"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -12038,7 +12116,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2721-2740"
+    assert enterprise_payload["approved_phase_range"] == "2741-2760"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -12636,7 +12714,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2721-2740"
+    assert recovery_preview_payload["approved_phase_range"] == "2741-2760"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

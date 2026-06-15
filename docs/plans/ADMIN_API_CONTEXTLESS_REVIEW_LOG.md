@@ -2,6 +2,43 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## M55 Active Placement Exchange-Truth Contract Review - Phases 2741-2760
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers were not given chat history.
+
+Reviewer tasks:
+
+- trace nested `active_placement_exchange_truth_contract` evidence on exact
+  stealth cancel, stealth move, recovery, reconciliation, and
+  movement/reprice command execution contracts
+- verify command-suite `exchange_truth_checks` and exact command responses
+  share one backend helper/contract source
+- verify create and reveal do not fabricate the nested active-placement
+  prerequisite contract
+- verify no live Coinbase read/write, `StealthOrderManager` invocation,
+  cancel/replace execution, recovery/reconciliation execution, state
+  mutation, browser authority, BFF authority, or ID-invariant weakening was
+  introduced
+
+Findings and resolution:
+
+- PASS: backend blind/contextless review found no blockers. It confirmed the
+  shared exchange-truth helper is used as the single source for command-suite
+  and exact command evidence, the contract is attached only for active-
+  placement prerequisite command families, and no-live/no-write posture is
+  preserved.
+- PASS: frontend blind/contextless review found no blockers. It confirmed the
+  generated schema, mocks, dry-submit rows, tests, and docs render backend-
+  supplied exchange-truth contract evidence as display-only state without
+  proof lookup, Coinbase access, command enablement, or browser/BFF authority.
+- Validation: backend focused tests, backend full regression, frontend
+  focused tests, and frontend `npm run release:gate` passed. Live Coinbase
+  execution was not run; submitted and executed notional were `$0`.
+
 ## M55 Active Placement Cancel/Replace Contract Review - Phases 2721-2740
 
 Review scope:

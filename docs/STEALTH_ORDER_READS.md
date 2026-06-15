@@ -76,6 +76,14 @@ refs, and display/read-only authority. They do not run Coinbase reads, prove
 active-placement exchange truth, cancel/replace placements, reveal orders,
 execute reconciliation, mutate stealth/order/exchange state, create proof
 records, or authorize browser/BFF execution.
+Exact stealth command responses that require an existing active placement now
+reuse that exchange-truth row shape as
+`active_placement_exchange_truth_contract`. The nested object is still
+blocked evidence: it may report a resolved local proof id and evidence routes,
+but it does not read Coinbase, prove live exchange truth, execute
+cancel/replace, invoke managers, execute recovery or reconciliation, mutate
+state, or authorize browser/BFF execution. Create and reveal responses do not
+fabricate this active-placement prerequisite object.
 
 The command-suite response also reports `admission_readiness` rows. This
 ledger binds each stealth command route to the backend evidence that must

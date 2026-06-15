@@ -254,6 +254,15 @@ route, `AdminApiCommandService.*` reference, forbidden methods, disabled
 status, and browser/BFF authority only. It does not construct an adapter,
 invoke managers, call Coinbase, cancel/replace active placements, execute
 reconciliation, mutate state, or make the command executable.
+Exact command responses that require active-placement exchange truth also
+include a nested `active_placement_exchange_truth_contract`. It is the same
+backend-owned evidence shape used by command-suite `exchange_truth_checks`.
+Workflows may display its route, resolved local proof id, evidence routes,
+missing contracts, rejected identities, no-live flags, and browser/BFF
+authority only. It does not read Coinbase, prove live exchange truth, invoke
+managers, execute recovery or reconciliation, mutate state, or make the
+command executable. Create and reveal responses must leave this nested
+active-placement prerequisite absent.
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase

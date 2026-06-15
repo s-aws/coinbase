@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2721-2740`.
+- Active autonomous range: `2741-2760`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -347,14 +347,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   nested `live_execution_service_contract` evidence projected from the
   disabled backend live execution service state. The completed 2701-2720 range
   added nested `live_execution_intent_contract` evidence from the existing
-  admission-decision intent when exact command context exists. The active
-  2721-2740 range adds nested `active_placement_cancel_replace_contract`
+  admission-decision intent when exact command context exists. The completed
+  2721-2740 range added nested `active_placement_cancel_replace_contract`
   evidence for exact stealth cancel, stealth move, and movement/reprice
   command responses by reusing the command-suite cancel/replace boundary
-  builder. It must not execute cancel/replace, construct executable adapters,
-  record reconciliation plans, execute reconciliation, invoke managers, call
-  Coinbase, cancel/replace active placements, mutate state, or grant
-  browser/BFF authority.
+  builder. The active 2741-2760 range adds nested
+  `active_placement_exchange_truth_contract` evidence for exact stealth
+  cancel, stealth move, recovery, reconciliation, and movement/reprice command
+  responses by reusing the command-suite exchange-truth boundary builder. It
+  must not read Coinbase, prove live exchange truth, execute cancel/replace,
+  construct executable adapters, record reconciliation plans, execute
+  recovery or reconciliation, invoke managers, call Coinbase, mutate state, or
+  grant browser/BFF authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

@@ -8,9 +8,9 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-15
 - Updated by: Codex
 - Branch: main
-- Commit (optional): backend/frontend commit hashes pending for validated range
-  `2721-2740`; prior completed range `2701-2720` is backend `2f5fd16`,
-  frontend `48946a4`.
+- Commit (optional): backend/frontend commit hashes pending for active range
+  `2741-2760`; completed range `2721-2740` is backend `09d55b8`,
+  frontend `c59e271`.
 
 ## Current Objective
 
@@ -220,12 +220,13 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2721-2740`.
+- Active autonomous range: `2741-2760`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: complete nested
-  `active_placement_cancel_replace_contract` evidence for exact stealth
-  cancel, stealth move, and movement/reprice command responses without live
-  Coinbase execution unless a phase explicitly says otherwise.
+  `active_placement_exchange_truth_contract` evidence for exact stealth
+  cancel, stealth move, recovery, reconciliation, and movement/reprice command
+  responses without live Coinbase reads/execution unless a phase explicitly
+  says otherwise.
 
 ## Decisions (Durable)
 
@@ -541,12 +542,13 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Commit and push backend/frontend `2721-2740` cancel/replace boundary
-   contract work.
-2. Advance to the next approved M55 slice that closes a real stealth
+1. Finish backend/frontend `2741-2760` exchange-truth boundary gates and
+   contextless reviews.
+2. Commit and push the synchronized backend/frontend 2741-2760 contract work,
+   then advance to the next approved M55 slice that closes a real stealth
    command-suite live-enablement gap without enabling live Coinbase execution
    by default.
-3. Keep contextless blind-review in the release loop for new spot order,
+3. Keep contextless blind review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
 
@@ -654,6 +656,16 @@ Keep it short. Keep it factual.
   no-reconciliation-execution, no-state-mutation, and no browser/BFF execution
   authority. Create, reveal, recovery, and reconciliation do not fabricate the
   nested cancel/replace boundary.
+- What is active for M55 2741-2760: backend and frontend expose nested
+  `active_placement_exchange_truth_contract` evidence to exact stealth cancel,
+  stealth move, recovery, reconciliation, and movement/reprice command
+  responses by reusing the same backend-owned exchange-truth boundary contract
+  used by command-suite reads. The evidence must remain blocked,
+  display-only, no-Coinbase-read, no-manager, no-reconciliation-execution,
+  no-state-mutation, and no browser/BFF execution authority. Create and
+  reveal must not fabricate the nested active-placement exchange-truth
+  boundary.
 - What is blocked: Nothing currently known.
-- Exact next command: commit and push backend/frontend 2721-2740 changes, then
-  advance to the next approved M55 slice.
+- Exact next command: finish backend/frontend 2741-2760 gates, run
+  contextless reviews, commit and push both repos, then advance to the next
+  approved M55 slice.

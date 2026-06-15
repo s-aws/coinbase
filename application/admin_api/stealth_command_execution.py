@@ -54,6 +54,10 @@ from .stealth_cancel_replace_proof import (
 from .stealth_cancel_replace_boundary import (
     build_stealth_active_placement_cancel_replace_contract,
 )
+from .stealth_exchange_truth_boundary import (
+    EXCHANGE_TRUTH_SURFACES_BY_FAMILY,
+    build_stealth_active_placement_exchange_truth_contract,
+)
 from .stealth_post_write_reconciliation import (
     build_stealth_post_write_reconciliation_boundary,
 )
@@ -295,6 +299,33 @@ def build_stealth_command_execution_contract(
         active_placement_exchange_truth_resolved=(
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
             in resolved
+        ),
+        active_placement_exchange_truth_contract=(
+            build_stealth_active_placement_exchange_truth_contract(
+                mutation_family=metadata.mutation_family,
+                route=metadata.route,
+                method=admission_decision.method,
+                current_read_evidence_routes=EXCHANGE_TRUTH_SURFACES_BY_FAMILY.get(
+                    metadata.mutation_family,
+                    (),
+                ),
+                active_placement_exchange_truth_resolved=(
+                    StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+                    in resolved
+                ),
+                active_placement_exchange_truth_proof_id=next(
+                    (
+                        item.resolved_evidence_id
+                        for item in resolution
+                        if item.prerequisite
+                        == StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH
+                    ),
+                    None,
+                ),
+            )
+            if StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+            in required
+            else None
         ),
         reveal_trigger_evidence_required=(
             StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE.value in required
