@@ -292,6 +292,22 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     POST_LIVE_RECONCILIATION = "post_live_reconciliation"
 
 
+class AdminApiStealthAdmissionContextField(str, Enum):
+    """Command-envelope fields required before stealth admission proof lookup."""
+
+    ROUTE = "route"
+    METHOD = "method"
+    MODULE_ID = "module_id"
+    MUTATION_FAMILY = "mutation_family"
+    ACTION_CLASS = "action_class"
+    REQUIRED_PERMISSION = "required_permission"
+    STEALTH_ORDER_ID = "stealth_order_id"
+    ACTOR_ID = "actor_id"
+    IDEMPOTENCY_KEY = "idempotency_key"
+    OPERATOR_INTENT = "operator_intent"
+    PAYLOAD_HASH = "payload_hash"
+
+
 class AdminApiSpotCommandSuiteGapFamily(str, Enum):
     """Spot command-suite families that still require admin contract work."""
 

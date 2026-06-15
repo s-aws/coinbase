@@ -99,6 +99,10 @@ They remain blocked display evidence. They do not approve commands, execute
 commands, read Coinbase, invoke `StealthOrderManager`, cancel/replace
 placements, execute reconciliation, mutate state, or grant browser/BFF
 execution authority.
+Those rows also report command-envelope context requirements. Static route
+metadata is present, but `stealth_order_id`, `actor_id`, `idempotency_key`,
+`operator_intent`, and `payload_hash` are missing in the read-only response,
+so resolver lookup and proof resolution remain disabled.
 
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires
@@ -236,6 +240,10 @@ lifecycle-write requirements, disabled live-adapter evidence, and post-live
 reconciliation requirements so operators can see why a command remains
 blocked. They are not a preflight endpoint, gate evaluator, proof writer,
 Coinbase reader, executor, reconciler, or browser/BFF authority source.
+They also expose `context_requirements` to separate static route metadata from
+the exact command envelope needed for future proof lookup. Missing
+`stealth_order_id`, actor, idempotency, operator-intent, and payload-hash
+context keeps resolver lookup blocked.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute

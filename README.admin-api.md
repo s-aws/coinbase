@@ -236,6 +236,11 @@ Those rows are blocked read evidence only. They do not approve commands,
 execute commands, read Coinbase, invoke `StealthOrderManager`,
 cancel/replace active placements, execute reconciliation, mutate state, or
 grant browser/BFF command authority.
+Admission-readiness rows also expose `context_requirements`. Static route
+metadata is present, but exact command-envelope fields remain missing:
+`stealth_order_id`, `actor_id`, `idempotency_key`, `operator_intent`, and
+`payload_hash`. Until those fields come from the backend mutating command
+path, resolver lookup and proof resolution remain disabled.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

@@ -128,6 +128,7 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRole,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
@@ -5420,7 +5421,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2301-2320"
+    assert payload["approved_phase_range"] == "2321-2340"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -5735,10 +5736,27 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert readiness["present_evidence_count"] == 0
         assert readiness["missing_evidence_count"] == 8
         assert readiness["required_evidence_count"] == len(readiness["requirements"])
+        assert readiness["required_context_count"] == 11
+        assert readiness["present_context_count"] == 6
+        assert readiness["missing_context_count"] == 5
+        assert readiness["required_context_count"] == len(
+            readiness["context_requirements"]
+        )
+        assert readiness["exact_context_present"] is False
+        assert readiness["resolver_lookup_allowed"] is False
+        assert readiness["resolver_lookup_ran"] is False
+        assert readiness["proof_resolution_attempted"] is False
         assert set(readiness["missing_evidence"]) == {
             requirement["evidence_name"]
             for requirement in readiness["requirements"]
             if requirement["blocking"]
+        }
+        assert set(readiness["missing_context"]) == {
+            AdminApiStealthAdmissionContextField.STEALTH_ORDER_ID.value,
+            AdminApiStealthAdmissionContextField.ACTOR_ID.value,
+            AdminApiStealthAdmissionContextField.IDEMPOTENCY_KEY.value,
+            AdminApiStealthAdmissionContextField.OPERATOR_INTENT.value,
+            AdminApiStealthAdmissionContextField.PAYLOAD_HASH.value,
         }
         assert AdminApiStealthAdmissionEvidence.APPROVAL_REQUEST.value in readiness[
             "missing_evidence"
@@ -5782,6 +5800,34 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
             assert requirement["command_identity_key"] == "stealth_order_id"
             assert requirement["required_permission"]
             assert requirement["shared_method"]
+        context_by_name = {
+            context["field_name"]: context
+            for context in readiness["context_requirements"]
+        }
+        for field_name in (
+            AdminApiStealthAdmissionContextField.ROUTE.value,
+            AdminApiStealthAdmissionContextField.METHOD.value,
+            AdminApiStealthAdmissionContextField.MODULE_ID.value,
+            AdminApiStealthAdmissionContextField.MUTATION_FAMILY.value,
+            AdminApiStealthAdmissionContextField.ACTION_CLASS.value,
+            AdminApiStealthAdmissionContextField.REQUIRED_PERMISSION.value,
+        ):
+            assert context_by_name[field_name]["source"] in {
+                "route_inventory",
+                "command_metadata",
+            }
+            assert context_by_name[field_name]["present"] is True
+            assert context_by_name[field_name]["blocking"] is False
+            assert context_by_name[field_name]["browser_authority"] == "display_only"
+            assert context_by_name[field_name]["bff_authority"] == (
+                "forward_only_no_execution"
+            )
+        for field_name in readiness["missing_context"]:
+            assert context_by_name[field_name]["source"] == "command_envelope"
+            assert context_by_name[field_name]["present"] is False
+            assert context_by_name[field_name]["blocking"] is True
+            assert context_by_name[field_name]["backend_owned"] is True
+            assert context_by_name[field_name]["route_bound"] is True
     for route in (
         "/api/v1/stealth/orders",
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
@@ -6940,7 +6986,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2301-2320"
+    assert live_payload["approved_phase_range"] == "2321-2340"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -7503,7 +7549,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2301-2320"
+    assert enterprise_payload["approved_phase_range"] == "2321-2340"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -8086,7 +8132,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2301-2320"
+    assert recovery_preview_payload["approved_phase_range"] == "2321-2340"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

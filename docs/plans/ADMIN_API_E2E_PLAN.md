@@ -38,99 +38,110 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Admission Readiness Binding Batch - Phases 2301-2320
+## Active M55 Admission Context Requirements Batch - Phases 2321-2340
 
-These phases continue M55 after backend-owned active-placement exchange-truth
-evidence records. The next explicit architecture gap is a single
-command-suite admission-readiness map that binds every stealth command route
-to its backend-owned proof requirements: approval request/decision, admission
-audit, cap/guard decision, reconciliation plan, active-placement exchange
-truth or lifecycle-write guard, disabled live adapter, and post-live
-reconciliation. This range may extend the existing
-`GET /api/v1/stealth/command-suite` read contract, OpenAPI, frontend schema,
-mocks, and display-only UI. It must not approve, execute, reconcile, read
+These phases continue M55 after the command-suite admission-readiness ledger.
+The next explicit architecture gap is command-envelope context: a fresh
+maintainer must see that route metadata alone is not enough to resolve proof
+records. This range may add enum-backed context fields and per-command
+context requirements to `GET /api/v1/stealth/command-suite`, then sync
+OpenAPI, frontend schema, mocks, and display-only UI. It must not perform
+resolver lookup, approve admission, execute commands, reconcile, read
 Coinbase, call `StealthOrderManager`, cancel/replace placements, mutate
 lifecycle/order/exchange state, or grant browser/BFF command authority.
 
-### Phase 2301 - Advance Active Queue Range
+### Phase 2321 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2281-2300 to active phases 2301-2320 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2301-2320 to active phases 2321-2340 while preserving no-live defaults and cap policy.
 
-### Phase 2302 - Admission Readiness Scope
+### Phase 2322 - Admission Context Scope
 
-- Define stealth command admission readiness as backend-owned read-only evidence on the existing command-suite response, not an approval, executor, reconciler, Coinbase reader, or lifecycle mutation path.
+- Define stealth admission context as read-only command-envelope prerequisite evidence, not a resolver, preflight endpoint, approval path, or execution path.
 
-### Phase 2303 - Evidence Name Enum And Models
+### Phase 2323 - Context Field Enum And Models
 
-- Add enum-backed admission evidence names plus typed requirement/readiness response models for per-command stealth admission prerequisites.
+- Add enum-backed context field names plus typed context requirement fields on per-command admission-readiness rows.
 
-### Phase 2304 - Backend Command-Suite Binding
+### Phase 2324 - Backend Context Builder
 
-- Derive readiness rows from existing command metadata, proof routes, exchange-truth checks, route inventory, and disabled live-enablement posture.
+- Derive context rows from existing command metadata and route inventory without reading proof stores or invoking command admission.
 
-### Phase 2305 - Active-Placement Mapping
+### Phase 2325 - Static Context Presence
 
-- Mark create/reveal as lifecycle-write-guard-gated and cancel/move/recovery/reconciliation/reprice as active-placement-exchange-truth-gated without changing command authority.
+- Mark route, method, module id, mutation family, action class, and required permission as present route-inventory context.
 
-### Phase 2306 - No-Live Safety Flags
+### Phase 2326 - Command Envelope Missing Context
 
-- Ensure every readiness row reports admission/execution/manager/live-adapter/browser/BFF authority as blocked or false and reports Coinbase/reconciliation/state mutation as not run.
+- Mark exact `stealth_order_id`, actor id, idempotency key, operator intent, and payload hash as missing command-envelope context on the read-only command suite.
 
-### Phase 2307 - OpenAPI And Generated Artifacts
+### Phase 2327 - Resolver Lookup Blockers
+
+- Report exact context absent, resolver lookup not allowed, resolver lookup not run, and proof resolution not attempted for every row.
+
+### Phase 2328 - OpenAPI And Generated Artifacts
 
 - Regenerate backend OpenAPI and route inventory artifacts after the command-suite schema changes.
 
-### Phase 2308 - Backend Focused Tests
+### Phase 2329 - Backend Focused Tests
 
-- Cover command-suite readiness counts, evidence names, active-placement/lifecycle mapping, false live flags, rejected `order_id`, and no browser/BFF authority.
+- Cover context counts, missing context names, present static context, resolver lookup blockers, no proof resolution, and no live authority.
 
-### Phase 2309 - Frontend Schema Sync
+### Phase 2330 - Frontend Schema Sync
 
 - Regenerate frontend TypeScript schema from backend OpenAPI and keep generated files unedited by hand.
 
-### Phase 2310 - Frontend Mock Runtime Sync
+### Phase 2331 - Frontend Mock Runtime Sync
 
-- Update frontend mock command-suite data to include admission-readiness rows and active-placement exchange-truth readback evidence.
+- Update frontend mock command-suite data to include admission context rows and resolver lookup blockers.
 
-### Phase 2311 - Frontend Adapter Mapping
+### Phase 2332 - Frontend Adapter Mapping
 
-- Map admission readiness into the stealth command-suite view model through the existing backend adapter.
+- Map admission context requirements into the stealth command-suite view model through the existing backend adapter.
 
-### Phase 2312 - Frontend Read-Only Rendering
+### Phase 2333 - Frontend Read-Only Rendering
 
-- Render the admission-readiness ledger as display-only evidence in the stealth read model without adding controls or BFF execution authority.
+- Render missing command-envelope context and resolver lookup blockers in the stealth read model without controls or BFF execution authority.
 
-### Phase 2313 - Runtime And Quality Range Sync
+### Phase 2334 - Runtime And Quality Range Sync
 
-- Update release, deployment, runtime, autonomous, and quality artifacts to use phases 2301-2320 and require the new command-suite evidence.
+- Update release, deployment, runtime, autonomous, and quality artifacts to use phases 2321-2340 and require the new command-suite context evidence.
 
-### Phase 2314 - Frontend Focused Tests
+### Phase 2335 - Documentation Update
 
-- Cover mock/runtime/adapter/UI rendering for admission readiness and no-live posture.
+- Update Admin API, command workflow, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for admission context evidence.
 
-### Phase 2315 - Documentation Update
+### Phase 2336 - Drift Scan
 
-- Update Admin API, command workflow, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for admission-readiness evidence.
+- Search for stale 2301-2320 active-range text and wording that implies admission-readiness rows perform resolver lookup.
 
-### Phase 2316 - Drift Scan
+### Phase 2337 - Blind Contextless Review
 
-- Search for stale 2281-2300 active-range text and recovery/reconciliation-only wording that conflicts with the current M55 scope.
+- Run a contextless review asking whether a fresh agent can explain why exact command context is missing and why proof lookup cannot run.
 
-### Phase 2317 - Blind Contextless Review
-
-- Run a contextless review asking whether a fresh agent can explain how a stealth command would be admitted and why the current path cannot execute.
-
-### Phase 2318 - Backend Full Regression
+### Phase 2338 - Backend Full Regression
 
 - Run backend regression after focused tests and generated artifacts pass.
 
-### Phase 2319 - Frontend Release Gate
+### Phase 2339 - Frontend Release Gate
 
 - Run frontend `npm run release:gate` after schema, mocks, UI, tests, and artifacts are synced.
 
-### Phase 2320 - Full Gates, Push, And Next Range
+### Phase 2340 - Full Gates, Push, And Next Range
 
 - Confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed M55 Admission Readiness Binding Batch - Phases 2301-2320
+
+These phases completed the backend-owned stealth command admission-readiness
+ledger on the existing `GET /api/v1/stealth/command-suite` response. The
+ledger binds each stealth command route to required approval,
+admission-audit, cap/guard, reconciliation, active-placement exchange-truth
+or lifecycle-write, disabled live adapter, and post-live reconciliation
+evidence. It synced backend models, OpenAPI, frontend schema, mocks,
+read-only rendering, docs, focused tests, full gates, and contextless review.
+It did not approve, execute, reconcile, read Coinbase, call
+`StealthOrderManager`, cancel/replace active placements, mutate state, or
+grant browser/BFF command authority.
 
 ## Completed M55 Active-Placement Exchange-Truth Evidence Batch - Phases 2281-2300
 

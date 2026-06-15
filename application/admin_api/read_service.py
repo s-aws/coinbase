@@ -39,6 +39,7 @@ from core.enums import (
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
@@ -150,6 +151,7 @@ from .models import (
     SpotRecoveryRollbackPlanResponse,
     SpotRecoveryStateRepairTaxonomyItem,
     StealthCommandSuiteCommandItem,
+    StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
     StealthCommandSuiteCoverageGapEvidenceRouteItem,
@@ -188,7 +190,7 @@ from .stealth_exchange_truth import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2301-2320"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2321-2340"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -9004,6 +9006,66 @@ class AdminApiReadService:
                 detail=detail,
             )
 
+        def admission_context_requirement(
+            *,
+            field_name: AdminApiStealthAdmissionContextField,
+            source: str,
+            present: bool,
+            detail: str,
+        ) -> StealthCommandSuiteAdmissionContextItem:
+            return StealthCommandSuiteAdmissionContextItem(
+                field_name=field_name,
+                source=source,
+                required=True,
+                present=present,
+                blocking=not present,
+                backend_owned=True,
+                route_bound=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                detail=detail,
+            )
+
+        static_context_details = {
+            AdminApiStealthAdmissionContextField.ROUTE: (
+                "Route is present from backend route inventory."
+            ),
+            AdminApiStealthAdmissionContextField.METHOD: (
+                "Method is present from backend route inventory."
+            ),
+            AdminApiStealthAdmissionContextField.MODULE_ID: (
+                "Module id is present from backend route inventory."
+            ),
+            AdminApiStealthAdmissionContextField.MUTATION_FAMILY: (
+                "Mutation family is present from backend command metadata."
+            ),
+            AdminApiStealthAdmissionContextField.ACTION_CLASS: (
+                "Action class is present from backend route inventory."
+            ),
+            AdminApiStealthAdmissionContextField.REQUIRED_PERMISSION: (
+                "Required permission is present from backend route inventory."
+            ),
+        }
+        command_envelope_context_details = {
+            AdminApiStealthAdmissionContextField.STEALTH_ORDER_ID: (
+                "A concrete stealth_order_id value must come from the command "
+                "path before exact proof matching can run."
+            ),
+            AdminApiStealthAdmissionContextField.ACTOR_ID: (
+                "Actor id must come from authenticated backend request context."
+            ),
+            AdminApiStealthAdmissionContextField.IDEMPOTENCY_KEY: (
+                "Idempotency key must come from the mutating command request."
+            ),
+            AdminApiStealthAdmissionContextField.OPERATOR_INTENT: (
+                "Operator intent must come from the mutating command request."
+            ),
+            AdminApiStealthAdmissionContextField.PAYLOAD_HASH: (
+                "Payload hash must be computed by the backend admission path "
+                "for the exact request body."
+            ),
+        }
+
         admission_readiness: list[StealthCommandSuiteAdmissionReadinessItem] = []
         exchange_truth_checks_by_route = {
             check.route: check for check in exchange_truth_checks
@@ -9115,6 +9177,28 @@ class AdminApiReadService:
                 for requirement in requirements
                 if requirement.blocking
             ]
+            context_requirements = [
+                admission_context_requirement(
+                    field_name=field_name,
+                    source="route_inventory",
+                    present=True,
+                    detail=detail,
+                )
+                for field_name, detail in static_context_details.items()
+            ] + [
+                admission_context_requirement(
+                    field_name=field_name,
+                    source="command_envelope",
+                    present=False,
+                    detail=detail,
+                )
+                for field_name, detail in command_envelope_context_details.items()
+            ]
+            missing_context = [
+                context.field_name.value
+                for context in context_requirements
+                if context.blocking
+            ]
             admission_readiness.append(
                 StealthCommandSuiteAdmissionReadinessItem(
                     mutation_family=command.mutation_family,
@@ -9147,6 +9231,17 @@ class AdminApiReadService:
                     missing_evidence_count=len(missing_evidence),
                     missing_evidence=missing_evidence,
                     requirements=requirements,
+                    required_context_count=len(context_requirements),
+                    present_context_count=sum(
+                        1 for context in context_requirements if context.present
+                    ),
+                    missing_context_count=len(missing_context),
+                    missing_context=missing_context,
+                    context_requirements=context_requirements,
+                    exact_context_present=False,
+                    resolver_lookup_allowed=False,
+                    resolver_lookup_ran=False,
+                    proof_resolution_attempted=False,
                     active_placement_exchange_truth_required=(
                         truth_check.active_placement_evidence_required
                     ),
@@ -9165,6 +9260,7 @@ class AdminApiReadService:
                     evidence=[
                         "Derived from existing command metadata, proof routes, exchange-truth checks, and disabled live-enablement posture.",
                         "All requirements are backend-owned and route-bound before execution can ever be considered.",
+                        "Exact command-envelope context is required before any proof resolver lookup can run.",
                         "This read model does not approve, execute, reconcile, read Coinbase, or mutate stealth state.",
                     ],
                     detail=(

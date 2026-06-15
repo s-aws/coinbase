@@ -82,6 +82,11 @@ do not approve admission, execute commands, read Coinbase, invoke
 `StealthOrderManager`, cancel/replace active placements, execute
 reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
 authority.
+The same rows expose `context_requirements`. Route-derived fields are present
+for traceability, while exact command-envelope fields remain missing:
+`stealth_order_id`, `actor_id`, `idempotency_key`, `operator_intent`, and
+`payload_hash`. Resolver lookup and proof resolution must stay false until a
+backend command path provides that exact context.
 
 ## Detail Audit Semantics
 

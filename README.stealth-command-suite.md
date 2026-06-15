@@ -31,6 +31,9 @@ The route requires Admin API authentication and `analytics:read`. It returns
   audit, cap/guard decision, reconciliation plan, active-placement exchange
   truth or lifecycle-write guard, disabled live adapter, and post-live
   reconciliation
+- admission context requirements showing which static route fields are present
+  and which exact command-envelope fields are still missing before proof
+  resolver lookup is allowed
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -103,6 +106,14 @@ chain. They do not approve admission, execute commands, read Coinbase, invoke
 `StealthOrderManager`, cancel/replace active placements, execute
 reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
 authority.
+Each admission-readiness row also reports command-envelope context
+requirements. Static route context (`route`, `method`, `module_id`,
+`mutation_family`, `action_class`, and `required_permission`) is present from
+backend inventory, but exact command context (`stealth_order_id`, `actor_id`,
+`idempotency_key`, `operator_intent`, and `payload_hash`) remains missing in
+this read model. Therefore `exact_context_present=false`,
+`resolver_lookup_allowed=false`, `resolver_lookup_ran=false`, and
+`proof_resolution_attempted=false`.
 
 ## Safety Constraints
 
@@ -140,6 +151,9 @@ authority.
   converted into approval, execution, reconciliation, Coinbase reads,
   `StealthOrderManager` invocation, active-placement cancel/replace behavior,
   lifecycle/order/exchange-state mutation, or browser/BFF authority.
+- `admission_readiness.context_requirements` is not proof lookup. Missing
+  command-envelope context must keep resolver lookup and proof resolution
+  disabled until the backend mutating command path supplies an exact envelope.
 - `reveal_trigger_audit` is detail-route evidence only. It does not evaluate
   triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
   Coinbase orders, mutate lifecycle state, or authorize browser/BFF reveal

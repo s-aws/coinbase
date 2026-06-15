@@ -42,6 +42,7 @@ from core.enums import (
     AdminApiRole,
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
@@ -4004,6 +4005,23 @@ class StealthCommandSuiteAdmissionRequirementItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteAdmissionContextItem(BaseModel):
+    """One command-envelope field required before stealth admission lookup."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field_name: AdminApiStealthAdmissionContextField
+    source: str
+    required: bool = True
+    present: bool = False
+    blocking: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthCommandSuiteAdmissionReadinessItem(BaseModel):
     """Per-command admission readiness map before stealth execution can run."""
 
@@ -4038,6 +4056,17 @@ class StealthCommandSuiteAdmissionReadinessItem(BaseModel):
     requirements: list[StealthCommandSuiteAdmissionRequirementItem] = Field(
         default_factory=list
     )
+    required_context_count: int = 0
+    present_context_count: int = 0
+    missing_context_count: int = 0
+    missing_context: list[str] = Field(default_factory=list)
+    context_requirements: list[StealthCommandSuiteAdmissionContextItem] = Field(
+        default_factory=list
+    )
+    exact_context_present: bool = False
+    resolver_lookup_allowed: bool = False
+    resolver_lookup_ran: bool = False
+    proof_resolution_attempted: bool = False
     active_placement_exchange_truth_required: bool = True
     exchange_truth_verified: bool = False
     lifecycle_write_guard_required: bool = False

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2301-2320",
+  "approved_phase_range": "2321-2340",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -313,6 +313,20 @@ row has this shape:
     "live_execution_adapter",
     "post_live_reconciliation"
   ],
+  "required_context_count": 11,
+  "present_context_count": 6,
+  "missing_context_count": 5,
+  "missing_context": [
+    "stealth_order_id",
+    "actor_id",
+    "idempotency_key",
+    "operator_intent",
+    "payload_hash"
+  ],
+  "exact_context_present": false,
+  "resolver_lookup_allowed": false,
+  "resolver_lookup_ran": false,
+  "proof_resolution_attempted": false,
   "coinbase_read_ran": false,
   "coinbase_order_submitted": false,
   "coinbase_order_cancel_submitted": false,
@@ -332,6 +346,11 @@ and reprice rows require `active_placement_exchange_truth`. The ledger does
 not approve commands, execute commands, read Coinbase, call
 `StealthOrderManager`, cancel/replace placements, execute reconciliation,
 mutate state, or grant browser/BFF authority.
+`context_requirements` separates static route metadata from the exact command
+envelope. Route fields are present for display, but `stealth_order_id`,
+`actor_id`, `idempotency_key`, `operator_intent`, and `payload_hash` are
+missing in the read-only command-suite response. That keeps resolver lookup
+and proof resolution disabled.
 For per-order active-placement evidence, read
 `GET /api/v1/stealth/orders/{stealth_order_id}` and inspect
 `active_placement_audit`. That detail payload reports local active placement
