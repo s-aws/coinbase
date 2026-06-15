@@ -38,7 +38,102 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live Adapter Contract Boundary Batch - Phases 2661-2680
+## Active M55 Live Execution Service Boundary Batch - Phases 2681-2700
+
+These phases continue M55 after nested live execution adapter contract
+evidence. The next explicit gap is making the disabled backend
+`live_execution_service` boundary a rich, typed, route-bound object on stealth
+create and non-create execution contracts by projecting the existing
+`DisabledAdminApiLiveExecutionService.admission_state()` evidence through a
+single shared builder. The backend may add model fields, shared-builder
+wiring, OpenAPI sync, frontend schema/mock/display sync, tests, docs,
+validator updates, and blind/contextless review. It must not enable live
+execution, construct adapters, call Coinbase, invoke `StealthOrderManager`,
+record reconciliation plans, execute reconciliation, cancel/replace active
+placements, mutate stealth/order/exchange state, approve live admission, or
+grant browser/BFF execution authority.
+
+### Phase 2681 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2661-2680 to active phases 2681-2700 while preserving no-live defaults and cap policy.
+
+### Phase 2682 - Prior Range Completion Evidence
+
+- Record phases 2661-2680 as completed nested live adapter contract evidence with no live Coinbase execution, no adapter construction, and no state mutation.
+
+### Phase 2683 - Service Contract Model Attachment
+
+- Add a nested `live_execution_service_contract` field to stealth create and non-create execution contracts without changing the existing flat disabled service fields.
+
+### Phase 2684 - Shared Service State Projection
+
+- Populate the nested service contract only through a shared backend builder that projects the existing disabled live execution service admission state.
+
+### Phase 2685 - Create Lifecycle Service Attachment
+
+- Attach the nested service contract to stealth create lifecycle execution evidence using route-inventory-consistent defaults when exact command admission context is absent.
+
+### Phase 2686 - Non-Create Service Attachment
+
+- Attach the nested service contract to reveal, cancel, move, recovery, reconciliation, and movement/reprice execution contracts from their admission route metadata.
+
+### Phase 2687 - Backend Regression Coverage
+
+- Assert the nested service contract is backend-owned, route-bound, final-boundary, disabled, enabled false, non-executable, display/forward-only, and lists forbidden execution methods for create and non-create responses.
+
+### Phase 2688 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after the nested service contract shape change.
+
+### Phase 2689 - Frontend Schema Intake
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2690 - Frontend Mock Service Sync
+
+- Update mock create and non-create stealth execution contracts with the nested live service contract object.
+
+### Phase 2691 - Dry-Submit Service Rows
+
+- Display the nested service as display-only evidence, including status, route, service reference, forbidden methods, and browser/BFF authority.
+
+### Phase 2692 - Runtime Fixture Type Safety
+
+- Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
+### Phase 2693 - Documentation Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested live service contract.
+
+### Phase 2694 - Validator Range Sync
+
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2681-2700.
+
+### Phase 2695 - No-Live Drift Scan
+
+- Search for wording or code implying the service contract enables live execution, constructs adapters, calls Coinbase, invokes managers, cancels/replaces placements, records plans, executes reconciliation, or mutates state.
+
+### Phase 2696 - Blind Contextless Backend Review
+
+- Run a blind/contextless backend review asking whether a fresh agent can explain the service contract without inventing execution authority.
+
+### Phase 2697 - Blind Contextless Frontend Review
+
+- Run a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and the generated-contract source.
+
+### Phase 2698 - Focused Gates
+
+- Run focused backend/frontend tests, schema checks, and autonomous checks for the nested service contract.
+
+### Phase 2699 - Full Gates
+
+- Run backend full regression and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional.
+
+### Phase 2700 - Commit, Push, And Next Range
+
+- Commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed M55 Live Adapter Contract Boundary Batch - Phases 2661-2680
 
 These phases continue M55 after nested post-write reconciliation boundary
 evidence. The next explicit gap is making the still-disabled stealth

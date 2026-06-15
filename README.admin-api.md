@@ -332,6 +332,14 @@ document the backend-owned future handoff; they do not resolve prerequisites,
 construct adapters, execute reconciliation, or authorize browser/BFF commands.
 Stealth create lifecycle execution contracts expose the same boundary fields
 so create and non-create command posture share one disabled execution model.
+Both contracts also expose `live_execution_service_contract`, a nested
+route-bound projection of the disabled backend live execution service state.
+It is produced through the shared backend live-execution helper, reports
+`present=true` only as disabled service evidence, and keeps `enabled=false`,
+`executable=false`, no live exchange submission, forbidden execution methods,
+and display/forward-only browser/BFF authority. It is not a service
+implementation, live switch, Coinbase caller, manager path, or BFF execution
+grant.
 Both create and non-create contracts also expose
 `post_write_reconciliation_boundary`, a nested backend-owned evidence object
 for the future post-write reconciliation plan/completion handoff. It names

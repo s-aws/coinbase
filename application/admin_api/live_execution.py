@@ -84,6 +84,58 @@ def get_disabled_live_execution_service() -> DisabledAdminApiLiveExecutionServic
     return DisabledAdminApiLiveExecutionService()
 
 
+def build_live_execution_service_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+    live_execution_service: AdminApiLiveExecutionService | None = None,
+) -> dict[str, Any]:
+    """Return read-only route-to-live-service boundary evidence.
+
+    This is a projection of the backend-owned live execution service state,
+    not a live service implementation or adapter factory.
+    """
+
+    service = live_execution_service or get_disabled_live_execution_service()
+    state = service.admission_state()
+    return {
+        "required": state.required,
+        "present": state.present,
+        "enabled": False,
+        "backend_owned": True,
+        "route_bound": True,
+        "final_boundary": True,
+        "status": state.status,
+        "source": state.source,
+        "missing_reason": state.missing_reason,
+        "module_id": module_id,
+        "route": route,
+        "method": method,
+        "service_method": service_method,
+        "service_reference": "DisabledAdminApiLiveExecutionService.admission_state",
+        "action_class": action_class,
+        "executable": False,
+        "live_exchange_submission_allowed": False,
+        "live_exchange_submitted": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
+        "evidence": [
+            "Live execution service state is owned by backend admission.",
+            "The current service state is disabled and non-executable.",
+            "Browser and BFF layers may display this boundary but cannot enable it.",
+        ],
+        "detail": (
+            f"{method} {route} requires the backend live execution service for "
+            f"{service_method}; the service remains disabled with "
+            f"{state.missing_reason or LIVE_EXECUTION_DISABLED_REASON}."
+        ),
+    }
+
+
 def build_disabled_live_execution_adapter_contract(
     *,
     method: str,

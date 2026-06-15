@@ -24,6 +24,7 @@ from .live_execution import (
     POST_WRITE_RECONCILIATION_ROUTE,
     POST_WRITE_RECONCILIATION_SOURCE,
     build_live_execution_adapter_contract,
+    build_live_execution_service_contract,
 )
 from .stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
@@ -153,6 +154,25 @@ def build_stealth_create_lifecycle_write_execution_contract(
             admission_decision.live_execution_service_missing_reason
             if admission_decision is not None
             else "live_execution_disabled"
+        ),
+        live_execution_service_contract=build_live_execution_service_contract(
+            method=(
+                admission_decision.method
+                if admission_decision is not None
+                else STEALTH_CREATE_METHOD
+            ),
+            route=STEALTH_CREATE_ROUTE,
+            module_id=(
+                admission_decision.module_id
+                if admission_decision is not None
+                else STEALTH_CREATE_MODULE_ID
+            ),
+            service_method=STEALTH_CREATE_SERVICE_METHOD,
+            action_class=(
+                admission_decision.action_class
+                if admission_decision is not None
+                else AdminApiActionClass.LOCAL_STATE_MUTATION
+            ),
         ),
         live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
         live_execution_adapter_missing_reason="live_execution_adapter_disabled",

@@ -3257,6 +3257,36 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveExecutionServiceContractEvidence(BaseModel):
+    """Read-only evidence for the disabled backend live execution service."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    required: bool = True
+    present: bool = True
+    enabled: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    final_boundary: bool = True
+    status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    source: str = "disabled_backend_service"
+    missing_reason: str | None = "live_execution_disabled"
+    module_id: str
+    route: str
+    method: str
+    service_method: str
+    service_reference: str
+    action_class: AdminApiActionClass
+    executable: bool = False
+    live_exchange_submission_allowed: bool = False
+    live_exchange_submitted: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    forbidden_methods: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveReadinessPreconditionItem(BaseModel):
     """One normalized backend-owned live-readiness precondition."""
 
@@ -5225,6 +5255,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     live_execution_service_resolved: bool = False
     live_execution_service_source: str = "disabled_backend_service"
     live_execution_service_missing_reason: str | None = "live_execution_disabled"
+    live_execution_service_contract: (
+        AdminLiveExecutionServiceContractEvidence | None
+    ) = None
     live_execution_adapter_required: bool = True
     live_execution_adapter_resolved: bool = False
     live_execution_adapter_source: str = "disabled_stealth_command_live_adapter"
@@ -5344,6 +5377,9 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     live_execution_service_required: bool = True
     live_execution_service_source: str = "disabled_backend_service"
     live_execution_service_missing_reason: str | None = "live_execution_disabled"
+    live_execution_service_contract: (
+        AdminLiveExecutionServiceContractEvidence | None
+    ) = None
     live_execution_adapter_required: bool = True
     live_execution_adapter_source: str = "disabled_stealth_command_live_adapter"
     live_execution_adapter_status: AdminApiLiveExecutionStatus = (

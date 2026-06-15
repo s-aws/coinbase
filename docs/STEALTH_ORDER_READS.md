@@ -197,6 +197,9 @@ read flags. It also exposes the same disabled `live_execution_service`,
 `live_execution_adapter`, `post_write_reconciliation`, canonical execution
 path, and `execution_boundary_authority` fields used by non-create stealth
 execution contracts.
+They also expose the same nested `live_execution_service_contract` object,
+which projects the disabled backend live execution service state for the
+route and remains enabled false and non-executable.
 They also expose the same nested `post_write_reconciliation_boundary` object,
 which names the reconciliation-plan route and remains blocked/no-run.
 They also expose the same nested `live_execution_adapter_contract`, which names

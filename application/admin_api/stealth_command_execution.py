@@ -25,6 +25,7 @@ from .live_execution import (
     POST_WRITE_RECONCILIATION_ROUTE,
     POST_WRITE_RECONCILIATION_SOURCE,
     build_live_execution_adapter_contract,
+    build_live_execution_service_contract,
 )
 from .stealth_exchange_truth import (
     FileStealthExchangeTruthProofStore,
@@ -349,6 +350,13 @@ def build_stealth_command_execution_contract(
         live_execution_service_missing_reason=(
             admission_decision.live_execution_service_missing_reason
             or "live_execution_disabled"
+        ),
+        live_execution_service_contract=build_live_execution_service_contract(
+            method=admission_decision.method,
+            route=metadata.route,
+            module_id=admission_decision.module_id,
+            service_method=metadata.service_method,
+            action_class=admission_decision.action_class,
         ),
         live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
         live_execution_adapter_missing_reason="live_execution_adapter_disabled",

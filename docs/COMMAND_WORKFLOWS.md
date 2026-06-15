@@ -227,6 +227,14 @@ service, adapter, post-write reconciliation, canonical execution path, and
 boundary-authority evidence used by non-create contracts; this is evidence
 only and does not make create execution callable.
 Both create and non-create execution contracts include a nested
+`live_execution_service_contract`. It is a projection of
+`DisabledAdminApiLiveExecutionService.admission_state()` for the route, not a
+live service implementation. Workflows may display its disabled status,
+service reference, forbidden methods, enabled false, executable false, and
+browser/BFF authority only. It does not enable the service, construct
+adapters, call Coinbase, invoke managers, execute reconciliation, mutate
+state, or make the command executable.
+Both create and non-create execution contracts include a nested
 `post_write_reconciliation_boundary`. It is a route-bound plan/completion
 handoff contract for `POST /api/v1/admin/reconciliation/plans`, not a plan
 writer or reconciliation executor. Workflows must treat its missing evidence,

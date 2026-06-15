@@ -2692,19 +2692,22 @@ Current backend evidence:
   command-suite admission evidence into parity with the same disabled boundary
   fields. The completed phases 2641-2660 added nested post-write
   reconciliation boundary evidence to create and non-create execution
-  contracts without executing reconciliation. It now advances to phases
-  2661-2680 to add nested live execution adapter contract evidence to create
-  and non-create execution contracts without constructing adapters.
+  contracts without executing reconciliation. The completed phases 2661-2680
+  added nested live execution adapter contract evidence to create and
+  non-create execution contracts without constructing adapters. It now
+  advances to phases 2681-2700 to add nested live execution service contract
+  evidence projected from the disabled backend service state without enabling
+  live execution.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Nested live execution adapter contract evidence for stealth create and
-  non-create execution contracts is the active 2661-2680 slice. This evidence
-  may explain the backend-owned route-to-`AdminApiCommandService.*` handoff,
-  forbidden methods, and display-only browser/BFF boundary, but it must not
-  construct executable adapters, record plans, execute reconciliation, resolve
-  disabled prerequisites, invoke managers, call Coinbase, mutate state, or
-  grant browser/BFF authority.
+- Nested live execution service contract evidence for stealth create and
+  non-create execution contracts is the active 2681-2700 slice. This evidence
+  may explain the backend-owned disabled service boundary, forbidden methods,
+  enabled false, executable false, and display-only browser/BFF boundary, but
+  it must not enable live execution, construct executable adapters, record
+  plans, execute reconciliation, resolve disabled prerequisites, invoke
+  managers, call Coinbase, mutate state, or grant browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace, live service enablement, live adapter construction, and
   post-write reconciliation execution remain blocked.
