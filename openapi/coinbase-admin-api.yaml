@@ -20124,6 +20124,16 @@ components:
           type: boolean
           title: Live Execution Service Resolved
           default: false
+        live_execution_service_source:
+          type: string
+          title: Live Execution Service Source
+          default: disabled_backend_service
+        live_execution_service_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Execution Service Missing Reason
+          default: live_execution_disabled
         live_execution_adapter_required:
           type: boolean
           title: Live Execution Adapter Required
@@ -20132,6 +20142,19 @@ components:
           type: boolean
           title: Live Execution Adapter Resolved
           default: false
+        live_execution_adapter_source:
+          type: string
+          title: Live Execution Adapter Source
+          default: disabled_stealth_command_live_adapter
+        live_execution_adapter_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        live_execution_adapter_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Execution Adapter Missing Reason
+          default: live_execution_adapter_disabled
         post_write_reconciliation_required:
           type: boolean
           title: Post Write Reconciliation Required
@@ -20140,6 +20163,33 @@ components:
           type: boolean
           title: Post Write Reconciliation Resolved
           default: false
+        post_write_reconciliation_route:
+          type: string
+          title: Post Write Reconciliation Route
+          default: /api/v1/admin/reconciliation/plans
+        post_write_reconciliation_method:
+          type: string
+          title: Post Write Reconciliation Method
+          default: POST
+        post_write_reconciliation_source:
+          type: string
+          title: Post Write Reconciliation Source
+          default: post_write_reconciliation_contract
+        post_write_reconciliation_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Post Write Reconciliation Missing Reason
+          default: post_write_reconciliation_missing
+        canonical_execution_path:
+          items:
+            type: string
+          type: array
+          title: Canonical Execution Path
+        execution_boundary_authority:
+          type: string
+          title: Execution Boundary Authority
+          default: backend_contract_only_no_execution
         manager_invocation_allowed:
           type: boolean
           title: Manager Invocation Allowed

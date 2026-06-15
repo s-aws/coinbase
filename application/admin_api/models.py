@@ -5151,10 +5151,27 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     cancel_replace_proof_id: str | None = None
     live_execution_service_required: bool = True
     live_execution_service_resolved: bool = False
+    live_execution_service_source: str = "disabled_backend_service"
+    live_execution_service_missing_reason: str | None = "live_execution_disabled"
     live_execution_adapter_required: bool = True
     live_execution_adapter_resolved: bool = False
+    live_execution_adapter_source: str = "disabled_stealth_command_live_adapter"
+    live_execution_adapter_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    live_execution_adapter_missing_reason: str | None = (
+        "live_execution_adapter_disabled"
+    )
     post_write_reconciliation_required: bool = True
     post_write_reconciliation_resolved: bool = False
+    post_write_reconciliation_route: str = "/api/v1/admin/reconciliation/plans"
+    post_write_reconciliation_method: str = "POST"
+    post_write_reconciliation_source: str = "post_write_reconciliation_contract"
+    post_write_reconciliation_missing_reason: str | None = (
+        "post_write_reconciliation_missing"
+    )
+    canonical_execution_path: list[str] = Field(default_factory=list)
+    execution_boundary_authority: str = "backend_contract_only_no_execution"
     manager_invocation_allowed: bool = False
     manager_invocation_ran: bool = False
     trigger_evaluation_allowed: bool = False

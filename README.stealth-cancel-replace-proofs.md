@@ -79,6 +79,12 @@ the latest proof id. It is read-only evidence for operators and frontend
 display. It does not resolve proof records as execution authority, call
 Coinbase, build plans, invoke managers, cancel or replace placements, execute
 reconciliation, mutate state, or grant browser/BFF execution authority.
+Live-disabled command responses may also expose disabled live-service,
+live-adapter, post-write reconciliation, canonical execution path, and
+boundary-authority fields alongside `cancel_replace_proof` resolver evidence.
+Those fields describe the backend-owned future handoff only; they do not
+construct adapters, call managers or Coinbase, execute reconciliation, mutate
+state, or authorize browser/BFF commands.
 
 Accepted proof records keep `cancel_replace_proof_verified=false`,
 `manager_invocation_ran=false`, `cancel_replace_plan_built=false`,

@@ -324,6 +324,12 @@ service/adapter posture, blockers, and no-live/no-write flags. It is response
 evidence only: no stealth manager method is invoked, no active placement is
 cancelled or replaced, no Coinbase order is submitted/cancelled/read, no
 reconciliation runs, and no lifecycle/order/exchange state is mutated.
+The disabled live rows also expose route-specific evidence fields such as
+`live_execution_service_source`, `live_execution_adapter_source`,
+`post_write_reconciliation_route`, `post_write_reconciliation_source`,
+`canonical_execution_path`, and `execution_boundary_authority`. These fields
+document the backend-owned future handoff; they do not resolve prerequisites,
+construct adapters, execute reconciliation, or authorize browser/BFF commands.
 For commands that require active-placement exchange truth, the contract may
 resolve that single prerequisite from the existing append-only backend proof
 store when a safe same-`stealth_order_id` proof record exists. That resolver

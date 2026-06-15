@@ -2683,19 +2683,23 @@ Current backend evidence:
   cancel/replace proof boundary planning for cancel, move, and reprice. The
   completed phases 2561-2580 added append-only cancel/replace proof records
   and readback for stealth cancel, stealth move, and movement reprice without
-  execution authority. It now advances to phases 2581-2600 for exact-context
-  prerequisite resolver linkage for those cancel/replace proof records.
+  execution authority. The completed phases 2581-2600 added exact-context
+  prerequisite resolver linkage for those cancel/replace proof records. It now
+  advances to phases 2601-2620 for route-specific disabled live-service,
+  live-adapter, post-write reconciliation, and canonical execution-path
+  evidence.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Cancel/replace proof resolver linkage for cancel, move, and reprice is the
-  active 2581-2600 slice. The resolver may remove only the
-  `cancel_replace_proof` missing prerequisite when the latest safe same-
-  `stealth_order_id` proof record exactly matches route, method, service
-  method, actor, operator intent, idempotency key, payload hash, and mutation
-  family. Live reveal exchange submission, live repair/rollback,
-  active-placement cancel/replace, live service, live adapter, and post-write
-  reconciliation remain blocked.
+- Disabled execution-boundary evidence for `live_execution_service`,
+  `live_execution_adapter`, `post_write_reconciliation`, and canonical backend
+  execution paths is the active 2601-2620 slice. These fields may explain the
+  backend-owned future handoff, but they must not resolve the disabled
+  prerequisites, construct adapters, invoke managers, call Coinbase, execute
+  reconciliation, mutate state, or grant browser/BFF authority.
+  Live reveal exchange submission, live repair/rollback, active-placement
+  cancel/replace, live service enablement, live adapter construction, and
+  post-write reconciliation execution remain blocked.
   Stealth create, reveal, cancel exchange
   handling, move revealed, reprice, recovery, reconciliation, and any eventual
   live execution screens must prove the full approval, cap/guard, admission

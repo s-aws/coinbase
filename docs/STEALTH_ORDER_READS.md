@@ -117,6 +117,11 @@ latest-safe rules. It does not verify Coinbase, evaluate triggers, call
 state, roll back state, cancel/replace live
 placements, execute reconciliation, mutate local or exchange state, or
 authorize the frontend.
+The same contract may report disabled live-service, live-adapter, post-write
+reconciliation, canonical execution path, and boundary-authority fields. Those
+fields are contextless evidence for the future backend handoff only; they do
+not construct adapters, resolve disabled prerequisites, invoke managers, call
+Coinbase, execute reconciliation, or mutate state.
 It may also resolve `reconciliation_proof` for reconciliation from the
 backend reconciliation proof store when the latest safe same-`stealth_order_id`
 proof exactly matches route, method, service method, actor, operator intent,

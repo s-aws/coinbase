@@ -38,7 +38,100 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Cancel/Replace Proof Resolver Batch - Phases 2581-2600
+## Active M55 Disabled Execution Boundary Batch - Phases 2601-2620
+
+These phases continue M55 after exact-context cancel/replace proof resolver
+linkage. The next explicit gap is making disabled `live_execution_service`,
+`live_execution_adapter`, and `post_write_reconciliation` prerequisites
+route-specific and contextless without enabling execution. The backend may add
+typed execution-boundary fields, canonical backend execution-path evidence,
+post-write reconciliation route evidence, frontend schema/mock/display sync,
+tests, docs, validator updates, and blind/contextless review. It must not call
+Coinbase, invoke `StealthOrderManager`, build live adapters, execute
+cancel/replace, execute reconciliation, mutate stealth/order/exchange state,
+approve live admission, or grant browser/BFF execution authority.
+
+### Phase 2601 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2581-2600 to active phases 2601-2620 while preserving no-live defaults and cap policy.
+
+### Phase 2602 - Prior Range Completion Evidence
+
+- Record phases 2581-2600 as completed exact-context cancel/replace proof resolver linkage with no live Coinbase execution, no manager invocation, and no active-placement cancel/replace behavior.
+
+### Phase 2603 - Execution Boundary Model Fields
+
+- Add typed backend fields for disabled live-service, live-adapter, post-write reconciliation, canonical execution path, and boundary authority evidence.
+
+### Phase 2604 - Live Service Source Evidence
+
+- Populate `live_execution_service_source` and missing reason from the backend admission decision without resolving the prerequisite.
+
+### Phase 2605 - Live Adapter Source Evidence
+
+- Populate a route-specific disabled live-adapter source/status/missing reason without constructing or invoking a live adapter.
+
+### Phase 2606 - Post-Write Reconciliation Route Evidence
+
+- Populate the backend-owned post-write reconciliation route, method, source, and missing reason without executing reconciliation.
+
+### Phase 2607 - Canonical Execution Path Evidence
+
+- Expose the canonical backend execution path from existing manager/service metadata as evidence only, with no invocation.
+
+### Phase 2608 - Resolver Row Source Sync
+
+- Ensure live-service, live-adapter, and post-write reconciliation resolver rows use the same sources as the top-level contract fields.
+
+### Phase 2609 - Backend Regression Coverage
+
+- Add focused regression assertions proving the new boundary fields are present, route-specific, and still blocked/no-live.
+
+### Phase 2610 - OpenAPI Sync
+
+- Regenerate backend OpenAPI and route-inventory artifacts after schema changes.
+
+### Phase 2611 - Frontend Schema Intake
+
+- Regenerate frontend generated API schema from the backend OpenAPI contract.
+
+### Phase 2612 - Frontend Mock Boundary Sync
+
+- Update frontend mock command execution contracts to carry the same disabled service/adapter/reconciliation boundary evidence.
+
+### Phase 2613 - Dry-Submit Evidence Rows
+
+- Display the new boundary fields as operator evidence without enabling controls or adding browser/BFF resolver logic.
+
+### Phase 2614 - Documentation Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for route-specific disabled execution-boundary evidence.
+
+### Phase 2615 - Validator Range Sync
+
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2601-2620.
+
+### Phase 2616 - No-Live Drift Scan
+
+- Search for wording or code implying the new boundary fields execute managers, adapters, Coinbase calls, reconciliation, cancel/replace, or state mutation.
+
+### Phase 2617 - Blind Contextless Review
+
+- Run blind/contextless review asking whether a fresh agent can explain the disabled execution-boundary fields without inventing execution authority.
+
+### Phase 2618 - Focused Gates
+
+- Run focused backend/frontend tests and schema checks for the execution-boundary field changes.
+
+### Phase 2619 - Full Gates
+
+- Run backend full regression and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` frontend notional.
+
+### Phase 2620 - Push And Next Range
+
+- Commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed M55 Cancel/Replace Proof Resolver Batch - Phases 2581-2600
 
 These phases continue M55 after append-only cancel/replace proof records. The
 next explicit gap is exact-context prerequisite resolver linkage for stealth

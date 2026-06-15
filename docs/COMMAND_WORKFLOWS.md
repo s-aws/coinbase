@@ -283,6 +283,12 @@ separate from the create lifecycle-write contract and must not invoke manager
 methods, cancel/replace active placements, call Coinbase, execute
 reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
 execution authority.
+The disabled live prerequisites also expose route-specific evidence fields for
+the live service source, disabled live adapter source/status, post-write
+reconciliation route/source, canonical backend execution path, and boundary
+authority. Those fields explain the backend-owned future handoff only; they do
+not resolve disabled prerequisites, build adapters, call managers or Coinbase,
+execute reconciliation, or enable browser/BFF commands.
 For active-placement-sensitive commands, the contract may resolve only
 `active_placement_exchange_truth` from the existing backend append-only proof
 store when a safe same-`stealth_order_id` record exists. The resolver is local
