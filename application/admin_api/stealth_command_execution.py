@@ -1,0 +1,505 @@
+"""No-live execution posture evidence for non-create stealth commands."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from core.enums import (
+    AdminApiMutationFamilyType,
+    AdminApiStealthAdmissionContextField,
+    StealthCommandExecutionBlocker,
+    StealthCommandExecutionPrerequisite,
+    StealthCommandExecutionPrerequisiteLookupStatus,
+)
+
+from .models import (
+    AdminLiveAdmissionDecisionEvidence,
+    StealthCommandExecutionContractEvidence,
+    StealthCommandExecutionPrerequisiteResolverItem,
+)
+
+
+REQUIRED_STEALTH_COMMAND_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = tuple(
+    field.value for field in AdminApiStealthAdmissionContextField
+)
+
+
+@dataclass(frozen=True)
+class StealthCommandExecutionMetadata:
+    """Static no-live execution metadata for one stealth command route."""
+
+    mutation_family: AdminApiMutationFamilyType
+    route: str
+    service_method: str
+    manager_methods: tuple[str, ...]
+    prerequisites: tuple[StealthCommandExecutionPrerequisite, ...]
+    detail: str
+
+
+COMMON_PREREQUISITES: tuple[StealthCommandExecutionPrerequisite, ...] = (
+    StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT,
+    StealthCommandExecutionPrerequisite.ADMISSION_AUDIT,
+    StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION,
+    StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN,
+)
+
+DISABLED_LIVE_PREREQUISITES: tuple[StealthCommandExecutionPrerequisite, ...] = (
+    StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE,
+    StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER,
+    StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION,
+)
+
+BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS: tuple[str, ...] = (
+    StealthCommandExecutionBlocker.EXECUTION_CONTRACT_MISSING.value,
+    StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+    StealthCommandExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED.value,
+    StealthCommandExecutionBlocker.ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED.value,
+    StealthCommandExecutionBlocker.COINBASE_ORDER_SUBMIT_DISABLED.value,
+    StealthCommandExecutionBlocker.COINBASE_ORDER_CANCEL_DISABLED.value,
+    StealthCommandExecutionBlocker.COINBASE_READ_DISABLED.value,
+    StealthCommandExecutionBlocker.LIFECYCLE_STATE_MUTATION_DISABLED.value,
+    StealthCommandExecutionBlocker.ORDER_STATE_MUTATION_DISABLED.value,
+    StealthCommandExecutionBlocker.EXCHANGE_STATE_MUTATION_DISABLED.value,
+    StealthCommandExecutionBlocker.RECONCILIATION_EXECUTION_DISABLED.value,
+    StealthCommandExecutionBlocker.POST_WRITE_RECONCILIATION_MISSING.value,
+)
+
+STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] = {
+    "reveal_stealth_order_by_stealth_order_id": StealthCommandExecutionMetadata(
+        mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+        route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        manager_methods=("core/stealth_order_manager.py::reveal_order_slice",),
+        prerequisites=(
+            *COMMON_PREREQUISITES,
+            StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE,
+            *DISABLED_LIVE_PREREQUISITES,
+        ),
+        detail=(
+            "Stealth reveal execution remains blocked until trigger evidence, "
+            "admission prerequisites, the live service/adapter, and post-write "
+            "reconciliation are present."
+        ),
+    ),
+    "cancel_stealth_order_by_stealth_order_id": StealthCommandExecutionMetadata(
+        mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL,
+        route="/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        service_method="cancel_stealth_order_by_stealth_order_id",
+        manager_methods=(
+            "core/stealth_order_manager.py::cancel_stealth_order",
+            "bridges/stealth_order_bridge.py::cancel_stealth_order",
+        ),
+        prerequisites=(
+            *COMMON_PREREQUISITES,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
+            *DISABLED_LIVE_PREREQUISITES,
+        ),
+        detail=(
+            "Stealth cancel execution remains blocked until active-placement "
+            "exchange truth and admission prerequisites are present, and the "
+            "disabled live cancel/reconciliation path is explicitly enabled."
+        ),
+    ),
+    "move_stealth_order_by_stealth_order_id": StealthCommandExecutionMetadata(
+        mutation_family=AdminApiMutationFamilyType.STEALTH_MOVE,
+        route="/api/v1/stealth/orders/{stealth_order_id}/move",
+        service_method="move_stealth_order_by_stealth_order_id",
+        manager_methods=(
+            "core/stealth_order_manager.py::build_stealth_move_plan",
+            "core/stealth_order_manager.py::execute_stealth_move",
+        ),
+        prerequisites=(
+            *COMMON_PREREQUISITES,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
+            StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT,
+            *DISABLED_LIVE_PREREQUISITES,
+        ),
+        detail=(
+            "Stealth move execution remains blocked until active-placement "
+            "exchange truth, mutation-claim evidence, and reconciliation "
+            "prerequisites are present."
+        ),
+    ),
+    "recover_stealth_order_by_stealth_order_id": StealthCommandExecutionMetadata(
+        mutation_family=AdminApiMutationFamilyType.STEALTH_RECOVERY,
+        route="/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        service_method="recover_stealth_order_by_stealth_order_id",
+        manager_methods=("stealth_recovery_service::not_configured",),
+        prerequisites=(
+            *COMMON_PREREQUISITES,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
+            StealthCommandExecutionPrerequisite.RECOVERY_PROOF,
+            *DISABLED_LIVE_PREREQUISITES,
+        ),
+        detail=(
+            "Stealth recovery execution remains blocked until recovery proof, "
+            "active-placement evidence, admission prerequisites, and rollback "
+            "or repair reconciliation contracts are present."
+        ),
+    ),
+    "reconcile_stealth_order_by_stealth_order_id": StealthCommandExecutionMetadata(
+        mutation_family=AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+        route="/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+        service_method="reconcile_stealth_order_by_stealth_order_id",
+        manager_methods=(
+            "bridges/stealth_order_bridge.py::reconcile_stealth_orders_periodically",
+        ),
+        prerequisites=(
+            *COMMON_PREREQUISITES,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF,
+            *DISABLED_LIVE_PREREQUISITES,
+        ),
+        detail=(
+            "Stealth reconciliation execution remains blocked until exact "
+            "active-placement evidence and reconciliation proof contracts are "
+            "present."
+        ),
+    ),
+    "reprice_stealth_order_by_stealth_order_id": StealthCommandExecutionMetadata(
+        mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+        route="/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+        service_method="reprice_stealth_order_by_stealth_order_id",
+        manager_methods=(
+            "core/stealth_order_manager.py::process_anchor_repricing_for_product",
+        ),
+        prerequisites=(
+            *COMMON_PREREQUISITES,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
+            StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT,
+            *DISABLED_LIVE_PREREQUISITES,
+        ),
+        detail=(
+            "Stealth reprice execution remains blocked until M56 movement/"
+            "repricing claim, active-placement exchange truth, cancel/replace, "
+            "and reconciliation contracts are present."
+        ),
+    ),
+}
+
+
+def build_stealth_command_execution_contract(
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> StealthCommandExecutionContractEvidence | None:
+    """Build no-live execution posture evidence for eligible stealth commands."""
+
+    metadata = STEALTH_COMMAND_EXECUTION_METADATA.get(admission_decision.service_method)
+    if (
+        metadata is None
+        or admission_decision.identity_key != "stealth_order_id"
+        or not admission_decision.identity_value
+    ):
+        return None
+
+    resolution = _build_prerequisite_resolution(
+        metadata=metadata,
+        admission_decision=admission_decision,
+    )
+    resolved = sorted(
+        item.prerequisite.value
+        for item in resolution
+        if item.resolved
+    )
+    required = [prerequisite.value for prerequisite in metadata.prerequisites]
+    missing = [
+        prerequisite
+        for prerequisite in required
+        if prerequisite not in resolved
+    ]
+    blockers = list(BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS)
+    blockers.extend(f"{prerequisite}_missing" for prerequisite in missing)
+
+    return StealthCommandExecutionContractEvidence(
+        mutation_family=metadata.mutation_family,
+        command_route=metadata.route,
+        service_method=metadata.service_method,
+        manager_methods=list(metadata.manager_methods),
+        stealth_order_id=admission_decision.identity_value,
+        action_class=admission_decision.action_class,
+        required_permission=admission_decision.required_permission,
+        exact_command_context_present=True,
+        required_context_fields=list(REQUIRED_STEALTH_COMMAND_EXECUTION_CONTEXT_FIELDS),
+        missing_context_fields=[],
+        required_prerequisites=required,
+        missing_prerequisites=missing,
+        resolved_prerequisites=resolved,
+        prerequisite_resolver_lookup_ran=True,
+        prerequisite_resolution=resolution,
+        blockers=blockers,
+        active_placement_exchange_truth_required=(
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+            in required
+        ),
+        active_placement_exchange_truth_resolved=(
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+            in resolved
+        ),
+        reveal_trigger_evidence_required=(
+            StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE.value in required
+        ),
+        reveal_trigger_evidence_resolved=(
+            StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE.value in resolved
+        ),
+        mutation_claim_snapshot_required=(
+            StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value
+            in required
+        ),
+        mutation_claim_snapshot_resolved=(
+            StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value
+            in resolved
+        ),
+        recovery_proof_required=(
+            StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value in required
+        ),
+        recovery_proof_resolved=(
+            StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value in resolved
+        ),
+        reconciliation_proof_required=(
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF.value in required
+        ),
+        reconciliation_proof_resolved=(
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF.value in resolved
+        ),
+        evidence=[
+            "Execution posture is backend-owned and no-live.",
+            "Prerequisite rows are read-only and no-authority.",
+            "This contract does not invoke stealth managers, live adapters, Coinbase, or reconciliation.",
+            "Command-specific proof prerequisites remain missing until later approved execution phases.",
+        ],
+        detail=metadata.detail,
+    )
+
+
+def _build_prerequisite_resolution(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> list[StealthCommandExecutionPrerequisiteResolverItem]:
+    approval = _resolver_item_from_flag(
+        prerequisite=StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=admission_decision.approval_snapshot_source or "approval_store",
+        present=admission_decision.approval_snapshot_present,
+        evidence_id=admission_decision.approval_snapshot_id,
+        missing_reason=admission_decision.approval_snapshot_missing_reason,
+        detail="Route-specific approval snapshot resolver evidence.",
+    )
+    admission = _resolver_item_from_flag(
+        prerequisite=StealthCommandExecutionPrerequisite.ADMISSION_AUDIT,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=admission_decision.admission_audit_source or "admin_api_audit_log",
+        present=admission_decision.admission_audit_present,
+        evidence_id=admission_decision.admission_audit_id,
+        missing_reason=admission_decision.admission_audit_missing_reason,
+        dependency_resolved=approval.resolved,
+        dependency_missing_reason="approval_snapshot_missing",
+        detail="Route-specific admission audit resolver evidence.",
+    )
+    cap_guard = _resolver_item_from_flag(
+        prerequisite=StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=admission_decision.cap_guard_source or "admin_api_cap_guard_log",
+        present=admission_decision.cap_guard_present,
+        evidence_id=admission_decision.cap_guard_decision_id,
+        missing_reason=admission_decision.cap_guard_missing_reason,
+        dependency_resolved=admission.resolved,
+        dependency_missing_reason="admission_audit_missing",
+        detail="Route-specific cap/guard decision resolver evidence.",
+    )
+    reconciliation = _resolver_item_from_flag(
+        prerequisite=StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=(
+            admission_decision.reconciliation_plan_source
+            or "admin_api_reconciliation_plan_log"
+        ),
+        present=admission_decision.reconciliation_plan_present,
+        evidence_id=admission_decision.reconciliation_plan_id,
+        missing_reason=admission_decision.reconciliation_plan_missing_reason,
+        dependency_resolved=cap_guard.resolved,
+        dependency_missing_reason="cap_guard_decision_missing",
+        detail="Route-specific reconciliation plan resolver evidence.",
+    )
+    common = [approval, admission, cap_guard, reconciliation]
+    common_resolved = all(item.resolved for item in common)
+    command_specific = [
+        _command_specific_prerequisite(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            common_resolved=common_resolved,
+        )
+        for prerequisite in metadata.prerequisites
+        if prerequisite not in COMMON_PREREQUISITES
+    ]
+    return common + command_specific
+
+
+def _resolver_item_from_flag(
+    *,
+    prerequisite: StealthCommandExecutionPrerequisite,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    source: str,
+    present: bool,
+    evidence_id: str | None,
+    missing_reason: str | None,
+    detail: str,
+    dependency_resolved: bool = True,
+    dependency_missing_reason: str | None = None,
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    if not dependency_resolved:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=source,
+            lookup_status=(
+                StealthCommandExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY
+            ),
+            missing_reason=dependency_missing_reason,
+            detail=detail,
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=source,
+        lookup_status=(
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+            if present
+            else StealthCommandExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=present,
+        resolved_evidence_id=evidence_id if present else None,
+        missing_reason=None if present else missing_reason,
+        detail=detail,
+    )
+
+
+def _command_specific_prerequisite(
+    *,
+    prerequisite: StealthCommandExecutionPrerequisite,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    common_resolved: bool,
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=(
+                admission_decision.live_execution_service_source
+                or "disabled_live_execution_service"
+            ),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.DISABLED,
+            missing_reason=(
+                admission_decision.live_execution_service_missing_reason
+                or "live_execution_disabled"
+            ),
+            lookup_ran=True,
+            detail="Live execution service remains disabled for this stealth command.",
+        )
+    if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source="live_execution_adapter",
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.DISABLED,
+            missing_reason="live_execution_adapter_disabled",
+            lookup_ran=True,
+            detail="Live execution adapter is not enabled for this stealth command.",
+        )
+    if prerequisite == StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source="post_write_reconciliation",
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.DISABLED,
+            missing_reason="post_write_reconciliation_missing",
+            lookup_ran=True,
+            detail="Post-write reconciliation proof is required before execution.",
+        )
+    if not common_resolved:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=(
+                StealthCommandExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY
+            ),
+            missing_reason="admission_prerequisites_missing",
+            detail=(
+                "Command-specific proof lookup requires approval, audit, "
+                "cap/guard, and reconciliation evidence first."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=_source_for_command_specific_prerequisite(prerequisite),
+        lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+        missing_reason=f"{prerequisite.value}_not_resolved",
+        detail="Command-specific proof prerequisite is missing and no execution ran.",
+    )
+
+
+def _source_for_command_specific_prerequisite(
+    prerequisite: StealthCommandExecutionPrerequisite,
+) -> str:
+    return {
+        StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH: (
+            "admin_api_stealth_exchange_truth_proof_log"
+        ),
+        StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE: (
+            "stealth_detail_reveal_trigger_audit"
+        ),
+        StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT: (
+            "stealth_manager_mutation_claim_snapshot"
+        ),
+        StealthCommandExecutionPrerequisite.RECOVERY_PROOF: (
+            "admin_api_stealth_recovery_proof_log"
+        ),
+        StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF: (
+            "admin_api_stealth_reconciliation_proof_log"
+        ),
+    }.get(prerequisite, "backend_resolver")
+
+
+def _resolver_item(
+    *,
+    prerequisite: StealthCommandExecutionPrerequisite,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    lookup_status: StealthCommandExecutionPrerequisiteLookupStatus,
+    detail: str,
+    source: str = "backend_resolver",
+    lookup_ran: bool = False,
+    resolved: bool = False,
+    resolved_evidence_id: str | None = None,
+    missing_reason: str | None = None,
+    stale_or_invalid: bool = False,
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    return StealthCommandExecutionPrerequisiteResolverItem(
+        prerequisite=prerequisite,
+        source=source,
+        route=metadata.route,
+        identity_value=admission_decision.identity_value,
+        lookup_status=lookup_status,
+        lookup_ran=lookup_ran,
+        resolved=resolved,
+        resolved_evidence_id=resolved_evidence_id,
+        missing_reason=missing_reason,
+        stale_or_invalid=stale_or_invalid,
+        detail=detail,
+    )

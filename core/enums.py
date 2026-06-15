@@ -353,6 +353,54 @@ class StealthCreateLifecycleExecutionBlocker(str, Enum):
     EXACT_COMMAND_CONTEXT_MISSING = "exact_command_context_missing"
 
 
+class StealthCommandExecutionPrerequisite(str, Enum):
+    """Prerequisites required before non-create stealth commands may execute."""
+
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    ADMISSION_AUDIT = "admission_audit"
+    CAP_GUARD_DECISION = "cap_guard_decision"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
+    REVEAL_TRIGGER_EVIDENCE = "reveal_trigger_evidence"
+    MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
+    RECOVERY_PROOF = "recovery_proof"
+    RECONCILIATION_PROOF = "reconciliation_proof"
+    LIVE_EXECUTION_SERVICE = "live_execution_service"
+    LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
+    POST_WRITE_RECONCILIATION = "post_write_reconciliation"
+
+
+class StealthCommandExecutionPrerequisiteLookupStatus(str, Enum):
+    """Read-only lookup status for stealth command execution prerequisites."""
+
+    NOT_CHECKED = "not_checked"
+    RESOLVED = "resolved"
+    MISSING = "missing"
+    BLOCKED_BY_DEPENDENCY = "blocked_by_dependency"
+    DISABLED = "disabled"
+    UNAVAILABLE = "unavailable"
+
+
+class StealthCommandExecutionBlocker(str, Enum):
+    """Fail-closed blockers for non-create stealth command execution."""
+
+    EXECUTION_CONTRACT_MISSING = "stealth_command_execution_contract_missing"
+    LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+    STEALTH_MANAGER_INVOCATION_DISABLED = "stealth_manager_invocation_disabled"
+    ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED = (
+        "active_placement_cancel_replace_disabled"
+    )
+    COINBASE_ORDER_SUBMIT_DISABLED = "coinbase_order_submit_disabled"
+    COINBASE_ORDER_CANCEL_DISABLED = "coinbase_order_cancel_disabled"
+    COINBASE_READ_DISABLED = "coinbase_read_disabled"
+    LIFECYCLE_STATE_MUTATION_DISABLED = "lifecycle_state_mutation_disabled"
+    ORDER_STATE_MUTATION_DISABLED = "order_state_mutation_disabled"
+    EXCHANGE_STATE_MUTATION_DISABLED = "exchange_state_mutation_disabled"
+    RECONCILIATION_EXECUTION_DISABLED = "reconciliation_execution_disabled"
+    POST_WRITE_RECONCILIATION_MISSING = "post_write_reconciliation_missing"
+    EXACT_COMMAND_CONTEXT_MISSING = "exact_command_context_missing"
+
+
 class AdminApiSpotCommandSuiteGapFamily(str, Enum):
     """Spot command-suite families that still require admin contract work."""
 

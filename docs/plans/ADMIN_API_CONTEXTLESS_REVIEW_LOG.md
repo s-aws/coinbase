@@ -3272,3 +3272,49 @@ Status:
   Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M55 Non-Create Stealth Command Execution Posture Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewer was not given chat history.
+
+Reviewer task:
+
+- explain how non-create stealth command execution posture works for reveal,
+  cancel, move, recovery, reconciliation, and movement/reprice
+- verify the backend path is evidence-only and does not invoke
+  `StealthOrderManager`, call Coinbase, cancel/replace active placements,
+  execute reconciliation, mutate lifecycle/order/exchange state, or approve
+  live execution
+- verify frontend/BFF rendering remains display-only/forward-only
+- identify stale docs or names that could mislead a contextless maintainer
+
+Findings:
+
+- PASS: blind/contextless review found no blockers. It traced
+  `application/admin_api/stealth_command_execution.py` through the central
+  command response wrapper and confirmed the contract is fail-closed with
+  live execution, manager invocation, Coinbase submit/cancel/read, state
+  mutation, and reconciliation execution disabled.
+- PASS: the reviewer traced frontend generated schema, dry-submit rendering,
+  mocks, BFF forwarding, and command workflow constraints and found no
+  browser/BFF command authority.
+- PASS: the reviewer confirmed `stealth_command_execution_contract` is
+  distinguishable from the create-only `stealth_lifecycle_execution_contract`
+  and from command-suite read-only readiness.
+- CLEANUP: the reviewer noted older `approved_phase_range` examples in
+  `docs/examples/admin-api.md`; those current examples were refreshed to
+  `2421-2440` and current asserted/readiness counts.
+
+Status:
+
+- Focused backend and frontend gates passed before review.
+- Backend full regression passed with `833 passed, 1 warning`.
+- Frontend full `npm run release:gate` passed with `231` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed with no blockers.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

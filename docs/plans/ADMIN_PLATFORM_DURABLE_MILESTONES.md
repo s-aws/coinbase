@@ -2634,8 +2634,13 @@ Current backend evidence:
   while preserving no manager invocation, no lifecycle writes, and no-live
   authority. It completed phases 2381-2400 for the stealth create
   lifecycle-write execution-contract boundary as no-live readiness evidence.
-  It now advances to phases 2401-2420 for the missing stealth create
+  It completed phases 2401-2420 for the missing stealth create
   execution-prerequisite resolver boundary as exact-context read evidence only.
+  It now advances to phases 2421-2440 for typed backend-owned non-create
+  stealth command execution posture on reveal, cancel, move, recovery,
+  reconciliation, and movement/reprice responses without manager invocation,
+  active-placement cancel/replace, Coinbase access, reconciliation execution,
+  state mutation, or browser/BFF execution authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

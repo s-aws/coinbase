@@ -58,6 +58,9 @@ from application.admin_api.models import (
     StealthCommandAdmissionContextEvidence,
     StealthCommandSuiteAdmissionContextItem,
 )
+from application.admin_api.stealth_command_execution import (
+    build_stealth_command_execution_contract,
+)
 from application.admin_api.read_service import AdminApiReadService
 from core.enums import (
     AdminApiActionClass,
@@ -403,6 +406,31 @@ def _build_stealth_command_admission_context(
     )
 
 
+def _attach_stealth_execution_posture(
+    response: AdminApiCommandResponse,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> None:
+    """Attach typed no-live execution posture for eligible stealth commands."""
+
+    contract = build_stealth_command_execution_contract(admission_decision)
+    response.stealth_command_execution_contract = contract
+    if contract is None or not isinstance(response.data, dict):
+        return
+    response.data.update({
+        "stealth_command_execution_contract_available": (
+            contract.execution_contract_available
+        ),
+        "stealth_command_execution_allowed": contract.execution_allowed,
+        "stealth_command_execution_blockers": contract.blockers,
+        "resolved_stealth_command_execution_prerequisites": (
+            contract.resolved_prerequisites
+        ),
+        "missing_stealth_command_execution_prerequisites": (
+            contract.missing_prerequisites
+        ),
+    })
+
+
 def _record_audit(
     *,
     audit_store: FileAdminApiAuditStore,
@@ -558,6 +586,7 @@ def _execute_idempotent_command(
         response.stealth_admission_context = _build_stealth_command_admission_context(
             admission_decision
         )
+        _attach_stealth_execution_posture(response, admission_decision)
         response.audit_id = _record_audit(
             audit_store=audit_store,
             actor=actor,
@@ -578,6 +607,7 @@ def _execute_idempotent_command(
     response.stealth_admission_context = _build_stealth_command_admission_context(
         admission_decision
     )
+    _attach_stealth_execution_posture(response, admission_decision)
     if response.guard is None:
         response.guard = {}
     response.guard["admission_decision"] = admission_decision.model_dump(mode="json")

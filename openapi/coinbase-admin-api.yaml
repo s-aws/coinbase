@@ -7072,6 +7072,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthCreateLifecycleWriteExecutionContractEvidence'
           - type: 'null'
+        stealth_command_execution_contract:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandExecutionContractEvidence'
+          - type: 'null'
         guard:
           anyOf:
           - additionalProperties: true
@@ -18516,6 +18520,371 @@ components:
       - detail
       title: StealthCommandAdmissionContextEvidence
       description: Exact command-envelope context evidence for stealth command responses.
+    StealthCommandExecutionContractEvidence:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        command_route:
+          type: string
+          title: Command Route
+        service_method:
+          type: string
+          title: Service Method
+        manager_methods:
+          items:
+            type: string
+          type: array
+          title: Manager Methods
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        stealth_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Order Id
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        execution_contract_boundary_configured:
+          type: boolean
+          title: Execution Contract Boundary Configured
+          default: true
+        execution_contract_available:
+          type: boolean
+          title: Execution Contract Available
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        exact_command_context_present:
+          type: boolean
+          title: Exact Command Context Present
+          default: false
+        required_context_fields:
+          items:
+            type: string
+          type: array
+          title: Required Context Fields
+        missing_context_fields:
+          items:
+            type: string
+          type: array
+          title: Missing Context Fields
+        required_prerequisites:
+          items:
+            type: string
+          type: array
+          title: Required Prerequisites
+        missing_prerequisites:
+          items:
+            type: string
+          type: array
+          title: Missing Prerequisites
+        resolved_prerequisites:
+          items:
+            type: string
+          type: array
+          title: Resolved Prerequisites
+        prerequisite_resolver_available:
+          type: boolean
+          title: Prerequisite Resolver Available
+          default: true
+        prerequisite_resolver_lookup_ran:
+          type: boolean
+          title: Prerequisite Resolver Lookup Ran
+          default: false
+        prerequisite_resolver_authority:
+          type: string
+          title: Prerequisite Resolver Authority
+          default: read_only_no_execution
+        prerequisite_resolution:
+          items:
+            $ref: '#/components/schemas/StealthCommandExecutionPrerequisiteResolverItem'
+          type: array
+          title: Prerequisite Resolution
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        active_placement_exchange_truth_required:
+          type: boolean
+          title: Active Placement Exchange Truth Required
+          default: false
+        active_placement_exchange_truth_resolved:
+          type: boolean
+          title: Active Placement Exchange Truth Resolved
+          default: false
+        reveal_trigger_evidence_required:
+          type: boolean
+          title: Reveal Trigger Evidence Required
+          default: false
+        reveal_trigger_evidence_resolved:
+          type: boolean
+          title: Reveal Trigger Evidence Resolved
+          default: false
+        mutation_claim_snapshot_required:
+          type: boolean
+          title: Mutation Claim Snapshot Required
+          default: false
+        mutation_claim_snapshot_resolved:
+          type: boolean
+          title: Mutation Claim Snapshot Resolved
+          default: false
+        recovery_proof_required:
+          type: boolean
+          title: Recovery Proof Required
+          default: false
+        recovery_proof_resolved:
+          type: boolean
+          title: Recovery Proof Resolved
+          default: false
+        reconciliation_proof_required:
+          type: boolean
+          title: Reconciliation Proof Required
+          default: false
+        reconciliation_proof_resolved:
+          type: boolean
+          title: Reconciliation Proof Resolved
+          default: false
+        live_execution_service_required:
+          type: boolean
+          title: Live Execution Service Required
+          default: true
+        live_execution_service_resolved:
+          type: boolean
+          title: Live Execution Service Resolved
+          default: false
+        live_execution_adapter_required:
+          type: boolean
+          title: Live Execution Adapter Required
+          default: true
+        live_execution_adapter_resolved:
+          type: boolean
+          title: Live Execution Adapter Resolved
+          default: false
+        post_write_reconciliation_required:
+          type: boolean
+          title: Post Write Reconciliation Required
+          default: true
+        post_write_reconciliation_resolved:
+          type: boolean
+          title: Post Write Reconciliation Resolved
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        active_placement_cancel_replace_allowed:
+          type: boolean
+          title: Active Placement Cancel Replace Allowed
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        lifecycle_state_mutation_allowed:
+          type: boolean
+          title: Lifecycle State Mutation Allowed
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        order_state_mutation_allowed:
+          type: boolean
+          title: Order State Mutation Allowed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutation_allowed:
+          type: boolean
+          title: Exchange State Mutation Allowed
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        coinbase_order_submit_allowed:
+          type: boolean
+          title: Coinbase Order Submit Allowed
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_allowed:
+          type: boolean
+          title: Coinbase Order Cancel Allowed
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_coinbase_read_allowed:
+          type: boolean
+          title: Live Coinbase Read Allowed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - command_route
+      - service_method
+      - action_class
+      - required_permission
+      - detail
+      title: StealthCommandExecutionContractEvidence
+      description: No-live execution posture evidence for non-create stealth commands.
+    StealthCommandExecutionPrerequisite:
+      type: string
+      enum:
+      - approval_snapshot
+      - admission_audit
+      - cap_guard_decision
+      - reconciliation_plan
+      - active_placement_exchange_truth
+      - reveal_trigger_evidence
+      - mutation_claim_snapshot
+      - recovery_proof
+      - reconciliation_proof
+      - live_execution_service
+      - live_execution_adapter
+      - post_write_reconciliation
+      title: StealthCommandExecutionPrerequisite
+      description: Prerequisites required before non-create stealth commands may execute.
+    StealthCommandExecutionPrerequisiteLookupStatus:
+      type: string
+      enum:
+      - not_checked
+      - resolved
+      - missing
+      - blocked_by_dependency
+      - disabled
+      - unavailable
+      title: StealthCommandExecutionPrerequisiteLookupStatus
+      description: Read-only lookup status for stealth command execution prerequisites.
+    StealthCommandExecutionPrerequisiteResolverItem:
+      properties:
+        prerequisite:
+          $ref: '#/components/schemas/StealthCommandExecutionPrerequisite'
+        source:
+          type: string
+          minLength: 1
+          title: Source
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: POST
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
+        lookup_status:
+          $ref: '#/components/schemas/StealthCommandExecutionPrerequisiteLookupStatus'
+        lookup_ran:
+          type: boolean
+          title: Lookup Ran
+          default: false
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        resolved_evidence_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Evidence Id
+        missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Missing Reason
+        stale_or_invalid:
+          type: boolean
+          title: Stale Or Invalid
+          default: false
+        authority:
+          type: string
+          title: Authority
+          default: read_only_no_execution
+        proof_lookup_authority:
+          type: string
+          title: Proof Lookup Authority
+          default: none
+        writes_ran:
+          type: boolean
+          title: Writes Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - prerequisite
+      - source
+      - route
+      - lookup_status
+      - detail
+      title: StealthCommandExecutionPrerequisiteResolverItem
+      description: Read-only prerequisite lookup evidence for non-create stealth execution.
     StealthCommandSuiteAdmissionContextItem:
       properties:
         field_name:

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2401-2420",
+  "approved_phase_range": "2421-2440",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -39,6 +39,44 @@ Expected posture:
   "executed_notional_usdc": "0",
   "live_coinbase_orders_ran": false,
   "live_coinbase_read_ran": false
+}
+```
+
+Live-disabled non-create stealth command responses now also include
+`stealth_command_execution_contract`. For example, a cancel dry-submit remains
+blocked even when exact command-envelope context is present:
+
+```json
+{
+  "status": "not_implemented",
+  "data": {
+    "identity_key": "stealth_order_id",
+    "stealth_command_execution_contract_available": false,
+    "stealth_command_execution_allowed": false,
+    "missing_stealth_command_execution_prerequisites": [
+      "approval_snapshot",
+      "admission_audit",
+      "cap_guard_decision",
+      "reconciliation_plan",
+      "active_placement_exchange_truth",
+      "live_execution_service",
+      "live_execution_adapter",
+      "post_write_reconciliation"
+    ]
+  },
+  "stealth_command_execution_contract": {
+    "mutation_family": "stealth_cancel",
+    "command_route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+    "identity_key": "stealth_order_id",
+    "execution_allowed": false,
+    "manager_invocation_ran": false,
+    "active_placement_cancel_replace_ran": false,
+    "coinbase_order_cancel_submitted": false,
+    "live_coinbase_read_ran": false,
+    "reconciliation_executed": false,
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution"
+  }
 }
 ```
 

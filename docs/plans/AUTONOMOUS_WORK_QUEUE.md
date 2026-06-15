@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2401-2420**.
+- Approved phase range: **2421-2440**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,102 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2401-2420
+## Active Phases 2421-2440
+
+These phases continue M55 after stealth create execution-prerequisite resolver
+evidence. The next explicit gap is typed, backend-owned execution posture
+evidence for the remaining live-disabled stealth command responses: reveal,
+cancel, move, recovery, reconciliation, and movement/reprice. The Admin API may
+show exact command context, common admission prerequisites, command-specific
+proof prerequisites, disabled live service/adapter posture, and no-live/no-write
+flags for these commands. This range must remain no-live and no-write. It must
+not invoke `StealthOrderManager`, call `reveal_order_slice`, build or execute
+stealth move plans, clear repricing cooldowns, write lifecycle rows, submit/read
+or cancel Coinbase, replace active placements, execute reconciliation, mutate
+stealth/order/exchange state, approve live admission, or grant browser/BFF
+execution authority.
+
+### Phase 2421 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2401-2420 to active phases 2421-2440 while preserving no-live defaults and cap policy.
+
+### Phase 2422 - Non-Create Command Scope
+
+- Define the execution posture boundary for stealth reveal, cancel, move, recovery, reconciliation, and movement/reprice as typed backend response evidence, not live execution or proof mutation.
+
+### Phase 2423 - Generic Stealth Execution Model
+
+- Add enum-backed typed response models for non-create stealth command execution prerequisites, resolver rows, blockers, route identity, authority, and no-live/no-write flags without replacing the create lifecycle-write contract.
+
+### Phase 2424 - Common Admission Prerequisites
+
+- Derive approval snapshot, admission audit, cap/guard, and reconciliation-plan resolution from the exact backend admission decision for each command response.
+
+### Phase 2425 - Command-Specific Prerequisites
+
+- Represent reveal-trigger, active-placement exchange truth, mutation-claim, recovery-proof, reconciliation-proof, live-service, live-adapter, and post-write reconciliation prerequisites as explicit missing or disabled evidence.
+
+### Phase 2426 - Route Wrapper Admission Linkage
+
+- Ensure the central idempotent command wrapper attaches the typed execution posture to eligible stealth command responses and replay/conflict paths without duplicating route-local logic.
+
+### Phase 2427 - Shared Command Service Data Linkage
+
+- Add concise data fields for resolved and missing execution prerequisites while preserving existing fail-closed messages, status codes, and no-live response behavior.
+
+### Phase 2428 - Reprice Boundary Alignment
+
+- Apply the same typed execution posture to `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice` while keeping movement/repricing completion owned by M56.
+
+### Phase 2429 - Backend Contract Tests
+
+- Cover reveal, cancel, move, recovery, reconciliation, and reprice response contracts, exact admission linkage, no manager invocation, no Coinbase read/submit/cancel, no lifecycle writes, and OpenAPI schema coverage.
+
+### Phase 2430 - Backend Artifact Sync
+
+- Regenerate OpenAPI and route/readiness artifacts after the typed command execution posture model changes.
+
+### Phase 2431 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI and keep generated files unhand-edited.
+
+### Phase 2432 - Frontend Mock Runtime Sync
+
+- Update mock backend command responses and runtime evidence to include the new stealth command execution posture without adding command authority.
+
+### Phase 2433 - Frontend Dry-Submit Rendering
+
+- Render non-create stealth execution posture rows in dry-submit evidence, including missing prerequisites, disabled service/adapter posture, and no-live/no-write authority.
+
+### Phase 2434 - Frontend Tests
+
+- Cover mock responses, dry-submit evidence, generated schema consumption, and release/readiness range updates for phases 2421-2440.
+
+### Phase 2435 - Documentation Update
+
+- Update Admin API, command workflows, stealth reads, examples, maintainer handoff, agent state, and roadmap docs for non-create stealth execution posture.
+
+### Phase 2436 - Validator Sync
+
+- Update backend and frontend autonomous, release, deployment, runtime, and quality validators to require phases 2421-2440 and the new execution-posture evidence.
+
+### Phase 2437 - Drift Scan
+
+- Search for stale active-range text and wording that implies typed execution posture approves execution, resolves active-placement truth, invokes managers, mutates lifecycle state, calls Coinbase, or bypasses reconciliation.
+
+### Phase 2438 - Blind Contextless Review
+
+- Run a contextless review asking whether a fresh agent can explain how non-create stealth command execution posture works and why it still cannot execute.
+
+### Phase 2439 - Focused And Full Gates
+
+- Run focused Admin API tests, backend autonomous check, backend full regression, frontend focused tests, API check, autonomous check, and frontend release gate.
+
+### Phase 2440 - Full Gates, Push, And Next Range
+
+- Push synchronized repos after gates and contextless review pass, then create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed Phases 2401-2420
 
 These phases continue M55 after the stealth create lifecycle-write
 execution-contract boundary. The next explicit gap is backend-owned

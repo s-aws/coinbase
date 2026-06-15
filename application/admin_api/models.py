@@ -59,6 +59,9 @@ from core.enums import (
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthExchangeTruthEvidenceSource,
+    StealthCommandExecutionBlocker,
+    StealthCommandExecutionPrerequisite,
+    StealthCommandExecutionPrerequisiteLookupStatus,
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
     StealthLifecycleWriteGuardEvidenceSource,
@@ -1394,6 +1397,9 @@ class AdminApiCommandResponse(BaseModel):
     stealth_admission_context: StealthCommandAdmissionContextEvidence | None = None
     stealth_lifecycle_execution_contract: (
         StealthCreateLifecycleWriteExecutionContractEvidence | None
+    ) = None
+    stealth_command_execution_contract: (
+        StealthCommandExecutionContractEvidence | None
     ) = None
     guard: FlexibleDict | None = None
     data: Any | None = None
@@ -4286,6 +4292,100 @@ class StealthCommandSuiteAdmissionReadinessItem(BaseModel):
     lifecycle_state_mutated: bool = False
     order_state_mutated: bool = False
     exchange_state_mutated: bool = False
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandExecutionPrerequisiteResolverItem(BaseModel):
+    """Read-only prerequisite lookup evidence for non-create stealth execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    prerequisite: StealthCommandExecutionPrerequisite
+    source: str = Field(min_length=1)
+    route: str
+    method: str = "POST"
+    identity_key: str = "stealth_order_id"
+    identity_value: str | None = None
+    lookup_status: StealthCommandExecutionPrerequisiteLookupStatus
+    lookup_ran: bool = False
+    resolved: bool = False
+    resolved_evidence_id: str | None = None
+    missing_reason: str | None = None
+    stale_or_invalid: bool = False
+    authority: str = "read_only_no_execution"
+    proof_lookup_authority: str = "none"
+    writes_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
+class StealthCommandExecutionContractEvidence(BaseModel):
+    """No-live execution posture evidence for non-create stealth commands."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    command_route: str
+    service_method: str
+    manager_methods: list[str] = Field(default_factory=list)
+    identity_key: str = "stealth_order_id"
+    stealth_order_id: str | None = None
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    execution_contract_boundary_configured: bool = True
+    execution_contract_available: bool = False
+    execution_allowed: bool = False
+    exact_command_context_present: bool = False
+    required_context_fields: list[str] = Field(default_factory=list)
+    missing_context_fields: list[str] = Field(default_factory=list)
+    required_prerequisites: list[str] = Field(default_factory=list)
+    missing_prerequisites: list[str] = Field(default_factory=list)
+    resolved_prerequisites: list[str] = Field(default_factory=list)
+    prerequisite_resolver_available: bool = True
+    prerequisite_resolver_lookup_ran: bool = False
+    prerequisite_resolver_authority: str = "read_only_no_execution"
+    prerequisite_resolution: list[
+        StealthCommandExecutionPrerequisiteResolverItem
+    ] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    active_placement_exchange_truth_required: bool = False
+    active_placement_exchange_truth_resolved: bool = False
+    reveal_trigger_evidence_required: bool = False
+    reveal_trigger_evidence_resolved: bool = False
+    mutation_claim_snapshot_required: bool = False
+    mutation_claim_snapshot_resolved: bool = False
+    recovery_proof_required: bool = False
+    recovery_proof_resolved: bool = False
+    reconciliation_proof_required: bool = False
+    reconciliation_proof_resolved: bool = False
+    live_execution_service_required: bool = True
+    live_execution_service_resolved: bool = False
+    live_execution_adapter_required: bool = True
+    live_execution_adapter_resolved: bool = False
+    post_write_reconciliation_required: bool = True
+    post_write_reconciliation_resolved: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    lifecycle_state_mutation_allowed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutation_allowed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutation_allowed: bool = False
+    exchange_state_mutated: bool = False
+    coinbase_order_submit_allowed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_allowed: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
     evidence: list[str] = Field(default_factory=list)
     detail: str
 

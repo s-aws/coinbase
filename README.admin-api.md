@@ -274,6 +274,15 @@ lookup evidence can report that exact context was present. It is still
 display evidence only and does not approve admission, enable execution, read
 Coinbase, submit/cancel orders, cancel/replace active placements, execute
 reconciliation, mutate state, or grant browser/BFF authority.
+Non-create live-disabled stealth command responses for reveal, cancel, move,
+recovery, reconciliation, and movement/reprice may also include
+`stealth_command_execution_contract`. That contract reports exact command
+context, common admission prerequisites, command-specific prerequisites such
+as reveal-trigger or active-placement exchange truth, disabled live
+service/adapter posture, blockers, and no-live/no-write flags. It is response
+evidence only: no stealth manager method is invoked, no active placement is
+cancelled or replaced, no Coinbase order is submitted/cancelled/read, no
+reconciliation runs, and no lifecycle/order/exchange state is mutated.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

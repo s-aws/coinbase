@@ -160,13 +160,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M8-M54 live-enablement posture:
+Expected current live-enablement posture:
 
 ```json
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1821-1840",
+  "approved_phase_range": "2421-2440",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -178,9 +178,9 @@ Expected M8-M54 live-enablement posture:
   "reconciliation_required": true,
   "live_enabled_path_count": 0,
   "live_eligible_path_count": 0,
-  "preflight_check_count": 40,
-  "blocking_preflight_check_count": 20,
-  "passed_preflight_check_count": 20,
+  "preflight_check_count": 64,
+  "blocking_preflight_check_count": 32,
+  "passed_preflight_check_count": 32,
   "approval_snapshot_required_count": 5,
   "approval_snapshot_present_count": 0,
   "approval_snapshot_missing_count": 5,
@@ -204,9 +204,9 @@ Expected M8-M54 live-enablement posture:
   "live_execution_adapter_required_count": 5,
   "live_execution_adapter_configured_count": 1,
   "live_execution_adapter_missing_count": 4,
-  "readiness_precondition_count": 45,
-  "blocking_readiness_precondition_count": 29,
-  "passed_readiness_precondition_count": 16,
+  "readiness_precondition_count": 72,
+  "blocking_readiness_precondition_count": 47,
+  "passed_readiness_precondition_count": 25,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -854,30 +854,30 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50/M51/M52/M53/M54 enterprise readiness posture:
+Expected current enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1821-1840",
+  "approved_phase_range": "2421-2440",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
-  "functionality_inventory_count": 18,
-  "backend_supported_workflow_count": 17,
-  "admin_exposed_workflow_count": 15,
-  "command_workflow_count": 10,
-  "live_designated_workflow_count": 5,
+  "functionality_inventory_count": 23,
+  "backend_supported_workflow_count": 22,
+  "admin_exposed_workflow_count": 20,
+  "command_workflow_count": 15,
+  "live_designated_workflow_count": 7,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 16,
-  "route_bound_mutation_taxonomy_count": 14,
-  "live_disabled_mutation_count": 6,
+  "mutation_taxonomy_count": 29,
+  "route_bound_mutation_taxonomy_count": 27,
+  "live_disabled_mutation_count": 19,
   "backend_contract_required_mutation_count": 2,
   "compatibility_mutation_count": 3,
   "functionality_inventory": [
@@ -1876,9 +1876,9 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1821-1840",
-  "command_count": 4,
-  "blocked_command_count": 4,
+  "approved_phase_range": "2421-2440",
+  "command_count": 10,
+  "blocked_command_count": 10,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
   "coverage_gap_count": 3,

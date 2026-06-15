@@ -139,6 +139,9 @@ from core.enums import (
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     StealthMutationKind,
+    StealthCommandExecutionBlocker,
+    StealthCommandExecutionPrerequisite,
+    StealthCommandExecutionPrerequisiteLookupStatus,
     StealthExchangeTruthEvidenceSource,
     StealthLifecycleWriteGuardEvidenceSource,
     StealthCreateLifecycleExecutionBlocker,
@@ -1955,7 +1958,27 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "stealth_lifecycle_execution_contract" in command_response_schema[
         "properties"
     ]
+    assert "stealth_command_execution_contract" in command_response_schema[
+        "properties"
+    ]
     assert "AdminLiveAdmissionDecisionEvidence" in written["components"]["schemas"]
+    assert "StealthCommandExecutionContractEvidence" in written["components"][
+        "schemas"
+    ]
+    stealth_command_execution_schema = written["components"]["schemas"][
+        "StealthCommandExecutionContractEvidence"
+    ]
+    assert "required_prerequisites" in stealth_command_execution_schema["properties"]
+    assert "missing_prerequisites" in stealth_command_execution_schema["properties"]
+    assert "prerequisite_resolution" in stealth_command_execution_schema["properties"]
+    assert "manager_invocation_ran" in stealth_command_execution_schema["properties"]
+    assert "coinbase_order_cancel_submitted" in stealth_command_execution_schema[
+        "properties"
+    ]
+    assert "reconciliation_executed" in stealth_command_execution_schema["properties"]
+    assert "StealthCommandExecutionPrerequisiteResolverItem" in written[
+        "components"
+    ]["schemas"]
     assert "StealthCreateLifecycleWriteExecutionContractEvidence" in written[
         "components"
     ]["schemas"]
@@ -3148,6 +3171,89 @@ def _assert_stealth_command_context_echo(
         assert context_by_name[field_name]["source"] == "command_envelope"
 
 
+def _assert_stealth_command_execution_contract(
+    payload: dict,
+    *,
+    mutation_family: str,
+    route: str,
+    service_method: str,
+    identity_value: str,
+    required_prerequisites: set[str],
+    command_specific_prerequisite: str,
+) -> None:
+    contract = payload["stealth_command_execution_contract"]
+    assert contract["mutation_family"] == mutation_family
+    assert contract["command_route"] == route
+    assert contract["service_method"] == service_method
+    assert contract["identity_key"] == "stealth_order_id"
+    assert contract["stealth_order_id"] == identity_value
+    assert contract["status"] == AdminApiGateStatus.BLOCKED.value
+    assert contract["execution_contract_boundary_configured"] is True
+    assert contract["execution_contract_available"] is False
+    assert contract["execution_allowed"] is False
+    assert contract["exact_command_context_present"] is True
+    assert set(contract["required_context_fields"]) == {
+        field.value for field in AdminApiStealthAdmissionContextField
+    }
+    assert contract["missing_context_fields"] == []
+    assert set(contract["required_prerequisites"]) == required_prerequisites
+    assert set(contract["missing_prerequisites"]) == required_prerequisites
+    assert contract["resolved_prerequisites"] == []
+    assert contract["prerequisite_resolver_available"] is True
+    assert contract["prerequisite_resolver_lookup_ran"] is True
+    assert contract["prerequisite_resolver_authority"] == "read_only_no_execution"
+    assert StealthCommandExecutionBlocker.EXECUTION_CONTRACT_MISSING.value in (
+        contract["blockers"]
+    )
+    assert StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value in (
+        contract["blockers"]
+    )
+    assert f"{command_specific_prerequisite}_missing" in contract["blockers"]
+    resolution_by_prerequisite = {
+        row["prerequisite"]: row
+        for row in contract["prerequisite_resolution"]
+    }
+    assert set(resolution_by_prerequisite) == required_prerequisites
+    assert resolution_by_prerequisite[
+        StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value
+    ]["lookup_status"] == StealthCommandExecutionPrerequisiteLookupStatus.MISSING.value
+    assert resolution_by_prerequisite[
+        StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value
+    ]["lookup_ran"] is True
+    assert resolution_by_prerequisite[command_specific_prerequisite][
+        "lookup_status"
+    ] == StealthCommandExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY.value
+    assert resolution_by_prerequisite[command_specific_prerequisite][
+        "missing_reason"
+    ] == "admission_prerequisites_missing"
+    assert resolution_by_prerequisite[
+        StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
+    ]["lookup_status"] == StealthCommandExecutionPrerequisiteLookupStatus.DISABLED.value
+    assert all(row["writes_ran"] is False for row in resolution_by_prerequisite.values())
+    assert all(
+        row["live_coinbase_read_ran"] is False
+        for row in resolution_by_prerequisite.values()
+    )
+    assert contract["manager_invocation_allowed"] is False
+    assert contract["manager_invocation_ran"] is False
+    assert contract["active_placement_cancel_replace_ran"] is False
+    assert contract["lifecycle_state_mutated"] is False
+    assert contract["order_state_mutated"] is False
+    assert contract["exchange_state_mutated"] is False
+    assert contract["coinbase_order_submitted"] is False
+    assert contract["coinbase_order_cancel_submitted"] is False
+    assert contract["live_coinbase_read_ran"] is False
+    assert contract["reconciliation_executed"] is False
+    assert contract["browser_authority"] == "display_only"
+    assert contract["bff_authority"] == "forward_only_no_execution"
+    assert payload["data"]["stealth_command_execution_contract_available"] is False
+    assert payload["data"]["stealth_command_execution_allowed"] is False
+    assert payload["data"]["resolved_stealth_command_execution_prerequisites"] == []
+    assert set(
+        payload["data"]["missing_stealth_command_execution_prerequisites"]
+    ) == required_prerequisites
+
+
 @pytest.mark.regression
 def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatch):
     client = _client(monkeypatch)
@@ -3450,6 +3556,26 @@ def test_admin_api_stealth_reveal_contract_is_fail_closed_and_no_live(monkeypatc
         module_id="stealth_orders",
         identity_value="stealth-reveal-abc",
     )
+    _assert_stealth_command_execution_contract(
+        payload,
+        mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+        route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        identity_value="stealth-reveal-abc",
+        required_prerequisites={
+            StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
+            StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
+        },
+        command_specific_prerequisite=(
+            StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE.value
+        ),
+    )
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["reason"] == "trigger_window_open"
     assert payload["data"]["manual_live_acknowledgement"] is True
@@ -3505,6 +3631,27 @@ def test_admin_api_stealth_move_contract_is_fail_closed_and_no_live(monkeypatch)
         module_id="stealth_orders",
         identity_value="stealth-move-abc",
     )
+    _assert_stealth_command_execution_contract(
+        payload,
+        mutation_family=AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        route="/api/v1/stealth/orders/{stealth_order_id}/move",
+        service_method="move_stealth_order_by_stealth_order_id",
+        identity_value="stealth-move-abc",
+        required_prerequisites={
+            StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
+            StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
+            StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
+        },
+        command_specific_prerequisite=(
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+        ),
+    )
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["new_limit_price"] == "50100.00"
     assert payload["data"]["reason"] == "operator_requested_move"
@@ -3554,6 +3701,26 @@ def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypa
         route="/api/v1/stealth/orders/{stealth_order_id}/cancel",
         module_id="stealth_orders",
         identity_value="stealth-abc",
+    )
+    _assert_stealth_command_execution_contract(
+        payload,
+        mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+        route="/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        service_method="cancel_stealth_order_by_stealth_order_id",
+        identity_value="stealth-abc",
+        required_prerequisites={
+            StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
+            StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
+        },
+        command_specific_prerequisite=(
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+        ),
     )
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["active_placement_client_order_id"] is None
@@ -3608,6 +3775,27 @@ def test_admin_api_stealth_recovery_contract_is_fail_closed_and_no_live(monkeypa
         route="/api/v1/stealth/orders/{stealth_order_id}/recovery",
         module_id="stealth_orders",
         identity_value="stealth-recovery-abc",
+    )
+    _assert_stealth_command_execution_contract(
+        payload,
+        mutation_family=AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
+        route="/api/v1/stealth/orders/{stealth_order_id}/recovery",
+        service_method="recover_stealth_order_by_stealth_order_id",
+        identity_value="stealth-recovery-abc",
+        required_prerequisites={
+            StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
+            StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
+            StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
+        },
+        command_specific_prerequisite=(
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+        ),
     )
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["recovery_evidence_ref"] == "ops-note-001"
@@ -3676,6 +3864,27 @@ def test_admin_api_stealth_reconciliation_contract_is_fail_closed_and_no_live(
         route="/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
         module_id="stealth_orders",
         identity_value="stealth-reconcile-abc",
+    )
+    _assert_stealth_command_execution_contract(
+        payload,
+        mutation_family=AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
+        route="/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+        service_method="reconcile_stealth_order_by_stealth_order_id",
+        identity_value="stealth-reconcile-abc",
+        required_prerequisites={
+            StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
+            StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
+        },
+        command_specific_prerequisite=(
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+        ),
     )
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["reconciliation_plan_id"] == "plan-001"
@@ -4160,7 +4369,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2401-2420"
+    assert readback_payload["approved_phase_range"] == "2421-2440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -4239,6 +4448,27 @@ def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkey
         route="/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
         module_id="movement_repricing",
         identity_value="stealth-abc",
+    )
+    _assert_stealth_command_execution_contract(
+        payload,
+        mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+        route="/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+        service_method="reprice_stealth_order_by_stealth_order_id",
+        identity_value="stealth-abc",
+        required_prerequisites={
+            StealthCommandExecutionPrerequisite.APPROVAL_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
+            StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
+            StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
+            StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
+        },
+        command_specific_prerequisite=(
+            StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
+        ),
     )
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["mutation_kind"] == "reprice"
@@ -6332,7 +6562,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2401-2420"
+    assert payload["approved_phase_range"] == "2421-2440"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -7979,7 +8209,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2401-2420"
+    assert live_payload["approved_phase_range"] == "2421-2440"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -8542,7 +8772,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2401-2420"
+    assert enterprise_payload["approved_phase_range"] == "2421-2440"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -9139,7 +9369,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2401-2420"
+    assert recovery_preview_payload["approved_phase_range"] == "2421-2440"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

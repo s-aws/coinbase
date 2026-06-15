@@ -272,6 +272,15 @@ only. They may show exact-context-bound local lookup results and missing
 reasons, but they do not create approvals, write proof records, invoke live
 execution services, call adapters, read Coinbase, execute reconciliation, or
 grant frontend/BFF execution authority.
+Non-create live-disabled stealth command responses may include
+`stealth_command_execution_contract`. That response evidence covers reveal,
+cancel, move, recovery, reconciliation, and movement/reprice. It lists common
+admission prerequisites, command-specific prerequisites, disabled live
+service/adapter posture, blockers, and no-live/no-write flags. It must remain
+separate from the create lifecycle-write contract and must not invoke manager
+methods, cancel/replace active placements, call Coinbase, execute
+reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
+execution authority.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute
