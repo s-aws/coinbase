@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2681-2700`.
+- Active autonomous range: `2701-2720`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -343,12 +343,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   parity with the same disabled boundary fields. The completed 2641-2660 range
   added nested `post_write_reconciliation_boundary` evidence. The completed
   2661-2680 range added nested `live_execution_adapter_contract` evidence from
-  the shared backend adapter builder. The active 2681-2700 range adds nested
-  `live_execution_service_contract` evidence projected from the disabled
-  backend live execution service state. It must not enable live execution,
-  construct executable adapters, record reconciliation plans, execute
-  reconciliation, invoke managers, call Coinbase, cancel/replace active
-  placements, mutate state, or grant browser/BFF authority.
+  the shared backend adapter builder. The completed 2681-2700 range added
+  nested `live_execution_service_contract` evidence projected from the
+  disabled backend live execution service state. The active 2701-2720 range
+  adds nested `live_execution_intent_contract` evidence from the existing
+  admission-decision intent when exact command context exists. It must not
+  fabricate payload-bound intent for read-only command-suite rows, enable live
+  execution, construct executable adapters, record reconciliation plans,
+  execute reconciliation, invoke managers, call Coinbase, cancel/replace
+  active placements, mutate state, or grant browser/BFF authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

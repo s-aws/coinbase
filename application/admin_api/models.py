@@ -5258,6 +5258,7 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     live_execution_service_contract: (
         AdminLiveExecutionServiceContractEvidence | None
     ) = None
+    live_execution_intent_contract: AdminLiveExecutionIntentEvidence | None = None
     live_execution_adapter_required: bool = True
     live_execution_adapter_resolved: bool = False
     live_execution_adapter_source: str = "disabled_stealth_command_live_adapter"
@@ -5380,6 +5381,7 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     live_execution_service_contract: (
         AdminLiveExecutionServiceContractEvidence | None
     ) = None
+    live_execution_intent_contract: AdminLiveExecutionIntentEvidence | None = None
     live_execution_adapter_required: bool = True
     live_execution_adapter_source: str = "disabled_stealth_command_live_adapter"
     live_execution_adapter_status: AdminApiLiveExecutionStatus = (

@@ -20239,6 +20239,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminLiveExecutionServiceContractEvidence'
           - type: 'null'
+        live_execution_intent_contract:
+          anyOf:
+          - $ref: '#/components/schemas/AdminLiveExecutionIntentEvidence'
+          - type: 'null'
         live_execution_adapter_required:
           type: boolean
           title: Live Execution Adapter Required
@@ -22090,6 +22094,10 @@ components:
         live_execution_service_contract:
           anyOf:
           - $ref: '#/components/schemas/AdminLiveExecutionServiceContractEvidence'
+          - type: 'null'
+        live_execution_intent_contract:
+          anyOf:
+          - $ref: '#/components/schemas/AdminLiveExecutionIntentEvidence'
           - type: 'null'
         live_execution_adapter_required:
           type: boolean

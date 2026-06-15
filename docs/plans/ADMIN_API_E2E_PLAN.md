@@ -38,7 +38,103 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live Execution Service Boundary Batch - Phases 2681-2700
+## Active M55 Live Execution Intent Contract Batch - Phases 2701-2720
+
+These phases continue M55 after nested live execution service boundary
+evidence. The next explicit gap is making the disabled live execution intent
+envelope visible on stealth create and non-create execution contracts when
+exact mutating command context exists. This range must reuse
+`admission_decision.live_execution_intent`; it must not fabricate payload-bound
+intent for read-only command-suite rows without actor/idempotency/operator
+intent/payload hash context. The backend may add model fields, OpenAPI and
+frontend schema/mock/display sync, tests, docs, validator updates, and
+blind/contextless review. It must not enable live execution, construct
+adapters, call Coinbase, invoke `StealthOrderManager`, record reconciliation
+plans, execute reconciliation, cancel/replace active placements, mutate
+stealth/order/exchange state, approve live admission, or grant browser/BFF
+execution authority.
+
+### Phase 2701 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2681-2700 to active phases 2701-2720 while preserving no-live defaults and cap policy.
+
+### Phase 2702 - Prior Range Completion Evidence
+
+- Record phases 2681-2700 as completed nested live service contract evidence with no live Coinbase execution, no service enablement, and no state mutation.
+
+### Phase 2703 - Intent Contract Model Attachment
+
+- Add a nested `live_execution_intent_contract` field to stealth create and non-create execution contracts without changing admission-decision intent evidence.
+
+### Phase 2704 - Admission Intent Reuse
+
+- Populate the nested intent contract only from `admission_decision.live_execution_intent` so exact command context remains the single source.
+
+### Phase 2705 - Create Lifecycle Intent Attachment
+
+- Attach the nested intent to stealth create lifecycle execution evidence only when an admission decision exists; keep command-suite read-only rows null when payload context is absent.
+
+### Phase 2706 - Non-Create Intent Attachment
+
+- Attach the nested intent to reveal, cancel, move, recovery, reconciliation, and movement/reprice execution contracts from their admission decision.
+
+### Phase 2707 - Backend Regression Coverage
+
+- Assert the nested intent is backend-owned, route-bound, payload-bound, idempotency-bound, disabled, non-executable, display/forward-only, and reports no live exchange submission.
+
+### Phase 2708 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after the nested intent contract shape change.
+
+### Phase 2709 - Frontend Schema Intake
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2710 - Frontend Mock Intent Sync
+
+- Update mock create and non-create stealth execution contracts with nested live intent contract evidence only for exact command-response fixtures.
+
+### Phase 2711 - Dry-Submit Intent Rows
+
+- Display the nested intent as display-only evidence, including status, route, payload/idempotency binding, actor, adapter reference, blockers, and browser/BFF authority.
+
+### Phase 2712 - Runtime Fixture Type Safety
+
+- Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
+### Phase 2713 - Documentation Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested live intent contract.
+
+### Phase 2714 - Validator Range Sync
+
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2701-2720.
+
+### Phase 2715 - No-Live Drift Scan
+
+- Search for wording or code implying the intent contract enables live execution, constructs adapters, calls Coinbase, invokes managers, cancels/replaces placements, records plans, executes reconciliation, or mutates state.
+
+### Phase 2716 - Blind Contextless Backend Review
+
+- Run a blind/contextless backend review asking whether a fresh agent can explain the intent contract without inventing execution authority or command-suite payload context.
+
+### Phase 2717 - Blind Contextless Frontend Review
+
+- Run a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and generated-contract source.
+
+### Phase 2718 - Focused Gates
+
+- Run focused backend/frontend tests, schema checks, and autonomous checks for the nested intent contract.
+
+### Phase 2719 - Full Gates
+
+- Run backend full regression and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional.
+
+### Phase 2720 - Commit, Push, And Next Range
+
+- Commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed M55 Live Execution Service Boundary Batch - Phases 2681-2700
 
 These phases continue M55 after nested live execution adapter contract
 evidence. The next explicit gap is making the disabled backend

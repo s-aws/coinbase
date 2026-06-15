@@ -358,6 +358,7 @@ def build_stealth_command_execution_contract(
             service_method=metadata.service_method,
             action_class=admission_decision.action_class,
         ),
+        live_execution_intent_contract=admission_decision.live_execution_intent,
         live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
         live_execution_adapter_missing_reason="live_execution_adapter_disabled",
         live_execution_adapter_contract=build_live_execution_adapter_contract(

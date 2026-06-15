@@ -340,6 +340,13 @@ It is produced through the shared backend live-execution helper, reports
 and display/forward-only browser/BFF authority. It is not a service
 implementation, live switch, Coinbase caller, manager path, or BFF execution
 grant.
+Exact stealth command responses may also expose
+`live_execution_intent_contract`, a nested projection of
+`admission_decision.live_execution_intent`. It is payload-bound,
+idempotency-bound, actor-bound, disabled, and non-executable. Read-only
+command-suite rows without exact actor/idempotency/operator-intent/payload-hash
+context must not fabricate this object. The intent contract is not live
+approval, Coinbase submission, adapter invocation, or browser/BFF authority.
 Both create and non-create contracts also expose
 `post_write_reconciliation_boundary`, a nested backend-owned evidence object
 for the future post-write reconciliation plan/completion handoff. It names

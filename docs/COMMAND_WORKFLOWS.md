@@ -234,6 +234,14 @@ service reference, forbidden methods, enabled false, executable false, and
 browser/BFF authority only. It does not enable the service, construct
 adapters, call Coinbase, invoke managers, execute reconciliation, mutate
 state, or make the command executable.
+Exact create and non-create command responses may include
+`live_execution_intent_contract`. It is the existing backend admission
+decision's disabled intent envelope and is bound to route, identity, actor,
+idempotency key, operator intent, and payload hash. Command-suite reads that do
+not have those exact command fields must leave the intent absent. Workflows may
+display the intent only; it is not live approval, service enablement, adapter
+execution, Coinbase submission, reconciliation execution, or browser/BFF
+authority.
 Both create and non-create execution contracts include a nested
 `post_write_reconciliation_boundary`. It is a route-bound plan/completion
 handoff contract for `POST /api/v1/admin/reconciliation/plans`, not a plan

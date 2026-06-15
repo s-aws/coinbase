@@ -174,6 +174,11 @@ def build_stealth_create_lifecycle_write_execution_contract(
                 else AdminApiActionClass.LOCAL_STATE_MUTATION
             ),
         ),
+        live_execution_intent_contract=(
+            admission_decision.live_execution_intent
+            if admission_decision is not None
+            else None
+        ),
         live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
         live_execution_adapter_missing_reason="live_execution_adapter_disabled",
         live_execution_adapter_contract=build_live_execution_adapter_contract(

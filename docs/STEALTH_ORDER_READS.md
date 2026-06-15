@@ -200,6 +200,10 @@ execution contracts.
 They also expose the same nested `live_execution_service_contract` object,
 which projects the disabled backend live execution service state for the
 route and remains enabled false and non-executable.
+Exact command responses may expose `live_execution_intent_contract`, which is
+the disabled backend admission intent bound to actor, idempotency key, operator
+intent, and payload hash. Command-suite reads without exact command context do
+not fabricate it.
 They also expose the same nested `post_write_reconciliation_boundary` object,
 which names the reconciliation-plan route and remains blocked/no-run.
 They also expose the same nested `live_execution_adapter_contract`, which names

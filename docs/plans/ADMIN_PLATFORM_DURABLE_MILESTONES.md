@@ -2694,20 +2694,24 @@ Current backend evidence:
   reconciliation boundary evidence to create and non-create execution
   contracts without executing reconciliation. The completed phases 2661-2680
   added nested live execution adapter contract evidence to create and
-  non-create execution contracts without constructing adapters. It now
-  advances to phases 2681-2700 to add nested live execution service contract
-  evidence projected from the disabled backend service state without enabling
-  live execution.
+  non-create execution contracts without constructing adapters. The completed
+  phases 2681-2700 added nested live execution service contract evidence
+  projected from the disabled backend service state without enabling live
+  execution. It now advances to phases 2701-2720 to expose the disabled live
+  execution intent envelope on exact stealth command responses without
+  fabricating payload-bound intent for command-suite reads.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Nested live execution service contract evidence for stealth create and
-  non-create execution contracts is the active 2681-2700 slice. This evidence
-  may explain the backend-owned disabled service boundary, forbidden methods,
-  enabled false, executable false, and display-only browser/BFF boundary, but
-  it must not enable live execution, construct executable adapters, record
-  plans, execute reconciliation, resolve disabled prerequisites, invoke
-  managers, call Coinbase, mutate state, or grant browser/BFF authority.
+- Nested live execution intent contract evidence for stealth create and
+  non-create exact command responses is the active 2701-2720 slice. This
+  evidence may explain the backend-owned disabled intent envelope, route,
+  actor, idempotency key, operator intent, payload hash, blockers, executable
+  false, and display-only browser/BFF boundary, but it must not fabricate
+  payload-bound intent for command-suite reads, enable live execution,
+  construct executable adapters, record plans, execute reconciliation, resolve
+  disabled prerequisites, invoke managers, call Coinbase, mutate state, or
+  grant browser/BFF authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace, live service enablement, live adapter construction, and
   post-write reconciliation execution remain blocked.
