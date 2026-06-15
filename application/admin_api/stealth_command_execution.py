@@ -49,6 +49,9 @@ from .stealth_cancel_replace_proof import (
     FileStealthCancelReplaceProofStore,
     StealthCancelReplaceProofRecord,
 )
+from .stealth_post_write_reconciliation import (
+    build_stealth_post_write_reconciliation_boundary,
+)
 
 
 REQUIRED_STEALTH_COMMAND_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = tuple(
@@ -353,6 +356,15 @@ def build_stealth_command_execution_contract(
         post_write_reconciliation_source=POST_WRITE_RECONCILIATION_SOURCE,
         post_write_reconciliation_missing_reason=(
             "post_write_reconciliation_missing"
+        ),
+        post_write_reconciliation_boundary=(
+            build_stealth_post_write_reconciliation_boundary(
+                mutation_family=metadata.mutation_family,
+                command_route=metadata.route,
+                service_method=metadata.service_method,
+                stealth_order_id=admission_decision.identity_value,
+                admission_decision=admission_decision,
+            )
         ),
         canonical_execution_path=list(metadata.manager_methods),
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,

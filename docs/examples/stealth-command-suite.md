@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2621-2640",
+  "approved_phase_range": "2641-2660",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -81,6 +81,33 @@ blocked even when exact command-envelope context is present:
     "post_write_reconciliation_method": "POST",
     "post_write_reconciliation_source": "post_write_reconciliation_contract",
     "post_write_reconciliation_missing_reason": "post_write_reconciliation_missing",
+    "post_write_reconciliation_boundary": {
+      "boundary_type": "stealth_post_write_reconciliation_plan_boundary",
+      "mutation_family": "stealth_cancel",
+      "command_route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+      "post_write_reconciliation_route": "/api/v1/admin/reconciliation/plans",
+      "post_write_reconciliation_method": "POST",
+      "post_write_reconciliation_source": "post_write_reconciliation_contract",
+      "required_evidence": [
+        "route_bound_reconciliation_plan",
+        "post_write_execution_journal",
+        "post_write_completion_proof"
+      ],
+      "missing_evidence": [
+        "route_bound_reconciliation_plan",
+        "post_write_execution_journal",
+        "post_write_completion_proof"
+      ],
+      "plan_write_ran": false,
+      "reconciliation_executed": false,
+      "coinbase_order_cancel_submitted": false,
+      "live_coinbase_read_ran": false,
+      "lifecycle_state_mutated": false,
+      "order_state_mutated": false,
+      "exchange_state_mutated": false,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    },
     "canonical_execution_path": [
       "core/stealth_order_manager.py::cancel_stealth_order",
       "bridges/stealth_order_bridge.py::cancel_stealth_order"
@@ -133,6 +160,33 @@ live-disabled create workflow:
     "post_write_reconciliation_method": "POST",
     "post_write_reconciliation_source": "post_write_reconciliation_contract",
     "post_write_reconciliation_missing_reason": "post_write_reconciliation_missing",
+    "post_write_reconciliation_boundary": {
+      "boundary_type": "stealth_post_write_reconciliation_plan_boundary",
+      "mutation_family": "stealth_create",
+      "command_route": "/api/v1/stealth/orders",
+      "post_write_reconciliation_route": "/api/v1/admin/reconciliation/plans",
+      "post_write_reconciliation_method": "POST",
+      "post_write_reconciliation_source": "post_write_reconciliation_contract",
+      "required_evidence": [
+        "route_bound_reconciliation_plan",
+        "post_write_execution_journal",
+        "post_write_completion_proof"
+      ],
+      "missing_evidence": [
+        "route_bound_reconciliation_plan",
+        "post_write_execution_journal",
+        "post_write_completion_proof"
+      ],
+      "plan_write_ran": false,
+      "reconciliation_executed": false,
+      "coinbase_order_submitted": false,
+      "live_coinbase_read_ran": false,
+      "lifecycle_state_mutated": false,
+      "order_state_mutated": false,
+      "exchange_state_mutated": false,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    },
     "canonical_execution_path": [
       "core/stealth_order_manager.py::create_stealth_order"
     ],

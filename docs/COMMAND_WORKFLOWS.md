@@ -226,6 +226,12 @@ create lifecycle execution contract now reports the same disabled live
 service, adapter, post-write reconciliation, canonical execution path, and
 boundary-authority evidence used by non-create contracts; this is evidence
 only and does not make create execution callable.
+Both create and non-create execution contracts include a nested
+`post_write_reconciliation_boundary`. It is a route-bound plan/completion
+handoff contract for `POST /api/v1/admin/reconciliation/plans`, not a plan
+writer or reconciliation executor. Workflows must treat its missing evidence,
+no-plan-write, no-reconciliation, no-Coinbase, and no-state-mutation flags as
+blocking evidence until a future backend-owned executor is explicitly wired.
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase

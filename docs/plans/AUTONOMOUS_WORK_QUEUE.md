@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2621-2640**.
+- Approved phase range: **2641-2660**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,100 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2621-2640
+## Active Phases 2641-2660
+
+These phases continue M55 after create lifecycle boundary parity. The next
+explicit gap is making the stealth post-write reconciliation boundary a rich,
+typed, route-bound object on create and non-create execution contracts without
+recording plans, executing reconciliation, calling Coinbase, invoking
+`StealthOrderManager`, building live adapters, cancelling/replacing active
+placements, mutating stealth/order/exchange state, approving live admission, or
+granting browser/BFF execution authority. This range may add backend model
+fields, shared builders, OpenAPI and frontend schema sync, display-only dry
+submit rows, mocks, tests, docs, validator updates, and blind/contextless
+review.
+
+### Phase 2641 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2621-2640 to active phases 2641-2660 while preserving no-live defaults and cap policy.
+
+### Phase 2642 - Prior Range Completion Evidence
+
+- Record phases 2621-2640 as completed create lifecycle disabled execution-boundary parity with no live Coinbase execution, no manager invocation, and no state mutation.
+
+### Phase 2643 - Post-Write Boundary Model
+
+- Add a typed stealth post-write reconciliation boundary evidence model that names the backend reconciliation-plan route while remaining blocked and no-run.
+
+### Phase 2644 - Shared Boundary Builder
+
+- Populate create and non-create stealth execution contracts through one backend helper so route, method, source, missing evidence, and authority fields cannot drift.
+
+### Phase 2645 - Create Lifecycle Boundary Attachment
+
+- Attach the boundary object to stealth create lifecycle execution contracts with exact command context when available.
+
+### Phase 2646 - Non-Create Boundary Attachment
+
+- Attach the boundary object to reveal, cancel, move, recovery, reconciliation, and movement/reprice execution contracts.
+
+### Phase 2647 - Backend Regression Coverage
+
+- Assert the boundary is blocked, backend-owned, route-bound, no-plan-write, no-reconciliation, no-Coinbase, and no-state-mutation for create and non-create command responses.
+
+### Phase 2648 - OpenAPI Sync
+
+- Regenerate backend OpenAPI after the contract shape change.
+
+### Phase 2649 - Frontend Schema Intake
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 2650 - Frontend Mock Boundary Sync
+
+- Update mock create and non-create stealth execution contracts with the nested post-write reconciliation boundary object.
+
+### Phase 2651 - Dry-Submit Boundary Rows
+
+- Display the nested boundary as display-only evidence, including route, context binding, missing evidence, no-run proof, state-mutation proof, and browser/BFF authority.
+
+### Phase 2652 - Runtime Fixture Type Safety
+
+- Update typed frontend fixtures and focused tests so generated schema changes remain enforced.
+
+### Phase 2653 - Documentation Sync
+
+- Update Admin API, command workflow, stealth order read, examples, handoff, and roadmap docs for the nested post-write reconciliation boundary.
+
+### Phase 2654 - Validator Range Sync
+
+- Update backend and frontend autonomous validators, runtime artifacts, and tests to require phases 2641-2660.
+
+### Phase 2655 - No-Live Drift Scan
+
+- Search for wording or code implying the boundary records reconciliation plans, executes reconciliation, calls Coinbase, invokes managers, builds adapters, cancels/replaces placements, or mutates state.
+
+### Phase 2656 - Blind Contextless Backend Review
+
+- Run a blind/contextless backend review asking whether a fresh agent can explain the boundary without inventing execution authority.
+
+### Phase 2657 - Blind Contextless Frontend Review
+
+- Run a blind/contextless frontend review asking whether a fresh agent can identify display-only behavior and the generated-contract source.
+
+### Phase 2658 - Focused Gates
+
+- Run focused backend/frontend tests, schema checks, and autonomous checks for the new boundary.
+
+### Phase 2659 - Full Gates
+
+- Run backend full regression and frontend `npm run release:gate`, confirming no live Coinbase execution and `$0` submitted/executed notional.
+
+### Phase 2660 - Commit, Push, And Next Range
+
+- Commit and push synchronized repos after gates pass, then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed Phases 2621-2640
 
 These phases continue M55 after non-create disabled execution-boundary
 evidence. The next explicit gap is bringing stealth create lifecycle execution

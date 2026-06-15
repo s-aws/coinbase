@@ -5105,6 +5105,78 @@ class StealthCommandExecutionPrerequisiteResolverItem(BaseModel):
     detail: str
 
 
+class StealthPostWriteReconciliationBoundaryEvidence(BaseModel):
+    """Fail-closed post-write reconciliation boundary for stealth commands."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    boundary_type: str = "stealth_post_write_reconciliation_plan_boundary"
+    mutation_family: AdminApiMutationFamilyType
+    command_route: str
+    command_method: str = "POST"
+    service_method: str
+    identity_key: str = "stealth_order_id"
+    stealth_order_id: str | None = None
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    resolved: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = False
+    payload_bound: bool = False
+    idempotency_bound: bool = False
+    operator_intent_bound: bool = False
+    idempotency_key: str | None = None
+    payload_hash: str | None = None
+    operator_intent: str | None = None
+    post_write_reconciliation_route: str = "/api/v1/admin/reconciliation/plans"
+    post_write_reconciliation_method: str = "POST"
+    post_write_reconciliation_source: str = "post_write_reconciliation_contract"
+    post_write_reconciliation_missing_reason: str | None = (
+        "post_write_reconciliation_missing"
+    )
+    reconciliation_mutation_family: AdminApiMutationFamilyType = (
+        AdminApiMutationFamilyType.ADMIN_RECONCILIATION_PLAN
+    )
+    reconciliation_action_class: AdminApiActionClass = (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    reconciliation_required_permission: AdminApiPermission | str = (
+        AdminApiPermission.RECONCILIATION_RECORD
+    )
+    required_evidence: list[str] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    blocking: bool = True
+    execution_allowed: bool = False
+    plan_write_allowed: bool = False
+    plan_write_ran: bool = False
+    post_write_completion_required: bool = True
+    post_write_completion_recorded: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    coinbase_order_submit_allowed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_allowed: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    lifecycle_state_mutation_allowed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutation_allowed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutation_allowed: bool = False
+    exchange_state_mutated: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    execution_boundary_authority: str = "backend_contract_only_no_execution"
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class StealthCommandExecutionContractEvidence(BaseModel):
     """No-live execution posture evidence for non-create stealth commands."""
 
@@ -5170,6 +5242,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     post_write_reconciliation_missing_reason: str | None = (
         "post_write_reconciliation_missing"
     )
+    post_write_reconciliation_boundary: (
+        StealthPostWriteReconciliationBoundaryEvidence | None
+    ) = None
     canonical_execution_path: list[str] = Field(default_factory=list)
     execution_boundary_authority: str = "backend_contract_only_no_execution"
     manager_invocation_allowed: bool = False
@@ -5281,6 +5356,9 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     post_write_reconciliation_missing_reason: str | None = (
         "post_write_reconciliation_missing"
     )
+    post_write_reconciliation_boundary: (
+        StealthPostWriteReconciliationBoundaryEvidence | None
+    ) = None
     canonical_execution_path: list[str] = Field(default_factory=list)
     execution_boundary_authority: str = "backend_contract_only_no_execution"
     manager_invocation_allowed: bool = False

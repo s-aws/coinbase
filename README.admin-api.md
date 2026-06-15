@@ -332,6 +332,13 @@ document the backend-owned future handoff; they do not resolve prerequisites,
 construct adapters, execute reconciliation, or authorize browser/BFF commands.
 Stealth create lifecycle execution contracts expose the same boundary fields
 so create and non-create command posture share one disabled execution model.
+Both create and non-create contracts also expose
+`post_write_reconciliation_boundary`, a nested backend-owned evidence object
+for the future post-write reconciliation plan/completion handoff. It names
+`POST /api/v1/admin/reconciliation/plans`, required missing evidence, command
+context binding, and no-run proof flags. It does not record a reconciliation
+plan, execute reconciliation, call Coinbase, invoke managers, cancel/replace
+active placements, mutate state, or grant browser/BFF authority.
 For commands that require active-placement exchange truth, the contract may
 resolve that single prerequisite from the existing append-only backend proof
 store when a safe same-`stealth_order_id` proof record exists. That resolver

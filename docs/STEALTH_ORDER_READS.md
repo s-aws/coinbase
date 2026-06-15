@@ -122,6 +122,12 @@ reconciliation, canonical execution path, and boundary-authority fields. Those
 fields are contextless evidence for the future backend handoff only; they do
 not construct adapters, resolve disabled prerequisites, invoke managers, call
 Coinbase, execute reconciliation, or mutate state.
+The nested `post_write_reconciliation_boundary` object makes that handoff
+explicit. It binds the stealth command route and exact command context, names
+`POST /api/v1/admin/reconciliation/plans` as the backend-owned plan route,
+lists missing post-write evidence, and reports no plan write, no reconciliation
+execution, no Coinbase call, and no state mutation. It is not a reconciliation
+executor and it is not browser/BFF authority.
 It may also resolve `reconciliation_proof` for reconciliation from the
 backend reconciliation proof store when the latest safe same-`stealth_order_id`
 proof exactly matches route, method, service method, actor, operator intent,
@@ -184,6 +190,8 @@ read flags. It also exposes the same disabled `live_execution_service`,
 `live_execution_adapter`, `post_write_reconciliation`, canonical execution
 path, and `execution_boundary_authority` fields used by non-create stealth
 execution contracts.
+They also expose the same nested `post_write_reconciliation_boundary` object,
+which names the reconciliation-plan route and remains blocked/no-run.
 Both surfaces remain evidence only: they do not resolve proof records as
 authority, invoke `StealthOrderManager`, write `stealth_orders` or
 `order_parent` rows, dispatch lifecycle events, read/submit/cancel Coinbase,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from core.enums import (
+    AdminApiMutationFamilyType,
     AdminApiStealthAdmissionContextField,
     StealthCreateLifecycleExecutionBlocker,
     StealthCreateLifecycleExecutionPrerequisite,
@@ -25,6 +26,9 @@ from .live_execution import (
 from .stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
     StealthCreateLifecycleWriteGuardProofRecord,
+)
+from .stealth_post_write_reconciliation import (
+    build_stealth_post_write_reconciliation_boundary,
 )
 
 
@@ -150,6 +154,15 @@ def build_stealth_create_lifecycle_write_execution_contract(
         post_write_reconciliation_source=POST_WRITE_RECONCILIATION_SOURCE,
         post_write_reconciliation_missing_reason=(
             "post_write_reconciliation_missing"
+        ),
+        post_write_reconciliation_boundary=(
+            build_stealth_post_write_reconciliation_boundary(
+                mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+                command_route="/api/v1/stealth/orders",
+                service_method="create_stealth_order",
+                stealth_order_id=stealth_order_id,
+                admission_decision=admission_decision,
+            )
         ),
         canonical_execution_path=["core/stealth_order_manager.py::create_stealth_order"],
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,

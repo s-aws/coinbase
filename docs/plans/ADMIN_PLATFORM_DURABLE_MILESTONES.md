@@ -2687,18 +2687,22 @@ Current backend evidence:
   prerequisite resolver linkage for those cancel/replace proof records. The
   completed phases 2601-2620 added route-specific disabled live-service,
   live-adapter, post-write reconciliation, and canonical execution-path
-  evidence for non-create stealth command execution posture. It now advances
-  to phases 2621-2640 to bring stealth create lifecycle execution contracts
-  and command-suite admission evidence into parity with the same disabled
-  boundary fields.
+  evidence for non-create stealth command execution posture. The completed
+  phases 2621-2640 brought stealth create lifecycle execution contracts and
+  command-suite admission evidence into parity with the same disabled boundary
+  fields. It now advances to phases 2641-2660 to add nested post-write
+  reconciliation boundary evidence to create and non-create execution
+  contracts without executing reconciliation.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Disabled execution-boundary evidence for stealth create lifecycle contracts
-  and command-suite admission is the active 2621-2640 slice. These fields may
-  explain the backend-owned future handoff, but they must not resolve the
-  disabled prerequisites, construct adapters, invoke managers, call Coinbase,
-  execute reconciliation, mutate state, or grant browser/BFF authority.
+- Nested post-write reconciliation boundary evidence for stealth create and
+  non-create execution contracts is the active 2641-2660 slice. This evidence
+  may explain the backend-owned future handoff to
+  `POST /api/v1/admin/reconciliation/plans`, but it must not record plans,
+  execute reconciliation, resolve disabled prerequisites, construct adapters,
+  invoke managers, call Coinbase, mutate state, or grant browser/BFF
+  authority.
   Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace, live service enablement, live adapter construction, and
   post-write reconciliation execution remain blocked.
