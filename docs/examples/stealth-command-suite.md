@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2521-2540",
+  "approved_phase_range": "2541-2560",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -654,6 +654,7 @@ backend read-only route evidence only:
       "GET /api/v1/admin/reconciliation/plans",
       "GET /api/v1/admin/reconciliation/plans/{plan_id}",
       "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
+      "GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
       "GET /api/v1/stealth/command-suite"
     ],
     "current_read_evidence": [
@@ -683,6 +684,16 @@ backend read-only route evidence only:
         "action_class": "read_only",
         "required_permission": "audit:read",
         "shared_method": "build_stealth_active_placement_exchange_truth",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      },
+      {
+        "route": "/api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "audit:read",
+        "shared_method": "build_stealth_reconciliation_proof",
         "backend_owned": true,
         "browser_authority": "display_only",
         "bff_authority": "read_only_forward"

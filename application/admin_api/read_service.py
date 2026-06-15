@@ -223,7 +223,7 @@ from .stealth_reconciliation_proof import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2521-2540"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2541-2560"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -9924,6 +9924,13 @@ class AdminApiReadService:
             ],
             (
                 "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                "reconciliation-proof"
+            ): [
+                "README.stealth-reconciliation-proofs.md",
+                "docs/examples/stealth-reconciliation-proofs.md",
+            ],
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/"
                 "lifecycle-write-guard-proof"
             ): [
                 "README.admin-api.md",
@@ -10018,6 +10025,10 @@ class AdminApiReadService:
             (
                 "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
                 "exchange-truth-proof"
+            ),
+            (
+                "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                "reconciliation-proof"
             ),
             "GET /api/v1/stealth/command-suite",
         ]

@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-15
 - Updated by: Codex
 - Branch: main
-- Commit (optional): backend `3933d2f`, frontend `67c8d5d` for completed
-  range `2501-2520`; active range `2521-2540` in progress.
+- Commit (optional): backend `f6c8c01`, frontend `6dfd833` for completed
+  range `2521-2540`; active range `2541-2560` in progress.
 
 ## Current Objective
 
@@ -37,12 +37,12 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2501-2520`.
-- Latest completed milestone slice: M55 - Reveal-Trigger Proof Resolver.
-- Completed files: backend-owned reveal-trigger proof records, readback,
-  proof-route linkage, exact-context resolver evidence for reveal command
-  posture, frontend schema/mocks/dry-submit rendering, docs/tests, full gates,
-  and contextless review.
+- Latest completed autonomous range: `2521-2540`.
+- Latest completed milestone slice: M55 - Reconciliation Proof Resolver.
+- Completed files: backend-owned reconciliation proof records, readback,
+  proof-route linkage, exact-context resolver evidence for reconciliation
+  command posture, frontend schema/mocks/dry-submit rendering, docs/tests,
+  full gates, and contextless review.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -160,14 +160,27 @@ Keep it short. Keep it factual.
   managers, submit/read/cancel Coinbase, execute reconciliation, mutate state,
   grant browser/BFF authority, or run live commands. The batch completed in
   backend commit `3933d2f` and frontend commit `67c8d5d`.
+- M55 2521-2540 added backend-owned stealth reconciliation proof records,
+  readback, command-suite proof-route linkage, and exact-context resolver
+  evidence for stealth reconciliation posture. The resolver may remove only
+  the `reconciliation_proof` missing prerequisite when the latest same-
+  `stealth_order_id` proof record exactly matches route, method, service
+  method, actor, operator intent, idempotency key, and payload hash and is
+  safe no-live, no-manager, no-active-placement-cancel/replace, no-Coinbase,
+  no-reconciliation-execution, and no-state-mutation evidence. Latest unsafe
+  proof records fail closed as missing/stale. The resolver does not execute
+  reconciliation, invoke managers, submit/read/cancel Coinbase,
+  cancel/replace active placements, mutate state, grant browser/BFF
+  authority, or run live commands. The batch completed in backend commit
+  `f6c8c01` and frontend commit `6dfd833`.
 
 ## Active Scope
 
-- Active autonomous range: `2521-2540`.
+- Active autonomous range: `2541-2560`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete stealth reconciliation proof records, readback,
-  proof-route linkage, exact-context resolver evidence, frontend sync, docs,
-  gates, and blind/contextless review for phases 2521-2540.
+- Current direction: complete reconciliation-proof read-evidence parity and
+  active-placement cancel/replace proof boundary planning for cancel, move,
+  and reprice, with frontend sync only for backend response-shape changes.
 
 ## Decisions (Durable)
 
@@ -480,8 +493,9 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Complete M55 2521-2540 reconciliation proof evidence in backend
-   and frontend without live Coinbase execution.
+1. Complete M55 2541-2560 reconciliation-proof read-evidence parity and
+   active-placement cancel/replace proof boundary planning without live
+   Coinbase execution.
 2. Run focused/full backend and frontend gates, plus blind/contextless review,
    before phase-close commit/push.
 3. Keep contextless blind-review in the release loop for new spot order,
@@ -546,12 +560,20 @@ Keep it short. Keep it factual.
   triggers, call `should_trigger_reveal`, call `reveal_order_slice`, invoke
   managers, call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF execution authority.
-- What is active through M55 2521-2540: backend and frontend are adding
-  reconciliation proof records, readback, proof-route linkage, and
-  exact-context resolver evidence for stealth reconciliation posture only.
-  This remains local evidence only; it must not execute reconciliation, build
-  reconciliation plans, invoke managers, call Coinbase, cancel/replace active
-  placements, mutate state, or grant browser/BFF authority.
+- What is done through M55 2521-2540: backend and frontend expose
+  resolver-backed reconciliation proof evidence on stealth reconciliation
+  command responses. It resolves only from the latest safe exact-context same-
+  `stealth_order_id` backend proof-store row, fails closed on latest unsafe
+  proof rows, and remains local readback evidence only. It does not execute
+  reconciliation, build reconciliation plans, invoke managers, call Coinbase,
+  cancel/replace active placements, mutate state, or grant browser/BFF
+  authority.
+- What is active through M55 2541-2560: backend and frontend are closing
+  reconciliation-proof read-evidence parity and planning the active-placement
+  cancel/replace proof boundary for cancel, move, and reprice. This remains
+  local/readiness evidence only; it must not call Coinbase, cancel/replace
+  active placements, invoke managers, execute reconciliation, mutate state, or
+  grant browser/BFF authority.
 - What is blocked: Nothing currently known.
-- Exact next command: sync frontend schema/mocks for reconciliation proof,
-  then run focused frontend tests and release gates.
+- Exact next command: run focused backend command-suite parity checks, then
+  sync frontend validators/artifacts and run focused frontend checks.

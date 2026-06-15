@@ -77,7 +77,9 @@ Coverage-gap evidence routes are also display-only. Recovery gaps may point to
 `GET /api/v1/stealth/orders/{stealth_order_id}`, and
 `GET /api/v1/stealth/command-suite`. Reconciliation gaps may point to
 `GET /api/v1/admin/reconciliation/plans`,
-`GET /api/v1/admin/reconciliation/plans/{plan_id}`, and
+`GET /api/v1/admin/reconciliation/plans/{plan_id}`,
+`GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`,
+`GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof`, and
 `GET /api/v1/stealth/command-suite`. These rows name route, method, action
 class, required permission, shared read-service method, documentation refs,
 and browser/BFF authority so operators can trace what evidence already
