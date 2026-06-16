@@ -2810,6 +2810,33 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "owner" in backend_decision_schema["properties"]
     assert "required_artifact" in backend_decision_schema["properties"]
     assert "missing_reason" in backend_decision_schema["properties"]
+    assert "resolution_authority" in backend_decision_schema["properties"]
+    assert "resolution_required" in backend_decision_schema["properties"]
+    assert "resolution_allowed" in backend_decision_schema["properties"]
+    assert "resolution_resolved" in backend_decision_schema["properties"]
+    assert "resolution_artifacts" in backend_decision_schema["properties"]
+    assert "missing_resolution_artifacts" in backend_decision_schema["properties"]
+    assert "resolution_contract_refs" in backend_decision_schema["properties"]
+    assert "resolution_evidence_refs" in backend_decision_schema["properties"]
+    assert "resolver_allowed" in backend_decision_schema["properties"]
+    assert "resolver_ran" in backend_decision_schema["properties"]
+    assert "decision_write_allowed" in backend_decision_schema["properties"]
+    assert "decision_written" in backend_decision_schema["properties"]
+    backend_decision_required = set(backend_decision_schema["required"])
+    assert {
+        "resolution_authority",
+        "resolution_required",
+        "resolution_allowed",
+        "resolution_resolved",
+        "resolution_artifacts",
+        "missing_resolution_artifacts",
+        "resolution_contract_refs",
+        "resolution_evidence_refs",
+        "resolver_allowed",
+        "resolver_ran",
+        "decision_write_allowed",
+        "decision_written",
+    } <= backend_decision_required
     assert "blocks_m55_completion" in backend_decision_schema["properties"]
     assert "blocks_live_execution" in backend_decision_schema["properties"]
     assert "StealthPostWriteReconciliationCompletionVerifierEvidence" in written[
@@ -5041,6 +5068,27 @@ def _assert_stealth_execution_live_readiness(
         assert decision["owner"] == expected_decision_owners[decision["decision"]]
         assert decision["required_artifact"]
         assert decision["missing_reason"].endswith("_missing")
+        assert decision["resolution_authority"] == "backend_contract_required"
+        assert decision["resolution_required"] is True
+        assert decision["resolution_allowed"] is False
+        assert decision["resolution_resolved"] is False
+        assert decision["resolution_artifacts"]
+        assert decision["missing_resolution_artifacts"] == decision[
+            "resolution_artifacts"
+        ]
+        assert decision["resolution_contract_refs"]
+        assert decision["resolution_evidence_refs"]
+        assert decision["resolver_allowed"] is False
+        assert decision["resolver_ran"] is False
+        assert decision["decision_write_allowed"] is False
+        assert decision["decision_written"] is False
+        if (
+            decision["decision"]
+            == AdminApiStealthLiveReadinessDecision.EXPLICIT_LIVE_ENABLEMENT.value
+        ):
+            assert "POST /api/v1/admin/approvals/requests" in decision[
+                "resolution_contract_refs"
+            ]
         assert decision["blocks_m55_completion"] is True
         assert decision["blocks_live_execution"] is True
         assert decision["backend_owned"] is True
@@ -7197,7 +7245,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3041-3060"
+    assert readback_payload["approved_phase_range"] == "3061-3080"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7411,7 +7459,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3041-3060"
+    assert readback_payload["approved_phase_range"] == "3061-3080"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10597,7 +10645,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3041-3060"
+    assert readback_payload["approved_phase_range"] == "3061-3080"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10812,7 +10860,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3041-3060"
+    assert readback_payload["approved_phase_range"] == "3061-3080"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -13039,7 +13087,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3041-3060"
+    assert payload["approved_phase_range"] == "3061-3080"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -14861,7 +14909,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3041-3060"
+    assert live_payload["approved_phase_range"] == "3061-3080"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -15424,7 +15472,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3041-3060"
+    assert enterprise_payload["approved_phase_range"] == "3061-3080"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -16022,7 +16070,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3041-3060"
+    assert recovery_preview_payload["approved_phase_range"] == "3061-3080"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

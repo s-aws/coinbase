@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3041-3060",
+  "approved_phase_range": "3061-3080",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -530,6 +530,41 @@ blocked even when exact command-envelope context is present:
         "state_mutation_policy"
       ],
       "backend_decision_count": 7,
+      "backend_decisions": [
+        {
+          "decision": "explicit_live_enablement_decision",
+          "status": "blocked",
+          "resolved": false,
+          "owner": "admin_api_contract",
+          "required_artifact": "explicit_backend_live_enablement_decision",
+          "missing_reason": "explicit_live_enablement_decision_missing",
+          "resolution_authority": "backend_contract_required",
+          "resolution_required": true,
+          "resolution_allowed": false,
+          "resolution_resolved": false,
+          "resolution_artifacts": [
+            "explicit_backend_live_enablement_decision",
+            "route_bound_approval_snapshot"
+          ],
+          "missing_resolution_artifacts": [
+            "explicit_backend_live_enablement_decision",
+            "route_bound_approval_snapshot"
+          ],
+          "resolution_contract_refs": [
+            "POST /api/v1/admin/approvals/requests"
+          ],
+          "resolution_evidence_refs": [
+            "execution_live_readiness"
+          ],
+          "resolver_allowed": false,
+          "resolver_ran": false,
+          "decision_write_allowed": false,
+          "decision_written": false,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "no_live_execution": true
+        }
+      ],
       "forbidden_execution_claims": [
         "frontend_approval_as_authority",
         "bff_execution_authority",
@@ -596,7 +631,10 @@ Actual `execution_live_readiness` payloads also include
 `backend_decisions`. Each row is blocked, required, unresolved, backend-owned,
 route-bound, command-context-bound, browser `display_only`, and BFF
 `forward_only_no_execution`, and names the decision owner, required artifact,
-and missing reason. These rows are not decision writes or live authority.
+missing reason, resolution artifacts, missing resolution artifacts, backend
+contract refs, evidence refs, disabled resolver flags, and disabled writer
+flags. These rows are not decision resolution, decision writes, or live
+authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

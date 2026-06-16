@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3041-3060**.
+- Approved phase range: **3061-3080**.
 - Range status: completed under M55 - Stealth Full Admin Command Suite.
 - Next active range: pending user restart after the requested pause.
 - The approved range allows unattended work without asking for another
@@ -22,8 +22,113 @@ without relying on chat history.
   directly tied to the approved milestone ledger. If no remaining approved
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
-- Exception: the user requested a pause after this phase, so do not create the
-  next active range until the user restarts the session.
+
+## Completed Phases 3061-3080
+
+These phases continue M55 after the backend decision ledger by adding explicit
+resolution criteria to each blocked backend decision row. The criteria name the
+artifacts, backend contracts, and evidence references required before a future
+phase can resolve the decision. They must remain read-only display evidence and
+must not add a decision writer, resolver, live adapter, manager invocation,
+Coinbase submit/cancel/read, reconciliation executor, cancel/replace execution,
+state mutation, browser authority, or BFF execution authority.
+
+Completion evidence:
+
+- Backend full regression passed with `853` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `251` unit tests and `3`
+  Playwright tests.
+- Backend and frontend blind/contextless reviews found blockers; both were
+  fixed before final gates. Backend resolution fields are required in OpenAPI,
+  and frontend display now shows allowed/ran resolver-writer flags plus
+  reconciliation no-live evidence.
+- Browser availability check passed at `http://127.0.0.1:3000/`.
+- Backend ownership and autonomous queue checks passed; the frontend repo has
+  no local ownership checker.
+- Live Coinbase execution was not run; submitted and executed notional stayed
+  `$0`.
+- The next active range was not created because the user requested a pause
+  after this phase.
+
+### Phase 3061 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3041-3060 to active phases 3061-3080 while preserving no-live defaults and cap policy.
+
+### Phase 3062 - Prior Range Completion Evidence
+
+- Keep completed phases 3041-3060 recorded as backend decision-ledger evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3063 - Decision Resolution Criteria Model
+
+- Add typed resolution criteria fields to backend decision evidence without allowing resolution, writers, or execution.
+
+### Phase 3064 - Decision Metadata Resolution Artifacts
+
+- Add per-decision required resolution artifacts so every blocked decision exposes what is still missing.
+
+### Phase 3065 - Resolution Contract References
+
+- Add backend contract references for each decision so contextless maintainers can identify where future resolution must be implemented.
+
+### Phase 3066 - Resolution Evidence References
+
+- Add evidence reference names for each decision so future work can tie resolution to existing backend-owned proof surfaces.
+
+### Phase 3067 - Resolution No-Writer And No-Resolver Flags
+
+- Keep resolver and decision writer flags false for all decision rows.
+
+### Phase 3068 - Contract Wiring For Create And Non-Create Readiness
+
+- Wire resolution criteria through the shared live-readiness builder for stealth create and non-create command contracts.
+
+### Phase 3069 - Backend OpenAPI And Regression Coverage
+
+- Regenerate backend OpenAPI and assert the resolution criteria fields are required contract evidence.
+
+### Phase 3070 - Frontend Schema Sync
+
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated files.
+
+### Phase 3071 - Frontend Mock Runtime Sync
+
+- Update frontend mock backend evidence so decision rows expose resolution artifacts, contract refs, evidence refs, and disabled resolver/writer flags.
+
+### Phase 3072 - Command Dry-Submit Display
+
+- Render decision resolution criteria in command dry-submit evidence as display-only backend evidence.
+
+### Phase 3073 - Stealth Read-Model Display
+
+- Render decision resolution criteria in stealth order read-model surfaces without enabling commands.
+
+### Phase 3074 - Quality Artifact Sync
+
+- Update release, deployment, autonomous, and artifact-contract checks for phase range 3061-3080 and no-live posture.
+
+### Phase 3075 - Documentation And Examples
+
+- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for decision resolution criteria.
+
+### Phase 3076 - Stale Authority Scan
+
+- Search both repos for stale active-range and misleading decision-resolution wording that would imply execution authority.
+
+### Phase 3077 - Focused Backend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks for decision resolution criteria.
+
+### Phase 3078 - Focused Frontend Gates
+
+- Run focused frontend unit/API/autonomous/quality checks for decision-resolution display and phase metadata.
+
+### Phase 3079 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why decision resolution criteria are still blocked and display-only.
+
+### Phase 3080 - Full Gates, Commit, Push, And Pause
+
+- Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, report `$0` live Coinbase submitted/executed notional, then pause for the requested restart.
 
 ## Live Coinbase Cap Policy
 

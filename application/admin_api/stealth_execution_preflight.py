@@ -33,6 +33,26 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "owner": "admin_api_contract",
         "required_artifact": "explicit_backend_live_enablement_decision",
         "missing_reason": "explicit_live_enablement_decision_missing",
+        "resolution_artifacts": [
+            "explicit_backend_live_enablement_decision",
+            "route_bound_approval_snapshot",
+            "route_bound_admission_audit",
+            "route_bound_cap_guard_decision",
+            "route_bound_reconciliation_plan",
+        ],
+        "resolution_contract_refs": [
+            "POST /api/v1/admin/approvals/requests",
+            "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+            "POST /api/v1/admin/admission-audits",
+            "POST /api/v1/admin/cap-guard/decisions",
+            "POST /api/v1/admin/reconciliation/plans",
+        ],
+        "resolution_evidence_refs": [
+            "stealth_admission_context",
+            "execution_preflight",
+            "execution_transition_barrier",
+            "execution_live_readiness",
+        ],
         "detail": (
             "A backend-owned live enablement decision must explicitly allow the "
             "route before any stealth command can become executable."
@@ -42,6 +62,19 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "owner": "runtime_lifecycle",
         "required_artifact": "configured_admin_api_live_execution_service",
         "missing_reason": "backend_live_service_configuration_missing",
+        "resolution_artifacts": [
+            "configured_admin_api_live_execution_service",
+            "runtime_live_service_configuration",
+            "deployment_live_service_enablement_record",
+        ],
+        "resolution_contract_refs": [
+            "application/admin_api/live_execution.py::AdminApiLiveExecutionService",
+            "application/admin_api/live_execution.py::DisabledAdminApiLiveExecutionService",
+        ],
+        "resolution_evidence_refs": [
+            "live_execution_service_contract",
+            "admin_live_enablement.paths",
+        ],
         "detail": (
             "The Admin API live execution service must be configured by the "
             "backend; browser or BFF state cannot satisfy this decision."
@@ -51,6 +84,21 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "owner": "admin_api_contract",
         "required_artifact": "route_bound_stealth_live_execution_adapter",
         "missing_reason": "backend_live_adapter_construction_missing",
+        "resolution_artifacts": [
+            "route_bound_stealth_live_execution_adapter",
+            "shared_command_service_adapter",
+            "route_inventory_execution_binding",
+        ],
+        "resolution_contract_refs": [
+            "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+            "application/admin_api/command_service.py::AdminApiCommandService",
+            "application/admin_api/route_inventory.py",
+        ],
+        "resolution_evidence_refs": [
+            "live_execution_adapter_contract",
+            "canonical_execution_path",
+            "execution_candidate",
+        ],
         "detail": (
             "A route-bound backend adapter must exist before the shared command "
             "service can be invoked for live stealth execution."
@@ -60,6 +108,22 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "owner": "stealth_lifecycle",
         "required_artifact": "stealth_manager_invocation_policy",
         "missing_reason": "manager_invocation_policy_missing",
+        "resolution_artifacts": [
+            "stealth_manager_invocation_policy",
+            "mutation_lock_policy",
+            "exchange_reality_invariant_policy",
+        ],
+        "resolution_contract_refs": [
+            "core/stealth_order_manager.py",
+            "business/stealth_reveal_strategy.py",
+            "bridges/stealth_order_bridge.py",
+        ],
+        "resolution_evidence_refs": [
+            "stealth_admission_context",
+            "active_placement_exchange_truth",
+            "mutation_claim_snapshot",
+            "lifecycle_write_guard",
+        ],
         "detail": (
             "Stealth manager invocation must be allowed only through the "
             "existing lifecycle path and mutation locks."
@@ -69,6 +133,22 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "owner": "exchange_integration",
         "required_artifact": "coinbase_exchange_submission_policy",
         "missing_reason": "coinbase_exchange_submission_policy_missing",
+        "resolution_artifacts": [
+            "coinbase_exchange_submission_policy",
+            "coinbase_cancel_policy",
+            "live_coinbase_read_policy",
+            "live_cap_evidence",
+        ],
+        "resolution_contract_refs": [
+            "docs/LIVE_ORDER_SURFACES.md",
+            "application/admin_api/live_execution.py",
+            "integration/coinbase_client.py",
+        ],
+        "resolution_evidence_refs": [
+            "active_placement_exchange_truth",
+            "coinbase_exchange",
+            "live_execution_adapter_contract",
+        ],
         "detail": (
             "Coinbase submit, cancel, and read behavior must be governed by "
             "backend exchange integration policy and exchange-truth evidence."
@@ -78,6 +158,24 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "owner": "fill_audit",
         "required_artifact": "post_write_reconciliation_execution_policy",
         "missing_reason": "post_write_reconciliation_execution_policy_missing",
+        "resolution_artifacts": [
+            "post_write_reconciliation_execution_policy",
+            "route_bound_reconciliation_plan",
+            "accepted_execution_journal",
+            "verified_post_write_reconciliation",
+        ],
+        "resolution_contract_refs": [
+            "POST /api/v1/admin/reconciliation/plans",
+            "POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs",
+            "POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals",
+            "POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications",
+        ],
+        "resolution_evidence_refs": [
+            "post_write_reconciliation_boundary",
+            "post_write_reconciliation_proof",
+            "post_write_execution_journal",
+            "post_write_reconciliation_verification",
+        ],
         "detail": (
             "Post-write reconciliation execution policy must exist before "
             "accepted journals or proofs can transition into execution."
@@ -87,6 +185,23 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "owner": "stealth_lifecycle",
         "required_artifact": "stealth_state_mutation_policy",
         "missing_reason": "state_mutation_policy_missing",
+        "resolution_artifacts": [
+            "stealth_state_mutation_policy",
+            "lifecycle_write_guard",
+            "active_placement_exchange_truth",
+            "post_write_reconciliation_completion",
+        ],
+        "resolution_contract_refs": [
+            "POST /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs",
+            "POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs",
+            "core/stealth_order_manager.py",
+            "database/order.py",
+        ],
+        "resolution_evidence_refs": [
+            "stealth_lifecycle_execution_contract",
+            "stealth_command_execution_contract",
+            "post_write_completion_verifier",
+        ],
         "detail": (
             "Lifecycle, order, and exchange-state mutation policy must preserve "
             "stealth exchange-reality invariants before state can change."
@@ -338,6 +453,18 @@ def _build_stealth_live_readiness_decisions() -> list[
                 owner=metadata["owner"],
                 required_artifact=metadata["required_artifact"],
                 missing_reason=metadata["missing_reason"],
+                resolution_authority="backend_contract_required",
+                resolution_required=True,
+                resolution_allowed=False,
+                resolution_resolved=False,
+                resolution_artifacts=metadata["resolution_artifacts"],
+                missing_resolution_artifacts=metadata["resolution_artifacts"],
+                resolution_contract_refs=metadata["resolution_contract_refs"],
+                resolution_evidence_refs=metadata["resolution_evidence_refs"],
+                resolver_allowed=False,
+                resolver_ran=False,
+                decision_write_allowed=False,
+                decision_written=False,
                 detail=metadata["detail"],
             )
         )

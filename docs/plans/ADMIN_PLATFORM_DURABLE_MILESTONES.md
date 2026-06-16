@@ -2742,12 +2742,16 @@ Current backend evidence:
   completed phases 3021-3040 exposed blocked live-readiness closure evidence
   after the transition barrier so operators and contextless agents can see
   which backend decisions, contracts, and forbidden claims still prevent M55
-  execution authority. Active phases 3041-3060 expose a typed backend decision
-  ledger derived from that live-readiness evidence, mapping each required
-  backend decision to an owner, required artifact, missing reason, and blocked
-  no-live/no-write proof without creating decision writers, live adapters,
-  manager invocation, Coinbase calls, reconciliation execution, state
-  mutation, browser authority, or BFF execution authority.
+  execution authority. The completed phases 3041-3060 exposed a typed backend
+  decision ledger derived from that live-readiness evidence, mapping each
+  required backend decision to an owner, required artifact, missing reason, and
+  blocked no-live/no-write proof without creating decision writers, live
+  adapters, manager invocation, Coinbase calls, reconciliation execution,
+  state mutation, browser authority, or BFF execution authority. The completed
+  phases 3061-3080 added explicit resolution artifacts, backend contract references,
+  evidence references, and disabled resolver/writer flags to each backend
+  decision row so contextless agents can see what must exist before a future
+  phase can resolve the decision.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

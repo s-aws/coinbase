@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3041-3060` under M55.
+- Latest completed autonomous range: `3061-3080` under M55.
 - Next active range: pending user restart after requested pause.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
@@ -399,7 +399,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   live execution disabled. The completed 3041-3060 range added a typed backend
   decision ledger derived from that live-readiness evidence so required
   decisions name their owner, required artifact, missing reason, and blocked
-  no-live/no-write proof without adding execution authority.
+  no-live/no-write proof without adding execution authority. The completed
+  3061-3080 range added explicit resolution artifacts, backend contract
+  references, evidence references, and disabled resolver/writer flags to each
+  backend decision row; these criteria are display evidence only and do not
+  resolve decisions or enable live execution.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

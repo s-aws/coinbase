@@ -6032,6 +6032,18 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     owner: str
     required_artifact: str
     missing_reason: str
+    resolution_authority: str
+    resolution_required: bool
+    resolution_allowed: bool
+    resolution_resolved: bool
+    resolution_artifacts: list[str]
+    missing_resolution_artifacts: list[str]
+    resolution_contract_refs: list[str]
+    resolution_evidence_refs: list[str]
+    resolver_allowed: bool
+    resolver_ran: bool
+    decision_write_allowed: bool
+    decision_written: bool
     blocks_m55_completion: bool = True
     blocks_live_execution: bool = True
     backend_owned: bool = True

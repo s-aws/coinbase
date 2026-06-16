@@ -38,7 +38,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3041-3060`; next active range is
+- Latest completed autonomous range: `3061-3080`; next active range is
   pending user restart after requested pause.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
@@ -52,6 +52,10 @@ Keep it short. Keep it factual.
   required backend decision to an owner, required artifact, missing reason,
   and blocked no-live/no-write proof while staying backend-owned,
   route-bound, command-context-bound, display-only, and BFF forward-only.
+- Completed `3061-3080` work: added explicit resolution artifacts, backend contract
+  references, evidence references, and disabled resolver/writer flags to each
+  blocked backend decision row. This is display evidence only and must not
+  resolve decisions or enable live execution.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -225,11 +229,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: pending user restart after completed `3041-3060`.
+- Active autonomous range: pending user restart after completed `3061-3080`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: pause after completed typed backend decision-ledger
-  evidence for `3041-3060`, then on restart create the next milestone-linked
-  M55 range only if a concrete approved gap remains. Do not run live Coinbase
+- Current direction: pause after completed decision resolution-criteria
+  evidence for `3061-3080`. On restart, create the next milestone-linked M55
+  range only if a concrete approved gap remains. Do not run live Coinbase
   execution unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
@@ -742,6 +746,10 @@ Keep it short. Keep it factual.
   row names the required backend decision, owner, artifact, missing reason,
   and blocked no-live/no-write proof while keeping browser and BFF authority
   display-only/forward-only.
+- What is completed for M55 3061-3080: backend and frontend expose blocked
+  decision-resolution criteria for those decision rows, including resolution
+  artifacts, backend contract refs, evidence refs, and disabled resolver/writer
+  flags.
 - What is blocked: Nothing currently known.
 - Exact next command: pause for user restart. After restart, create the next
   milestone-linked M55 active range only if a concrete approved gap remains.

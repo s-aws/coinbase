@@ -391,8 +391,10 @@ preflight checks, first blocking check, clearance order, blocked M55
 completion claim, required backend decisions, backend decision-ledger rows,
 handoff blockers, and forbidden execution claims as read-only evidence. Each
 decision-ledger row names the backend decision, owner, required artifact,
-missing reason, and no-live/no-write proof. They must not become a browser
-gate evaluator, decision writer, manager invocation path, Coinbase call,
+missing reason, resolution artifacts, missing resolution artifacts, backend
+contract refs, evidence refs, disabled resolver flags, disabled writer flags,
+and no-live/no-write proof. They must not become a browser gate evaluator,
+decision resolver, decision writer, manager invocation path, Coinbase call,
 cancel/replace path, reconciliation executor, local state mutation, M55
 completion authority, or BFF execution authority.
 The contract also exposes `resolved_prerequisites`,

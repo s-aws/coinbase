@@ -24181,6 +24181,50 @@ components:
         missing_reason:
           type: string
           title: Missing Reason
+        resolution_authority:
+          type: string
+          title: Resolution Authority
+        resolution_required:
+          type: boolean
+          title: Resolution Required
+        resolution_allowed:
+          type: boolean
+          title: Resolution Allowed
+        resolution_resolved:
+          type: boolean
+          title: Resolution Resolved
+        resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Resolution Artifacts
+        missing_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Missing Resolution Artifacts
+        resolution_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Resolution Contract Refs
+        resolution_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Resolution Evidence Refs
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+        decision_written:
+          type: boolean
+          title: Decision Written
         blocks_m55_completion:
           type: boolean
           title: Blocks M55 Completion
@@ -24275,6 +24319,18 @@ components:
       - owner
       - required_artifact
       - missing_reason
+      - resolution_authority
+      - resolution_required
+      - resolution_allowed
+      - resolution_resolved
+      - resolution_artifacts
+      - missing_resolution_artifacts
+      - resolution_contract_refs
+      - resolution_evidence_refs
+      - resolver_allowed
+      - resolver_ran
+      - decision_write_allowed
+      - decision_written
       - detail
       title: StealthExecutionBackendDecisionEvidence
       description: Blocked backend decision evidence required after live-readiness
