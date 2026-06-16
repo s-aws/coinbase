@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3221-3240",
+  "approved_phase_range": "3241-3260",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -904,6 +904,14 @@ resolver/writer/completion/execution flags. It is also display-only backend
 evidence and is not a resolver, writer, live switch, adapter, manager path,
 Coinbase path, reconciliation executor, state mutation path, browser
 authority, or BFF execution authority.
+`backend_decision_resolution_work_items` and
+`backend_decision_resolution_work_queue_summary` expose the first blocked
+clearance action for each unresolved backend decision as a cross-decision work
+queue. They name owners, artifacts, backend contracts, optional route/method/
+service values, evidence refs, dependency state, and disabled
+resolver/writer/execution flags. They are not a resolver, writer, live switch,
+adapter, manager path, Coinbase path, reconciliation executor, state mutation
+path, browser authority, or BFF execution authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

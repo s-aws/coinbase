@@ -6262,6 +6262,102 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     detail: str
 
 
+class StealthExecutionBackendDecisionResolutionWorkItem(BaseModel):
+    """Backend-owned first clearance action for an unresolved decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "execution_live_readiness.backend_decisions[]."
+        "resolution_handoff.clearance_actions"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    work_item_index: int = Field(ge=1)
+    decision: AdminApiStealthLiveReadinessDecision
+    owner: str
+    required_artifact: str
+    missing_reason: str
+    clearance_category: AdminApiLivePreflightCategory
+    clearance_ref: str
+    readiness_item_type: AdminApiStealthDecisionResolutionEvidenceType
+    readiness_item_order: int = Field(ge=1)
+    clearance_sequence: int = Field(ge=1)
+    required_predecessor_refs: list[str]
+    blocking_successor_refs: list[str]
+    required_backend_contract: str
+    required_backend_route: str | None = None
+    required_backend_method: str | None = None
+    required_backend_service: str | None = None
+    required_evidence_ref: str
+    work_item_authority: str = (
+        "backend_derived_from_first_blocked_clearance_action"
+    )
+    dependency_ready: bool = False
+    clearance_ready: bool = False
+    resolution_ready: bool = False
+    blocks_m55_completion: bool = True
+    blocks_live_execution: bool = True
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class StealthExecutionBackendDecisionResolutionWorkQueueSummary(BaseModel):
+    """Backend-owned aggregate over decision resolution work items."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "backend_decision_resolution_work_items"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    total_work_item_count: int = Field(ge=0)
+    blocked_work_item_count: int = Field(ge=0)
+    ready_work_item_count: int = Field(ge=0)
+    owner_count: int = Field(ge=0)
+    work_item_refs: list[str]
+    blocking_decisions: list[AdminApiStealthLiveReadinessDecision]
+    blocking_owners: list[str]
+    required_artifacts: list[str]
+    required_backend_contracts: list[str]
+    required_backend_routes: list[str]
+    required_backend_methods: list[str]
+    required_backend_services: list[str]
+    required_evidence_refs: list[str]
+    first_work_item_ref: str | None = None
+    first_work_item_decision: AdminApiStealthLiveReadinessDecision | None = None
+    first_work_item_owner: str | None = None
+    work_queue_authority: str = (
+        "backend_derived_from_backend_decision_resolution_work_items"
+    )
+    work_queue_ready: bool = False
+    decision_resolution_ready: bool = False
+    m55_completion_claim_allowed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthExecutionBackendDecisionResolutionSummary(BaseModel):
     """Backend-owned aggregate over M55 backend decision evidence."""
 
@@ -6340,6 +6436,12 @@ class StealthExecutionLiveReadinessEvidence(BaseModel):
     )
     backend_decision_resolution_summary: (
         StealthExecutionBackendDecisionResolutionSummary
+    )
+    backend_decision_resolution_work_items: list[
+        StealthExecutionBackendDecisionResolutionWorkItem
+    ]
+    backend_decision_resolution_work_queue_summary: (
+        StealthExecutionBackendDecisionResolutionWorkQueueSummary
     )
     forbidden_execution_claims: list[str] = Field(default_factory=list)
     backend_owned: bool = True

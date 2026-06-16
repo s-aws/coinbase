@@ -13,6 +13,8 @@ from .models import (
     AdminLivePreflightCheckItem,
     StealthExecutionBackendDecisionEvidence,
     StealthExecutionBackendDecisionResolutionSummary,
+    StealthExecutionBackendDecisionResolutionWorkItem,
+    StealthExecutionBackendDecisionResolutionWorkQueueSummary,
     StealthExecutionCandidateEvidence,
     StealthExecutionDecisionResolutionClearanceAction,
     StealthExecutionDecisionResolutionClearanceDependencySummary,
@@ -662,6 +664,14 @@ def build_stealth_execution_live_readiness(
     backend_decision_resolution_summary = (
         _build_backend_decision_resolution_summary(backend_decisions)
     )
+    backend_decision_resolution_work_items = (
+        _build_backend_decision_resolution_work_items(backend_decisions)
+    )
+    backend_decision_resolution_work_queue_summary = (
+        _build_backend_decision_resolution_work_queue_summary(
+            backend_decision_resolution_work_items
+        )
+    )
     return StealthExecutionLiveReadinessEvidence(
         mutation_family=barrier.mutation_family,
         workflow_family=barrier.workflow_family,
@@ -683,6 +693,12 @@ def build_stealth_execution_live_readiness(
         backend_decision_resolution_summary=(
             backend_decision_resolution_summary
         ),
+        backend_decision_resolution_work_items=(
+            backend_decision_resolution_work_items
+        ),
+        backend_decision_resolution_work_queue_summary=(
+            backend_decision_resolution_work_queue_summary
+        ),
         forbidden_execution_claims=[
             "frontend_approval_as_authority",
             "bff_execution_authority",
@@ -697,6 +713,140 @@ def build_stealth_execution_live_readiness(
             "transition barrier. This live-readiness closure names the backend "
             "decisions and contracts still required before any future execution "
             "authority can exist; it does not enable live execution."
+        ),
+    )
+
+
+def _build_backend_decision_resolution_work_items(
+    backend_decisions: list[StealthExecutionBackendDecisionEvidence],
+) -> list[StealthExecutionBackendDecisionResolutionWorkItem]:
+    work_items: list[StealthExecutionBackendDecisionResolutionWorkItem] = []
+    for decision in backend_decisions:
+        if decision.resolved:
+            continue
+        first_blocked_action = next(
+            (
+                action
+                for action in decision.resolution_handoff.clearance_actions
+                if action.status == AdminApiGateStatus.BLOCKED
+                or not action.clearance_ready
+            ),
+            None,
+        )
+        if first_blocked_action is None:
+            continue
+        work_items.append(
+            StealthExecutionBackendDecisionResolutionWorkItem(
+                work_item_index=len(work_items) + 1,
+                decision=decision.decision,
+                owner=decision.owner,
+                required_artifact=decision.required_artifact,
+                missing_reason=decision.missing_reason,
+                clearance_category=first_blocked_action.clearance_category,
+                clearance_ref=first_blocked_action.clearance_ref,
+                readiness_item_type=first_blocked_action.readiness_item_type,
+                readiness_item_order=first_blocked_action.readiness_item_order,
+                clearance_sequence=first_blocked_action.clearance_sequence,
+                required_predecessor_refs=list(
+                    first_blocked_action.required_predecessor_refs
+                ),
+                blocking_successor_refs=list(
+                    first_blocked_action.blocking_successor_refs
+                ),
+                required_backend_contract=(
+                    first_blocked_action.required_backend_contract
+                ),
+                required_backend_route=(
+                    first_blocked_action.required_backend_route
+                ),
+                required_backend_method=(
+                    first_blocked_action.required_backend_method
+                ),
+                required_backend_service=(
+                    first_blocked_action.required_backend_service
+                ),
+                required_evidence_ref=(
+                    first_blocked_action.required_evidence_ref
+                ),
+                dependency_ready=first_blocked_action.dependency_ready,
+                clearance_ready=first_blocked_action.clearance_ready,
+                detail=(
+                    "Backend decision resolution work item is derived from "
+                    "the first blocked clearance action for an unresolved "
+                    f"{decision.decision.value} decision. It is a planning "
+                    "queue row only and does not run a resolver, write a "
+                    "decision, execute a manager, mutate state, reconcile, "
+                    "or call Coinbase."
+                ),
+            )
+        )
+    return work_items
+
+
+def _build_backend_decision_resolution_work_queue_summary(
+    work_items: list[StealthExecutionBackendDecisionResolutionWorkItem],
+) -> StealthExecutionBackendDecisionResolutionWorkQueueSummary:
+    return StealthExecutionBackendDecisionResolutionWorkQueueSummary(
+        total_work_item_count=len(work_items),
+        blocked_work_item_count=sum(
+            1
+            for item in work_items
+            if item.status == AdminApiGateStatus.BLOCKED
+            or not item.clearance_ready
+        ),
+        ready_work_item_count=sum(
+            1 for item in work_items if item.clearance_ready
+        ),
+        owner_count=len({item.owner for item in work_items}),
+        work_item_refs=[item.clearance_ref for item in work_items],
+        blocking_decisions=[item.decision for item in work_items],
+        blocking_owners=list(dict.fromkeys(item.owner for item in work_items)),
+        required_artifacts=list(
+            dict.fromkeys(item.required_artifact for item in work_items)
+        ),
+        required_backend_contracts=list(
+            dict.fromkeys(
+                item.required_backend_contract for item in work_items
+            )
+        ),
+        required_backend_routes=list(
+            dict.fromkeys(
+                item.required_backend_route
+                for item in work_items
+                if item.required_backend_route is not None
+            )
+        ),
+        required_backend_methods=list(
+            dict.fromkeys(
+                item.required_backend_method
+                for item in work_items
+                if item.required_backend_method is not None
+            )
+        ),
+        required_backend_services=list(
+            dict.fromkeys(
+                item.required_backend_service
+                for item in work_items
+                if item.required_backend_service is not None
+            )
+        ),
+        required_evidence_refs=list(
+            dict.fromkeys(item.required_evidence_ref for item in work_items)
+        ),
+        first_work_item_ref=work_items[0].clearance_ref
+        if work_items
+        else None,
+        first_work_item_decision=work_items[0].decision
+        if work_items
+        else None,
+        first_work_item_owner=work_items[0].owner if work_items else None,
+        detail=(
+            "Backend decision resolution work queue summary is derived from "
+            "the first blocked clearance action for each unresolved backend "
+            "decision. It gives operators and contextless agents an ordered "
+            "read-only work queue, but it does not resolve decisions, write "
+            "records, enable live execution, invoke managers, reconcile, "
+            "mutate state, or call Coinbase."
         ),
     )
 

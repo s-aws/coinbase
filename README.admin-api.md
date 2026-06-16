@@ -417,10 +417,15 @@ action rows, and summary are context for future backend work only.
 ledger with blocked decision counts, owners, required artifacts, missing
 reasons, first blocker, and clearance action totals while keeping resolver,
 writer, completion, execution, manager, Coinbase, reconciliation, mutation,
-browser, and BFF authority disabled. These summaries are not a resolver,
-decision writer, live service switch, live adapter, manager invocation path,
-Coinbase path, reconciliation executor, state mutation path, browser
-authority, or BFF execution authority.
+browser, and BFF authority disabled.
+`backend_decision_resolution_work_items` and
+`backend_decision_resolution_work_queue_summary` expose the first blocked
+clearance action for each unresolved backend decision as a cross-decision
+read-only work queue with owner, artifact, contract, evidence ref, dependency
+state, and disabled resolver/writer/execution flags. These summaries and work
+queue rows are not a resolver, decision writer, live service switch, live
+adapter, manager invocation path, Coinbase path, reconciliation executor,
+state mutation path, browser authority, or BFF execution authority.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

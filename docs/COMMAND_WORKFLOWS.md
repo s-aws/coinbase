@@ -428,6 +428,14 @@ artifacts, missing reasons, first blocker, and clearance action totals. That
 aggregate is still backend-owned display evidence only and must not become a
 resolver, writer, completion claim, execution switch, browser authority, or
 BFF execution path.
+`backend_decision_resolution_work_items` and
+`backend_decision_resolution_work_queue_summary` expose the first blocked
+clearance action for each unresolved backend decision as a cross-decision work
+queue. The queue names the owner, required artifact, backend contract, route,
+method, service, evidence ref, dependency state, and disabled execution locks,
+but it is still backend-owned display evidence only and must not become a
+resolver, writer, completion claim, execution switch, browser authority, or
+BFF execution path.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence

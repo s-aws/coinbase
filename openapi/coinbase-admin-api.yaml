@@ -24558,6 +24558,349 @@ components:
       - detail
       title: StealthExecutionBackendDecisionResolutionSummary
       description: Backend-owned aggregate over M55 backend decision evidence.
+    StealthExecutionBackendDecisionResolutionWorkItem:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: execution_live_readiness.backend_decisions[].resolution_handoff.clearance_actions
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        work_item_index:
+          type: integer
+          minimum: 1.0
+          title: Work Item Index
+        decision:
+          $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+        owner:
+          type: string
+          title: Owner
+        required_artifact:
+          type: string
+          title: Required Artifact
+        missing_reason:
+          type: string
+          title: Missing Reason
+        clearance_category:
+          $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+        clearance_ref:
+          type: string
+          title: Clearance Ref
+        readiness_item_type:
+          $ref: '#/components/schemas/AdminApiStealthDecisionResolutionEvidenceType'
+        readiness_item_order:
+          type: integer
+          minimum: 1.0
+          title: Readiness Item Order
+        clearance_sequence:
+          type: integer
+          minimum: 1.0
+          title: Clearance Sequence
+        required_predecessor_refs:
+          items:
+            type: string
+          type: array
+          title: Required Predecessor Refs
+        blocking_successor_refs:
+          items:
+            type: string
+          type: array
+          title: Blocking Successor Refs
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_backend_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Route
+        required_backend_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Method
+        required_backend_service:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Service
+        required_evidence_ref:
+          type: string
+          title: Required Evidence Ref
+        work_item_authority:
+          type: string
+          title: Work Item Authority
+          default: backend_derived_from_first_blocked_clearance_action
+        dependency_ready:
+          type: boolean
+          title: Dependency Ready
+          default: false
+        clearance_ready:
+          type: boolean
+          title: Clearance Ready
+          default: false
+        resolution_ready:
+          type: boolean
+          title: Resolution Ready
+          default: false
+        blocks_m55_completion:
+          type: boolean
+          title: Blocks M55 Completion
+          default: true
+        blocks_live_execution:
+          type: boolean
+          title: Blocks Live Execution
+          default: true
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - work_item_index
+      - decision
+      - owner
+      - required_artifact
+      - missing_reason
+      - clearance_category
+      - clearance_ref
+      - readiness_item_type
+      - readiness_item_order
+      - clearance_sequence
+      - required_predecessor_refs
+      - blocking_successor_refs
+      - required_backend_contract
+      - required_evidence_ref
+      - detail
+      title: StealthExecutionBackendDecisionResolutionWorkItem
+      description: Backend-owned first clearance action for an unresolved decision.
+    StealthExecutionBackendDecisionResolutionWorkQueueSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: backend_decision_resolution_work_items
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        total_work_item_count:
+          type: integer
+          minimum: 0.0
+          title: Total Work Item Count
+        blocked_work_item_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Work Item Count
+        ready_work_item_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Work Item Count
+        owner_count:
+          type: integer
+          minimum: 0.0
+          title: Owner Count
+        work_item_refs:
+          items:
+            type: string
+          type: array
+          title: Work Item Refs
+        blocking_decisions:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+          type: array
+          title: Blocking Decisions
+        blocking_owners:
+          items:
+            type: string
+          type: array
+          title: Blocking Owners
+        required_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Artifacts
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        required_backend_routes:
+          items:
+            type: string
+          type: array
+          title: Required Backend Routes
+        required_backend_methods:
+          items:
+            type: string
+          type: array
+          title: Required Backend Methods
+        required_backend_services:
+          items:
+            type: string
+          type: array
+          title: Required Backend Services
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        first_work_item_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Work Item Ref
+        first_work_item_decision:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+          - type: 'null'
+        first_work_item_owner:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Work Item Owner
+        work_queue_authority:
+          type: string
+          title: Work Queue Authority
+          default: backend_derived_from_backend_decision_resolution_work_items
+        work_queue_ready:
+          type: boolean
+          title: Work Queue Ready
+          default: false
+        decision_resolution_ready:
+          type: boolean
+          title: Decision Resolution Ready
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - total_work_item_count
+      - blocked_work_item_count
+      - ready_work_item_count
+      - owner_count
+      - work_item_refs
+      - blocking_decisions
+      - blocking_owners
+      - required_artifacts
+      - required_backend_contracts
+      - required_backend_routes
+      - required_backend_methods
+      - required_backend_services
+      - required_evidence_refs
+      - detail
+      title: StealthExecutionBackendDecisionResolutionWorkQueueSummary
+      description: Backend-owned aggregate over decision resolution work items.
     StealthExecutionCandidateEvidence:
       properties:
         mutation_family:
@@ -25462,6 +25805,13 @@ components:
           title: Backend Decisions
         backend_decision_resolution_summary:
           $ref: '#/components/schemas/StealthExecutionBackendDecisionResolutionSummary'
+        backend_decision_resolution_work_items:
+          items:
+            $ref: '#/components/schemas/StealthExecutionBackendDecisionResolutionWorkItem'
+          type: array
+          title: Backend Decision Resolution Work Items
+        backend_decision_resolution_work_queue_summary:
+          $ref: '#/components/schemas/StealthExecutionBackendDecisionResolutionWorkQueueSummary'
         forbidden_execution_claims:
           items:
             type: string
@@ -25566,6 +25916,8 @@ components:
       - command_route
       - service_method
       - backend_decision_resolution_summary
+      - backend_decision_resolution_work_items
+      - backend_decision_resolution_work_queue_summary
       - detail
       title: StealthExecutionLiveReadinessEvidence
       description: Blocked live-readiness closure after the transition barrier.

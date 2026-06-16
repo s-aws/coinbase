@@ -225,6 +225,14 @@ Current behavior:
   evidence and must not be treated as a resolver, writer, live switch,
   Coinbase path, reconciliation executor, browser authority, or BFF execution
   path.
+  `backend_decision_resolution_work_items` and
+  `backend_decision_resolution_work_queue_summary` expose the first blocked
+  clearance action for each unresolved backend decision as a cross-decision
+  work queue with owner, artifact, contract, route, method, service, evidence
+  ref, dependency state, and disabled resolver/writer/execution authority.
+  They are display-only backend evidence and must not be treated as a
+  resolver, writer, live switch, Coinbase path, reconciliation executor,
+  browser authority, or BFF execution path.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`
