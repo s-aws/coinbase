@@ -38,98 +38,110 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Backend Decision Resolution Work Queue Batch - Phases 3241-3260
+## Active M55 Forbidden Execution Claim Traceability Batch - Phases 3261-3280
 
-These phases continue M55 after the backend decision resolution summary by
+These phases continue M55 after the backend decision resolution work queue by
+adding backend-derived forbidden execution claim traceability. Each claim row
+maps an existing forbidden execution claim to the backend decision and
+clearance action that keeps the claim forbidden, plus any related first work
+queue ref. It must remain read-only planning evidence and must not clear
+claims, write decisions, add a plan executor, enable live service or adapter
+behavior, invoke managers, submit/cancel/read Coinbase, cancel or replace
+active placements, execute reconciliation, mutate state, grant browser
+authority, or grant BFF execution authority.
+
+### Phase 3261 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3241-3260 to active phases 3261-3280 while preserving no-live defaults and cap policy.
+
+### Phase 3262 - Prior Range Completion Evidence
+
+- Keep completed phases 3241-3260 recorded as backend decision resolution work queue evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3263 - Backend Claim Evidence Model
+
+- Add a typed backend forbidden-claim evidence model that names the blocked backend decision, clearance category/ref, backend contract, evidence ref, and disabled authority flags for each claim.
+
+### Phase 3264 - Backend Claim Summary Model
+
+- Add a typed backend forbidden-claim summary with counts, claims, decisions, owners, clearance refs, work queue refs, contracts, and disabled authority flags.
+
+### Phase 3265 - Claim-To-Decision Trace Map
+
+- Derive claim traces from the existing `forbidden_execution_claims`, backend decision ledger, and clearance actions without adding a resolver or second path.
+
+### Phase 3266 - Claim-To-Clearance Fidelity
+
+- Prove every claim trace points to the backend clearance action that would be required before the claim could ever be cleared.
+
+### Phase 3267 - Claim-To-Work-Queue Linkage
+
+- Link claim traces back to the existing first-blocked-action work queue for the same backend decision.
+
+### Phase 3268 - Claim No-Execution Invariants
+
+- Keep every claim forbidden, uncleared, no-live, non-executable, display-only, and forward-only.
+
+### Phase 3269 - Required OpenAPI Contract
+
+- Regenerate OpenAPI and assert claim trace rows and summary are required live-readiness evidence beside raw forbidden claims.
+
+### Phase 3270 - Backend Runtime Coverage
+
+- Assert claim trace rows and summary fields match the underlying forbidden claims, backend decisions, clearance actions, and work queue rows.
+
+### Phase 3271 - Backend Docs And Examples
+
+- Update Admin API, command workflow, stealth command-suite, roadmap, handoff, and examples docs for forbidden execution claim traceability.
+
+### Phase 3272 - Frontend Schema Sync
+
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated schema.
+
+### Phase 3273 - Frontend Adapter Mapping
+
+- Map forbidden execution claim trace rows and summary into typed stealth read-model view models without deriving authority in the browser.
+
+### Phase 3274 - Frontend Mock Runtime Sync
+
+- Derive mock forbidden execution claim trace rows and summary from mock backend decision and clearance evidence.
+
+### Phase 3275 - Command Dry-Submit Display
+
+- Render forbidden execution claim traceability in dry-submit output without enabling command execution.
+
+### Phase 3276 - Stealth Read-Model Display
+
+- Render forbidden execution claim traceability in stealth read-model surfaces without enabling commands.
+
+### Phase 3277 - Frontend Unit Coverage
+
+- Update mock, dry-submit, stealth read-model, and quality tests for claim trace evidence and phase metadata.
+
+### Phase 3278 - Focused Backend And Frontend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend unit/API/autonomous checks for claim trace evidence.
+
+### Phase 3279 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why forbidden execution claim traces are still blocked display evidence.
+
+### Phase 3280 - Full Gates, Browser Check, Commit, Push, And No-Live Report
+
+- Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Backend Decision Resolution Work Queue Batch - Phases 3241-3260
+
+These phases continued M55 after the backend decision resolution summary by
 adding a backend-derived work queue over unresolved backend decisions. Each
 work item is derived from the first blocked clearance action for a decision
 and exposes owner, artifact, missing reason, clearance category/ref, backend
 contract, optional route/method/service, evidence ref, dependency state, and
-disabled resolver/writer/execution flags. It must remain read-only planning
-evidence and must not add a decision resolver, decision writer, plan executor,
+disabled resolver/writer/execution flags. It remains read-only planning
+evidence and does not add a decision resolver, decision writer, plan executor,
 live service enablement, live adapter, manager invocation, Coinbase
 submit/cancel/read, active-placement cancel/replace, reconciliation executor,
 state mutation, browser authority, or BFF execution authority.
-
-### Phase 3241 - Advance Active Queue Range
-
-- Move the durable autonomous queue from completed phases 3221-3240 to active phases 3241-3260 while preserving no-live defaults and cap policy.
-
-### Phase 3242 - Prior Range Completion Evidence
-
-- Keep completed phases 3221-3240 recorded as backend decision resolution summary evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3243 - Backend Work Item Model
-
-- Add a typed backend work-item model for the first blocked clearance action per unresolved backend decision.
-
-### Phase 3244 - Backend Work Queue Summary Model
-
-- Add a typed backend work-queue summary with counts, owners, refs, contracts, first work item, and disabled authority flags.
-
-### Phase 3245 - Work Queue Builder Integration
-
-- Derive work items and the queue summary from existing backend decision and clearance-action evidence without adding a parallel path.
-
-### Phase 3246 - Source Action Fidelity
-
-- Prove every work item mirrors the source clearance action category, ref, readiness item type/order, sequence, predecessors, successors, contract, route, method, service, and evidence ref.
-
-### Phase 3247 - Queue Aggregate Evidence
-
-- Aggregate work item refs, blocking decisions, owners, required artifacts, required backend contracts, routes, methods, services, and evidence refs.
-
-### Phase 3248 - Queue No-Execution Invariants
-
-- Keep queue readiness false, decision resolution false, M55 completion false, resolver/writer/execution false, no-live true, display-only, and forward-only.
-
-### Phase 3249 - Required OpenAPI Contract
-
-- Regenerate OpenAPI and assert the work items and queue summary are required live-readiness evidence beside backend decisions.
-
-### Phase 3250 - Backend Runtime Coverage
-
-- Assert work queue rows and summary fields match the underlying backend decision and clearance action rows.
-
-### Phase 3251 - Backend Docs And Examples
-
-- Update Admin API, command workflow, stealth command-suite, roadmap, handoff, and examples docs for backend decision resolution work queue evidence.
-
-### Phase 3252 - Frontend Schema Sync
-
-- Regenerate frontend API types from backend OpenAPI without hand-editing generated schema.
-
-### Phase 3253 - Frontend Adapter Mapping
-
-- Map backend decision resolution work items and summary into typed stealth read-model view models without deriving authority in the browser.
-
-### Phase 3254 - Frontend Mock Runtime Sync
-
-- Derive mock backend decision resolution work items and queue summary from mock backend decision rows.
-
-### Phase 3255 - Command Dry-Submit Display
-
-- Render backend decision resolution work queue evidence in dry-submit output without enabling command execution.
-
-### Phase 3256 - Stealth Read-Model Display
-
-- Render backend decision resolution work queue evidence in stealth read-model surfaces without enabling commands.
-
-### Phase 3257 - Frontend Unit Coverage
-
-- Update mock, dry-submit, stealth read-model, and quality tests for work queue evidence and phase metadata.
-
-### Phase 3258 - Focused Backend And Frontend Gates
-
-- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend unit/API/autonomous checks for work queue evidence.
-
-### Phase 3259 - Blind Contextless Reviews
-
-- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why backend decision resolution work queues are still blocked display evidence.
-
-### Phase 3260 - Full Gates, Browser Check, Commit, Push, And No-Live Report
-
-- Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
 
 ## Completed M55 Backend Decision Resolution Summary Batch - Phases 3221-3240
 

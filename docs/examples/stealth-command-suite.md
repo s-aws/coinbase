@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3241-3260",
+  "approved_phase_range": "3261-3280",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -912,6 +912,17 @@ service values, evidence refs, dependency state, and disabled
 resolver/writer/execution flags. They are not a resolver, writer, live switch,
 adapter, manager path, Coinbase path, reconciliation executor, state mutation
 path, browser authority, or BFF execution authority.
+`forbidden_execution_claim_evidence` and
+`forbidden_execution_claim_summary` map each raw forbidden execution claim to
+the backend decision, clearance category/ref, work queue ref, backend
+contract/route/method/service, evidence ref, and disabled
+claim-cleared/resolver/writer/execution flags that keep the claim blocked.
+The summary aggregates blocked/cleared counts, blocking decisions, owners,
+clearance refs, work queue refs, first claim evidence, and false
+all-cleared/M55/live/executable flags. These fields are traceability only;
+they are not a claim clearer, resolver, writer, live switch, adapter, manager
+path, Coinbase path, reconciliation executor, state mutation path, browser
+authority, or BFF execution authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

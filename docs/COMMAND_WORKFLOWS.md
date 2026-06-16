@@ -436,6 +436,17 @@ method, service, evidence ref, dependency state, and disabled execution locks,
 but it is still backend-owned display evidence only and must not become a
 resolver, writer, completion claim, execution switch, browser authority, or
 BFF execution path.
+`forbidden_execution_claim_evidence` and
+`forbidden_execution_claim_summary` map the raw forbidden execution claims to
+the backend decision, required clearance category/ref, work queue ref, backend
+contract/route/method/service, evidence ref, and disabled
+claim-cleared/resolver/writer/execution flags that keep each claim blocked.
+The summary aggregates blocked/cleared counts, blocking decisions, owners,
+clearance refs, work queue refs, first claim evidence, and false
+all-cleared/M55/live/executable flags. These rows are backend-owned
+traceability only and must not clear claims, resolve or write decisions,
+execute resolvers, invoke managers, call Coinbase, cancel/replace placements,
+reconcile, mutate state, or grant browser/BFF execution authority.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence

@@ -2766,9 +2766,12 @@ Current backend evidence:
   dependency evidence. Completed phases 3201-3220 added backend-derived
   clearance dependency summaries. Completed phases 3221-3240 added a
   backend-derived decision resolution summary over the full backend decision
-  ledger. Active phases 3241-3260 add backend-derived decision resolution
-  work queue rows over each unresolved decision's first blocked clearance
-  action while keeping browser and BFF authority display-only/forward-only.
+  ledger. Completed phases 3241-3260 added backend-derived decision
+  resolution work queue rows over each unresolved decision's first blocked
+  clearance action. Active phases 3261-3280 add backend-derived forbidden
+  execution claim traceability that maps each forbidden claim to the backend
+  decision and clearance action that keeps it blocked while keeping browser
+  and BFF authority display-only/forward-only.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

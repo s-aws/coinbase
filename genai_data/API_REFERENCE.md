@@ -103,7 +103,11 @@ Current behavior:
   recovery, and reconciliation workflows. It links live-disabled stealth
   create, reveal, move, cancel, recovery, reconciliation, and movement/reprice routes, reports
   exchange-truth blockers, and does not create, reveal, cancel, move/reprice,
-  reconcile, mutate state, read Coinbase, or call Coinbase
+  reconcile, mutate state, read Coinbase, or call Coinbase.
+  `execution_live_readiness` also includes forbidden execution claim evidence
+  and summary rows mapping each forbidden claim to the backend decision,
+  clearance/work-queue refs, backend contract evidence, and disabled
+  claim-cleared/resolver/writer/execution flags that keep it blocked.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   exposes read-only persisted active-placement exchange-truth evidence keyed
   by `stealth_order_id`; it does not read Coinbase, verify exchange truth,

@@ -25698,6 +25698,349 @@ components:
       - missing_reasons
       title: StealthExecutionDecisionResolutionReadinessSummary
       description: Backend-derived aggregate over blocked decision readiness items.
+    StealthExecutionForbiddenExecutionClaimEvidence:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: execution_live_readiness.forbidden_execution_claims
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        claim_index:
+          type: integer
+          minimum: 1.0
+          title: Claim Index
+        forbidden_claim:
+          type: string
+          title: Forbidden Claim
+        blocked_by_decision:
+          $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+        blocked_by_owner:
+          type: string
+          title: Blocked By Owner
+        required_artifact:
+          type: string
+          title: Required Artifact
+        missing_reason:
+          type: string
+          title: Missing Reason
+        required_clearance_category:
+          $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+        required_clearance_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Clearance Ref
+        work_queue_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Work Queue Ref
+        required_backend_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Contract
+        required_backend_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Route
+        required_backend_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Method
+        required_backend_service:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Service
+        required_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Evidence Ref
+        claim_trace_authority:
+          type: string
+          title: Claim Trace Authority
+          default: backend_derived_from_forbidden_execution_claims
+        claim_forbidden:
+          type: boolean
+          title: Claim Forbidden
+          default: true
+        claim_cleared:
+          type: boolean
+          title: Claim Cleared
+          default: false
+        resolution_ready:
+          type: boolean
+          title: Resolution Ready
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - claim_index
+      - forbidden_claim
+      - blocked_by_decision
+      - blocked_by_owner
+      - required_artifact
+      - missing_reason
+      - required_clearance_category
+      - detail
+      title: StealthExecutionForbiddenExecutionClaimEvidence
+      description: Backend-owned trace for one forbidden execution claim.
+    StealthExecutionForbiddenExecutionClaimSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: forbidden_execution_claim_evidence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        total_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Total Claim Count
+        blocked_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Claim Count
+        cleared_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Cleared Claim Count
+        forbidden_claims:
+          items:
+            type: string
+          type: array
+          title: Forbidden Claims
+        blocking_decisions:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+          type: array
+          title: Blocking Decisions
+        blocking_owners:
+          items:
+            type: string
+          type: array
+          title: Blocking Owners
+        required_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Artifacts
+        required_clearance_categories:
+          items:
+            $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+          type: array
+          title: Required Clearance Categories
+        required_clearance_refs:
+          items:
+            type: string
+          type: array
+          title: Required Clearance Refs
+        work_queue_refs:
+          items:
+            type: string
+          type: array
+          title: Work Queue Refs
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        required_backend_routes:
+          items:
+            type: string
+          type: array
+          title: Required Backend Routes
+        required_backend_methods:
+          items:
+            type: string
+          type: array
+          title: Required Backend Methods
+        required_backend_services:
+          items:
+            type: string
+          type: array
+          title: Required Backend Services
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        first_forbidden_claim:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Forbidden Claim
+        first_blocking_decision:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+          - type: 'null'
+        first_required_clearance_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Required Clearance Ref
+        claim_trace_summary_authority:
+          type: string
+          title: Claim Trace Summary Authority
+          default: backend_derived_from_forbidden_execution_claim_evidence
+        all_claims_cleared:
+          type: boolean
+          title: All Claims Cleared
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - total_claim_count
+      - blocked_claim_count
+      - cleared_claim_count
+      - forbidden_claims
+      - blocking_decisions
+      - blocking_owners
+      - required_artifacts
+      - required_clearance_categories
+      - required_clearance_refs
+      - work_queue_refs
+      - required_backend_contracts
+      - required_backend_routes
+      - required_backend_methods
+      - required_backend_services
+      - required_evidence_refs
+      - detail
+      title: StealthExecutionForbiddenExecutionClaimSummary
+      description: Backend-owned aggregate over forbidden execution claim traces.
     StealthExecutionLiveReadinessEvidence:
       properties:
         mutation_family:
@@ -25817,6 +26160,13 @@ components:
             type: string
           type: array
           title: Forbidden Execution Claims
+        forbidden_execution_claim_evidence:
+          items:
+            $ref: '#/components/schemas/StealthExecutionForbiddenExecutionClaimEvidence'
+          type: array
+          title: Forbidden Execution Claim Evidence
+        forbidden_execution_claim_summary:
+          $ref: '#/components/schemas/StealthExecutionForbiddenExecutionClaimSummary'
         backend_owned:
           type: boolean
           title: Backend Owned
@@ -25918,6 +26268,7 @@ components:
       - backend_decision_resolution_summary
       - backend_decision_resolution_work_items
       - backend_decision_resolution_work_queue_summary
+      - forbidden_execution_claim_summary
       - detail
       title: StealthExecutionLiveReadinessEvidence
       description: Blocked live-readiness closure after the transition barrier.

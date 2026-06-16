@@ -6358,6 +6358,98 @@ class StealthExecutionBackendDecisionResolutionWorkQueueSummary(BaseModel):
     detail: str
 
 
+class StealthExecutionForbiddenExecutionClaimEvidence(BaseModel):
+    """Backend-owned trace for one forbidden execution claim."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "execution_live_readiness.forbidden_execution_claims"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    claim_index: int = Field(ge=1)
+    forbidden_claim: str
+    blocked_by_decision: AdminApiStealthLiveReadinessDecision
+    blocked_by_owner: str
+    required_artifact: str
+    missing_reason: str
+    required_clearance_category: AdminApiLivePreflightCategory
+    required_clearance_ref: str | None = None
+    work_queue_ref: str | None = None
+    required_backend_contract: str | None = None
+    required_backend_route: str | None = None
+    required_backend_method: str | None = None
+    required_backend_service: str | None = None
+    required_evidence_ref: str | None = None
+    claim_trace_authority: str = (
+        "backend_derived_from_forbidden_execution_claims"
+    )
+    claim_forbidden: bool = True
+    claim_cleared: bool = False
+    resolution_ready: bool = False
+    m55_completion_claim_allowed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class StealthExecutionForbiddenExecutionClaimSummary(BaseModel):
+    """Backend-owned aggregate over forbidden execution claim traces."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "forbidden_execution_claim_evidence"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    total_claim_count: int = Field(ge=0)
+    blocked_claim_count: int = Field(ge=0)
+    cleared_claim_count: int = Field(ge=0)
+    forbidden_claims: list[str]
+    blocking_decisions: list[AdminApiStealthLiveReadinessDecision]
+    blocking_owners: list[str]
+    required_artifacts: list[str]
+    required_clearance_categories: list[AdminApiLivePreflightCategory]
+    required_clearance_refs: list[str]
+    work_queue_refs: list[str]
+    required_backend_contracts: list[str]
+    required_backend_routes: list[str]
+    required_backend_methods: list[str]
+    required_backend_services: list[str]
+    required_evidence_refs: list[str]
+    first_forbidden_claim: str | None = None
+    first_blocking_decision: AdminApiStealthLiveReadinessDecision | None = None
+    first_required_clearance_ref: str | None = None
+    claim_trace_summary_authority: str = (
+        "backend_derived_from_forbidden_execution_claim_evidence"
+    )
+    all_claims_cleared: bool = False
+    m55_completion_claim_allowed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthExecutionBackendDecisionResolutionSummary(BaseModel):
     """Backend-owned aggregate over M55 backend decision evidence."""
 
@@ -6444,6 +6536,12 @@ class StealthExecutionLiveReadinessEvidence(BaseModel):
         StealthExecutionBackendDecisionResolutionWorkQueueSummary
     )
     forbidden_execution_claims: list[str] = Field(default_factory=list)
+    forbidden_execution_claim_evidence: list[
+        StealthExecutionForbiddenExecutionClaimEvidence
+    ] = Field(default_factory=list)
+    forbidden_execution_claim_summary: (
+        StealthExecutionForbiddenExecutionClaimSummary
+    )
     backend_owned: bool = True
     route_bound: bool = True
     command_context_bound: bool = True

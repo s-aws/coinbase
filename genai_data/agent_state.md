@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3221-3240`; active range is
-  `3241-3260`.
+- Latest completed autonomous range: `3241-3260`; active range is
+  `3261-3280`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -82,9 +82,14 @@ Keep it short. Keep it factual.
   over the full backend decision ledger with blocked decision counts, owners,
   required artifacts, missing reasons, first blocker, clearance action
   aggregates, and disabled resolver/writer/completion/execution authority.
-- Active `3241-3260` work: add backend-derived decision resolution work queue
-  rows over each unresolved decision's first blocked clearance action with
-  queue summary evidence and disabled resolver/writer/execution authority.
+- Completed `3241-3260` work: added backend-derived decision resolution work
+  queue rows over each unresolved decision's first blocked clearance action
+  with queue summary evidence and disabled resolver/writer/execution
+  authority.
+- Active `3261-3280` work: add backend-derived forbidden execution claim
+  traceability that maps each forbidden claim to the backend decision and
+  clearance action that keeps it blocked with disabled resolver/writer/
+  execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -258,10 +263,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3241-3260`.
+- Active autonomous range: `3261-3280`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete backend decision resolution work queue evidence
-  for `3241-3260`. Do not run live Coinbase execution unless a future approved
+- Current direction: complete forbidden execution claim traceability for
+  `3261-3280`. Do not run live Coinbase execution unless a future approved
   phase explicitly authorizes it.
 
 ## Decisions (Durable)
@@ -805,11 +810,15 @@ Keep it short. Keep it factual.
 - What is completed for M55 3221-3240: backend and frontend expose a
   backend-derived decision resolution summary over the full backend decision
   ledger while keeping it blocked, no-live, display-only, and forward-only.
-- What is active for M55 3241-3260: backend and frontend expose
+- What is completed for M55 3241-3260: backend and frontend expose
   backend-derived decision resolution work queue rows over first blocked
   clearance actions while keeping them blocked, no-live, display-only, and
   forward-only.
+- What is active for M55 3261-3280: backend and frontend expose
+  backend-derived forbidden execution claim traceability that maps each
+  forbidden claim to the backend decision and clearance action that keeps it
+  blocked while remaining no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3241-3260 implementation, run
+- Exact next command: continue the active 3261-3280 implementation, run
   focused gates, blind/contextless reviews, full gates, browser availability,
   then commit and push both repositories with `$0` live Coinbase execution.

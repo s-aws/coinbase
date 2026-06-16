@@ -21,6 +21,8 @@ from .models import (
     StealthExecutionDecisionResolutionHandoff,
     StealthExecutionDecisionResolutionReadinessItem,
     StealthExecutionDecisionResolutionReadinessSummary,
+    StealthExecutionForbiddenExecutionClaimEvidence,
+    StealthExecutionForbiddenExecutionClaimSummary,
     StealthExecutionLiveReadinessEvidence,
     StealthExecutionPreflightEvidence,
     StealthExecutionTransitionBarrierEvidence,
@@ -36,6 +38,47 @@ _STEALTH_LIVE_READINESS_DECISIONS = [
     AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY,
     AdminApiStealthLiveReadinessDecision.STATE_MUTATION_POLICY,
 ]
+
+_FORBIDDEN_EXECUTION_CLAIMS = [
+    "frontend_approval_as_authority",
+    "bff_execution_authority",
+    "route_local_executor",
+    "manager_invocation_without_live_service",
+    "coinbase_order_submit_without_adapter",
+    "coinbase_cancel_replace_without_exchange_truth",
+    "state_mutation_without_post_write_reconciliation",
+]
+
+_FORBIDDEN_EXECUTION_CLAIM_TRACE = {
+    "frontend_approval_as_authority": (
+        AdminApiStealthLiveReadinessDecision.EXPLICIT_LIVE_ENABLEMENT,
+        AdminApiLivePreflightCategory.BROWSER_AUTHORITY,
+    ),
+    "bff_execution_authority": (
+        AdminApiStealthLiveReadinessDecision.EXPLICIT_LIVE_ENABLEMENT,
+        AdminApiLivePreflightCategory.BROWSER_AUTHORITY,
+    ),
+    "route_local_executor": (
+        AdminApiStealthLiveReadinessDecision.BACKEND_LIVE_ADAPTER_CONSTRUCTION,
+        AdminApiLivePreflightCategory.LIVE_EXECUTION_ADAPTER,
+    ),
+    "manager_invocation_without_live_service": (
+        AdminApiStealthLiveReadinessDecision.MANAGER_INVOCATION_POLICY,
+        AdminApiLivePreflightCategory.MANAGER_INVOCATION,
+    ),
+    "coinbase_order_submit_without_adapter": (
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY,
+        AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
+    ),
+    "coinbase_cancel_replace_without_exchange_truth": (
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY,
+        AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
+    ),
+    "state_mutation_without_post_write_reconciliation": (
+        AdminApiStealthLiveReadinessDecision.STATE_MUTATION_POLICY,
+        AdminApiLivePreflightCategory.STATE_MUTATION,
+    ),
+}
 
 _STEALTH_LIVE_READINESS_DECISION_METADATA = {
     AdminApiStealthLiveReadinessDecision.EXPLICIT_LIVE_ENABLEMENT: {
@@ -672,6 +715,18 @@ def build_stealth_execution_live_readiness(
             backend_decision_resolution_work_items
         )
     )
+    forbidden_execution_claim_evidence = (
+        _build_forbidden_execution_claim_evidence(
+            forbidden_claims=_FORBIDDEN_EXECUTION_CLAIMS,
+            backend_decisions=backend_decisions,
+            work_items=backend_decision_resolution_work_items,
+        )
+    )
+    forbidden_execution_claim_summary = (
+        _build_forbidden_execution_claim_summary(
+            forbidden_execution_claim_evidence
+        )
+    )
     return StealthExecutionLiveReadinessEvidence(
         mutation_family=barrier.mutation_family,
         workflow_family=barrier.workflow_family,
@@ -699,20 +754,195 @@ def build_stealth_execution_live_readiness(
         backend_decision_resolution_work_queue_summary=(
             backend_decision_resolution_work_queue_summary
         ),
-        forbidden_execution_claims=[
-            "frontend_approval_as_authority",
-            "bff_execution_authority",
-            "route_local_executor",
-            "manager_invocation_without_live_service",
-            "coinbase_order_submit_without_adapter",
-            "coinbase_cancel_replace_without_exchange_truth",
-            "state_mutation_without_post_write_reconciliation",
-        ],
+        forbidden_execution_claims=list(_FORBIDDEN_EXECUTION_CLAIMS),
+        forbidden_execution_claim_evidence=forbidden_execution_claim_evidence,
+        forbidden_execution_claim_summary=forbidden_execution_claim_summary,
         detail=(
             "M55 stealth command-suite evidence remains blocked after the "
             "transition barrier. This live-readiness closure names the backend "
             "decisions and contracts still required before any future execution "
             "authority can exist; it does not enable live execution."
+        ),
+    )
+
+
+def _build_forbidden_execution_claim_evidence(
+    *,
+    forbidden_claims: list[str],
+    backend_decisions: list[StealthExecutionBackendDecisionEvidence],
+    work_items: list[StealthExecutionBackendDecisionResolutionWorkItem],
+) -> list[StealthExecutionForbiddenExecutionClaimEvidence]:
+    decisions_by_name = {
+        decision.decision: decision for decision in backend_decisions
+    }
+    work_item_by_decision = {
+        item.decision: item for item in work_items
+    }
+    evidence: list[StealthExecutionForbiddenExecutionClaimEvidence] = []
+    for index, claim in enumerate(forbidden_claims, start=1):
+        decision_name, clearance_category = _FORBIDDEN_EXECUTION_CLAIM_TRACE[
+            claim
+        ]
+        decision = decisions_by_name[decision_name]
+        matching_action = next(
+            (
+                action
+                for action in decision.resolution_handoff.clearance_actions
+                if action.clearance_category == clearance_category
+            ),
+            None,
+        )
+        work_item = work_item_by_decision.get(decision_name)
+        evidence.append(
+            StealthExecutionForbiddenExecutionClaimEvidence(
+                claim_index=index,
+                forbidden_claim=claim,
+                blocked_by_decision=decision.decision,
+                blocked_by_owner=decision.owner,
+                required_artifact=decision.required_artifact,
+                missing_reason=decision.missing_reason,
+                required_clearance_category=clearance_category,
+                required_clearance_ref=(
+                    matching_action.clearance_ref
+                    if matching_action is not None
+                    else None
+                ),
+                work_queue_ref=(
+                    work_item.clearance_ref if work_item is not None else None
+                ),
+                required_backend_contract=(
+                    matching_action.required_backend_contract
+                    if matching_action is not None
+                    else None
+                ),
+                required_backend_route=(
+                    matching_action.required_backend_route
+                    if matching_action is not None
+                    else None
+                ),
+                required_backend_method=(
+                    matching_action.required_backend_method
+                    if matching_action is not None
+                    else None
+                ),
+                required_backend_service=(
+                    matching_action.required_backend_service
+                    if matching_action is not None
+                    else None
+                ),
+                required_evidence_ref=(
+                    matching_action.required_evidence_ref
+                    if matching_action is not None
+                    else None
+                ),
+                detail=(
+                    "Forbidden execution claim trace is backend-derived from "
+                    f"the {decision.decision.value} decision and "
+                    f"{clearance_category.value} clearance category. It "
+                    "names the blocked backend-owned clearance contract but "
+                    "does not clear the claim, write a decision, execute a "
+                    "manager, mutate state, reconcile, or call Coinbase."
+                ),
+            )
+        )
+    return evidence
+
+
+def _build_forbidden_execution_claim_summary(
+    claim_evidence: list[StealthExecutionForbiddenExecutionClaimEvidence],
+) -> StealthExecutionForbiddenExecutionClaimSummary:
+    return StealthExecutionForbiddenExecutionClaimSummary(
+        total_claim_count=len(claim_evidence),
+        blocked_claim_count=sum(
+            1
+            for item in claim_evidence
+            if item.status == AdminApiGateStatus.BLOCKED
+            or item.claim_forbidden
+        ),
+        cleared_claim_count=sum(
+            1 for item in claim_evidence if item.claim_cleared
+        ),
+        forbidden_claims=[item.forbidden_claim for item in claim_evidence],
+        blocking_decisions=list(
+            dict.fromkeys(item.blocked_by_decision for item in claim_evidence)
+        ),
+        blocking_owners=list(
+            dict.fromkeys(item.blocked_by_owner for item in claim_evidence)
+        ),
+        required_artifacts=list(
+            dict.fromkeys(item.required_artifact for item in claim_evidence)
+        ),
+        required_clearance_categories=list(
+            dict.fromkeys(
+                item.required_clearance_category for item in claim_evidence
+            )
+        ),
+        required_clearance_refs=list(
+            dict.fromkeys(
+                item.required_clearance_ref
+                for item in claim_evidence
+                if item.required_clearance_ref is not None
+            )
+        ),
+        work_queue_refs=list(
+            dict.fromkeys(
+                item.work_queue_ref
+                for item in claim_evidence
+                if item.work_queue_ref is not None
+            )
+        ),
+        required_backend_contracts=list(
+            dict.fromkeys(
+                item.required_backend_contract
+                for item in claim_evidence
+                if item.required_backend_contract is not None
+            )
+        ),
+        required_backend_routes=list(
+            dict.fromkeys(
+                item.required_backend_route
+                for item in claim_evidence
+                if item.required_backend_route is not None
+            )
+        ),
+        required_backend_methods=list(
+            dict.fromkeys(
+                item.required_backend_method
+                for item in claim_evidence
+                if item.required_backend_method is not None
+            )
+        ),
+        required_backend_services=list(
+            dict.fromkeys(
+                item.required_backend_service
+                for item in claim_evidence
+                if item.required_backend_service is not None
+            )
+        ),
+        required_evidence_refs=list(
+            dict.fromkeys(
+                item.required_evidence_ref
+                for item in claim_evidence
+                if item.required_evidence_ref is not None
+            )
+        ),
+        first_forbidden_claim=(
+            claim_evidence[0].forbidden_claim if claim_evidence else None
+        ),
+        first_blocking_decision=(
+            claim_evidence[0].blocked_by_decision if claim_evidence else None
+        ),
+        first_required_clearance_ref=(
+            claim_evidence[0].required_clearance_ref
+            if claim_evidence
+            else None
+        ),
+        detail=(
+            "Forbidden execution claim summary is backend-derived from claim "
+            "trace rows. It shows which backend decisions and clearance "
+            "contracts keep execution claims forbidden, but it does not clear "
+            "claims, write decisions, enable live execution, invoke managers, "
+            "reconcile, mutate state, or call Coinbase."
         ),
     )
 

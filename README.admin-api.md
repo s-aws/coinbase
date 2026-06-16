@@ -418,6 +418,14 @@ ledger with blocked decision counts, owners, required artifacts, missing
 reasons, first blocker, and clearance action totals while keeping resolver,
 writer, completion, execution, manager, Coinbase, reconciliation, mutation,
 browser, and BFF authority disabled.
+`forbidden_execution_claim_evidence` and
+`forbidden_execution_claim_summary` map each raw forbidden execution claim to
+the backend decision, required clearance category/ref, work queue ref, backend
+contract/route/method/service, evidence ref, and disabled claim-cleared,
+resolver, writer, and execution flags that keep it blocked. These rows are
+traceability only; they do not clear claims, write decisions, execute
+resolvers, invoke managers, call Coinbase, cancel/replace placements,
+reconcile, mutate state, or grant browser/BFF authority.
 `backend_decision_resolution_work_items` and
 `backend_decision_resolution_work_queue_summary` expose the first blocked
 clearance action for each unresolved backend decision as a cross-decision
