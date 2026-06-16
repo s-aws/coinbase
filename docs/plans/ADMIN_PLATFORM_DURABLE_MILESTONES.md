@@ -2774,10 +2774,16 @@ Current backend evidence:
   and BFF authority display-only/forward-only. Completed phases 3281-3300
   added backend-owned manager-invocation policy proof/readback evidence
   without granting manager invocation, Coinbase, reconciliation, browser, or
-  BFF authority. Active phases 3301-3320 consume that proof surface as
+  BFF authority. Completed phases 3301-3320 consume that proof surface as
   exact-command prerequisite resolver evidence for stealth create and
   non-create command execution contracts while preserving no-live/no-write
-  authority.
+  authority. Completed phases 3321-3340 added backend-owned Coinbase exchange
+  submission-policy proof/readback evidence without granting Coinbase submit,
+  cancel, read, manager invocation, reconciliation, state mutation, browser, or
+  BFF authority. Active phases 3341-3360 add backend-owned post-write
+  reconciliation execution-policy proof/readback evidence without granting
+  reconciliation execution, Coinbase activity, manager invocation,
+  active-placement cancel/replace, state mutation, browser, or BFF authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

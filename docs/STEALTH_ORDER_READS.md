@@ -11,6 +11,7 @@ platform, not the legacy dashboard command plane.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof`
 - `GET /api/v1/stealth/command-suite`
@@ -196,6 +197,14 @@ and reconciliation. A proof record alone does not satisfy the
 `post_write_reconciliation` prerequisite evidence, call Coinbase, invoke
 managers, execute reconciliation, cancel/replace active placements, mutate
 lifecycle/order/exchange state, or authorize the frontend.
+Post-write reconciliation execution-policy records are exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy`
+and persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs`.
+They are append-only local evidence for the future reconciliation execution
+boundary. They do not execute reconciliation, call Coinbase, invoke managers,
+cancel/replace active placements, mutate lifecycle/order/exchange state, or
+authorize browser/BFF execution.
 The nested `live_execution_adapter_contract` object makes the disabled adapter
 construction boundary explicit. It binds the stealth command route to the
 shared `AdminApiCommandService.*` reference and lists forbidden execution

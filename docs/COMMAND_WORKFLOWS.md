@@ -256,6 +256,16 @@ Workflows may display those reviewed plan, execution-journal, and completion
 references only. The records do not execute reconciliation, do not call
 Coinbase, do not invoke managers, do not mutate lifecycle/order/exchange
 state, and do not grant browser/BFF authority.
+The backend can now persist post-write reconciliation execution-policy
+evidence through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs`
+and read it through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy`.
+Workflows may display route-bound execution-policy, plan, journal,
+verification, and safe-chain references only. The records do not execute
+reconciliation, call Coinbase, invoke managers, submit/cancel/read orders,
+cancel/replace active placements, mutate lifecycle/order/exchange state, or
+grant browser/BFF authority.
 Create and non-create execution prerequisite resolvers may now read the
 post-write proof, execution-journal, and verification stores for exact
 command-context records. A safe proof without a matching accepted journal is

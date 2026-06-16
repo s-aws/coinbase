@@ -38,7 +38,97 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Manager-Policy Prerequisite Resolver Batch - Phases 3301-3320
+## Active M55 Post-Write Reconciliation Execution-Policy Evidence Batch - Phases 3341-3360
+
+These phases continue M55 by adding backend-owned post-write reconciliation
+execution-policy proof/readback evidence for guarded stealth create, reveal,
+cancel, move, reprice, recovery, and reconciliation commands. The proof route
+is append-only local evidence. It must not execute reconciliation, invoke
+managers, call Coinbase, submit/cancel/read Coinbase orders, cancel/replace
+active placements, mutate order/lifecycle/exchange state, grant browser
+authority, or grant BFF execution authority.
+
+### Phase 3341 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3321-3340 to active phases 3341-3360 while preserving no-live defaults and cap policy.
+
+### Phase 3342 - Prior Range Completion Evidence
+
+- Keep completed phases 3321-3340 recorded as Coinbase exchange submission-policy proof/readback evidence with passing gates, blind reviews, browser check, ownership, pushed commits, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3343 - Backend Policy Enums And Store
+
+- Add typed permission, mutation family, evidence source, admission evidence, record model, and JSONL store for post-write reconciliation execution-policy proof evidence.
+
+### Phase 3344 - Backend Policy Service
+
+- Validate exact guarded command context, dry-run posture, proof-route permission, route inventory identity, and admission prerequisite ids before accepting evidence.
+
+### Phase 3345 - Backend Models And Routes
+
+- Add typed request, command, record, readback, GET, and POST contracts for the execution-policy evidence surface.
+
+### Phase 3346 - Command And Read Service Wiring
+
+- Route proof writing through `AdminApiCommandService` and readback through `AdminApiReadService` without adding reconciliation execution authority.
+
+### Phase 3347 - Route Inventory And Taxonomy Sync
+
+- Add generated route inventory, OpenAPI, mutation taxonomy, proof-route metadata, and command-specific proof linkage for all guarded stealth command families.
+
+### Phase 3348 - Backend Regression Coverage
+
+- Cover RBAC denial, extra `order_id` rejection, missing prerequisites, exact safe acceptance, idempotent replay, readback, audit evidence, OpenAPI freshness, and route inventory freshness.
+
+### Phase 3349 - Backend Documentation And Examples
+
+- Update the feature README, docs index, route inventory plan, command workflows, stealth reads, API reference, handoff, agent state, and examples for contextless readers.
+
+### Phase 3350 - Frontend Schema Regeneration
+
+- Regenerate frontend API types from the backend OpenAPI schema without hand-editing generated files.
+
+### Phase 3351 - Frontend Client And Proxy Coverage
+
+- Add typed frontend backend-client wrappers and BFF proxy allowlist coverage for the GET and POST routes while keeping the BFF forward-only.
+
+### Phase 3352 - Frontend Runtime And Mock Backend
+
+- Add mock/runtime responses for readback and proof writing with no-live, no-reconciliation, display-only, and forward-only evidence.
+
+### Phase 3353 - Frontend Read-Model Display
+
+- Display post-write reconciliation execution-policy evidence in the stealth order/admin shell workflow without creating browser execution authority.
+
+### Phase 3354 - Frontend Quality Gates And Metadata
+
+- Update route coverage, mutation counts, deployment readiness, autonomous queue, artifact contract, tests, and release-readiness metadata for phases 3341-3360.
+
+### Phase 3355 - Frontend Documentation And Examples
+
+- Update frontend API, mock, testing, roadmap, handoff, and example docs so fresh agents understand the route and its no-execution boundary.
+
+### Phase 3356 - Focused Backend Gates
+
+- Run backend py_compile, focused Admin API/OpenAPI/route/autonomous tests, ownership checks, and generated artifact checks.
+
+### Phase 3357 - Focused Frontend Gates
+
+- Run frontend API generation/checks, route coverage checks, focused unit tests, and autonomous checks.
+
+### Phase 3358 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain the proof writer, readback, and no-execution boundaries without chat history.
+
+### Phase 3359 - Full Gates And Browser Smoke
+
+- Run backend full regression, frontend `npm run release:gate`, and an in-browser UI smoke check against the active local frontend.
+
+### Phase 3360 - Commit, Push, Pause, And No-Live Report
+
+- Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and pause for the requested restart.
+
+## Completed M55 Manager-Policy Prerequisite Resolver Batch - Phases 3301-3320
 
 These phases continue M55 by consuming the manager-invocation policy proof
 surface added in phases 3281-3300 as exact-command prerequisite evidence for

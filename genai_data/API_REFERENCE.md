@@ -28,6 +28,7 @@ Current route adapters:
 - `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/coinbase-exchange-submission-policy`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof`
@@ -39,6 +40,7 @@ Current route adapters:
 - `POST /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/coinbase-exchange-submission-policy-proofs`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs`
@@ -140,6 +142,22 @@ Current behavior:
   invoke `StealthOrderManager`, does not execute reconciliation, does not
   cancel/replace active placements, does not mutate
   order/exchange/lifecycle state, and does not make the command
+  live-executable.
+- `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy`
+  exposes read-only persisted post-write reconciliation execution-policy proof
+  evidence keyed by `stealth_order_id`. It is readback only and does not
+  execute reconciliation, invoke managers, call Coinbase, submit/cancel/read
+  Coinbase orders, cancel/replace active placements, mutate
+  order/exchange/lifecycle state, or satisfy live execution prerequisites.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs`
+  persists append-only local proof evidence for guarded stealth create,
+  reveal, cancel, move, recovery, reconciliation, and movement/reprice command
+  contexts after backend admission prerequisites match. The path
+  `stealth_order_id` is the command identity; `client_order_id`,
+  active-placement ids, exchange ids, and Coinbase order ids remain evidence
+  only. The route does not execute reconciliation, submit/cancel/read
+  Coinbase orders, invoke `StealthOrderManager`, cancel/replace active
+  placements, mutate order/exchange/lifecycle state, or make the command
   live-executable.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`
   exposes read-only persisted post-write reconciliation proof evidence keyed

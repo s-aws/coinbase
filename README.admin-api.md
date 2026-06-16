@@ -183,6 +183,16 @@ blockers explicit. It does not create stealth orders, reveal orders, cancel
 active placements, move/reprice revealed orders, execute reconciliation,
 mutate stealth/order/exchange state, read Coinbase, call Coinbase, or grant
 browser/BFF command authority.
+Stealth post-write reconciliation execution-policy evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy`
+and persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs`.
+The writer route requires `stealth_post_write_reconciliation_policy:record`,
+uses path `stealth_order_id` as the command identity, and persists append-only
+local proof evidence only after exact backend admission prerequisites match.
+It does not execute reconciliation, invoke managers, call Coinbase,
+submit/cancel/read Coinbase orders, cancel/replace active placements, mutate
+order/lifecycle/exchange state, or grant browser/BFF authority.
 The per-order stealth detail route
 `GET /api/v1/stealth/orders/{stealth_order_id}` also exposes
 `active_placement_audit` as local evidence for whether the current stealth row

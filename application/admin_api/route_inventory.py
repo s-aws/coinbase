@@ -263,6 +263,28 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         module_id="stealth_orders",
         surface=(
             "GET /api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-reconciliation-execution-policy"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method=(
+            "build_stealth_post_write_reconciliation_execution_policy"
+        ),
+        parity_test=(
+            "read-only post-write reconciliation execution-policy evidence; "
+            "no reconciliation execution, manager invocation, Coinbase call, "
+            "active-placement cancel/replace, exchange-state mutation, "
+            "lifecycle mutation, or live-execution prerequisite satisfaction"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "GET /api/v1/stealth/orders/{stealth_order_id}/"
             "post-write-execution-journals"
         ),
         action_class=AdminApiActionClass.READ_ONLY,
@@ -624,6 +646,30 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "stealth_order_id identity; proof evidence remains no-live and "
             "does not invoke managers, submit/read/cancel Coinbase, mutate "
             "exchange state, mutate lifecycle state, or execute reconciliation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-reconciliation-execution-policy-proofs"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=(
+            AdminApiPermission.STEALTH_POST_WRITE_RECONCILIATION_POLICY_RECORD
+        ),
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for post-write reconciliation policy proof admission",
+        audit="required",
+        shared_method=(
+            "record_stealth_post_write_reconciliation_execution_policy_proof"
+        ),
+        parity_test=(
+            "stealth_order_id identity; policy proof evidence remains "
+            "no-live and does not invoke managers, submit/read/cancel "
+            "Coinbase, cancel/replace active placements, mutate exchange "
+            "state, mutate lifecycle state, or execute reconciliation"
         ),
     ),
     AdminApiRouteInventoryItem(

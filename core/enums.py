@@ -152,6 +152,9 @@ class AdminApiPermission(str, Enum):
     STEALTH_COINBASE_EXCHANGE_POLICY_RECORD = (
         "stealth_coinbase_exchange_policy:record"
     )
+    STEALTH_POST_WRITE_RECONCILIATION_POLICY_RECORD = (
+        "stealth_post_write_reconciliation_policy:record"
+    )
     STEALTH_REVEAL_TRIGGER_RECORD = "stealth_reveal_trigger:record"
     STEALTH_RECOVERY_RECORD = "stealth_recovery:record"
     STEALTH_RECONCILIATION_RECORD = "stealth_reconciliation:record"
@@ -292,6 +295,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_COINBASE_EXCHANGE_SUBMISSION_POLICY_PROOF = (
         "stealth_coinbase_exchange_submission_policy_proof"
     )
+    STEALTH_POST_WRITE_RECONCILIATION_EXECUTION_POLICY_PROOF = (
+        "stealth_post_write_reconciliation_execution_policy_proof"
+    )
     STEALTH_REVEAL_TRIGGER_PROOF = "stealth_reveal_trigger_proof"
     STEALTH_RECOVERY_PROOF = "stealth_recovery_proof"
     STEALTH_RECONCILIATION_PROOF = "stealth_reconciliation_proof"
@@ -323,6 +329,9 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     RECONCILIATION_PLAN = "reconciliation_plan"
     ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
     COINBASE_EXCHANGE_SUBMISSION_POLICY = "coinbase_exchange_submission_policy"
+    POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
+        "post_write_reconciliation_execution_policy"
+    )
     LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
     MANAGER_INVOCATION_POLICY = "manager_invocation_policy"
@@ -558,6 +567,14 @@ class StealthPostWriteReconciliationEvidenceSource(str, Enum):
     POST_WRITE_RUNBOOK_REVIEW = "post_write_runbook_review"
 
 
+class StealthPostWriteReconciliationExecutionPolicyEvidenceSource(str, Enum):
+    """Source posture for stealth post-write reconciliation execution policy."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    EXECUTION_POLICY_REVIEW = "execution_policy_review"
+
+
 class AdminApiApprovalLifecycleStatus(str, Enum):
     """Lifecycle state for backend-owned approval records."""
 
@@ -639,6 +656,9 @@ class AdminApiLivePreflightCategory(str, Enum):
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
     MANAGER_INVOCATION = "manager_invocation"
     COINBASE_EXCHANGE = "coinbase_exchange"
+    POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
+        "post_write_reconciliation_execution_policy"
+    )
     STATE_MUTATION = "state_mutation"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     BROWSER_AUTHORITY = "browser_authority"

@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3301-3320` under M55.
-- Active autonomous range: `3321-3340` under M55.
+- Latest completed autonomous range: `3321-3340` under M55.
+- Active autonomous range: `3341-3360` under M55.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -432,11 +432,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   authority. The completed 3301-3320 range consumes that proof surface as
   exact-command prerequisite resolver evidence for stealth create and
   non-create command execution contracts while keeping manager invocation,
-  Coinbase, reconciliation, browser, and BFF authority disabled. The active
+  Coinbase, reconciliation, browser, and BFF authority disabled. The completed
   3321-3340 range adds backend-owned Coinbase exchange submission-policy
   proof/readback evidence for guarded stealth commands while keeping Coinbase
   submit, cancel, read, manager invocation, reconciliation, state mutation,
-  browser, and BFF authority disabled.
+  browser, and BFF authority disabled. The active 3341-3360 range adds
+  backend-owned post-write reconciliation execution-policy proof/readback
+  evidence while keeping reconciliation execution, Coinbase activity, manager
+  invocation, active-placement cancel/replace, state mutation, browser, and
+  BFF authority disabled.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

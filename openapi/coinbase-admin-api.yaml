@@ -6161,6 +6161,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy:
+    get:
+      tags:
+      - stealth
+      summary: Read stealth post-write reconciliation execution-policy evidence by
+        stealth_order_id
+      description: Read post-write reconciliation policy evidence without execution.
+      operationId: get_stealth_post_write_reconciliation_execution_policy_api_v1_stealth_orders__stealth_order_id__post_write_reconciliation_execution_policy_get
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthPostWriteReconciliationExecutionPolicyReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals:
     get:
       tags:
@@ -8438,6 +8509,121 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs:
+    post:
+      tags:
+      - stealth
+      summary: Record stealth post-write reconciliation execution-policy proof evidence
+      description: Route adapter for no-live post-write reconciliation policy proofs.
+      operationId: record_stealth_post_write_reconciliation_execution_policy_proof_api_v1_stealth_orders__stealth_order_id__post_write_reconciliation_execution_policy_proofs_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthPostWriteReconciliationExecutionPolicyProofRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     ActionConditionType:
@@ -9197,6 +9383,7 @@ components:
       - live_execution_adapter
       - manager_invocation
       - coinbase_exchange
+      - post_write_reconciliation_execution_policy
       - state_mutation
       - live_execution_service
       - browser_authority
@@ -9257,6 +9444,7 @@ components:
       - stealth_mutation_claim_snapshot_proof
       - stealth_manager_invocation_policy_proof
       - stealth_coinbase_exchange_submission_policy_proof
+      - stealth_post_write_reconciliation_execution_policy_proof
       - stealth_reveal_trigger_proof
       - stealth_recovery_proof
       - stealth_reconciliation_proof
@@ -9299,6 +9487,7 @@ components:
       - stealth_mutation_claim:record
       - stealth_manager_policy:record
       - stealth_coinbase_exchange_policy:record
+      - stealth_post_write_reconciliation_policy:record
       - stealth_reveal_trigger:record
       - stealth_recovery:record
       - stealth_reconciliation:record
@@ -9398,6 +9587,7 @@ components:
       - reconciliation_plan
       - active_placement_exchange_truth
       - coinbase_exchange_submission_policy
+      - post_write_reconciliation_execution_policy
       - lifecycle_write_guard
       - mutation_claim_snapshot
       - manager_invocation_policy
@@ -29717,6 +29907,566 @@ components:
       - post_write_runbook_review
       title: StealthPostWriteReconciliationEvidenceSource
       description: Source posture for stealth post-write reconciliation proof evidence.
+    StealthPostWriteReconciliationExecutionPolicyEvidenceSource:
+      type: string
+      enum:
+      - manual_review
+      - test_evidence
+      - execution_policy_review
+      title: StealthPostWriteReconciliationExecutionPolicyEvidenceSource
+      description: Source posture for stealth post-write reconciliation execution
+        policy.
+    StealthPostWriteReconciliationExecutionPolicyProofRecordItem:
+      properties:
+        post_write_reconciliation_policy_proof_id:
+          type: string
+          title: Post Write Reconciliation Policy Proof Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        guarded_command_route:
+          type: string
+          title: Guarded Command Route
+        guarded_command_method:
+          type: string
+          title: Guarded Command Method
+        guarded_service_method:
+          type: string
+          title: Guarded Service Method
+        guarded_mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        guarded_actor_id:
+          type: string
+          title: Guarded Actor Id
+        guarded_operator_intent:
+          type: string
+          title: Guarded Operator Intent
+        guarded_idempotency_key:
+          type: string
+          title: Guarded Idempotency Key
+        guarded_payload_hash:
+          type: string
+          title: Guarded Payload Hash
+        post_write_reconciliation_execution_policy_ref:
+          type: string
+          title: Post Write Reconciliation Execution Policy Ref
+        route_bound_reconciliation_plan_ref:
+          type: string
+          title: Route Bound Reconciliation Plan Ref
+        post_write_execution_journal_policy_ref:
+          type: string
+          title: Post Write Execution Journal Policy Ref
+        post_write_reconciliation_verification_policy_ref:
+          type: string
+          title: Post Write Reconciliation Verification Policy Ref
+        safe_reconciliation_chain_ref:
+          type: string
+          title: Safe Reconciliation Chain Ref
+        evidence_source:
+          $ref: '#/components/schemas/StealthPostWriteReconciliationExecutionPolicyEvidenceSource'
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        audit_id:
+          type: string
+          title: Audit Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_stealth_post_write_reconciliation_execution_policy_log
+        proof_persisted:
+          type: boolean
+          title: Proof Persisted
+          default: true
+        post_write_reconciliation_execution_policy_verified:
+          type: boolean
+          title: Post Write Reconciliation Execution Policy Verified
+          default: false
+        post_write_reconciliation_execution_allowed:
+          type: boolean
+          title: Post Write Reconciliation Execution Allowed
+          default: false
+        route_bound_reconciliation_plan_required:
+          type: boolean
+          title: Route Bound Reconciliation Plan Required
+          default: true
+        execution_journal_required:
+          type: boolean
+          title: Execution Journal Required
+          default: true
+        reconciliation_verification_required:
+          type: boolean
+          title: Reconciliation Verification Required
+          default: true
+        safe_reconciliation_chain_verified:
+          type: boolean
+          title: Safe Reconciliation Chain Verified
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        reconciliation_plan_built:
+          type: boolean
+          title: Reconciliation Plan Built
+          default: false
+        reconciliation_execution_ran:
+          type: boolean
+          title: Reconciliation Execution Ran
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - post_write_reconciliation_policy_proof_id
+      - recorded_at
+      - mutation_family
+      - stealth_order_id
+      - guarded_command_route
+      - guarded_command_method
+      - guarded_service_method
+      - guarded_mutation_family
+      - guarded_actor_id
+      - guarded_operator_intent
+      - guarded_idempotency_key
+      - guarded_payload_hash
+      - post_write_reconciliation_execution_policy_ref
+      - route_bound_reconciliation_plan_ref
+      - post_write_execution_journal_policy_ref
+      - post_write_reconciliation_verification_policy_ref
+      - safe_reconciliation_chain_ref
+      - evidence_source
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - audit_id
+      - detail
+      title: StealthPostWriteReconciliationExecutionPolicyProofRecordItem
+      description: Read-only persisted post-write reconciliation execution-policy
+        evidence.
+    StealthPostWriteReconciliationExecutionPolicyProofRequest:
+      properties:
+        stealth_order_id:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+        guarded_command_route:
+          type: string
+          minLength: 1
+          title: Guarded Command Route
+        guarded_command_method:
+          type: string
+          title: Guarded Command Method
+          default: POST
+        guarded_service_method:
+          type: string
+          minLength: 1
+          title: Guarded Service Method
+        guarded_mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        guarded_actor_id:
+          type: string
+          minLength: 1
+          title: Guarded Actor Id
+        guarded_operator_intent:
+          type: string
+          minLength: 1
+          title: Guarded Operator Intent
+        guarded_idempotency_key:
+          type: string
+          minLength: 1
+          title: Guarded Idempotency Key
+        guarded_payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Guarded Payload Hash
+        post_write_reconciliation_execution_policy_ref:
+          type: string
+          minLength: 1
+          title: Post Write Reconciliation Execution Policy Ref
+        route_bound_reconciliation_plan_ref:
+          type: string
+          minLength: 1
+          title: Route Bound Reconciliation Plan Ref
+        post_write_execution_journal_policy_ref:
+          type: string
+          minLength: 1
+          title: Post Write Execution Journal Policy Ref
+        post_write_reconciliation_verification_policy_ref:
+          type: string
+          minLength: 1
+          title: Post Write Reconciliation Verification Policy Ref
+        safe_reconciliation_chain_ref:
+          type: string
+          minLength: 1
+          title: Safe Reconciliation Chain Ref
+        evidence_source:
+          $ref: '#/components/schemas/StealthPostWriteReconciliationExecutionPolicyEvidenceSource'
+        reconciliation_plan_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          minLength: 1
+          title: Cap Guard Decision Id
+        post_write_reconciliation_policy_proof_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Post Write Reconciliation Policy Proof Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - guarded_command_route
+      - guarded_service_method
+      - guarded_mutation_family
+      - guarded_actor_id
+      - guarded_operator_intent
+      - guarded_idempotency_key
+      - guarded_payload_hash
+      - post_write_reconciliation_execution_policy_ref
+      - route_bound_reconciliation_plan_ref
+      - post_write_execution_journal_policy_ref
+      - post_write_reconciliation_verification_policy_ref
+      - safe_reconciliation_chain_ref
+      - evidence_source
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      title: StealthPostWriteReconciliationExecutionPolicyProofRequest
+      description: Stealth post-write reconciliation execution-policy proof keyed
+        by path id.
+    StealthPostWriteReconciliationExecutionPolicyReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_post_write_reconciliation_execution_policy
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        post_write_reconciliation_execution_policy_verified:
+          type: boolean
+          title: Post Write Reconciliation Execution Policy Verified
+          default: false
+        persisted_proof_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Proof Count
+          default: 0
+        persisted_proofs:
+          items:
+            $ref: '#/components/schemas/StealthPostWriteReconciliationExecutionPolicyProofRecordItem'
+          type: array
+          title: Persisted Proofs
+        latest_post_write_reconciliation_policy_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Post Write Reconciliation Policy Proof Id
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        proof_records_created:
+          type: boolean
+          title: Proof Records Created
+          default: false
+        post_write_reconciliation_execution_allowed:
+          type: boolean
+          title: Post Write Reconciliation Execution Allowed
+          default: false
+        route_bound_reconciliation_plan_required:
+          type: boolean
+          title: Route Bound Reconciliation Plan Required
+          default: true
+        execution_journal_required:
+          type: boolean
+          title: Execution Journal Required
+          default: true
+        reconciliation_verification_required:
+          type: boolean
+          title: Reconciliation Verification Required
+          default: true
+        safe_reconciliation_chain_verified:
+          type: boolean
+          title: Safe Reconciliation Chain Verified
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        reconciliation_plan_build_allowed:
+          type: boolean
+          title: Reconciliation Plan Build Allowed
+          default: false
+        reconciliation_plan_built:
+          type: boolean
+          title: Reconciliation Plan Built
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_execution_ran:
+          type: boolean
+          title: Reconciliation Execution Ran
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - stealth_order_id
+      - detail
+      title: StealthPostWriteReconciliationExecutionPolicyReadResponse
+      description: Read-only stealth post-write reconciliation execution-policy readback.
     StealthPostWriteReconciliationProofReadResponse:
       properties:
         type:

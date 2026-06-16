@@ -140,6 +140,8 @@ from .models import (
     StealthCancelReplaceProofRecordItem,
     StealthPostWriteExecutionJournalReadResponse,
     StealthPostWriteExecutionJournalRecordItem,
+    StealthPostWriteReconciliationExecutionPolicyReadResponse,
+    StealthPostWriteReconciliationExecutionPolicyProofRecordItem,
     StealthPostWriteReconciliationVerificationReadResponse,
     StealthPostWriteReconciliationVerificationRecordItem,
     StealthPostWriteReconciliationProofReadResponse,
@@ -238,6 +240,10 @@ from .stealth_coinbase_exchange_policy import (
     FileStealthCoinbaseExchangeSubmissionPolicyProofStore,
     StealthCoinbaseExchangeSubmissionPolicyProofRecord,
 )
+from .stealth_post_write_reconciliation_policy import (
+    FileStealthPostWriteReconciliationExecutionPolicyProofStore,
+    StealthPostWriteReconciliationExecutionPolicyProofRecord,
+)
 from .stealth_reveal_trigger_proof import (
     FileStealthRevealTriggerProofStore,
     StealthRevealTriggerProofRecord,
@@ -272,7 +278,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "3321-3340"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "3341-3360"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -4073,6 +4079,102 @@ def _stealth_coinbase_exchange_policy_proof_item_from_record(
     )
 
 
+def _stealth_post_write_reconciliation_policy_item_from_record(
+    record: StealthPostWriteReconciliationExecutionPolicyProofRecord,
+) -> StealthPostWriteReconciliationExecutionPolicyProofRecordItem:
+    return StealthPostWriteReconciliationExecutionPolicyProofRecordItem(
+        post_write_reconciliation_policy_proof_id=(
+            record.post_write_reconciliation_policy_proof_id
+        ),
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        stealth_order_id=record.stealth_order_id,
+        guarded_command_route=record.guarded_command_route,
+        guarded_command_method=record.guarded_command_method,
+        guarded_service_method=record.guarded_service_method,
+        guarded_mutation_family=record.guarded_mutation_family,
+        guarded_actor_id=record.guarded_actor_id,
+        guarded_operator_intent=record.guarded_operator_intent,
+        guarded_idempotency_key=record.guarded_idempotency_key,
+        guarded_payload_hash=record.guarded_payload_hash,
+        post_write_reconciliation_execution_policy_ref=(
+            record.post_write_reconciliation_execution_policy_ref
+        ),
+        route_bound_reconciliation_plan_ref=(
+            record.route_bound_reconciliation_plan_ref
+        ),
+        post_write_execution_journal_policy_ref=(
+            record.post_write_execution_journal_policy_ref
+        ),
+        post_write_reconciliation_verification_policy_ref=(
+            record.post_write_reconciliation_verification_policy_ref
+        ),
+        safe_reconciliation_chain_ref=record.safe_reconciliation_chain_ref,
+        evidence_source=record.evidence_source,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        proof_persisted=record.proof_persisted,
+        post_write_reconciliation_execution_policy_verified=(
+            record.post_write_reconciliation_execution_policy_verified
+        ),
+        post_write_reconciliation_execution_allowed=(
+            record.post_write_reconciliation_execution_allowed
+        ),
+        route_bound_reconciliation_plan_required=(
+            record.route_bound_reconciliation_plan_required
+        ),
+        execution_journal_required=record.execution_journal_required,
+        reconciliation_verification_required=(
+            record.reconciliation_verification_required
+        ),
+        safe_reconciliation_chain_verified=(
+            record.safe_reconciliation_chain_verified
+        ),
+        manager_invocation_ran=record.manager_invocation_ran,
+        reconciliation_plan_built=record.reconciliation_plan_built,
+        reconciliation_execution_ran=record.reconciliation_execution_ran,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth post-write reconciliation execution policy proof is "
+            "backend-owned append-only evidence only. It does not execute "
+            "reconciliation, call Coinbase, invoke managers, cancel or "
+            "replace placements, or mutate stealth/order/exchange state."
+        ),
+    )
+
+
 class AdminApiReadService:
     """Read-only status service for operator views.
 
@@ -4112,6 +4214,9 @@ class AdminApiReadService:
         ) = None,
         stealth_coinbase_exchange_policy_proof_store: (
             FileStealthCoinbaseExchangeSubmissionPolicyProofStore | None
+        ) = None,
+        stealth_post_write_reconciliation_policy_proof_store: (
+            FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
         ) = None,
         stealth_reveal_trigger_proof_store: (
             FileStealthRevealTriggerProofStore | None
@@ -4174,6 +4279,10 @@ class AdminApiReadService:
         self.stealth_coinbase_exchange_policy_proof_store = (
             stealth_coinbase_exchange_policy_proof_store
             or FileStealthCoinbaseExchangeSubmissionPolicyProofStore()
+        )
+        self.stealth_post_write_reconciliation_policy_proof_store = (
+            stealth_post_write_reconciliation_policy_proof_store
+            or FileStealthPostWriteReconciliationExecutionPolicyProofStore()
         )
         self.stealth_reveal_trigger_proof_store = (
             stealth_reveal_trigger_proof_store
@@ -8219,6 +8328,83 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "post-write-reconciliation-execution-policy-proofs"
+                ),
+                mutation_id=(
+                    "stealth.post_write_reconciliation_execution_policy_proof"
+                ),
+                mutation_family=(
+                    AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_EXECUTION_POLICY_PROOF
+                ),
+                workflow_id=(
+                    "stealth.post_write_reconciliation_execution_policy_proof_command_draft"
+                ),
+                module="Stealth Orders",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "Stealth post-write reconciliation execution-policy proof "
+                    "recording is append-only local evidence keyed by "
+                    "stealth_order_id and guarded command context; it does not "
+                    "execute reconciliation, call Coinbase, invoke managers, "
+                    "cancel or replace placements, or mutate lifecycle state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_post_write_reconciliation_execution_policy_proof",
+                    "application/admin_api/command_service.py::record_stealth_post_write_reconciliation_execution_policy_proof",
+                    "application/admin_api/stealth_post_write_reconciliation_policy_service.py",
+                    "application/admin_api/stealth_post_write_reconciliation_policy.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthPostWriteReconciliationExecutionPolicyProof",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "README.stealth-post-write-reconciliation-execution-policy.md",
+                    "docs/examples/stealth-post-write-reconciliation-execution-policy.md",
+                ],
+                required_next_contract=(
+                    "Future executable stealth command paths must prove the "
+                    "state-mutation policy and live adapter/service decisions "
+                    "after this route-bound policy record; this proof route is "
+                    "local admission evidence only."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "reconciliation_execution_disabled",
+                    "safe_reconciliation_chain_unverified",
+                    "state_mutation_policy_missing",
+                ],
+                live_adapter_required=False,
+                frontend_boundary=(
+                    "Do not use browser proof records as reconciliation "
+                    "execution, manager, Coinbase, cancel/replace, or "
+                    "lifecycle mutation authority."
+                ),
+                route_local_boundary=(
+                    "FastAPI route adapters must bind auth, RBAC, idempotency, "
+                    "audit, approval, cap/guard, reconciliation evidence, and "
+                    "guarded command context; they must not execute "
+                    "reconciliation, call Coinbase, invoke managers, cancel or "
+                    "replace placements, or mutate lifecycle state."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard "
+                    "evidence; post-write reconciliation policy proof "
+                    "recording is not sell authority, exchange truth, or live "
+                    "execution."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
                 mutation_id="stealth.recovery_proof",
                 mutation_family=AdminApiMutationFamilyType.STEALTH_RECOVERY_PROOF,
@@ -10284,6 +10470,82 @@ class AdminApiReadService:
             ),
         )
 
+    def build_stealth_post_write_reconciliation_execution_policy(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthPostWriteReconciliationExecutionPolicyReadResponse:
+        """Return persisted no-live post-write reconciliation policy evidence."""
+
+        proofs = [
+            _stealth_post_write_reconciliation_policy_item_from_record(record)
+            for record in (
+                self.stealth_post_write_reconciliation_policy_proof_store.read_for_stealth_order_id(
+                    stealth_order_id,
+                    limit=20,
+                )
+            )
+        ]
+        latest_proof_id = (
+            proofs[0].post_write_reconciliation_policy_proof_id
+            if proofs
+            else None
+        )
+        missing_contracts = [
+            "stealth_state_mutation_policy",
+            "stealth_post_write_reconciliation_execution_adapter",
+            "stealth_live_execution_service_policy",
+            "stealth_live_execution_adapter_policy",
+        ]
+        return StealthPostWriteReconciliationExecutionPolicyReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            post_write_reconciliation_execution_policy_verified=False,
+            persisted_proof_count=len(proofs),
+            persisted_proofs=proofs,
+            latest_post_write_reconciliation_policy_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            proof_records_created=bool(proofs),
+            post_write_reconciliation_execution_allowed=False,
+            route_bound_reconciliation_plan_required=True,
+            execution_journal_required=True,
+            reconciliation_verification_required=True,
+            safe_reconciliation_chain_verified=False,
+            manager_invocation_allowed=False,
+            manager_invocation_ran=False,
+            reconciliation_plan_build_allowed=False,
+            reconciliation_plan_built=False,
+            reconciliation_execution_allowed=False,
+            reconciliation_execution_ran=False,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            active_placement_cancel_replace_ran=False,
+            reconciliation_required=True,
+            reconciliation_executed=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth post-write reconciliation execution-policy "
+                "records are backend-owned evidence only. They do not execute "
+                "reconciliation, call Coinbase, invoke managers, cancel or "
+                "replace placements, satisfy state-mutation policy, or mutate "
+                "stealth/order/exchange state."
+            ),
+        )
+
     def build_stealth_reconciliation_proof(
         self,
         *,
@@ -11501,6 +11763,9 @@ class AdminApiReadService:
             ),
             "record_stealth_coinbase_exchange_submission_policy_proof": (
                 AdminApiStealthAdmissionEvidence.COINBASE_EXCHANGE_SUBMISSION_POLICY
+            ),
+            "record_stealth_post_write_reconciliation_execution_policy_proof": (
+                AdminApiStealthAdmissionEvidence.POST_WRITE_RECONCILIATION_EXECUTION_POLICY
             ),
             "record_stealth_recovery_proof": (
                 AdminApiStealthAdmissionEvidence.RECOVERY_PROOF

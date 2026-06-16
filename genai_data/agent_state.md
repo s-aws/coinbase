@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3301-3320`; active range is
-  `3321-3340`.
+- Latest completed autonomous range: `3321-3340`; active range is
+  `3341-3360`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -97,10 +97,15 @@ Keep it short. Keep it factual.
 - Completed `3301-3320` work: consumed manager-invocation policy proof/readback
   as exact-command prerequisite resolver evidence for stealth create and
   non-create execution contracts while preserving no-live/no-write authority.
-- Active `3321-3340` work: add backend-owned Coinbase exchange submission-policy
-  proof/readback evidence for stealth execution contracts while preserving
-  no-live, no-Coinbase-call, no-manager, no-reconciliation, no-state-write,
-  display-only, and BFF forward-only authority.
+- Completed `3321-3340` work: added backend-owned Coinbase exchange
+  submission-policy proof/readback evidence for stealth execution contracts
+  while preserving no-live, no-Coinbase-call, no-manager, no-reconciliation,
+  no-state-write, display-only, and BFF forward-only authority.
+- Active `3341-3360` work: add backend-owned post-write reconciliation
+  execution-policy proof/readback evidence for stealth execution contracts
+  while preserving no-live, no-Coinbase-call, no-manager,
+  no-reconciliation-execution, no-state-write, display-only, and BFF
+  forward-only authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -274,10 +279,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3321-3340`.
+- Active autonomous range: `3341-3360`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete Coinbase exchange submission-policy proof/readback
-  evidence for `3321-3340`. Do not run live Coinbase execution unless a future
+- Current direction: complete post-write reconciliation execution-policy
+  proof/readback evidence for `3341-3360`. Do not run live Coinbase execution unless a future
   approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
@@ -838,12 +843,17 @@ Keep it short. Keep it factual.
   resolver evidence for stealth create and non-create execution contracts
   while preserving no-manager, no-Coinbase, no-reconciliation, no-state-write,
   display-only, and forward-only authority.
-- What is active for M55 3321-3340: backend and frontend expose
+- What is completed for M55 3321-3340: backend and frontend expose
   backend-owned Coinbase exchange submission-policy proof/readback evidence for
   stealth execution contracts while preserving no-live, no-Coinbase-call,
   no-manager, no-reconciliation, no-state-write, display-only, and forward-only
   authority.
+- What is active for M55 3341-3360: backend and frontend expose
+  backend-owned post-write reconciliation execution-policy proof/readback
+  evidence for stealth execution contracts while preserving no-live,
+  no-Coinbase-call, no-manager, no-reconciliation-execution, no-state-write,
+  display-only, and forward-only authority.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3321-3340 implementation, run
+- Exact next command: continue the active 3341-3360 implementation, run
   focused gates, blind/contextless reviews, full gates, browser availability,
   then commit and push both repositories with `$0` live Coinbase execution.
