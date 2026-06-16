@@ -33,6 +33,9 @@ from application.admin_api.stealth_exchange_truth import (
 from application.admin_api.stealth_mutation_claim import (
     FileStealthMutationClaimProofStore,
 )
+from application.admin_api.stealth_manager_policy import (
+    FileStealthManagerInvocationPolicyProofStore,
+)
 from application.admin_api.stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
 )
@@ -435,6 +438,9 @@ def _attach_stealth_execution_posture(
     *,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
+    stealth_manager_policy_proof_store: (
+        FileStealthManagerInvocationPolicyProofStore | None
+    ) = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
@@ -461,6 +467,7 @@ def _attach_stealth_execution_posture(
         admission_decision,
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
+        stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
         stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
@@ -597,6 +604,9 @@ def _execute_idempotent_command(
     live_execution_service: AdminApiLiveExecutionService,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
+    stealth_manager_policy_proof_store: (
+        FileStealthManagerInvocationPolicyProofStore | None
+    ) = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
@@ -674,6 +684,7 @@ def _execute_idempotent_command(
             admission_decision,
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
             stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
+            stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
             stealth_recovery_proof_store=stealth_recovery_proof_store,
             stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
             stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
@@ -713,6 +724,7 @@ def _execute_idempotent_command(
         admission_decision,
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
+        stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
         stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,

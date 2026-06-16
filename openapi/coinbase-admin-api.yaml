@@ -21104,6 +21104,19 @@ components:
           type: boolean
           title: Reveal Trigger Evidence Resolved
           default: false
+        manager_invocation_policy_required:
+          type: boolean
+          title: Manager Invocation Policy Required
+          default: false
+        manager_invocation_policy_resolved:
+          type: boolean
+          title: Manager Invocation Policy Resolved
+          default: false
+        manager_invocation_policy_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Manager Invocation Policy Proof Id
         mutation_claim_snapshot_required:
           type: boolean
           title: Mutation Claim Snapshot Required
@@ -21390,6 +21403,7 @@ components:
       - admission_audit
       - cap_guard_decision
       - reconciliation_plan
+      - manager_invocation_policy
       - active_placement_exchange_truth
       - reveal_trigger_evidence
       - mutation_claim_snapshot
@@ -22882,6 +22896,7 @@ components:
       - admission_audit
       - cap_guard_decision
       - reconciliation_plan
+      - manager_invocation_policy
       - lifecycle_write_guard_proof
       - live_execution_service
       - live_execution_adapter
@@ -23439,6 +23454,19 @@ components:
             $ref: '#/components/schemas/StealthCreateLifecycleExecutionBlockerChainItem'
           type: array
           title: Remaining Execution Blockers
+        manager_invocation_policy_required:
+          type: boolean
+          title: Manager Invocation Policy Required
+          default: true
+        manager_invocation_policy_resolved:
+          type: boolean
+          title: Manager Invocation Policy Resolved
+          default: false
+        manager_invocation_policy_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Manager Invocation Policy Proof Id
         lifecycle_write_guard_proof_required:
           type: boolean
           title: Lifecycle Write Guard Proof Required

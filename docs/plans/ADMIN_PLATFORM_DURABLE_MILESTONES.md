@@ -2771,9 +2771,12 @@ Current backend evidence:
   clearance action. Completed phases 3261-3280 added backend-derived forbidden
   execution claim traceability that maps each forbidden claim to the backend
   decision and clearance action that keeps it blocked while keeping browser
-  and BFF authority display-only/forward-only. Active phases 3281-3300 add
-  backend-owned manager-invocation policy proof/readback evidence without
-  granting manager invocation, Coinbase, reconciliation, browser, or BFF
+  and BFF authority display-only/forward-only. Completed phases 3281-3300
+  added backend-owned manager-invocation policy proof/readback evidence
+  without granting manager invocation, Coinbase, reconciliation, browser, or
+  BFF authority. Active phases 3301-3320 consume that proof surface as
+  exact-command prerequisite resolver evidence for stealth create and
+  non-create command execution contracts while preserving no-live/no-write
   authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:

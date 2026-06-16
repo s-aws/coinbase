@@ -35,6 +35,10 @@ from .stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
     StealthCreateLifecycleWriteGuardProofRecord,
 )
+from .stealth_manager_policy import (
+    FileStealthManagerInvocationPolicyProofStore,
+    StealthManagerInvocationPolicyProofRecord,
+)
 from .stealth_execution_preflight import (
     build_stealth_execution_live_readiness,
     build_stealth_execution_preflight,
@@ -76,6 +80,7 @@ REQUIRED_CREATE_EXECUTION_PREREQUISITES: tuple[str, ...] = (
     StealthCreateLifecycleExecutionPrerequisite.ADMISSION_AUDIT.value,
     StealthCreateLifecycleExecutionPrerequisite.CAP_GUARD_DECISION.value,
     StealthCreateLifecycleExecutionPrerequisite.RECONCILIATION_PLAN.value,
+    StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
     StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value,
     StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
     StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
@@ -97,6 +102,10 @@ NEXT_REQUIRED_CREATE_CONTRACT_BY_PREREQUISITE: dict[
     ),
     StealthCreateLifecycleExecutionPrerequisite.RECONCILIATION_PLAN: (
         "POST /api/v1/admin/reconciliation/plans"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "manager-invocation-policy-proofs"
     ),
     StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF: (
         "POST /api/v1/stealth/orders/{stealth_order_id}/"
@@ -140,6 +149,9 @@ def build_stealth_create_lifecycle_write_execution_contract(
     lifecycle_write_guard_proof_store: (
         FileStealthLifecycleWriteGuardProofStore | None
     ) = None,
+    manager_policy_proof_store: (
+        FileStealthManagerInvocationPolicyProofStore | None
+    ) = None,
     post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
     ) = None,
@@ -158,6 +170,7 @@ def build_stealth_create_lifecycle_write_execution_contract(
         exact_command_context_present=exact_command_context_present,
         admission_decision=admission_decision,
         lifecycle_write_guard_proof_store=lifecycle_write_guard_proof_store,
+        manager_policy_proof_store=manager_policy_proof_store,
         post_write_reconciliation_proof_store=post_write_reconciliation_proof_store,
         post_write_execution_journal_store=post_write_execution_journal_store,
         post_write_reconciliation_verification_store=(
@@ -265,6 +278,20 @@ def build_stealth_create_lifecycle_write_execution_contract(
         blockers=blockers,
         remaining_execution_blocker_count=len(remaining_execution_blockers),
         remaining_execution_blockers=remaining_execution_blockers,
+        manager_invocation_policy_required=True,
+        manager_invocation_policy_resolved=(
+            StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+            in resolved
+        ),
+        manager_invocation_policy_proof_id=next(
+            (
+                item.resolved_evidence_id
+                for item in resolution
+                if item.prerequisite
+                == StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY
+            ),
+            None,
+        ),
         lifecycle_write_guard_proof_resolved=(
             StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
             in resolved
@@ -634,6 +661,9 @@ def _build_prerequisite_resolution(
     lifecycle_write_guard_proof_store: (
         FileStealthLifecycleWriteGuardProofStore | None
     ),
+    manager_policy_proof_store: (
+        FileStealthManagerInvocationPolicyProofStore | None
+    ),
     post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
     ),
@@ -733,12 +763,24 @@ def _build_prerequisite_resolution(
             and reconciliation.resolved
         ),
     )
+    manager_policy = _resolve_manager_invocation_policy_proof(
+        stealth_order_id=stealth_order_id,
+        admission_decision=admission_decision,
+        manager_policy_proof_store=manager_policy_proof_store,
+        prerequisites_resolved=(
+            approval.resolved
+            and admission.resolved
+            and cap_guard.resolved
+            and reconciliation.resolved
+        ),
+    )
 
     return [
         approval,
         admission,
         cap_guard,
         reconciliation,
+        manager_policy,
         lifecycle_guard,
         _resolver_item(
             prerequisite=(
@@ -903,6 +945,154 @@ def _find_matching_lifecycle_write_guard_proof(
         ):
             return record
     return None
+
+
+def _resolve_manager_invocation_policy_proof(
+    *,
+    stealth_order_id: str | None,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    manager_policy_proof_store: (
+        FileStealthManagerInvocationPolicyProofStore | None
+    ),
+    prerequisites_resolved: bool,
+) -> StealthCreateLifecyclePrerequisiteResolverItem:
+    prerequisite = StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY
+    source = "admin_api_stealth_manager_invocation_policy_log"
+    if not prerequisites_resolved:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=(
+                StealthCreateLifecycleExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY
+            ),
+            missing_reason="admission_prerequisites_missing",
+            detail=(
+                "Manager-invocation policy proof lookup requires approval, "
+                "audit, cap/guard, and reconciliation evidence first."
+            ),
+        )
+    if manager_policy_proof_store is None or not stealth_order_id:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="manager_invocation_policy_proof_store_unavailable",
+            detail="Manager-invocation policy proof store was not available.",
+        )
+
+    record = _find_latest_manager_invocation_policy_proof(
+        store=manager_policy_proof_store,
+        stealth_order_id=stealth_order_id,
+    )
+    if record is not None and not _is_safe_manager_invocation_policy_proof(
+        record,
+        admission_decision=admission_decision,
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=record.manager_policy_proof_id,
+            missing_reason="manager_invocation_policy_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest manager-invocation policy proof was found but is not "
+                "safe exact-context no-live/no-mutation evidence for stealth "
+                "create execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        identity_value=stealth_order_id,
+        source=source,
+        lookup_status=(
+            StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.manager_policy_proof_id if record is not None else None
+        ),
+        missing_reason=(
+            None if record is not None else "no_matching_manager_invocation_policy_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned manager-invocation policy proof lookup is read-only "
+            "and does not invoke managers, call Coinbase, write lifecycle "
+            "state, execute reconciliation, or authorize execution."
+        ),
+    )
+
+
+def _find_latest_manager_invocation_policy_proof(
+    *,
+    store: FileStealthManagerInvocationPolicyProofStore,
+    stealth_order_id: str,
+) -> StealthManagerInvocationPolicyProofRecord | None:
+    records = store.read_for_stealth_order_id(stealth_order_id, limit=1)
+    return records[0] if records else None
+
+
+def _is_safe_manager_invocation_policy_proof(
+    record: StealthManagerInvocationPolicyProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        _manager_invocation_policy_proof_matches_admission(
+            record,
+            admission_decision=admission_decision,
+        )
+        and record.proof_persisted is True
+        and record.manager_policy_verified is False
+        and record.manager_invocation_allowed is False
+        and record.manager_invocation_ran is False
+        and record.mutation_lock_policy_verified is False
+        and record.exchange_reality_policy_verified is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
+def _manager_invocation_policy_proof_matches_admission(
+    record: StealthManagerInvocationPolicyProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == STEALTH_CREATE_ROUTE
+        and record.guarded_command_method == STEALTH_CREATE_METHOD
+        and record.guarded_service_method == STEALTH_CREATE_SERVICE_METHOD
+        and record.guarded_mutation_family == AdminApiMutationFamilyType.STEALTH_CREATE
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+        and record.reconciliation_plan_id == admission_decision.reconciliation_plan_id
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+        and record.cap_guard_decision_id == admission_decision.cap_guard_decision_id
+    )
 
 
 def _resolve_post_write_reconciliation_proof(

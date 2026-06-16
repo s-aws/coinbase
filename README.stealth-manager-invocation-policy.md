@@ -40,7 +40,8 @@ state.
   - `guarded_idempotency_key`
   - `guarded_payload_hash`
   - `manager_policy_ref`
-  - `manager_policy_evidence_ref`
+  - `mutation_lock_policy_ref`
+  - `exchange_reality_policy_ref`
 - Proof records must be dry-run evidence and must not include manual live
   acknowledgement.
 

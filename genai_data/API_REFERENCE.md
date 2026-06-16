@@ -26,6 +26,7 @@ Current route adapters:
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/recovery-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof`
@@ -35,6 +36,7 @@ Current route adapters:
 - `POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/recovery-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs`

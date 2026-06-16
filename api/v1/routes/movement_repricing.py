@@ -221,6 +221,9 @@ def reprice_stealth_order_by_stealth_order_id(
         stealth_mutation_claim_proof_store=(
             service.dependencies.stealth_mutation_claim_proof_store_getter()
         ),
+        stealth_manager_policy_proof_store=(
+            service.dependencies.stealth_manager_policy_proof_store_getter()
+        ),
         stealth_cancel_replace_proof_store=(
             service.dependencies.stealth_cancel_replace_proof_store_getter()
         ),

@@ -6765,6 +6765,9 @@ class StealthCommandExecutionContractEvidence(BaseModel):
     ) = None
     reveal_trigger_evidence_required: bool = False
     reveal_trigger_evidence_resolved: bool = False
+    manager_invocation_policy_required: bool = False
+    manager_invocation_policy_resolved: bool = False
+    manager_invocation_policy_proof_id: str | None = None
     mutation_claim_snapshot_required: bool = False
     mutation_claim_snapshot_resolved: bool = False
     recovery_proof_required: bool = False
@@ -6988,6 +6991,9 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     remaining_execution_blockers: list[
         StealthCreateLifecycleExecutionBlockerChainItem
     ] = Field(default_factory=list)
+    manager_invocation_policy_required: bool = True
+    manager_invocation_policy_resolved: bool = False
+    manager_invocation_policy_proof_id: str | None = None
     lifecycle_write_guard_proof_required: bool = True
     lifecycle_write_guard_proof_resolved: bool = False
     lifecycle_write_guard_proof_lookup_ran: bool = False

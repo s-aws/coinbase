@@ -6423,6 +6423,14 @@ def _assert_stealth_command_execution_contract(
         "missing_reason"
     ] == "admission_prerequisites_missing"
     assert resolution_by_prerequisite[
+        StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+    ]["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY.value
+    )
+    assert resolution_by_prerequisite[
+        StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+    ]["missing_reason"] == "admission_prerequisites_missing"
+    assert resolution_by_prerequisite[
         StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
     ]["lookup_status"] == StealthCommandExecutionPrerequisiteLookupStatus.DISABLED.value
     assert resolution_by_prerequisite[
@@ -6890,6 +6898,43 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         cap_guard_decision_id="cap-stealth-create-resolved",
         reconciliation_plan_id="recon-stealth-create-resolved",
     )
+    client.admin_api_test_stealth_manager_policy_proof_store.append(
+        StealthManagerInvocationPolicyProofRecord(
+            manager_policy_proof_id="manager-policy-proof-create-resolved",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_command_method="POST",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_actor_id="operator-001",
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            manager_policy_ref="operator-reviewed-manager-policy-create",
+            mutation_lock_policy_ref="operator-reviewed-mutation-lock-create",
+            exchange_reality_policy_ref="operator-reviewed-exchange-reality-create",
+            evidence_source=StealthManagerPolicyEvidenceSource.TEST_EVIDENCE,
+            reconciliation_plan_id="recon-stealth-create-resolved",
+            approval_snapshot_id="approval-stealth-create-resolved",
+            admission_audit_id="audit-stealth-create-resolved",
+            cap_guard_decision_id="cap-stealth-create-resolved",
+            route=(
+                "/api/v1/stealth/orders/{stealth_order_id}/"
+                "manager-invocation-policy-proofs"
+            ),
+            method="POST",
+            service_method="record_stealth_manager_invocation_policy_proof",
+            actor_id="operator-001",
+            operator_intent="stealth_manager_invocation_policy_review",
+            idempotency_key="idem-manager-policy-proof-create-resolved",
+            correlation_id="corr-manager-policy-proof-create-resolved",
+            payload_hash="8" * 64,
+            audit_id="audit-manager-policy-proof-create-resolved",
+            dry_run=True,
+            operator_reason="contract evidence only",
+            manual_live_acknowledgement=False,
+        )
+    )
     client.admin_api_test_stealth_lifecycle_write_guard_proof_store.append(
         StealthCreateLifecycleWriteGuardProofRecord(
             lifecycle_write_guard_proof_id="life-write-proof-create-resolved",
@@ -7008,6 +7053,7 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         StealthCreateLifecycleExecutionPrerequisite.ADMISSION_AUDIT.value,
         StealthCreateLifecycleExecutionPrerequisite.CAP_GUARD_DECISION.value,
         StealthCreateLifecycleExecutionPrerequisite.RECONCILIATION_PLAN.value,
+        StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
         StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value,
         StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
     } <= resolved
@@ -7033,6 +7079,20 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value
     ]["lookup_status"] == (
         StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    manager_policy_resolution = resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+    ]
+    assert manager_policy_resolution["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert manager_policy_resolution["lookup_ran"] is True
+    assert manager_policy_resolution["resolved"] is True
+    assert manager_policy_resolution["resolved_evidence_id"] == (
+        "manager-policy-proof-create-resolved"
+    )
+    assert manager_policy_resolution["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
     )
     assert resolution_by_prerequisite[
         StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
@@ -7072,7 +7132,7 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
     assert execution_contract["execution_readiness_stage_count"] == len(
         StealthCreateLifecycleExecutionPrerequisite
     )
-    assert execution_contract["passed_execution_readiness_stage_count"] == 6
+    assert execution_contract["passed_execution_readiness_stage_count"] == 7
     assert execution_contract["blocked_execution_readiness_stage_count"] == 2
     assert [row["stage_order"] for row in stages] == list(
         range(1, len(stages) + 1)
@@ -7099,6 +7159,20 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         "POST /api/v1/stealth/orders/{stealth_order_id}/"
         "lifecycle-write-guard-proofs"
     )
+    manager_policy_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+    ]
+    assert manager_policy_stage["status"] == AdminApiGateStatus.PASSED.value
+    assert manager_policy_stage["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert manager_policy_stage["resolved_evidence_id"] == (
+        "manager-policy-proof-create-resolved"
+    )
+    assert manager_policy_stage["next_required_contract"] == (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "manager-invocation-policy-proofs"
+    )
     live_service_stage = stages_by_prerequisite[
         StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
     ]
@@ -7113,6 +7187,11 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
     )
     assert execution_contract["lifecycle_write_guard_proof_resolved"] is True
     assert execution_contract["lifecycle_write_guard_proof_lookup_ran"] is True
+    assert execution_contract["manager_invocation_policy_required"] is True
+    assert execution_contract["manager_invocation_policy_resolved"] is True
+    assert execution_contract["manager_invocation_policy_proof_id"] == (
+        "manager-policy-proof-create-resolved"
+    )
     assert execution_contract["live_execution_service_source"] == (
         DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
     )
@@ -7587,6 +7666,7 @@ def test_admin_api_stealth_reveal_contract_is_fail_closed_and_no_live(monkeypatc
             StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
             StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
@@ -7662,6 +7742,7 @@ def test_admin_api_stealth_move_contract_is_fail_closed_and_no_live(monkeypatch)
             StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
@@ -8197,6 +8278,7 @@ def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypa
             StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
@@ -8272,6 +8354,7 @@ def test_admin_api_stealth_recovery_contract_is_fail_closed_and_no_live(monkeypa
             StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
@@ -8459,7 +8542,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3281-3300"
+    assert readback_payload["approved_phase_range"] == "3301-3320"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -8679,7 +8762,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3281-3300"
+    assert readback_payload["approved_phase_range"] == "3301-3320"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -8722,6 +8805,229 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
         and row.admission_decision.live_exchange_submitted is False
         for row in proof_audit_rows
     )
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_execution_contract_resolves_manager_policy_proof(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-manager-policy-execution-proof-001"
+    route = "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    path = f"/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    body = {
+        "reason": "trigger_window_open",
+        "manual_live_acknowledgement": True,
+    }
+    idempotency_key = "idem-stealth-manager-policy-execution"
+    operator_intent = "stealth_reveal_execution_review"
+    payload_hash = _stealth_command_payload_hash(
+        endpoint=f"POST {path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        model=StealthRevealRequest,
+        operator_intent=operator_intent,
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=route,
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        approval_snapshot_id="stealth-manager-policy-exec-approval-001",
+        admission_audit_id="stealth-manager-policy-exec-audit-001",
+        cap_guard_decision_id="stealth-manager-policy-exec-cap-001",
+        reconciliation_plan_id="stealth-manager-policy-exec-recon-001",
+    )
+    safe_proof = StealthManagerInvocationPolicyProofRecord(
+        manager_policy_proof_id="stealth-manager-policy-exec-proof-001",
+        stealth_order_id=stealth_order_id,
+        guarded_command_route=route,
+        guarded_command_method="POST",
+        guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+        guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+        guarded_actor_id="operator-001",
+        guarded_operator_intent=operator_intent,
+        guarded_idempotency_key=idempotency_key,
+        guarded_payload_hash=payload_hash,
+        manager_policy_ref="operator-reviewed-manager-policy-exec-001",
+        mutation_lock_policy_ref="operator-reviewed-mutation-lock-exec-001",
+        exchange_reality_policy_ref="operator-reviewed-exchange-reality-exec-001",
+        evidence_source=StealthManagerPolicyEvidenceSource.TEST_EVIDENCE,
+        reconciliation_plan_id="stealth-manager-policy-exec-recon-001",
+        approval_snapshot_id="stealth-manager-policy-exec-approval-001",
+        admission_audit_id="stealth-manager-policy-exec-audit-001",
+        cap_guard_decision_id="stealth-manager-policy-exec-cap-001",
+        route=(
+            "/api/v1/stealth/orders/{stealth_order_id}/"
+            "manager-invocation-policy-proofs"
+        ),
+        method="POST",
+        service_method="record_stealth_manager_invocation_policy_proof",
+        actor_id="operator-001",
+        operator_intent="stealth_manager_invocation_policy_review",
+        idempotency_key="idem-stealth-manager-policy-exec-proof-001",
+        correlation_id="corr-stealth-manager-policy-exec-proof-001",
+        payload_hash="7" * 64,
+        audit_id="audit-stealth-manager-policy-exec-proof-001",
+        dry_run=True,
+        operator_reason="contract evidence only",
+        manual_live_acknowledgement=False,
+    )
+    client.admin_api_test_stealth_manager_policy_proof_store.append(safe_proof)
+
+    response = client.post(
+        path,
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 501
+    contract = response.json()["stealth_command_execution_contract"]
+    assert contract["execution_allowed"] is False
+    assert contract["manager_invocation_policy_required"] is True
+    assert contract["manager_invocation_policy_resolved"] is True
+    assert contract["manager_invocation_policy_proof_id"] == (
+        "stealth-manager-policy-exec-proof-001"
+    )
+    assert (
+        StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+        in contract["resolved_prerequisites"]
+    )
+    assert (
+        StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+        not in contract["missing_prerequisites"]
+    )
+    manager_policy_row = {
+        row["prerequisite"]: row
+        for row in contract["prerequisite_resolution"]
+    }[StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value]
+    assert manager_policy_row["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert manager_policy_row["lookup_ran"] is True
+    assert manager_policy_row["resolved"] is True
+    assert manager_policy_row["resolved_evidence_id"] == (
+        "stealth-manager-policy-exec-proof-001"
+    )
+    assert manager_policy_row["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
+    assert contract["manager_invocation_allowed"] is False
+    assert contract["manager_invocation_ran"] is False
+    assert contract["coinbase_order_submitted"] is False
+    assert contract["coinbase_order_cancel_submitted"] is False
+    assert contract["active_placement_cancel_replace_ran"] is False
+    assert contract["reconciliation_executed"] is False
+    assert contract["lifecycle_state_mutated"] is False
+    assert contract["order_state_mutated"] is False
+    assert contract["exchange_state_mutated"] is False
+
+    unsafe_idempotency_key = "idem-stealth-manager-policy-execution-unsafe"
+    unsafe_operator_intent = "stealth_reveal_execution_review_latest_unsafe"
+    unsafe_payload_hash = _stealth_command_payload_hash(
+        endpoint=f"POST {path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        model=StealthRevealRequest,
+        operator_intent=unsafe_operator_intent,
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=route,
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=unsafe_idempotency_key,
+        operator_intent=unsafe_operator_intent,
+        payload_hash=unsafe_payload_hash,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        approval_snapshot_id="stealth-manager-policy-exec-approval-unsafe-001",
+        admission_audit_id="stealth-manager-policy-exec-audit-unsafe-001",
+        cap_guard_decision_id="stealth-manager-policy-exec-cap-unsafe-001",
+        reconciliation_plan_id="stealth-manager-policy-exec-recon-unsafe-001",
+    )
+    client.admin_api_test_stealth_manager_policy_proof_store.append(
+        safe_proof.model_copy(
+            update={
+                "manager_policy_proof_id": (
+                    "stealth-manager-policy-exec-proof-unsafe-001"
+                ),
+                "guarded_operator_intent": unsafe_operator_intent,
+                "guarded_idempotency_key": unsafe_idempotency_key,
+                "guarded_payload_hash": unsafe_payload_hash,
+                "reconciliation_plan_id": (
+                    "stealth-manager-policy-exec-recon-unsafe-001"
+                ),
+                "approval_snapshot_id": (
+                    "stealth-manager-policy-exec-approval-unsafe-001"
+                ),
+                "admission_audit_id": (
+                    "stealth-manager-policy-exec-audit-unsafe-001"
+                ),
+                "cap_guard_decision_id": (
+                    "stealth-manager-policy-exec-cap-unsafe-001"
+                ),
+                "manager_invocation_allowed": True,
+                "idempotency_key": (
+                    "idem-stealth-manager-policy-exec-proof-unsafe-001"
+                ),
+                "audit_id": "audit-stealth-manager-policy-exec-proof-unsafe-001",
+            }
+        )
+    )
+
+    unsafe_response = client.post(
+        path,
+        headers=_headers(
+            idempotency_key=unsafe_idempotency_key,
+            operator_intent=unsafe_operator_intent,
+        ),
+        json=body,
+    )
+
+    assert unsafe_response.status_code == 501
+    unsafe_contract = unsafe_response.json()["stealth_command_execution_contract"]
+    assert unsafe_contract["manager_invocation_policy_resolved"] is False
+    assert unsafe_contract["manager_invocation_policy_proof_id"] is None
+    assert (
+        StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
+        in unsafe_contract["missing_prerequisites"]
+    )
+    unsafe_manager_policy_row = {
+        row["prerequisite"]: row
+        for row in unsafe_contract["prerequisite_resolution"]
+    }[StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value]
+    assert unsafe_manager_policy_row["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert unsafe_manager_policy_row["lookup_ran"] is True
+    assert unsafe_manager_policy_row["resolved"] is False
+    assert unsafe_manager_policy_row["stale_or_invalid"] is True
+    assert unsafe_manager_policy_row["missing_reason"] == (
+        "manager_invocation_policy_proof_not_safe"
+    )
+    assert unsafe_manager_policy_row["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
+    assert unsafe_contract["manager_invocation_allowed"] is False
+    assert unsafe_contract["manager_invocation_ran"] is False
+    assert unsafe_contract["coinbase_order_submitted"] is False
+    assert unsafe_contract["coinbase_order_cancel_submitted"] is False
+    assert unsafe_contract["reconciliation_executed"] is False
 
 
 @pytest.mark.regression
@@ -8893,7 +9199,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3281-3300"
+    assert readback_payload["approved_phase_range"] == "3301-3320"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11586,6 +11892,7 @@ def test_admin_api_stealth_reconciliation_contract_is_fail_closed_and_no_live(
             StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
@@ -12079,7 +12386,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3281-3300"
+    assert readback_payload["approved_phase_range"] == "3301-3320"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12294,7 +12601,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3281-3300"
+    assert readback_payload["approved_phase_range"] == "3301-3320"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12385,6 +12692,7 @@ def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkey
             StealthCommandExecutionPrerequisite.ADMISSION_AUDIT.value,
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
+            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
@@ -14521,7 +14829,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3281-3300"
+    assert payload["approved_phase_range"] == "3301-3320"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -16347,7 +16655,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3281-3300"
+    assert live_payload["approved_phase_range"] == "3301-3320"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -16910,7 +17218,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3281-3300"
+    assert enterprise_payload["approved_phase_range"] == "3301-3320"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -17541,7 +17849,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3281-3300"
+    assert recovery_preview_payload["approved_phase_range"] == "3301-3320"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

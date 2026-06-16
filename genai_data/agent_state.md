@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3241-3260`; active range is
-  `3261-3280`.
+- Latest completed autonomous range: `3281-3300`; active range is
+  `3301-3320`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -86,10 +86,17 @@ Keep it short. Keep it factual.
   queue rows over each unresolved decision's first blocked clearance action
   with queue summary evidence and disabled resolver/writer/execution
   authority.
-- Active `3261-3280` work: add backend-derived forbidden execution claim
+- Completed `3261-3280` work: added backend-derived forbidden execution claim
   traceability that maps each forbidden claim to the backend decision and
   clearance action that keeps it blocked with disabled resolver/writer/
   execution authority.
+- Completed `3281-3300` work: added backend-owned manager-invocation policy
+  proof/readback evidence for guarded stealth commands while preserving
+  no-manager, no-Coinbase, no-reconciliation, display-only, and BFF
+  forward-only authority.
+- Active `3301-3320` work: consume manager-invocation policy proof/readback as
+  exact-command prerequisite resolver evidence for stealth create and
+  non-create execution contracts while preserving no-live/no-write authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -263,11 +270,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3261-3280`.
+- Active autonomous range: `3301-3320`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete forbidden execution claim traceability for
-  `3261-3280`. Do not run live Coinbase execution unless a future approved
-  phase explicitly authorizes it.
+- Current direction: complete manager-invocation policy prerequisite resolver
+  evidence for `3301-3320`. Do not run live Coinbase execution unless a
+  future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -554,27 +561,28 @@ Keep it short. Keep it factual.
 ## Validation Status
 
 - Last backend focused Admin API/readiness run: 2026-06-16
-  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_stealth_post_write_reconciliation_verification_is_no_live_and_path_keyed tests\regression\test_admin_api_contract.py::test_admin_api_stealth_post_write_reconciliation_verification_readback_requires_exact_chain tests\regression\test_admin_api_contract.py::test_admin_api_stealth_post_write_reconciliation_verification_rejects_unsafe_and_duplicate_records tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_and_openapi_paths_stay_in_sync -v --tb=short`
-- Result: Passed, 5 selected tests, 1 warning.
+  `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
+- Result: Passed, 127 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-16
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M55 range `3001-3020` passed. Live Coinbase
+- Result: M55 range `3301-3320` passed. Live Coinbase
   execution `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-16
   `python -m pytest tests\regression\ -v --tb=short`
-- Result: Passed, 853 tests, 1 warning.
+- Result: Passed, 855 tests, 1 warning.
 - Last frontend focused run: 2026-06-16
   `npm run api:check`, `npm run api:routes:check`,
   `npm run autonomous:check`, and
-  `npm run test -- backendApiClient.test.ts mockBackend.test.ts backendRuntime.test.ts mutationContracts.test.ts commandDrySubmit.test.ts StealthOrdersReadModel.test.tsx adminBffProxy.test.ts adminBffRoute.test.ts`.
-- Result: Passed focused M55 verification frontend checks with 132 tests.
-  Full frontend `npm run release:gate` passed with 251 unit tests and 3
+  `npm run test -- commandDrySubmit.test.ts mockBackend.test.ts StealthOrdersReadModel.test.tsx backendRuntime.test.ts qualityGates.test.tsx`.
+- Result: Passed focused M55 verification frontend checks with 80 tests.
+  Full frontend `npm run release:gate` passed with 254 unit tests and 3
   Playwright tests.
 - Last blind/contextless M55 review: 2026-06-16
-- Result: 3021-3040 backend and frontend execution live-readiness closure
-  reviews passed after stale-doc remediation. Spot-order orientation review
-  passed and confirmed current manual Spot order creation remains backend
-  live-disabled.
+- Result: 3301-3320 backend, frontend, and roadmap/handoff reviews passed
+  after stale frontend phase-id metadata and stale validation-status lines
+  were remediated. The reviews confirmed manager-policy proof readback is
+  prerequisite evidence only and does not grant manager, Coinbase,
+  reconciliation, state-write, browser, or BFF execution authority.
 - Live Coinbase execution for M55: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
@@ -814,11 +822,19 @@ Keep it short. Keep it factual.
   backend-derived decision resolution work queue rows over first blocked
   clearance actions while keeping them blocked, no-live, display-only, and
   forward-only.
-- What is active for M55 3261-3280: backend and frontend expose
+- What is completed for M55 3261-3280: backend and frontend expose
   backend-derived forbidden execution claim traceability that maps each
   forbidden claim to the backend decision and clearance action that keeps it
   blocked while remaining no-live, display-only, and forward-only.
+- What is completed for M55 3281-3300: backend and frontend expose
+  backend-owned manager-invocation policy proof/readback evidence for guarded
+  stealth commands while remaining no-live, display-only, and forward-only.
+- What is active for M55 3301-3320: backend and frontend consume
+  manager-invocation policy proof/readback as exact-command prerequisite
+  resolver evidence for stealth create and non-create execution contracts
+  while preserving no-manager, no-Coinbase, no-reconciliation, no-state-write,
+  display-only, and forward-only authority.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3261-3280 implementation, run
+- Exact next command: continue the active 3301-3320 implementation, run
   focused gates, blind/contextless reviews, full gates, browser availability,
   then commit and push both repositories with `$0` live Coinbase execution.

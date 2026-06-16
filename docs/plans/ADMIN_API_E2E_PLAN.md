@@ -38,95 +38,111 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Manager-Invocation Policy Evidence Batch - Phases 3281-3300
+## Active M55 Manager-Policy Prerequisite Resolver Batch - Phases 3301-3320
 
-These phases continue M55 by adding backend-owned manager-invocation policy
-proof/readback for guarded stealth commands. The proof records are append-only
-local evidence that a future backend execution design may evaluate as one
-prerequisite before manager invocation can ever be considered. They must not
-invoke managers, call Coinbase, cancel or replace active placements, execute
-reconciliation, mutate state, grant browser authority, or grant BFF execution
-authority.
+These phases continue M55 by consuming the manager-invocation policy proof
+surface added in phases 3281-3300 as exact-command prerequisite evidence for
+stealth create and non-create execution contracts. The resolver rows are
+read-only backend store lookups. They must not invoke managers, call Coinbase,
+cancel or replace active placements, execute reconciliation, mutate state,
+grant browser authority, or grant BFF execution authority.
 
-### Phase 3281 - Advance Active Queue Range
+### Phase 3301 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3261-3280 to active phases 3281-3300 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3281-3300 to active phases 3301-3320 while preserving no-live defaults and cap policy.
 
-### Phase 3282 - Prior Range Completion Evidence
+### Phase 3302 - Prior Range Completion Evidence
 
-- Keep completed phases 3261-3280 recorded as forbidden execution claim traceability evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+- Keep completed phases 3281-3300 recorded as manager-policy proof/readback evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3283 - Backend Enum And Model Contract
+### Phase 3303 - Backend Prerequisite Enums And Fields
 
-- Add the manager-policy permission, mutation family, admission evidence, evidence-source enum, request/command/readback models, and command response shape without magic strings.
+- Add `manager_invocation_policy` to create and non-create execution prerequisite enums and expose required/resolved/proof-id fields in the typed contracts.
 
-### Phase 3284 - Backend Proof Store
+### Phase 3304 - Non-Create Resolver Store Input
 
-- Add a durable append-only manager-invocation policy proof store keyed by `stealth_order_id` and proof id.
+- Thread the manager-policy proof store through the shared exact stealth command execution resolver and all non-create stealth/movement route adapters.
 
-### Phase 3285 - Backend Policy Service Guard
+### Phase 3305 - Create Lifecycle Resolver Store Input
 
-- Validate exact guarded command context, route inventory metadata, required refs, dry-run/no-live posture, and duplicate proof ids before recording proof evidence.
+- Thread the same proof store into the stealth create lifecycle execution contract so create is not left behind the guarded proof surface.
 
-### Phase 3286 - Backend Command Service Integration
+### Phase 3306 - Exact Context Proof Matching
 
-- Route proof recording through the existing Admin API command service, admission checks, audit response shape, and no-live rejection path.
+- Match manager-policy proofs against route, method, service method, mutation family, actor, operator intent, idempotency key, payload hash, and admission prerequisite ids.
 
-### Phase 3287 - Backend Readback Integration
+### Phase 3307 - Latest Unsafe Proof Fail-Closed
 
-- Expose read-only manager-invocation policy evidence through the Admin API read service and admission evidence mapping.
+- Treat the latest same-`stealth_order_id` unsafe or mismatched manager-policy proof as unresolved instead of falling back to older proof records.
 
-### Phase 3288 - Route Inventory And OpenAPI
+### Phase 3308 - No-Live Safety Flags
 
-- Add route inventory rows, OpenAPI paths, route exports, and proof-route metadata for the manager-policy readback and proof writer.
+- Reject proof resolution when any manager invocation, Coinbase read/write, cancel/replace, reconciliation execution, lifecycle/order/exchange mutation, browser authority, or BFF execution authority flag is unsafe.
 
-### Phase 3289 - Backend Contract Coverage
+### Phase 3309 - Backend Contract Coverage
 
-- Add regression coverage for no-live proof recording, path identity, readback, admission evidence, route inventory, and OpenAPI freshness.
+- Add regression coverage proving safe proof resolution, latest unsafe proof rejection, create proof resolution, OpenAPI freshness, and `$0` live posture.
 
-### Phase 3290 - Frontend Schema And Client Sync
+### Phase 3310 - OpenAPI And Route Inventory Sync
 
-- Regenerate frontend API types and add canonical client wrappers for manager-policy readback and proof recording.
+- Regenerate backend OpenAPI and ensure route inventory/docs still describe a single backend-owned proof path.
 
-### Phase 3291 - Frontend Contract Boundary
+### Phase 3311 - Frontend Schema Regeneration
 
-- Add route coverage, BFF allowlist, mutation contract, and command capability evidence without adding browser execution authority.
+- Regenerate frontend API types from the backend OpenAPI schema without hand-editing generated files.
 
-### Phase 3292 - Frontend Mock Runtime Sync
+### Phase 3312 - Frontend Adapter Mapping
 
-- Add mock route keys, capability rows, populated/empty fixtures, and mock route handlers for manager-policy evidence.
+- Map new manager-policy prerequisite fields through frontend backend adapters and dry-submit evidence models as display-only data.
 
-### Phase 3293 - Frontend Runtime Snapshot
+### Phase 3313 - Mock Runtime Alignment
 
-- Include manager-policy readback in the runtime snapshot and admin shell mapping without creating a command path.
+- Update mock backend execution contracts, fixtures, and tests so manager-policy prerequisite rows are present for create and non-create stealth workflows.
 
-### Phase 3294 - Frontend Read-Model Display
+### Phase 3314 - UI Evidence Display
 
-- Render manager-policy evidence in the stealth read model with no-manager/no-live/no-write flags visible.
+- Render manager-policy prerequisite required/resolved/proof-id evidence in the relevant command/read-model panels without creating any browser execution authority.
 
-### Phase 3295 - Documentation And Examples
+### Phase 3315 - Documentation And Examples
 
-- Update API, mock API, roadmap, handoff, and examples docs so contextless readers can find and reason about the manager-policy proof surface.
+- Update API, command-suite, roadmap, handoff, testing, and examples docs so contextless readers can see the proof/readback surface and the resolver consumption layer.
 
-### Phase 3296 - Focused Backend And Frontend Gates
+### Phase 3316 - Release And Autonomous Metadata
 
-- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend API/unit/autonomous checks for manager-policy evidence.
+- Update release, deployment, autonomous, and artifact-contract checks for phases 3301-3320.
 
-### Phase 3297 - Release And Autonomous Metadata
+### Phase 3317 - Focused Backend And Frontend Gates
 
-- Update release, deployment, autonomous, and artifact-contract checks for phases 3281-3300.
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend API/unit/autonomous checks for manager-policy prerequisite evidence.
 
-### Phase 3298 - Blind Contextless Reviews
+### Phase 3318 - Blind Contextless Reviews
 
-- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why manager-policy evidence is not manager invocation authority.
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain the proof writer, readback, and resolver consumption path without treating it as execution authority.
 
-### Phase 3299 - Full Gates
+### Phase 3319 - Full Gates
 
 - Run backend full regression, frontend `npm run release:gate`, ownership checks, and browser availability.
 
-### Phase 3300 - Commit, Push, Pause, And No-Live Report
+### Phase 3320 - Commit, Push, Pause, And No-Live Report
 
 - Commit and push both repos, report `$0` live Coinbase submitted/executed notional, and pause for the requested restart.
+
+## Completed M55 Manager-Invocation Policy Evidence Batch - Phases 3281-3300
+
+These phases added backend-owned manager-invocation policy proof/readback for
+guarded stealth commands. The proof records are append-only local evidence
+that future backend execution design may evaluate as one prerequisite before
+manager invocation can ever be considered. They do not invoke managers, call
+Coinbase, cancel or replace active placements, execute reconciliation, mutate
+state, grant browser authority, or grant BFF execution authority.
+
+Completion evidence:
+
+- Backend and frontend focused gates passed for manager-policy proof/readback.
+- Backend full regression and frontend release gates passed before this range
+  moved to completed status.
+- Live Coinbase execution was not run; submitted and executed notional stayed
+  at `$0`.
 
 ## Completed M55 Forbidden Execution Claim Traceability Batch - Phases 3261-3280
 

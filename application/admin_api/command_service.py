@@ -1485,6 +1485,9 @@ class AdminApiCommandService:
             lifecycle_write_guard_proof_store=(
                 self.dependencies.stealth_lifecycle_write_guard_proof_store_getter()
             ),
+            manager_policy_proof_store=(
+                self.dependencies.stealth_manager_policy_proof_store_getter()
+            ),
             post_write_reconciliation_proof_store=(
                 self.dependencies.stealth_post_write_reconciliation_proof_store_getter()
             ),
