@@ -191,6 +191,25 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface=(
+            "GET /api/v1/stealth/orders/{stealth_order_id}/"
+            "coinbase-exchange-submission-policy"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_coinbase_exchange_submission_policy",
+        parity_test=(
+            "read-only Coinbase exchange submission-policy evidence; no "
+            "Coinbase submit, cancel, read, manager invocation, "
+            "reconciliation execution, or state mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -528,6 +547,28 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test=(
             "stealth_order_id identity; proof evidence remains no-live and "
             "does not invoke StealthOrderManager, submit/read/cancel Coinbase, "
+            "cancel/replace active placements, execute reconciliation, or "
+            "mutate lifecycle/order/exchange state"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/"
+            "coinbase-exchange-submission-policy-proofs"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_COINBASE_EXCHANGE_POLICY_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for Coinbase exchange policy proof admission",
+        audit="required",
+        shared_method=(
+            "record_stealth_coinbase_exchange_submission_policy_proof"
+        ),
+        parity_test=(
+            "stealth_order_id identity; proof evidence remains no-live and "
+            "does not submit/read/cancel Coinbase orders, invoke managers, "
             "cancel/replace active placements, execute reconciliation, or "
             "mutate lifecycle/order/exchange state"
         ),

@@ -62,6 +62,39 @@ STEALTH_COMMAND_PROOF_ROUTE_SPECS: tuple[StealthCommandProofRouteSpec, ...] = (
         ),
     ),
     StealthCommandProofRouteSpec(
+        gate=AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
+        mutation_families=(
+            AdminApiMutationFamilyType.STEALTH_CREATE,
+            AdminApiMutationFamilyType.STEALTH_REVEAL,
+            AdminApiMutationFamilyType.STEALTH_CANCEL,
+            AdminApiMutationFamilyType.STEALTH_MOVE,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+            AdminApiMutationFamilyType.STEALTH_RECOVERY,
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+        ),
+        route=(
+            "/api/v1/stealth/orders/{stealth_order_id}/"
+            "coinbase-exchange-submission-policy-proofs"
+        ),
+        required_permission=(
+            AdminApiPermission.STEALTH_COINBASE_EXCHANGE_POLICY_RECORD
+        ),
+        shared_method=(
+            "record_stealth_coinbase_exchange_submission_policy_proof"
+        ),
+        documentation_refs=(
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/STEALTH_ORDER_READS.md",
+        ),
+        detail=(
+            "Record backend-owned Coinbase exchange submission-policy evidence "
+            "for the guarded stealth command. This does not submit, cancel, "
+            "or read Coinbase orders, invoke managers, mutate state, or "
+            "execute reconciliation."
+        ),
+    ),
+    StealthCommandProofRouteSpec(
         gate=AdminApiLivePreflightCategory.MUTATION_CLAIM,
         mutation_families=(
             AdminApiMutationFamilyType.STEALTH_MOVE,
