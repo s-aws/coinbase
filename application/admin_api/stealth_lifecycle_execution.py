@@ -19,6 +19,7 @@ from .models import (
     StealthCreateLifecycleExecutionReadinessStageItem,
     StealthCreateLifecyclePrerequisiteResolverItem,
     StealthCreateLifecycleWriteExecutionContractEvidence,
+    StealthExecutionCandidateEvidence,
 )
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
@@ -53,6 +54,7 @@ STEALTH_CREATE_ROUTE = "/api/v1/stealth/orders"
 STEALTH_CREATE_METHOD = "POST"
 STEALTH_CREATE_MODULE_ID = "stealth_orders"
 STEALTH_CREATE_SERVICE_METHOD = "create_stealth_order"
+STEALTH_CREATE_MANAGER_METHOD = "core/stealth_order_manager.py::create_stealth_order"
 
 REQUIRED_CREATE_EXECUTION_CONTEXT_FIELDS: tuple[str, ...] = (
     AdminApiStealthAdmissionContextField.ROUTE.value,
@@ -347,8 +349,13 @@ def build_stealth_create_lifecycle_write_execution_contract(
                 ),
             )
         ),
+        execution_candidate=_build_execution_candidate(
+            stealth_order_id=stealth_order_id,
+            exact_command_context_present=exact_command_context_present,
+            remaining_execution_blockers=remaining_execution_blockers,
+        ),
         canonical_execution_path=[
-            "core/stealth_order_manager.py::create_stealth_order"
+            STEALTH_CREATE_MANAGER_METHOD
         ],
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,
         evidence=[
@@ -363,6 +370,43 @@ def build_stealth_create_lifecycle_write_execution_contract(
             "context, approval, admission audit, cap/guard, reconciliation "
             "plan, lifecycle-write guard proof, live execution service, live "
             "adapter, and post-write reconciliation evidence are all present."
+        ),
+    )
+
+
+def _build_execution_candidate(
+    *,
+    stealth_order_id: str | None,
+    exact_command_context_present: bool,
+    remaining_execution_blockers: list[StealthCreateLifecycleExecutionBlockerChainItem],
+) -> StealthExecutionCandidateEvidence:
+    """Expose the future create execution candidate without enabling it."""
+
+    return StealthExecutionCandidateEvidence(
+        mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+        workflow_family=AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
+        command_route=STEALTH_CREATE_ROUTE,
+        command_method=STEALTH_CREATE_METHOD,
+        service_method=STEALTH_CREATE_SERVICE_METHOD,
+        manager_methods=[STEALTH_CREATE_MANAGER_METHOD],
+        identity_value=stealth_order_id,
+        exact_command_context_present=exact_command_context_present,
+        unresolved_blocker_count=len(remaining_execution_blockers),
+        unresolved_blockers=[
+            item.blocker.value for item in remaining_execution_blockers
+        ],
+        next_required_contracts=sorted(
+            {
+                item.next_required_contract
+                for item in remaining_execution_blockers
+            }
+        ),
+        canonical_execution_path=[STEALTH_CREATE_MANAGER_METHOD],
+        detail=(
+            "This candidate identifies the backend-owned stealth create path "
+            "that may become executable only after every blocker resolves; it "
+            "does not invoke StealthOrderManager, Coinbase, reconciliation, or "
+            "state writes."
         ),
     )
 
@@ -460,7 +504,7 @@ def _build_remaining_execution_blockers(
         (
             StealthCreateLifecycleExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED,
             None,
-            "core/stealth_order_manager.py::create_stealth_order",
+            STEALTH_CREATE_MANAGER_METHOD,
             "The StealthOrderManager create method may not be invoked from this contract.",
         ),
         (

@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-16
 - Updated by: Codex
 - Branch: main
-- Commit (optional): completed range `2921-2940` is backend `a41f9669` and
-  frontend `5b561b4`; active range `2941-2960` is uncommitted.
+- Commit (optional): completed range `2941-2960` is backend `11e026a0` and
+  frontend `7e667d7`; active range `2961-2980` is uncommitted.
 
 ## Current Objective
 
@@ -37,21 +37,21 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `2921-2940`; active range is `2941-2960`.
+- Latest completed autonomous range: `2941-2960`; active range is `2961-2980`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
-- Completed files through `2921-2940`: backend/frontend exact-chain
-  resolver evidence for guarded stealth command families, OpenAPI, frontend
-  schema/mocks/runtime/read-model display, docs/tests, full gates, and
-  contextless reviews. Exact safe proof, accepted journal, and verification
-  chains may resolve only the `post_write_reconciliation` prerequisite
-  evidence; live execution service/adapter, manager invocation, Coinbase
-  calls, reconciliation execution, cancel/replace, writes, and state mutation
-  remain disabled.
-- Active `2941-2960` work: typed remaining execution blocker-chain evidence
-  after exact post-write prerequisite resolution. The chain must keep live
-  service, live adapter, manager invocation, Coinbase submit/cancel/read,
-  active-placement cancel/replace, reconciliation execution, and state
-  mutation blockers explicit.
+- Completed files through `2941-2960`: backend/frontend exact-chain
+  resolver evidence and typed remaining execution blocker-chain evidence for
+  guarded stealth command families, OpenAPI, frontend schema/mocks/runtime/
+  read-model display, docs/tests, full gates, and contextless reviews. Exact
+  safe proof, accepted journal, and verification chains may resolve only the
+  `post_write_reconciliation` prerequisite evidence; live execution service/
+  adapter, manager invocation, Coinbase calls, reconciliation execution,
+  cancel/replace, writes, and state mutation remain disabled.
+- Active `2961-2980` work: typed execution-candidate evidence after remaining
+  blocker-chain evidence. The candidate must name the backend path that would
+  run only after every blocker resolves while staying blocked, no-live,
+  backend-owned, route-bound, command-context-bound, display-only, and BFF
+  forward-only.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -225,16 +225,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2941-2960`.
+- Active autonomous range: `2961-2980`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete typed remaining execution blocker-chain evidence
-  after the exact post-write reconciliation prerequisite resolves. Exact safe
-  proof, accepted execution-journal, and verification records may resolve only
-  the `post_write_reconciliation` prerequisite; live service, live adapter,
-  manager invocation, Coinbase submit/cancel/read, active-placement
-  cancel/replace, reconciliation execution, and lifecycle/order/exchange state
-  mutation remain disabled. Do not run live Coinbase execution unless a future
-  approved phase explicitly authorizes it.
+- Current direction: complete typed execution-candidate evidence after typed
+  remaining execution blocker-chain evidence. The candidate may name the
+  backend path that would run after all blockers resolve, but it must stay
+  blocked, no-live, backend-owned, route-bound, command-context-bound,
+  display-only, and BFF forward-only. Do not run live Coinbase execution
+  unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -548,9 +546,9 @@ Keep it short. Keep it factual.
 ## Next 3 Actions
 
 1. Finish backend/frontend phase-range, fixture, doc, and test sync for
-   active M55 phases `2941-2960`.
+   active M55 phases `2961-2980`.
 2. Run focused backend and frontend gates, then blind/contextless reviews for
-   remaining execution blocker-chain semantics.
+   execution-candidate semantics.
 3. Keep contextless blind review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
@@ -718,12 +716,16 @@ Keep it short. Keep it factual.
   exact proof, journal, and verification chain. The chain may resolve only
   `post_write_reconciliation`; all live and state-mutating execution gates
   remain blocked.
-- What is active for M55 2941-2960: backend and frontend expose typed
+- What is completed for M55 2941-2960: backend and frontend expose typed
   remaining execution blocker-chain evidence so resolved post-write evidence
   still leaves live service, live adapter, manager invocation, Coinbase,
   cancel/replace, reconciliation execution, and state-mutation blockers
   visible.
+- What is active for M55 2961-2980: backend and frontend expose typed
+  execution-candidate evidence that names the future backend path while
+  remaining blocked, no-live, backend-owned, display-only, and bound to the
+  unresolved blocker chain.
 - What is blocked: Nothing currently known.
-- Exact next command: finish blocker-chain docs and frontend parity for
-  phases 2941-2960, then run focused gates before full release/regression
+- Exact next command: finish execution-candidate docs and frontend parity for
+  phases 2961-2980, then run focused gates before full release/regression
   gates.

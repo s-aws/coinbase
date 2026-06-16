@@ -100,9 +100,9 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2941-2960` under M55. Complete typed remaining
-  execution blocker-chain evidence after exact post-write prerequisite
-  resolution before advancing.
+- Active autonomous range: `2961-2980` under M55. Complete typed
+  execution-candidate evidence after remaining blocker-chain evidence before
+  advancing.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -384,9 +384,12 @@ notional, retained inventory, reconciliation result, and audit ids.
   only `post_write_reconciliation`; live service/adapter execution, Coinbase
   calls, manager invocation, active-placement cancel/replace, reconciliation
   execution, lifecycle/order/exchange mutation, and browser/BFF authority
-  remain disabled. The active 2941-2960 range adds typed remaining execution
-  blocker-chain evidence so contextless readers can see those live and
-  state-mutating blockers after post-write evidence resolves.
+  remain disabled. The completed 2941-2960 range added typed remaining
+  execution blocker-chain evidence so contextless readers can see those live
+  and state-mutating blockers after post-write evidence resolves. The active
+  2961-2980 range names the backend execution candidate that would run only
+  after every blocker resolves, while keeping the candidate blocked,
+  no-live, backend-owned, and display-only.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

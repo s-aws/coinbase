@@ -20,6 +20,7 @@ from .models import (
     StealthCommandExecutionContractEvidence,
     StealthCommandExecutionPrerequisiteResolverItem,
     StealthCommandExecutionReadinessStageItem,
+    StealthExecutionCandidateEvidence,
 )
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
@@ -623,6 +624,11 @@ def build_stealth_command_execution_contract(
                 ),
             )
         ),
+        execution_candidate=_build_execution_candidate(
+            metadata=metadata,
+            admission_decision=admission_decision,
+            remaining_execution_blockers=remaining_execution_blockers,
+        ),
         canonical_execution_path=list(metadata.manager_methods),
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,
         evidence=[
@@ -632,6 +638,42 @@ def build_stealth_command_execution_contract(
             "Command-specific proof prerequisites remain missing until later approved execution phases.",
         ],
         detail=metadata.detail,
+    )
+
+
+def _build_execution_candidate(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    remaining_execution_blockers: list[StealthCommandExecutionBlockerChainItem],
+) -> StealthExecutionCandidateEvidence:
+    """Expose the exact future execution candidate without enabling it."""
+
+    return StealthExecutionCandidateEvidence(
+        mutation_family=metadata.mutation_family,
+        workflow_family=WORKFLOW_FAMILY_BY_MUTATION_FAMILY[metadata.mutation_family],
+        command_route=metadata.route,
+        command_method=admission_decision.method,
+        service_method=metadata.service_method,
+        manager_methods=list(metadata.manager_methods),
+        identity_value=admission_decision.identity_value,
+        exact_command_context_present=True,
+        unresolved_blocker_count=len(remaining_execution_blockers),
+        unresolved_blockers=[
+            item.blocker.value for item in remaining_execution_blockers
+        ],
+        next_required_contracts=sorted(
+            {
+                item.next_required_contract
+                for item in remaining_execution_blockers
+            }
+        ),
+        canonical_execution_path=list(metadata.manager_methods),
+        detail=(
+            "This candidate identifies the backend-owned stealth command path "
+            "that may become executable only after every blocker resolves; it "
+            "does not invoke managers, Coinbase, reconciliation, or state writes."
+        ),
     )
 
 

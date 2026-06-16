@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2941-2960",
+  "approved_phase_range": "2961-2980",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -350,6 +350,52 @@ blocked even when exact command-envelope context is present:
         "no_live_execution": true
       }
     ],
+    "execution_candidate": {
+      "mutation_family": "stealth_cancel",
+      "workflow_family": "stealth_cancel_exchange_handling",
+      "command_route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+      "command_method": "POST",
+      "service_method": "cancel_stealth_order_by_stealth_order_id",
+      "manager_methods": [
+        "core/stealth_order_manager.py::cancel_stealth_order",
+        "bridges/stealth_order_bridge.py::cancel_stealth_order"
+      ],
+      "identity_key": "stealth_order_id",
+      "identity_value": "stealth-123",
+      "status": "blocked",
+      "execution_candidate_available": true,
+      "execution_allowed": false,
+      "executable": false,
+      "unresolved_blocker_count": 13,
+      "unresolved_blockers": [
+        "stealth_command_execution_contract_missing",
+        "live_execution_disabled",
+        "live_execution_adapter_disabled",
+        "stealth_manager_invocation_disabled",
+        "active_placement_cancel_replace_disabled",
+        "coinbase_order_submit_disabled",
+        "coinbase_order_cancel_disabled",
+        "coinbase_read_disabled",
+        "lifecycle_state_mutation_disabled",
+        "order_state_mutation_disabled",
+        "exchange_state_mutation_disabled",
+        "reconciliation_execution_disabled",
+        "post_write_reconciliation_missing"
+      ],
+      "canonical_execution_path": [
+        "core/stealth_order_manager.py::cancel_stealth_order",
+        "bridges/stealth_order_bridge.py::cancel_stealth_order"
+      ],
+      "manager_invocation_ran": false,
+      "coinbase_order_submitted": false,
+      "coinbase_order_cancel_submitted": false,
+      "live_coinbase_read_ran": false,
+      "reconciliation_executed": false,
+      "state_mutated": false,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "no_live_execution": true
+    },
     "post_write_reconciliation_route": "/api/v1/admin/reconciliation/plans",
     "post_write_reconciliation_method": "POST",
     "post_write_reconciliation_source": "post_write_reconciliation_contract",
