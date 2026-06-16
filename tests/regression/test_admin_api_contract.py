@@ -2798,9 +2798,73 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "required_backend_decisions" in live_readiness_schema["properties"]
     assert "backend_decision_count" in live_readiness_schema["properties"]
     assert "backend_decisions" in live_readiness_schema["properties"]
+    assert "backend_decision_resolution_summary" in live_readiness_schema[
+        "properties"
+    ]
     assert "forbidden_execution_claims" in live_readiness_schema["properties"]
     assert "coinbase_order_submitted" in live_readiness_schema["properties"]
     assert "reconciliation_executed" in live_readiness_schema["properties"]
+    assert (
+        "StealthExecutionBackendDecisionResolutionSummary"
+        in written["components"]["schemas"]
+    )
+    backend_decision_resolution_summary_schema = written["components"][
+        "schemas"
+    ]["StealthExecutionBackendDecisionResolutionSummary"]
+    assert "source_ref" in backend_decision_resolution_summary_schema[
+        "properties"
+    ]
+    assert "total_decision_count" in backend_decision_resolution_summary_schema[
+        "properties"
+    ]
+    assert "required_decision_count" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "resolved_decision_count" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "blocked_decision_count" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "blocking_decisions" in backend_decision_resolution_summary_schema[
+        "properties"
+    ]
+    assert "blocking_owners" in backend_decision_resolution_summary_schema[
+        "properties"
+    ]
+    assert "blocking_required_artifacts" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "blocking_missing_reasons" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "first_blocking_decision" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "clearance_action_count" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "blocked_clearance_action_count" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "clearable_action_count" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "terminal_clearance_ref_count" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "decision_resolution_ready" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "m55_completion_claim_allowed" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
+    assert "resolver_allowed" in backend_decision_resolution_summary_schema[
+        "properties"
+    ]
+    assert "decision_write_allowed" in (
+        backend_decision_resolution_summary_schema["properties"]
+    )
     assert "StealthExecutionBackendDecisionEvidence" in written["components"][
         "schemas"
     ]
@@ -5603,6 +5667,97 @@ def _assert_stealth_execution_live_readiness(
         assert decision["state_mutated"] is False
         assert decision["browser_authority"] == "display_only"
         assert decision["bff_authority"] == "forward_only_no_execution"
+    backend_decision_summary = readiness[
+        "backend_decision_resolution_summary"
+    ]
+    assert (
+        backend_decision_summary["source_ref"]
+        == "execution_live_readiness.backend_decisions"
+    )
+    assert backend_decision_summary["status"] == (
+        AdminApiGateStatus.BLOCKED.value
+    )
+    assert backend_decision_summary["total_decision_count"] == len(
+        readiness["backend_decisions"]
+    )
+    assert backend_decision_summary["required_decision_count"] == len(
+        readiness["backend_decisions"]
+    )
+    assert backend_decision_summary["resolved_decision_count"] == 0
+    assert backend_decision_summary["blocked_decision_count"] == len(
+        readiness["backend_decisions"]
+    )
+    assert backend_decision_summary["blocking_decisions"] == [
+        decision["decision"] for decision in readiness["backend_decisions"]
+    ]
+    assert backend_decision_summary["blocking_owners"] == list(
+        dict.fromkeys(
+            decision["owner"] for decision in readiness["backend_decisions"]
+        )
+    )
+    assert backend_decision_summary["blocking_required_artifacts"] == list(
+        dict.fromkeys(
+            decision["required_artifact"]
+            for decision in readiness["backend_decisions"]
+        )
+    )
+    assert backend_decision_summary["blocking_missing_reasons"] == list(
+        dict.fromkeys(
+            decision["missing_reason"]
+            for decision in readiness["backend_decisions"]
+        )
+    )
+    first_backend_decision = readiness["backend_decisions"][0]
+    assert backend_decision_summary["first_blocking_decision"] == (
+        first_backend_decision["decision"]
+    )
+    assert backend_decision_summary["first_blocking_owner"] == (
+        first_backend_decision["owner"]
+    )
+    assert backend_decision_summary["first_blocking_required_artifact"] == (
+        first_backend_decision["required_artifact"]
+    )
+    assert backend_decision_summary["clearance_action_count"] == sum(
+        decision["resolution_handoff"]["clearance_dependency_summary"][
+            "total_action_count"
+        ]
+        for decision in readiness["backend_decisions"]
+    )
+    assert backend_decision_summary["blocked_clearance_action_count"] == sum(
+        decision["resolution_handoff"]["clearance_dependency_summary"][
+            "blocked_action_count"
+        ]
+        for decision in readiness["backend_decisions"]
+    )
+    assert backend_decision_summary["clearable_action_count"] == 0
+    assert backend_decision_summary["terminal_clearance_ref_count"] == sum(
+        len(
+            decision["resolution_handoff"]["clearance_dependency_summary"][
+                "terminal_action_refs"
+            ]
+        )
+        for decision in readiness["backend_decisions"]
+    )
+    assert (
+        backend_decision_summary["summary_authority"]
+        == "backend_derived_from_backend_decisions"
+    )
+    assert backend_decision_summary["decision_resolution_ready"] is False
+    assert backend_decision_summary["m55_completion_claim_allowed"] is False
+    assert backend_decision_summary["live_execution_allowed"] is False
+    assert backend_decision_summary["executable"] is False
+    assert backend_decision_summary["resolver_allowed"] is False
+    assert backend_decision_summary["resolver_ran"] is False
+    assert backend_decision_summary["decision_write_allowed"] is False
+    assert backend_decision_summary["decision_written"] is False
+    assert backend_decision_summary["no_live_execution"] is True
+    assert backend_decision_summary["backend_owned"] is True
+    assert backend_decision_summary["route_bound"] is True
+    assert backend_decision_summary["command_context_bound"] is True
+    assert backend_decision_summary["browser_authority"] == "display_only"
+    assert backend_decision_summary["bff_authority"] == (
+        "forward_only_no_execution"
+    )
     assert readiness["forbidden_execution_claims"] == [
         "frontend_approval_as_authority",
         "bff_execution_authority",
@@ -7738,7 +7893,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3201-3220"
+    assert readback_payload["approved_phase_range"] == "3221-3240"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7952,7 +8107,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3201-3220"
+    assert readback_payload["approved_phase_range"] == "3221-3240"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11138,7 +11293,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3201-3220"
+    assert readback_payload["approved_phase_range"] == "3221-3240"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11353,7 +11508,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3201-3220"
+    assert readback_payload["approved_phase_range"] == "3221-3240"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -13580,7 +13735,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3201-3220"
+    assert payload["approved_phase_range"] == "3221-3240"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -15402,7 +15557,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3201-3220"
+    assert live_payload["approved_phase_range"] == "3221-3240"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -15965,7 +16120,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3201-3220"
+    assert enterprise_payload["approved_phase_range"] == "3221-3240"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -16563,7 +16718,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3201-3220"
+    assert recovery_preview_payload["approved_phase_range"] == "3221-3240"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

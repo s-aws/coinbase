@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3201-3220",
+  "approved_phase_range": "3221-3240",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -895,6 +895,13 @@ execution authority.
 counts, predecessor/successor edge counts, dependency-blocked refs, clearable
 refs, terminal refs, and disabled graph/clearance/resolver/writer/execution
 flags. It is not a resolver, writer, live switch, adapter, manager path,
+Coinbase path, reconciliation executor, state mutation path, browser
+authority, or BFF execution authority.
+`backend_decision_resolution_summary` aggregates the full backend decision
+ledger with blocked decision counts, owners, required artifacts, missing
+reasons, first blocker, clearance action totals, and disabled
+resolver/writer/completion/execution flags. It is also display-only backend
+evidence and is not a resolver, writer, live switch, adapter, manager path,
 Coinbase path, reconciliation executor, state mutation path, browser
 authority, or BFF execution authority.
 

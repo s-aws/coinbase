@@ -218,6 +218,13 @@ Current behavior:
   resolver, writer, and execution flags. It is also display-only backend
   evidence and must not be
   treated as resolution authority.
+  `backend_decision_resolution_summary` aggregates the full backend decision
+  ledger with blocked decision counts, owners, required artifacts, missing
+  reasons, first blocker, clearance action totals, and disabled
+  resolver/writer/completion/execution authority. It is display-only backend
+  evidence and must not be treated as a resolver, writer, live switch,
+  Coinbase path, reconciliation executor, browser authority, or BFF execution
+  path.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

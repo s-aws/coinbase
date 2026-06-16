@@ -412,10 +412,15 @@ to clear each blocked handoff ref. `clearance_dependency_summary` aggregates
 those action rows with blocked/ready/dependency-ready counts, predecessor and
 successor edge counts, dependency-blocked refs, clearable refs, terminal refs,
 and disabled graph/clearance/resolver/writer/execution flags. The handoff,
-action rows, and summary are context for future backend work only; they are
-not a resolver, decision writer, live service switch, live adapter, manager
-invocation path, Coinbase path, reconciliation executor, state mutation path,
-browser authority, or BFF execution authority.
+action rows, and summary are context for future backend work only.
+`backend_decision_resolution_summary` aggregates the full backend decision
+ledger with blocked decision counts, owners, required artifacts, missing
+reasons, first blocker, and clearance action totals while keeping resolver,
+writer, completion, execution, manager, Coinbase, reconciliation, mutation,
+browser, and BFF authority disabled. These summaries are not a resolver,
+decision writer, live service switch, live adapter, manager invocation path,
+Coinbase path, reconciliation executor, state mutation path, browser
+authority, or BFF execution authority.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

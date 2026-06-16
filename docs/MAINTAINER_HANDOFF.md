@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3181-3200` under M55.
-- Active autonomous range: `3201-3220` under M55.
+- Latest completed autonomous range: `3201-3220` under M55.
+- Active autonomous range: `3221-3240` under M55.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -416,9 +416,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   completed 3161-3180 range added blocked backend-owned clearance action
   contracts for each handoff ref. The completed 3181-3200 range bound those
   clearance actions to source readiness items and predecessor/successor
-  dependency evidence. The active 3201-3220 range adds backend-derived
+  dependency evidence. The completed 3201-3220 range added backend-derived
   clearance dependency summaries while preserving blocked/no-live display-only
-  authority.
+  authority. The active 3221-3240 range adds a backend-derived decision
+  resolution summary over the full backend decision ledger without granting
+  resolver, writer, completion, execution, browser, or BFF authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

@@ -12,6 +12,7 @@ from core.enums import (
 from .models import (
     AdminLivePreflightCheckItem,
     StealthExecutionBackendDecisionEvidence,
+    StealthExecutionBackendDecisionResolutionSummary,
     StealthExecutionCandidateEvidence,
     StealthExecutionDecisionResolutionClearanceAction,
     StealthExecutionDecisionResolutionClearanceDependencySummary,
@@ -658,6 +659,9 @@ def build_stealth_execution_live_readiness(
         if blocker in category_by_blocker
     ]
     backend_decisions = _build_stealth_live_readiness_decisions()
+    backend_decision_resolution_summary = (
+        _build_backend_decision_resolution_summary(backend_decisions)
+    )
     return StealthExecutionLiveReadinessEvidence(
         mutation_family=barrier.mutation_family,
         workflow_family=barrier.workflow_family,
@@ -676,6 +680,9 @@ def build_stealth_execution_live_readiness(
         required_backend_decisions=list(_STEALTH_LIVE_READINESS_DECISIONS),
         backend_decision_count=len(backend_decisions),
         backend_decisions=backend_decisions,
+        backend_decision_resolution_summary=(
+            backend_decision_resolution_summary
+        ),
         forbidden_execution_claims=[
             "frontend_approval_as_authority",
             "bff_execution_authority",
@@ -690,6 +697,80 @@ def build_stealth_execution_live_readiness(
             "transition barrier. This live-readiness closure names the backend "
             "decisions and contracts still required before any future execution "
             "authority can exist; it does not enable live execution."
+        ),
+    )
+
+
+def _build_backend_decision_resolution_summary(
+    backend_decisions: list[StealthExecutionBackendDecisionEvidence],
+) -> StealthExecutionBackendDecisionResolutionSummary:
+    blocked_decisions = [
+        decision
+        for decision in backend_decisions
+        if decision.status == AdminApiGateStatus.BLOCKED
+        or not decision.resolved
+    ]
+    clearance_summaries = [
+        decision.resolution_handoff.clearance_dependency_summary
+        for decision in backend_decisions
+    ]
+    return StealthExecutionBackendDecisionResolutionSummary(
+        total_decision_count=len(backend_decisions),
+        required_decision_count=sum(
+            1 for decision in backend_decisions if decision.required
+        ),
+        resolved_decision_count=sum(
+            1 for decision in backend_decisions if decision.resolved
+        ),
+        blocked_decision_count=len(blocked_decisions),
+        blocking_decisions=[
+            decision.decision for decision in blocked_decisions
+        ],
+        blocking_owners=list(
+            dict.fromkeys(decision.owner for decision in blocked_decisions)
+        ),
+        blocking_required_artifacts=list(
+            dict.fromkeys(
+                decision.required_artifact for decision in blocked_decisions
+            )
+        ),
+        blocking_missing_reasons=list(
+            dict.fromkeys(
+                decision.missing_reason for decision in blocked_decisions
+            )
+        ),
+        first_blocking_decision=(
+            blocked_decisions[0].decision if blocked_decisions else None
+        ),
+        first_blocking_owner=(
+            blocked_decisions[0].owner if blocked_decisions else None
+        ),
+        first_blocking_required_artifact=(
+            blocked_decisions[0].required_artifact
+            if blocked_decisions
+            else None
+        ),
+        clearance_action_count=sum(
+            summary.total_action_count for summary in clearance_summaries
+        ),
+        blocked_clearance_action_count=sum(
+            summary.blocked_action_count for summary in clearance_summaries
+        ),
+        clearable_action_count=sum(
+            len(summary.clearable_action_refs)
+            for summary in clearance_summaries
+        ),
+        terminal_clearance_ref_count=sum(
+            len(summary.terminal_action_refs)
+            for summary in clearance_summaries
+        ),
+        detail=(
+            "Backend decision resolution summary is backend-derived blocked "
+            "evidence over the M55 decision ledger. It aggregates unresolved "
+            "decisions, owners, required artifacts, missing reasons, and "
+            "clearance action counts without running a resolver, writing a "
+            "decision, enabling live execution, invoking managers, "
+            "reconciling, mutating state, or calling Coinbase."
         ),
     )
 

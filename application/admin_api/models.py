@@ -6262,6 +6262,46 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     detail: str
 
 
+class StealthExecutionBackendDecisionResolutionSummary(BaseModel):
+    """Backend-owned aggregate over M55 backend decision evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "execution_live_readiness.backend_decisions"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    total_decision_count: int = Field(ge=0)
+    required_decision_count: int = Field(ge=0)
+    resolved_decision_count: int = Field(ge=0)
+    blocked_decision_count: int = Field(ge=0)
+    blocking_decisions: list[AdminApiStealthLiveReadinessDecision]
+    blocking_owners: list[str]
+    blocking_required_artifacts: list[str]
+    blocking_missing_reasons: list[str]
+    first_blocking_decision: AdminApiStealthLiveReadinessDecision | None = None
+    first_blocking_owner: str | None = None
+    first_blocking_required_artifact: str | None = None
+    clearance_action_count: int = Field(ge=0)
+    blocked_clearance_action_count: int = Field(ge=0)
+    clearable_action_count: int = Field(ge=0)
+    terminal_clearance_ref_count: int = Field(ge=0)
+    summary_authority: str = "backend_derived_from_backend_decisions"
+    decision_resolution_ready: bool = False
+    m55_completion_claim_allowed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthExecutionLiveReadinessEvidence(BaseModel):
     """Blocked live-readiness closure after the transition barrier."""
 
@@ -6297,6 +6337,9 @@ class StealthExecutionLiveReadinessEvidence(BaseModel):
     backend_decision_count: int = Field(default=0, ge=0)
     backend_decisions: list[StealthExecutionBackendDecisionEvidence] = Field(
         default_factory=list
+    )
+    backend_decision_resolution_summary: (
+        StealthExecutionBackendDecisionResolutionSummary
     )
     forbidden_execution_claims: list[str] = Field(default_factory=list)
     backend_owned: bool = True

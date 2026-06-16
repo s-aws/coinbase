@@ -419,10 +419,15 @@ also includes `clearance_dependency_summary`, which aggregates those action
 rows into blocked/ready counts, edge counts, dependency-blocked refs,
 clearable refs, terminal refs, and disabled graph readiness, clearance,
 resolver, writer, and execution flags. The handoff, action rows, and summary
-must not become a
-decision resolver, decision writer, live service switch, live adapter, manager
-invocation, Coinbase path, reconciliation executor, local state mutation,
-browser authority, or BFF execution path.
+must not become a decision resolver, decision writer, live service switch,
+live adapter, manager invocation, Coinbase path, reconciliation executor,
+local state mutation, browser authority, or BFF execution path.
+`backend_decision_resolution_summary` then aggregates the full backend
+decision ledger with blocked decision counts, blocking owners, required
+artifacts, missing reasons, first blocker, and clearance action totals. That
+aggregate is still backend-owned display evidence only and must not become a
+resolver, writer, completion claim, execution switch, browser authority, or
+BFF execution path.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence
