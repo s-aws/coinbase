@@ -372,6 +372,17 @@ proof, accepted journal, and verification chain may resolve
 `post_write_reconciliation` prerequisite evidence. Live execution service,
 adapter, manager, Coinbase, reconciliation execution, cancel/replace, and state
 mutation boundaries remain disabled.
+Both create and non-create execution contracts also expose
+`remaining_execution_blocker_count` and `remaining_execution_blockers`. These
+typed rows are derived from the same prerequisite resolver output and disabled
+boundary evidence. They remain blocked even when `post_write_reconciliation`
+is resolved, and explicitly keep live service, live adapter, manager
+invocation, Coinbase submit/cancel/read, active-placement cancel/replace,
+reconciliation execution, and lifecycle/order/exchange state mutation blocked.
+The `post_write_reconciliation_missing` blocker is omitted only when the exact
+safe proof, accepted journal, and verification chain resolves that prerequisite.
+The blocker chain is display evidence only and does not create execution,
+proof lookup, Coinbase, manager, reconciliation, browser, or BFF authority.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

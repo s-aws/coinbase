@@ -16,6 +16,7 @@ from core.enums import (
 
 from .models import (
     AdminLiveAdmissionDecisionEvidence,
+    StealthCommandExecutionBlockerChainItem,
     StealthCommandExecutionContractEvidence,
     StealthCommandExecutionPrerequisiteResolverItem,
     StealthCommandExecutionReadinessStageItem,
@@ -112,6 +113,7 @@ DISABLED_LIVE_PREREQUISITES: tuple[StealthCommandExecutionPrerequisite, ...] = (
 BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS: tuple[str, ...] = (
     StealthCommandExecutionBlocker.EXECUTION_CONTRACT_MISSING.value,
     StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+    StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value,
     StealthCommandExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED.value,
     StealthCommandExecutionBlocker.ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED.value,
     StealthCommandExecutionBlocker.COINBASE_ORDER_SUBMIT_DISABLED.value,
@@ -384,6 +386,10 @@ def build_stealth_command_execution_contract(
         metadata=metadata,
         resolution=resolution,
     )
+    remaining_execution_blockers = _build_remaining_execution_blockers(
+        metadata=metadata,
+        resolution=resolution,
+    )
     post_write_reconciliation_proof_record = (
         _find_matching_post_write_reconciliation_proof(
             store=stealth_post_write_reconciliation_proof_store,
@@ -445,6 +451,8 @@ def build_stealth_command_execution_contract(
             )
         ),
         blockers=blockers,
+        remaining_execution_blocker_count=len(remaining_execution_blockers),
+        remaining_execution_blockers=remaining_execution_blockers,
         active_placement_exchange_truth_required=(
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value
             in required
@@ -773,6 +781,144 @@ def _build_execution_readiness_stages(
             )
         )
     return stages
+
+
+def _build_remaining_execution_blockers(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    resolution: list[StealthCommandExecutionPrerequisiteResolverItem],
+) -> list[StealthCommandExecutionBlockerChainItem]:
+    """Expose execution blockers that remain after prerequisite lookups."""
+
+    resolved = {item.prerequisite for item in resolution if item.resolved}
+    by_prerequisite = {item.prerequisite: item for item in resolution}
+    blockers: list[tuple[
+        StealthCommandExecutionBlocker,
+        StealthCommandExecutionPrerequisite | None,
+        str,
+        str,
+    ]] = [
+        (
+            StealthCommandExecutionBlocker.EXECUTION_CONTRACT_MISSING,
+            None,
+            "application/admin_api/stealth_command_execution.py::"
+            "build_stealth_command_execution_contract",
+            "The exact command response is still contract evidence, not an executable command.",
+        ),
+        (
+            StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE,
+            NEXT_REQUIRED_CONTRACT_BY_PREREQUISITE[
+                StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE
+            ],
+            "The shared live execution service remains disabled for this stealth command.",
+        ),
+        (
+            StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED,
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER,
+            NEXT_REQUIRED_CONTRACT_BY_PREREQUISITE[
+                StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER
+            ],
+            "The stealth live execution adapter remains disabled for this command.",
+        ),
+        (
+            StealthCommandExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED,
+            None,
+            ", ".join(metadata.manager_methods),
+            "No StealthOrderManager method may be invoked from this contract.",
+        ),
+        (
+            StealthCommandExecutionBlocker.ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED,
+            None,
+            "core/stealth_order_manager.py active-placement cancel/replace path",
+            "Active Coinbase placements cannot be cancelled or replaced by this evidence surface.",
+        ),
+        (
+            StealthCommandExecutionBlocker.COINBASE_ORDER_SUBMIT_DISABLED,
+            None,
+            "external/coinbase_api.py order submit path",
+            "Coinbase order submission remains disabled.",
+        ),
+        (
+            StealthCommandExecutionBlocker.COINBASE_ORDER_CANCEL_DISABLED,
+            None,
+            "external/coinbase_api.py cancel_order(client_order_id)",
+            "Coinbase order cancellation remains disabled.",
+        ),
+        (
+            StealthCommandExecutionBlocker.COINBASE_READ_DISABLED,
+            None,
+            "external/coinbase_api.py read/reconcile path",
+            "Live Coinbase reads remain disabled.",
+        ),
+        (
+            StealthCommandExecutionBlocker.LIFECYCLE_STATE_MUTATION_DISABLED,
+            None,
+            "database stealth lifecycle write path",
+            "Lifecycle state mutation remains disabled.",
+        ),
+        (
+            StealthCommandExecutionBlocker.ORDER_STATE_MUTATION_DISABLED,
+            None,
+            "database/order.py state write path",
+            "Order state mutation remains disabled.",
+        ),
+        (
+            StealthCommandExecutionBlocker.EXCHANGE_STATE_MUTATION_DISABLED,
+            None,
+            "exchange state reconciliation write path",
+            "Exchange-state mutation remains disabled.",
+        ),
+        (
+            StealthCommandExecutionBlocker.RECONCILIATION_EXECUTION_DISABLED,
+            None,
+            "application/admin_api reconciliation executor",
+            "Post-write reconciliation execution remains disabled.",
+        ),
+    ]
+    if (
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION
+        not in resolved
+    ):
+        blockers.append(
+            (
+                StealthCommandExecutionBlocker.POST_WRITE_RECONCILIATION_MISSING,
+                StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION,
+                NEXT_REQUIRED_CONTRACT_BY_PREREQUISITE[
+                    StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION
+                ],
+                "The exact proof, accepted journal, and verification chain has not resolved post-write reconciliation evidence.",
+            )
+        )
+
+    items: list[StealthCommandExecutionBlockerChainItem] = []
+    for blocker_order, (blocker, prerequisite, next_contract, detail) in enumerate(
+        blockers,
+        start=1,
+    ):
+        source_item = by_prerequisite.get(prerequisite) if prerequisite else None
+        items.append(
+            StealthCommandExecutionBlockerChainItem(
+                blocker_order=blocker_order,
+                blocker=blocker,
+                source_prerequisite=prerequisite,
+                resolved_evidence_id=(
+                    source_item.resolved_evidence_id if source_item else None
+                ),
+                missing_reason=(
+                    source_item.missing_reason
+                    if source_item and source_item.missing_reason
+                    else blocker.value
+                ),
+                next_required_contract=next_contract,
+                detail=(
+                    f"{detail} Browser authority is display-only, BFF authority "
+                    "is forward-only with no execution, and this blocker chain "
+                    "is derived from read-only prerequisite evidence."
+                ),
+            )
+        )
+    return items
 
 
 def _resolver_item_from_flag(

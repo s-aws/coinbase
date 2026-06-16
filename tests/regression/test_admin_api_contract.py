@@ -4505,6 +4505,95 @@ def _expected_stealth_workflow_family(mutation_family: str) -> str:
     return workflow_family_by_mutation[mutation_family]
 
 
+def _assert_remaining_execution_blocker_chain(
+    contract: dict,
+    *,
+    create: bool,
+    post_write_resolved: bool,
+) -> None:
+    blockers = contract["remaining_execution_blockers"]
+    assert contract["remaining_execution_blocker_count"] == len(blockers)
+    assert [row["blocker_order"] for row in blockers] == list(
+        range(1, len(blockers) + 1)
+    )
+    blocker_values = {row["blocker"] for row in blockers}
+    if create:
+        expected = {
+            StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING.value,
+            StealthCreateLifecycleExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.STEALTH_ROW_WRITE_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.ORDER_PARENT_WRITE_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.LIFECYCLE_EVENT_DISPATCH_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.COINBASE_ORDER_SUBMIT_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.COINBASE_ORDER_CANCEL_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.COINBASE_READ_DISABLED.value,
+            StealthCreateLifecycleExecutionBlocker.RECONCILIATION_EXECUTION_DISABLED.value,
+        }
+        post_write_blocker = (
+            StealthCreateLifecycleExecutionBlocker.POST_WRITE_RECONCILIATION_MISSING.value
+        )
+    else:
+        expected = {
+            StealthCommandExecutionBlocker.EXECUTION_CONTRACT_MISSING.value,
+            StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+            StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value,
+            StealthCommandExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED.value,
+            StealthCommandExecutionBlocker.ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED.value,
+            StealthCommandExecutionBlocker.COINBASE_ORDER_SUBMIT_DISABLED.value,
+            StealthCommandExecutionBlocker.COINBASE_ORDER_CANCEL_DISABLED.value,
+            StealthCommandExecutionBlocker.COINBASE_READ_DISABLED.value,
+            StealthCommandExecutionBlocker.LIFECYCLE_STATE_MUTATION_DISABLED.value,
+            StealthCommandExecutionBlocker.ORDER_STATE_MUTATION_DISABLED.value,
+            StealthCommandExecutionBlocker.EXCHANGE_STATE_MUTATION_DISABLED.value,
+            StealthCommandExecutionBlocker.RECONCILIATION_EXECUTION_DISABLED.value,
+        }
+        post_write_blocker = (
+            StealthCommandExecutionBlocker.POST_WRITE_RECONCILIATION_MISSING.value
+        )
+    assert expected.issubset(blocker_values)
+    if post_write_resolved:
+        assert post_write_blocker not in blocker_values
+    else:
+        assert post_write_blocker in blocker_values
+    by_blocker = {row["blocker"]: row for row in blockers}
+    assert by_blocker[
+        (
+            StealthCreateLifecycleExecutionBlocker.LIVE_EXECUTION_DISABLED.value
+            if create
+            else StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value
+        )
+    ]["source_prerequisite"] == "live_execution_service"
+    assert by_blocker[
+        (
+            StealthCreateLifecycleExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value
+            if create
+            else StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value
+        )
+    ]["source_prerequisite"] == "live_execution_adapter"
+    for row in blockers:
+        assert row["status"] == AdminApiGateStatus.BLOCKED.value
+        assert row["blocking"] is True
+        assert row["resolved"] is False
+        assert row["next_required_contract"]
+        assert row["backend_owned"] is True
+        assert row["route_bound"] is True
+        assert row["command_context_bound"] is True
+        assert row["browser_authority"] == "display_only"
+        assert row["bff_authority"] == "forward_only_no_execution"
+        assert row["no_live_execution"] is True
+        assert row["manager_invocation_allowed"] is False
+        assert row["coinbase_submit_allowed"] is False
+        assert row["coinbase_cancel_allowed"] is False
+        assert row["coinbase_read_allowed"] is False
+        assert row["cancel_replace_allowed"] is False
+        assert row["reconciliation_execution_allowed"] is False
+        assert row["state_mutation_allowed"] is False
+        assert row["detail"]
+
+
 def _assert_stealth_command_execution_contract(
     payload: dict,
     *,
@@ -4543,7 +4632,15 @@ def _assert_stealth_command_execution_contract(
     assert StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value in (
         contract["blockers"]
     )
+    assert StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value in (
+        contract["blockers"]
+    )
     assert f"{command_specific_prerequisite}_missing" in contract["blockers"]
+    _assert_remaining_execution_blocker_chain(
+        contract,
+        create=False,
+        post_write_resolved=False,
+    )
     resolution_by_prerequisite = {
         row["prerequisite"]: row
         for row in contract["prerequisite_resolution"]
@@ -4887,6 +4984,14 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
     assert StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING.value in (
         execution_contract["blockers"]
     )
+    assert StealthCreateLifecycleExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value in (
+        execution_contract["blockers"]
+    )
+    _assert_remaining_execution_blocker_chain(
+        execution_contract,
+        create=True,
+        post_write_resolved=False,
+    )
     assert execution_contract["manager_invocation_allowed"] is False
     assert execution_contract["manager_invocation_ran"] is False
     assert execution_contract["stealth_row_write_allowed"] is False
@@ -5228,6 +5333,11 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         POST_WRITE_RECONCILIATION_SOURCE
     )
     assert execution_contract["post_write_reconciliation_missing_reason"] is None
+    _assert_remaining_execution_blocker_chain(
+        execution_contract,
+        create=True,
+        post_write_resolved=True,
+    )
     _assert_stealth_post_write_reconciliation_boundary(
         execution_contract["post_write_reconciliation_boundary"],
         mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE.value,
@@ -6523,7 +6633,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2921-2940"
+    assert readback_payload["approved_phase_range"] == "2941-2960"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -6737,7 +6847,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2921-2940"
+    assert readback_payload["approved_phase_range"] == "2941-2960"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9036,6 +9146,11 @@ def test_admin_api_stealth_reconciliation_execution_contract_resolves_proof(
         StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
         not in contract["resolved_prerequisites"]
     )
+    _assert_remaining_execution_blocker_chain(
+        contract,
+        create=False,
+        post_write_resolved=False,
+    )
     assert reconciliation_proof["writes_ran"] is False
     assert reconciliation_proof["live_coinbase_read_ran"] is False
     assert contract["manager_invocation_ran"] is False
@@ -9918,7 +10033,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2921-2940"
+    assert readback_payload["approved_phase_range"] == "2941-2960"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10133,7 +10248,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2921-2940"
+    assert readback_payload["approved_phase_range"] == "2941-2960"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12360,7 +12475,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2921-2940"
+    assert payload["approved_phase_range"] == "2941-2960"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -14182,7 +14297,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2921-2940"
+    assert live_payload["approved_phase_range"] == "2941-2960"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -14745,7 +14860,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2921-2940"
+    assert enterprise_payload["approved_phase_range"] == "2941-2960"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -15343,7 +15458,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2921-2940"
+    assert recovery_preview_payload["approved_phase_range"] == "2941-2960"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

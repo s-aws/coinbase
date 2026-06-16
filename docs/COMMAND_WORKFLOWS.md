@@ -266,6 +266,14 @@ the exact safe proof, accepted journal, and verification chain may resolve the
 `post_write_reconciliation` prerequisite evidence, while live execution,
 manager invocation, Coinbase calls, reconciliation execution, and state
 mutation remain disabled.
+Create and non-create execution contracts also expose
+`remaining_execution_blocker_count` and `remaining_execution_blockers`. These
+rows are typed backend evidence for the blockers that still prevent execution
+after prerequisite lookup. A resolved post-write chain removes only the
+`post_write_reconciliation_missing` blocker from that list. It does not remove
+live service, live adapter, manager invocation, Coinbase submit/cancel/read,
+active-placement cancel/replace, reconciliation execution, or state-mutation
+blockers, and it does not grant browser/BFF authority.
 The backend can now persist post-write execution-journal acceptance evidence
 through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`

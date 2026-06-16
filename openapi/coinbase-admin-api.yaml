@@ -20618,6 +20618,125 @@ components:
       - detail
       title: StealthCommandAdmissionContextEvidence
       description: Exact command-envelope context evidence for stealth command responses.
+    StealthCommandExecutionBlocker:
+      type: string
+      enum:
+      - stealth_command_execution_contract_missing
+      - live_execution_disabled
+      - live_execution_adapter_disabled
+      - stealth_manager_invocation_disabled
+      - active_placement_cancel_replace_disabled
+      - coinbase_order_submit_disabled
+      - coinbase_order_cancel_disabled
+      - coinbase_read_disabled
+      - lifecycle_state_mutation_disabled
+      - order_state_mutation_disabled
+      - exchange_state_mutation_disabled
+      - reconciliation_execution_disabled
+      - post_write_reconciliation_missing
+      - exact_command_context_missing
+      title: StealthCommandExecutionBlocker
+      description: Fail-closed blockers for non-create stealth command execution.
+    StealthCommandExecutionBlockerChainItem:
+      properties:
+        blocker_order:
+          type: integer
+          minimum: 1.0
+          title: Blocker Order
+        blocker:
+          $ref: '#/components/schemas/StealthCommandExecutionBlocker'
+        source_prerequisite:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandExecutionPrerequisite'
+          - type: 'null'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        resolved_evidence_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Evidence Id
+        missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Missing Reason
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        cancel_replace_allowed:
+          type: boolean
+          title: Cancel Replace Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - blocker_order
+      - blocker
+      - next_required_contract
+      - detail
+      title: StealthCommandExecutionBlockerChainItem
+      description: Typed blocker evidence that remains after prerequisite resolution.
     StealthCommandExecutionContractEvidence:
       properties:
         mutation_family:
@@ -20740,6 +20859,16 @@ components:
             type: string
           type: array
           title: Blockers
+        remaining_execution_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Remaining Execution Blocker Count
+          default: 0
+        remaining_execution_blockers:
+          items:
+            $ref: '#/components/schemas/StealthCommandExecutionBlockerChainItem'
+          type: array
+          title: Remaining Execution Blockers
         active_placement_exchange_truth_required:
           type: boolean
           title: Active Placement Exchange Truth Required
@@ -22384,6 +22513,137 @@ components:
       - approved_phase_range
       title: StealthCommandSuiteResponse
       description: Read-only M55 stealth command-suite readiness evidence.
+    StealthCreateLifecycleExecutionBlocker:
+      type: string
+      enum:
+      - stealth_create_lifecycle_write_execution_contract_missing
+      - live_execution_disabled
+      - live_execution_adapter_disabled
+      - stealth_manager_invocation_disabled
+      - active_placement_cancel_replace_disabled
+      - stealth_row_write_disabled
+      - order_parent_write_disabled
+      - lifecycle_event_dispatch_disabled
+      - coinbase_order_submit_disabled
+      - coinbase_order_cancel_disabled
+      - coinbase_read_disabled
+      - reconciliation_execution_disabled
+      - post_write_reconciliation_missing
+      - exact_command_context_missing
+      title: StealthCreateLifecycleExecutionBlocker
+      description: Fail-closed blockers for stealth create lifecycle-write execution.
+    StealthCreateLifecycleExecutionBlockerChainItem:
+      properties:
+        blocker_order:
+          type: integer
+          minimum: 1.0
+          title: Blocker Order
+        blocker:
+          $ref: '#/components/schemas/StealthCreateLifecycleExecutionBlocker'
+        source_prerequisite:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCreateLifecycleExecutionPrerequisite'
+          - type: 'null'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        resolved_evidence_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Evidence Id
+        missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Missing Reason
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        stealth_row_write_allowed:
+          type: boolean
+          title: Stealth Row Write Allowed
+          default: false
+        order_parent_write_allowed:
+          type: boolean
+          title: Order Parent Write Allowed
+          default: false
+        lifecycle_event_dispatch_allowed:
+          type: boolean
+          title: Lifecycle Event Dispatch Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        cancel_replace_allowed:
+          type: boolean
+          title: Cancel Replace Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - blocker_order
+      - blocker
+      - next_required_contract
+      - detail
+      title: StealthCreateLifecycleExecutionBlockerChainItem
+      description: Typed blocker evidence that remains after create prerequisite resolution.
     StealthCreateLifecycleExecutionPrerequisite:
       type: string
       enum:
@@ -22938,6 +23198,16 @@ components:
             type: string
           type: array
           title: Blockers
+        remaining_execution_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Remaining Execution Blocker Count
+          default: 0
+        remaining_execution_blockers:
+          items:
+            $ref: '#/components/schemas/StealthCreateLifecycleExecutionBlockerChainItem'
+          type: array
+          title: Remaining Execution Blockers
         lifecycle_write_guard_proof_required:
           type: boolean
           title: Lifecycle Write Guard Proof Required
@@ -23096,6 +23366,14 @@ components:
           type: boolean
           title: Coinbase Order Submit Ran
           default: false
+        coinbase_order_cancel_allowed:
+          type: boolean
+          title: Coinbase Order Cancel Allowed
+          default: false
+        coinbase_order_cancel_ran:
+          type: boolean
+          title: Coinbase Order Cancel Ran
+          default: false
         live_coinbase_read_allowed:
           type: boolean
           title: Live Coinbase Read Allowed
@@ -23103,6 +23381,14 @@ components:
         live_coinbase_read_ran:
           type: boolean
           title: Live Coinbase Read Ran
+          default: false
+        active_placement_cancel_replace_allowed:
+          type: boolean
+          title: Active Placement Cancel Replace Allowed
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
           default: false
         reconciliation_execution_allowed:
           type: boolean

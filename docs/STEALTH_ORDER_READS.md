@@ -276,6 +276,14 @@ They also expose the same nested `post_write_reconciliation_boundary` object,
 which names the reconciliation-plan route and remains blocked/no-run.
 They also expose the same nested `live_execution_adapter_contract`, which names
 the shared command-service reference and remains disabled/non-executable.
+They also expose `remaining_execution_blocker_count` and
+`remaining_execution_blockers`, a typed blocker-chain derived from backend
+prerequisite resolver rows and disabled execution-boundary evidence. A
+resolved exact post-write proof/journal/verification chain can remove only the
+`post_write_reconciliation_missing` blocker. Live service, live adapter,
+manager invocation, Coinbase submit/cancel/read, cancel/replace,
+reconciliation execution, local write, and state-mutation blockers remain
+visible and blocked.
 Exact stealth cancel, stealth move, and movement/reprice command responses may
 also expose `active_placement_cancel_replace_contract`. It is the same
 backend-owned cancel/replace boundary contract used by command-suite

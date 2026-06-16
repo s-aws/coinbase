@@ -62,6 +62,7 @@ from core.enums import (
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
     StealthCommandExecutionPrerequisiteLookupStatus,
+    StealthCreateLifecycleExecutionBlocker,
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
     StealthLifecycleWriteGuardEvidenceSource,
@@ -5828,6 +5829,36 @@ class StealthPostWriteReconciliationCompletionVerifierEvidence(BaseModel):
     detail: str
 
 
+class StealthCommandExecutionBlockerChainItem(BaseModel):
+    """Typed blocker evidence that remains after prerequisite resolution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    blocker_order: int = Field(ge=1)
+    blocker: StealthCommandExecutionBlocker
+    source_prerequisite: StealthCommandExecutionPrerequisite | None = None
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    resolved: bool = False
+    resolved_evidence_id: str | None = None
+    missing_reason: str | None = None
+    next_required_contract: str
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    no_live_execution: bool = True
+    manager_invocation_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    cancel_replace_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    state_mutation_allowed: bool = False
+    detail: str
+
+
 class StealthCommandExecutionContractEvidence(BaseModel):
     """No-live execution posture evidence for non-create stealth commands."""
 
@@ -5867,6 +5898,10 @@ class StealthCommandExecutionContractEvidence(BaseModel):
         Field(default_factory=list)
     )
     blockers: list[str] = Field(default_factory=list)
+    remaining_execution_blocker_count: int = Field(default=0, ge=0)
+    remaining_execution_blockers: list[
+        StealthCommandExecutionBlockerChainItem
+    ] = Field(default_factory=list)
     active_placement_exchange_truth_required: bool = False
     active_placement_exchange_truth_resolved: bool = False
     active_placement_exchange_truth_contract: (
@@ -6018,6 +6053,39 @@ class StealthCreateLifecycleExecutionReadinessStageItem(BaseModel):
     detail: str
 
 
+class StealthCreateLifecycleExecutionBlockerChainItem(BaseModel):
+    """Typed blocker evidence that remains after create prerequisite resolution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    blocker_order: int = Field(ge=1)
+    blocker: StealthCreateLifecycleExecutionBlocker
+    source_prerequisite: StealthCreateLifecycleExecutionPrerequisite | None = None
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    resolved: bool = False
+    resolved_evidence_id: str | None = None
+    missing_reason: str | None = None
+    next_required_contract: str
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    no_live_execution: bool = True
+    manager_invocation_allowed: bool = False
+    stealth_row_write_allowed: bool = False
+    order_parent_write_allowed: bool = False
+    lifecycle_event_dispatch_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    cancel_replace_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    state_mutation_allowed: bool = False
+    detail: str
+
+
 class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     """No-live execution-contract boundary evidence for stealth create."""
 
@@ -6054,6 +6122,10 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
         StealthCreateLifecycleExecutionReadinessStageItem
     ] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
+    remaining_execution_blocker_count: int = Field(default=0, ge=0)
+    remaining_execution_blockers: list[
+        StealthCreateLifecycleExecutionBlockerChainItem
+    ] = Field(default_factory=list)
     lifecycle_write_guard_proof_required: bool = True
     lifecycle_write_guard_proof_resolved: bool = False
     lifecycle_write_guard_proof_lookup_ran: bool = False
@@ -6106,8 +6178,12 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
     local_lifecycle_mutation_ran: bool = False
     coinbase_order_submit_allowed: bool = False
     coinbase_order_submit_ran: bool = False
+    coinbase_order_cancel_allowed: bool = False
+    coinbase_order_cancel_ran: bool = False
     live_coinbase_read_allowed: bool = False
     live_coinbase_read_ran: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    active_placement_cancel_replace_ran: bool = False
     reconciliation_execution_allowed: bool = False
     reconciliation_executed: bool = False
     browser_authority: str = "display_only"

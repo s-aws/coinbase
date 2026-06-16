@@ -161,6 +161,13 @@ Current behavior:
   reconciliation, call Coinbase, invoke `StealthOrderManager`, cancel/replace
   placements, mutate order/exchange/lifecycle state, or make the command
   live-executable.
+- Exact stealth create and non-create command responses may expose
+  `remaining_execution_blocker_count` and `remaining_execution_blockers`.
+  Those typed rows stay blocked after prerequisite lookup and keep live
+  service, live adapter, manager invocation, Coinbase submit/cancel/read,
+  active-placement cancel/replace, reconciliation execution, and state
+  mutation disabled. A resolved exact post-write chain removes only the
+  `post_write_reconciliation_missing` blocker.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

@@ -369,12 +369,18 @@ class StealthCreateLifecycleExecutionBlocker(str, Enum):
         "stealth_create_lifecycle_write_execution_contract_missing"
     )
     LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+    LIVE_EXECUTION_ADAPTER_DISABLED = "live_execution_adapter_disabled"
     STEALTH_MANAGER_INVOCATION_DISABLED = "stealth_manager_invocation_disabled"
+    ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED = (
+        "active_placement_cancel_replace_disabled"
+    )
     STEALTH_ROW_WRITE_DISABLED = "stealth_row_write_disabled"
     ORDER_PARENT_WRITE_DISABLED = "order_parent_write_disabled"
     LIFECYCLE_EVENT_DISPATCH_DISABLED = "lifecycle_event_dispatch_disabled"
     COINBASE_ORDER_SUBMIT_DISABLED = "coinbase_order_submit_disabled"
+    COINBASE_ORDER_CANCEL_DISABLED = "coinbase_order_cancel_disabled"
     COINBASE_READ_DISABLED = "coinbase_read_disabled"
+    RECONCILIATION_EXECUTION_DISABLED = "reconciliation_execution_disabled"
     POST_WRITE_RECONCILIATION_MISSING = "post_write_reconciliation_missing"
     EXACT_COMMAND_CONTEXT_MISSING = "exact_command_context_missing"
 
@@ -413,6 +419,7 @@ class StealthCommandExecutionBlocker(str, Enum):
 
     EXECUTION_CONTRACT_MISSING = "stealth_command_execution_contract_missing"
     LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+    LIVE_EXECUTION_ADAPTER_DISABLED = "live_execution_adapter_disabled"
     STEALTH_MANAGER_INVOCATION_DISABLED = "stealth_manager_invocation_disabled"
     ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED = (
         "active_placement_cancel_replace_disabled"
