@@ -204,12 +204,14 @@ Current behavior:
   backend-derived classification evidence over the readiness summary. It
   reports clearance categories, blocked clearance refs, first-clearance
   evidence, handoff authority, and disabled resolution/execution/writer flags.
-  Its `clearance_actions` rows name the backend contract, route, method,
-  service, required artifact, evidence ref, authority, and disabled
-  execution/resolver/writer flags for each blocked handoff ref. These rows are
-  not a resolver, decision writer, live service switch, live adapter, manager
-  invocation path, Coinbase path, reconciliation executor, state mutation path,
-  browser authority, or BFF execution authority.
+  Its `clearance_actions` rows name the source readiness item type/order,
+  clearance sequence, predecessor refs, successor refs, backend contract,
+  route, method, service, required artifact, evidence ref, dependency
+  authority, dependency readiness, action authority, and disabled
+  execution/resolver/writer flags for each blocked handoff ref. These rows are not a resolver, decision
+  writer, live service switch, live adapter, manager invocation path, Coinbase
+  path, reconciliation executor, state mutation path, browser authority, or
+  BFF execution authority.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

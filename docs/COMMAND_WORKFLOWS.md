@@ -410,13 +410,14 @@ gate or BFF execution path.
 The decision rows also expose `resolution_handoff`, which classifies the
 blocked backend decision into clearance categories and blocked clearance refs
 derived from the readiness summary. The handoff is operator/contextless-agent
-orientation only. Its `clearance_actions` rows name the backend contract,
-route, method, service, artifact, evidence ref, authority, and disabled
+orientation only. Its `clearance_actions` rows name the source readiness item
+type/order, clearance sequence, predecessor refs, successor refs, backend
+contract, route, method, service, artifact, evidence ref, dependency
+authority, dependency readiness, action authority, and disabled
 execution/resolver/writer flags needed to clear each blocked ref. The handoff
-and action rows must not become a decision resolver, decision writer, live
-service switch, live adapter, manager invocation, Coinbase path,
-reconciliation executor, local state mutation, browser authority, or BFF
-execution path.
+and action rows must not become a decision resolver, decision writer, live service switch, live adapter,
+manager invocation, Coinbase path, reconciliation executor, local state
+mutation, browser authority, or BFF execution path.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence

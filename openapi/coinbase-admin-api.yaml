@@ -24600,6 +24600,26 @@ components:
         clearance_ref:
           type: string
           title: Clearance Ref
+        readiness_item_type:
+          $ref: '#/components/schemas/AdminApiStealthDecisionResolutionEvidenceType'
+        readiness_item_order:
+          type: integer
+          minimum: 1.0
+          title: Readiness Item Order
+        clearance_sequence:
+          type: integer
+          minimum: 1.0
+          title: Clearance Sequence
+        required_predecessor_refs:
+          items:
+            type: string
+          type: array
+          title: Required Predecessor Refs
+        blocking_successor_refs:
+          items:
+            type: string
+          type: array
+          title: Blocking Successor Refs
         owner:
           type: string
           title: Owner
@@ -24627,6 +24647,14 @@ components:
         required_evidence_ref:
           type: string
           title: Required Evidence Ref
+        dependency_authority:
+          type: string
+          title: Dependency Authority
+          default: backend_derived_from_readiness_item_order
+        dependency_ready:
+          type: boolean
+          title: Dependency Ready
+          default: false
         action_authority:
           type: string
           title: Action Authority
@@ -24692,6 +24720,11 @@ components:
       - decision
       - clearance_category
       - clearance_ref
+      - readiness_item_type
+      - readiness_item_order
+      - clearance_sequence
+      - required_predecessor_refs
+      - blocking_successor_refs
       - owner
       - required_artifact
       - required_backend_contract

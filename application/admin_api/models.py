@@ -6089,6 +6089,11 @@ class StealthExecutionDecisionResolutionClearanceAction(BaseModel):
     decision: AdminApiStealthLiveReadinessDecision
     clearance_category: AdminApiLivePreflightCategory
     clearance_ref: str
+    readiness_item_type: AdminApiStealthDecisionResolutionEvidenceType
+    readiness_item_order: int = Field(ge=1)
+    clearance_sequence: int = Field(ge=1)
+    required_predecessor_refs: list[str]
+    blocking_successor_refs: list[str]
     owner: str
     required_artifact: str
     required_backend_contract: str
@@ -6096,6 +6101,8 @@ class StealthExecutionDecisionResolutionClearanceAction(BaseModel):
     required_backend_method: str | None = None
     required_backend_service: str | None = None
     required_evidence_ref: str
+    dependency_authority: str = "backend_derived_from_readiness_item_order"
+    dependency_ready: bool = False
     action_authority: str = "backend_planning_only_no_clearance"
     clearance_ready: bool = False
     resolver_allowed: bool = False

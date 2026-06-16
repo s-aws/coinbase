@@ -742,6 +742,7 @@ def _build_stealth_live_readiness_decisions() -> list[
                         decision,
                         metadata,
                         resolution_readiness_summary,
+                        resolution_readiness_items,
                     )
                 ),
                 resolution_plan_execution_allowed=False,
@@ -833,6 +834,7 @@ def _build_decision_resolution_handoff(
     decision: AdminApiStealthLiveReadinessDecision,
     metadata: dict[str, object],
     summary: StealthExecutionDecisionResolutionReadinessSummary,
+    readiness_items: list[StealthExecutionDecisionResolutionReadinessItem],
 ) -> StealthExecutionDecisionResolutionHandoff:
     clearance_categories = list(metadata["resolution_handoff_categories"])
     blocked_clearance_refs = list(summary.blocking_item_names)
@@ -847,6 +849,7 @@ def _build_decision_resolution_handoff(
             metadata=metadata,
             clearance_categories=clearance_categories,
             blocked_clearance_refs=blocked_clearance_refs,
+            readiness_items=readiness_items,
         ),
         first_clearance_category=(
             clearance_categories[0] if clearance_categories else None
@@ -867,19 +870,27 @@ def _build_decision_resolution_clearance_actions(
     metadata: dict[str, object],
     clearance_categories: list[AdminApiLivePreflightCategory],
     blocked_clearance_refs: list[str],
+    readiness_items: list[StealthExecutionDecisionResolutionReadinessItem],
 ) -> list[StealthExecutionDecisionResolutionClearanceAction]:
     actions: list[StealthExecutionDecisionResolutionClearanceAction] = []
-    for clearance_ref in blocked_clearance_refs:
+    readiness_item_by_name = {item.item_name: item for item in readiness_items}
+    for index, clearance_ref in enumerate(blocked_clearance_refs):
         category = _category_for_resolution_ref(
             clearance_ref=clearance_ref,
             clearance_categories=clearance_categories,
         )
         contract = _CLEARANCE_ACTION_CONTRACTS[category]
+        readiness_item = readiness_item_by_name[clearance_ref]
         actions.append(
             StealthExecutionDecisionResolutionClearanceAction(
                 decision=decision,
                 clearance_category=category,
                 clearance_ref=clearance_ref,
+                readiness_item_type=readiness_item.item_type,
+                readiness_item_order=readiness_item.item_order,
+                clearance_sequence=index + 1,
+                required_predecessor_refs=blocked_clearance_refs[:index],
+                blocking_successor_refs=blocked_clearance_refs[index + 1 :],
                 owner=str(metadata["owner"]),
                 required_artifact=str(metadata["required_artifact"]),
                 required_backend_contract=str(

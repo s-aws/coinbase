@@ -404,13 +404,14 @@ The same rows expose `resolution_handoff`, a backend-derived classification
 over the readiness summary. It reports clearance categories, blocked clearance
 refs, first clearance evidence, handoff authority, and disabled
 resolution/execution/writer flags. `resolution_handoff.clearance_actions`
-names the backend contract, route, method, service, required artifact,
-evidence ref, action authority, and disabled execution/resolver/writer flags
-that would be required to clear each blocked handoff ref. The handoff and
-action rows are context for future backend work only; they are not a resolver,
-decision writer, live service switch, live adapter, manager invocation path,
-Coinbase path, reconciliation executor, state mutation path, browser
-authority, or BFF execution authority.
+names the source readiness item type/order, clearance sequence, predecessor
+refs, successor refs, backend contract, route, method, service, required
+artifact, evidence ref, dependency authority, dependency readiness, action
+authority, and disabled execution/resolver/writer flags that would be required
+to clear each blocked handoff ref. The handoff and action rows are context for future backend work
+only; they are not a resolver, decision writer, live service switch, live
+adapter, manager invocation path, Coinbase path, reconciliation executor,
+state mutation path, browser authority, or BFF execution authority.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

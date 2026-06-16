@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3161-3180",
+  "approved_phase_range": "3181-3200",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -688,6 +688,22 @@ blocked even when exact command-envelope context is present:
                 "decision": "explicit_live_enablement_decision",
                 "clearance_category": "approval",
                 "clearance_ref": "capture_route_bound_operator_approval",
+                "readiness_item_type": "plan_step",
+                "readiness_item_order": 1,
+                "clearance_sequence": 1,
+                "required_predecessor_refs": [],
+                "blocking_successor_refs": [
+                  "verify_admission_audit_cap_guard_and_reconciliation_plan",
+                  "record_backend_live_enablement_decision",
+                  "route_bound_approval_snapshot",
+                  "route_bound_admission_audit",
+                  "route_bound_cap_guard_decision",
+                  "route_bound_reconciliation_plan",
+                  "approval_snapshot_approved",
+                  "cap_guard_within_configured_limits",
+                  "admission_audit_recorded_for_exact_context",
+                  "reconciliation_plan_present_before_live_enablement"
+                ],
                 "owner": "admin_api_contract",
                 "required_artifact": "explicit_backend_live_enablement_decision",
                 "required_backend_contract": "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
@@ -695,6 +711,8 @@ blocked even when exact command-envelope context is present:
                 "required_backend_method": "POST",
                 "required_backend_service": "AdminApprovalService",
                 "required_evidence_ref": "route_bound_approval_snapshot",
+                "dependency_authority": "backend_derived_from_readiness_item_order",
+                "dependency_ready": false,
                 "action_authority": "backend_planning_only_no_clearance",
                 "clearance_ready": false,
                 "resolver_allowed": false,
@@ -814,11 +832,13 @@ disabled execution/resolver/writer flags for display only. They also include
 `resolution_handoff`, a backend-derived classification over the summary with
 clearance categories, blocked clearance refs, first clearance evidence, and
 disabled resolution/execution/writer flags. The handoff also includes
-`clearance_actions` rows naming backend contract, route, method, service,
-artifact, evidence ref, authority, and disabled execution flags for each
-blocked ref. The handoff and action rows are not a resolver, writer, live
-switch, adapter, manager path, Coinbase path, reconciliation executor, state
-mutation path, browser authority, or BFF execution authority.
+`clearance_actions` rows naming source readiness item type/order, clearance
+sequence, predecessor refs, successor refs, backend contract, route, method,
+service, artifact, evidence ref, dependency authority, dependency readiness,
+action authority, and disabled resolver/writer/execution flags for each
+blocked ref. The handoff and action rows are not a resolver, writer, live switch, adapter, manager path, Coinbase path,
+reconciliation executor, state mutation path, browser authority, or BFF
+execution authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend
