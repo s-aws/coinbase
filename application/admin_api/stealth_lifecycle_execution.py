@@ -35,7 +35,10 @@ from .stealth_lifecycle_write import (
     FileStealthLifecycleWriteGuardProofStore,
     StealthCreateLifecycleWriteGuardProofRecord,
 )
-from .stealth_execution_preflight import build_stealth_execution_preflight
+from .stealth_execution_preflight import (
+    build_stealth_execution_preflight,
+    build_stealth_execution_transition_barrier,
+)
 from .stealth_post_write_reconciliation import (
     FileStealthPostWriteExecutionJournalStore,
     FileStealthPostWriteReconciliationProofStore,
@@ -227,6 +230,7 @@ def build_stealth_create_lifecycle_write_execution_contract(
         exact_command_context_present=exact_command_context_present,
         remaining_execution_blockers=remaining_execution_blockers,
     )
+    execution_preflight = build_stealth_execution_preflight(execution_candidate)
 
     return StealthCreateLifecycleWriteExecutionContractEvidence(
         stealth_order_id=stealth_order_id,
@@ -357,7 +361,10 @@ def build_stealth_create_lifecycle_write_execution_contract(
             )
         ),
         execution_candidate=execution_candidate,
-        execution_preflight=build_stealth_execution_preflight(execution_candidate),
+        execution_preflight=execution_preflight,
+        execution_transition_barrier=build_stealth_execution_transition_barrier(
+            execution_preflight
+        ),
         canonical_execution_path=[
             STEALTH_CREATE_MANAGER_METHOD
         ],

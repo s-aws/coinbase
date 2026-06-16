@@ -55,6 +55,13 @@ The route requires Admin API authentication and `analytics:read`. It returns
   post-write reconciliation, state mutation, and browser/BFF authority, and
   does not call managers, Coinbase, reconciliation, cancel/replace, or state
   mutation paths
+- typed `execution_transition_barrier` evidence on exact create and
+  non-create command responses. This is derived from `execution_preflight`,
+  names the first blocking check and ordered clearance requirements, keeps
+  `transition_allowed` and `transition_executable` false, and remains
+  backend-owned, no-live, browser `display_only`, and BFF
+  `forward_only_no_execution`. It does not call managers, Coinbase,
+  cancel/replace, reconciliation, or state mutation paths
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only

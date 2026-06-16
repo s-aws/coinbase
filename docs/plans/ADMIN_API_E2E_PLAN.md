@@ -38,96 +38,114 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Candidate Preflight Evidence Batch - Phases 2981-3000
+## Active M55 Execution Transition Barrier Batch - Phases 3001-3020
 
-These phases continue M55 after execution-candidate evidence by exposing
-candidate-bound pre-execution preflight checks. The preflight is derived from
-the existing backend candidate and remaining blocker chain. It must remain
-blocked, no-live, backend-owned, route-bound, command-context-bound,
-display-only, and BFF forward-only. It must not enable the live service or
-adapter, invoke managers, call Coinbase, execute reconciliation, cancel or
-replace active placements, mutate lifecycle/order/exchange state, or grant
-browser/BFF execution authority.
+These phases continue M55 after candidate preflight evidence by exposing an
+explicit execution-transition barrier derived from `execution_preflight`. The
+barrier makes the final no-live handoff point visible before any future
+executable path can exist. It must remain blocked, no-live, backend-owned,
+route-bound, command-context-bound, display-only, and BFF forward-only. It
+must not enable the live service or adapter, invoke managers, call Coinbase,
+execute reconciliation, cancel or replace active placements, mutate
+lifecycle/order/exchange state, or grant browser/BFF execution authority.
 
-### Phase 2981 - Advance Active Queue Range
+### Phase 3001 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2961-2980 to active phases 2981-3000 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2981-3000 to active phases 3001-3020 while preserving no-live defaults and cap policy.
 
-### Phase 2982 - Prior Range Completion Evidence
+### Phase 3002 - Prior Range Completion Evidence
 
-- Record phases 2961-2980 as completed execution-candidate evidence with backend commit `76d27d83`, frontend commit `5bca39c`, passing gates, blind reviews, and `$0` live Coinbase submitted/executed notional.
+- Record phases 2981-3000 as completed candidate preflight evidence with backend commit `6d0f25b6`, frontend commit `112ef9e`, passing gates, blind reviews, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 2983 - Preflight Category Vocabulary
+### Phase 3003 - Transition Barrier Model
 
-- Add enum-backed candidate preflight categories for execution candidate, blocker chain, live adapter, manager invocation, Coinbase exchange, and state mutation evidence.
+- Add a typed backend execution-transition barrier model nested under stealth create and non-create execution contracts.
 
-### Phase 2984 - Backend Preflight Model
+### Phase 3004 - Shared Transition Barrier Builder
 
-- Add a typed backend candidate preflight model nested under stealth create and non-create execution contracts.
+- Build transition-barrier evidence from the existing `execution_preflight` object so create and non-create stealth contracts use one code path.
 
-### Phase 2985 - Shared Preflight Builder
+### Phase 3005 - Non-Create Contract Wiring
 
-- Build candidate preflight from the existing `execution_candidate` object so create and non-create stealth contracts use one code path.
+- Attach blocked transition-barrier evidence to reveal, cancel, move, recovery, reconciliation, and reprice execution contracts.
 
-### Phase 2986 - Non-Create Contract Wiring
+### Phase 3006 - Create Contract Wiring
 
-- Attach blocked candidate preflight to reveal, cancel, move, recovery, reconciliation, and reprice execution contracts.
+- Attach blocked transition-barrier evidence to the stealth create lifecycle-write execution contract.
 
-### Phase 2987 - Create Contract Wiring
+### Phase 3007 - Transition Authority Flags
 
-- Attach blocked candidate preflight to the stealth create lifecycle-write execution contract.
+- Prove transition evidence is backend-owned, route-bound, command-context-bound, display-only, BFF forward-only, non-executable, and no-live.
 
-### Phase 2988 - Preflight Authority Flags
+### Phase 3008 - First-Blocker And Clearance-Order Binding
 
-- Prove candidate preflight is backend-owned, route-bound, command-context-bound, display-only, BFF forward-only, non-executable, and no-live.
+- Bind the barrier to the first blocking preflight check and ordered required clearance list from `execution_preflight`.
 
-### Phase 2989 - Blocker And Next-Contract Binding
+### Phase 3009 - Unresolved Blocker And Next-Contract Binding
 
-- Bind candidate preflight to unresolved blocker values and next-required contracts from the candidate evidence.
+- Bind transition evidence to unresolved blocker values and next-required contracts from preflight/candidate evidence.
 
-### Phase 2990 - Backend OpenAPI And Regression Coverage
+### Phase 3010 - Backend OpenAPI And Regression Coverage
 
-- Regenerate backend OpenAPI and assert preflight fields are part of the Admin API contract for create and non-create stealth command families.
+- Regenerate backend OpenAPI and assert transition-barrier fields are part of the Admin API contract for create and non-create stealth command families.
 
-### Phase 2991 - Frontend Schema Sync
+### Phase 3011 - Frontend Schema Sync
 
 - Regenerate frontend API types from the backend OpenAPI artifact without hand-editing generated files.
 
-### Phase 2992 - Frontend Mock Runtime Intake
+### Phase 3012 - Frontend Mock Runtime Intake
 
-- Update frontend mock/runtime fixtures so exact command responses expose blocked candidate preflight evidence without enabling command execution.
+- Update frontend mock/runtime fixtures so exact command responses expose blocked transition-barrier evidence without enabling command execution.
 
-### Phase 2993 - Command Dry-Submit Display
+### Phase 3013 - Command Dry-Submit Display
 
-- Render or preserve candidate preflight rows in command dry-submit evidence as backend evidence only.
+- Render transition-barrier rows in command dry-submit evidence as backend evidence only.
 
-### Phase 2994 - Stealth Read-Model Display
+### Phase 3014 - Stealth Read-Model Display
 
-- Render or preserve candidate preflight evidence in stealth read-model surfaces without enabling command execution.
+- Render transition-barrier evidence in stealth read-model surfaces without enabling command execution.
 
-### Phase 2995 - Quality Artifact Sync
+### Phase 3015 - Quality Artifact Sync
 
-- Update release, deployment, autonomous, and artifact-contract checks for phase range 2981-3000 and no-live posture.
+- Update release, deployment, autonomous, and artifact-contract checks for phase range 3001-3020 and no-live posture.
 
-### Phase 2996 - Documentation And Examples
+### Phase 3016 - Documentation And Examples
 
-- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for candidate preflight semantics.
+- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for transition-barrier semantics.
 
-### Phase 2997 - Stale Authority Scan
+### Phase 3017 - Stale Authority Scan
 
-- Search both repos for stale active-range and misleading preflight/candidate wording that would imply execution authority.
+- Search both repos for stale active-range and misleading transition/preflight/candidate wording that would imply execution authority.
 
-### Phase 2998 - Focused Backend And Frontend Gates
+### Phase 3018 - Focused Backend And Frontend Gates
 
 - Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend unit/API/autonomous/quality checks.
 
-### Phase 2999 - Blind Contextless Reviews
+### Phase 3019 - Blind Contextless Reviews
 
-- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why candidate preflight is blocked evidence only.
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why transition-barrier evidence is blocked and display-only.
 
-### Phase 3000 - Full Gates, Commit, Push, And Continue
+### Phase 3020 - Full Gates, Commit, Push, And Pause
 
-- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then continue only if the next milestone-linked batch is unblocked.
+- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then pause for the requested restart.
+
+## Completed M55 Candidate Preflight Evidence Batch - Phases 2981-3000
+
+These phases exposed typed candidate-bound pre-execution preflight evidence
+after execution-candidate evidence. The preflight is derived from the existing
+backend candidate and remaining blocker chain, and remains blocked, no-live,
+backend-owned, route-bound, command-context-bound, display-only, and BFF
+forward-only.
+
+Completion evidence:
+
+- Backend commit `6d0f25b6` and frontend commit `112ef9e` were pushed.
+- Backend full regression passed with `853` tests and `1` warning.
+- Frontend `npm run release:gate` passed.
+- Backend and frontend blind/contextless reviews found no blockers.
+- Browser render check passed at `http://127.0.0.1:3000/`.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed M55 Execution Candidate Evidence Batch - Phases 2961-2980
 

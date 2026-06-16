@@ -11,6 +11,7 @@ from .models import (
     AdminLivePreflightCheckItem,
     StealthExecutionCandidateEvidence,
     StealthExecutionPreflightEvidence,
+    StealthExecutionTransitionBarrierEvidence,
 )
 
 
@@ -142,6 +143,46 @@ def build_stealth_execution_preflight(
             "keeps the stealth execution candidate blocked until the backend "
             "live service, adapter, manager, Coinbase, reconciliation, and "
             "state-mutation blockers are resolved by later contracts."
+        ),
+    )
+
+
+def build_stealth_execution_transition_barrier(
+    preflight: StealthExecutionPreflightEvidence,
+) -> StealthExecutionTransitionBarrierEvidence:
+    """Build the read-only barrier before any execution transition."""
+
+    blocking_checks = [item for item in preflight.preflight_checks if item.blocking]
+    first_blocking_check = blocking_checks[0] if blocking_checks else None
+    return StealthExecutionTransitionBarrierEvidence(
+        mutation_family=preflight.mutation_family,
+        workflow_family=preflight.workflow_family,
+        command_route=preflight.command_route,
+        command_method=preflight.command_method,
+        service_method=preflight.service_method,
+        identity_key=preflight.identity_key,
+        identity_value=preflight.identity_value,
+        all_preflight_checks_passed=preflight.blocking_check_count == 0,
+        first_blocking_check=(
+            first_blocking_check.name if first_blocking_check is not None else None
+        ),
+        first_blocking_category=(
+            first_blocking_check.category
+            if first_blocking_check is not None
+            else None
+        ),
+        required_clearance_order=[item.name for item in blocking_checks],
+        preflight_check_count=preflight.check_count,
+        blocking_check_count=preflight.blocking_check_count,
+        passed_check_count=preflight.passed_check_count,
+        unresolved_blocker_count=preflight.unresolved_blocker_count,
+        unresolved_blockers=list(preflight.unresolved_blockers),
+        next_required_contracts=list(preflight.next_required_contracts),
+        detail=(
+            "Execution transition remains blocked by backend-owned preflight "
+            "evidence. The barrier is read-only and cannot invoke managers, "
+            "Coinbase, active-placement cancel/replace, reconciliation, or "
+            "local state mutation."
         ),
     )
 

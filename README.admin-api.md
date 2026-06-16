@@ -467,6 +467,15 @@ create-lifecycle evidence only: they do not invoke `StealthOrderManager`,
 write `stealth_orders` or `order_parent`, dispatch lifecycle events, submit
 or read Coinbase orders, execute reconciliation, or authorize browser/BFF
 execution.
+Exact stealth create and non-create command responses also expose
+`execution_candidate`, `execution_preflight`, and
+`execution_transition_barrier`. The candidate names the future backend manager
+path and unresolved blocker chain, the preflight derives blocked checks from
+that candidate, and the transition barrier derives the first blocking check
+and clearance order from preflight. All three are backend-owned display
+evidence only; they do not invoke managers, call Coinbase, cancel/replace
+active placements, execute reconciliation, mutate state, or authorize
+browser/BFF execution.
 For stealth reconciliation, the same contract may resolve
 `reconciliation_proof` from
 `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and

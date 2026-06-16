@@ -21034,6 +21034,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthExecutionPreflightEvidence'
           - type: 'null'
+        execution_transition_barrier:
+          anyOf:
+          - $ref: '#/components/schemas/StealthExecutionTransitionBarrierEvidence'
+          - type: 'null'
         canonical_execution_path:
           items:
             type: string
@@ -23331,6 +23335,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthExecutionPreflightEvidence'
           - type: 'null'
+        execution_transition_barrier:
+          anyOf:
+          - $ref: '#/components/schemas/StealthExecutionTransitionBarrierEvidence'
+          - type: 'null'
         canonical_execution_path:
           items:
             type: string
@@ -24503,6 +24511,207 @@ components:
       - detail
       title: StealthExecutionPreflightEvidence
       description: Candidate-bound pre-execution checks for stealth command evidence.
+    StealthExecutionTransitionBarrierEvidence:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        command_route:
+          type: string
+          title: Command Route
+        command_method:
+          type: string
+          title: Command Method
+          default: POST
+        service_method:
+          type: string
+          title: Service Method
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        transition_available:
+          type: boolean
+          title: Transition Available
+          default: true
+        transition_authority:
+          type: string
+          title: Transition Authority
+          default: read_only_transition_barrier
+        source_ref:
+          type: string
+          title: Source Ref
+          default: execution_preflight
+        candidate_ref:
+          type: string
+          title: Candidate Ref
+          default: execution_candidate
+        transition_allowed:
+          type: boolean
+          title: Transition Allowed
+          default: false
+        transition_executable:
+          type: boolean
+          title: Transition Executable
+          default: false
+        all_preflight_checks_passed:
+          type: boolean
+          title: All Preflight Checks Passed
+          default: false
+        first_blocking_check:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Blocking Check
+        first_blocking_category:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+          - type: 'null'
+        required_clearance_order:
+          items:
+            type: string
+          type: array
+          title: Required Clearance Order
+        preflight_check_count:
+          type: integer
+          minimum: 0.0
+          title: Preflight Check Count
+          default: 0
+        blocking_check_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Check Count
+          default: 0
+        passed_check_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Check Count
+          default: 0
+        unresolved_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Unresolved Blocker Count
+          default: 0
+        unresolved_blockers:
+          items:
+            type: string
+          type: array
+          title: Unresolved Blockers
+        next_required_contracts:
+          items:
+            type: string
+          type: array
+          title: Next Required Contracts
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        live_execution_service_enabled:
+          type: boolean
+          title: Live Execution Service Enabled
+          default: false
+        live_execution_adapter_executable:
+          type: boolean
+          title: Live Execution Adapter Executable
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        coinbase_order_submit_allowed:
+          type: boolean
+          title: Coinbase Order Submit Allowed
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_allowed:
+          type: boolean
+          title: Coinbase Order Cancel Allowed
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_coinbase_read_allowed:
+          type: boolean
+          title: Live Coinbase Read Allowed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        active_placement_cancel_replace_allowed:
+          type: boolean
+          title: Active Placement Cancel Replace Allowed
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        state_mutated:
+          type: boolean
+          title: State Mutated
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - workflow_family
+      - command_route
+      - service_method
+      - detail
+      title: StealthExecutionTransitionBarrierEvidence
+      description: Read-only barrier between preflight evidence and execution authority.
     StealthLifecycleWriteGuardEvidenceSource:
       type: string
       enum:
