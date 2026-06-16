@@ -224,6 +224,12 @@ def reprice_stealth_order_by_stealth_order_id(
         stealth_manager_policy_proof_store=(
             service.dependencies.stealth_manager_policy_proof_store_getter()
         ),
+        stealth_coinbase_exchange_policy_proof_store=(
+            service.dependencies.stealth_coinbase_exchange_policy_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
+        ),
         stealth_cancel_replace_proof_store=(
             service.dependencies.stealth_cancel_replace_proof_store_getter()
         ),

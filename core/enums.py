@@ -367,6 +367,10 @@ class StealthCreateLifecycleExecutionPrerequisite(str, Enum):
     CAP_GUARD_DECISION = "cap_guard_decision"
     RECONCILIATION_PLAN = "reconciliation_plan"
     MANAGER_INVOCATION_POLICY = "manager_invocation_policy"
+    COINBASE_EXCHANGE_SUBMISSION_POLICY = "coinbase_exchange_submission_policy"
+    POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
+        "post_write_reconciliation_execution_policy"
+    )
     LIFECYCLE_WRITE_GUARD_PROOF = "lifecycle_write_guard_proof"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
@@ -415,6 +419,10 @@ class StealthCommandExecutionPrerequisite(str, Enum):
     CAP_GUARD_DECISION = "cap_guard_decision"
     RECONCILIATION_PLAN = "reconciliation_plan"
     MANAGER_INVOCATION_POLICY = "manager_invocation_policy"
+    COINBASE_EXCHANGE_SUBMISSION_POLICY = "coinbase_exchange_submission_policy"
+    POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
+        "post_write_reconciliation_execution_policy"
+    )
     ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
     REVEAL_TRIGGER_EVIDENCE = "reveal_trigger_evidence"
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"

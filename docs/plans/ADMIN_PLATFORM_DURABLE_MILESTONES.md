@@ -2780,10 +2780,18 @@ Current backend evidence:
   authority. Completed phases 3321-3340 added backend-owned Coinbase exchange
   submission-policy proof/readback evidence without granting Coinbase submit,
   cancel, read, manager invocation, reconciliation, state mutation, browser, or
-  BFF authority. Active phases 3341-3360 add backend-owned post-write
+  BFF authority. Completed phases 3341-3360 added backend-owned post-write
   reconciliation execution-policy proof/readback evidence without granting
   reconciliation execution, Coinbase activity, manager invocation,
   active-placement cancel/replace, state mutation, browser, or BFF authority.
+  Active phases 3361-3380 consume Coinbase exchange submission-policy and
+  post-write reconciliation execution-policy proof/readback records as
+  exact-command prerequisite resolver evidence only, without granting
+  Coinbase activity, manager invocation, reconciliation execution,
+  active-placement cancel/replace, state mutation, browser, or BFF authority.
+  Resolver lookups use the newest exact-command policy proof row, ignore newer
+  rows for other guarded command contexts, and block on a newer unsafe
+  exact-command row.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

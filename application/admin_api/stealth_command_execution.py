@@ -44,6 +44,14 @@ from .stealth_manager_policy import (
     FileStealthManagerInvocationPolicyProofStore,
     StealthManagerInvocationPolicyProofRecord,
 )
+from .stealth_coinbase_exchange_policy import (
+    FileStealthCoinbaseExchangeSubmissionPolicyProofStore,
+    StealthCoinbaseExchangeSubmissionPolicyProofRecord,
+)
+from .stealth_post_write_reconciliation_policy import (
+    FileStealthPostWriteReconciliationExecutionPolicyProofStore,
+    StealthPostWriteReconciliationExecutionPolicyProofRecord,
+)
 from .stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
     StealthRecoveryProofRecord,
@@ -120,6 +128,12 @@ DISABLED_LIVE_PREREQUISITES: tuple[StealthCommandExecutionPrerequisite, ...] = (
     StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION,
 )
 
+EXECUTION_POLICY_PREREQUISITES: tuple[StealthCommandExecutionPrerequisite, ...] = (
+    StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY,
+    StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY,
+    StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY,
+)
+
 BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS: tuple[str, ...] = (
     StealthCommandExecutionBlocker.EXECUTION_CONTRACT_MISSING.value,
     StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
@@ -143,7 +157,7 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
         manager_methods=("core/stealth_order_manager.py::reveal_order_slice",),
         prerequisites=(
             *COMMON_PREREQUISITES,
-            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY,
+            *EXECUTION_POLICY_PREREQUISITES,
             StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE,
             *DISABLED_LIVE_PREREQUISITES,
         ),
@@ -163,7 +177,7 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
         ),
         prerequisites=(
             *COMMON_PREREQUISITES,
-            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY,
+            *EXECUTION_POLICY_PREREQUISITES,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF,
             *DISABLED_LIVE_PREREQUISITES,
@@ -184,7 +198,7 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
         ),
         prerequisites=(
             *COMMON_PREREQUISITES,
-            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY,
+            *EXECUTION_POLICY_PREREQUISITES,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF,
@@ -203,7 +217,7 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
         manager_methods=("stealth_recovery_service::not_configured",),
         prerequisites=(
             *COMMON_PREREQUISITES,
-            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY,
+            *EXECUTION_POLICY_PREREQUISITES,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
             StealthCommandExecutionPrerequisite.RECOVERY_PROOF,
             *DISABLED_LIVE_PREREQUISITES,
@@ -223,7 +237,7 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
         ),
         prerequisites=(
             *COMMON_PREREQUISITES,
-            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY,
+            *EXECUTION_POLICY_PREREQUISITES,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF,
             *DISABLED_LIVE_PREREQUISITES,
@@ -243,7 +257,7 @@ STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] =
         ),
         prerequisites=(
             *COMMON_PREREQUISITES,
-            StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY,
+            *EXECUTION_POLICY_PREREQUISITES,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF,
@@ -305,6 +319,14 @@ NEXT_REQUIRED_CONTRACT_BY_PREREQUISITE: dict[
         "POST /api/v1/stealth/orders/{stealth_order_id}/"
         "manager-invocation-policy-proofs"
     ),
+    StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "coinbase-exchange-submission-policy-proofs"
+    ),
+    StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "post-write-reconciliation-execution-policy-proofs"
+    ),
     StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE: (
         "POST /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs"
     ),
@@ -343,6 +365,12 @@ def build_stealth_command_execution_contract(
     stealth_manager_policy_proof_store: (
         FileStealthManagerInvocationPolicyProofStore | None
     ) = None,
+    stealth_coinbase_exchange_policy_proof_store: (
+        FileStealthCoinbaseExchangeSubmissionPolicyProofStore | None
+    ) = None,
+    stealth_post_write_reconciliation_policy_proof_store: (
+        FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
+    ) = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
@@ -379,6 +407,12 @@ def build_stealth_command_execution_contract(
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
         stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
+        stealth_coinbase_exchange_policy_proof_store=(
+            stealth_coinbase_exchange_policy_proof_store
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            stealth_post_write_reconciliation_policy_proof_store
+        ),
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
         stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
@@ -737,6 +771,12 @@ def _build_prerequisite_resolution(
     stealth_manager_policy_proof_store: (
         FileStealthManagerInvocationPolicyProofStore | None
     ),
+    stealth_coinbase_exchange_policy_proof_store: (
+        FileStealthCoinbaseExchangeSubmissionPolicyProofStore | None
+    ),
+    stealth_post_write_reconciliation_policy_proof_store: (
+        FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
+    ),
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None,
     stealth_reveal_trigger_proof_store: FileStealthRevealTriggerProofStore | None,
     stealth_reconciliation_proof_store: FileStealthReconciliationProofStore | None,
@@ -811,6 +851,12 @@ def _build_prerequisite_resolution(
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
             stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
             stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
+            stealth_coinbase_exchange_policy_proof_store=(
+                stealth_coinbase_exchange_policy_proof_store
+            ),
+            stealth_post_write_reconciliation_policy_proof_store=(
+                stealth_post_write_reconciliation_policy_proof_store
+            ),
             stealth_recovery_proof_store=stealth_recovery_proof_store,
             stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
             stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
@@ -1072,6 +1118,12 @@ def _command_specific_prerequisite(
     stealth_manager_policy_proof_store: (
         FileStealthManagerInvocationPolicyProofStore | None
     ),
+    stealth_coinbase_exchange_policy_proof_store: (
+        FileStealthCoinbaseExchangeSubmissionPolicyProofStore | None
+    ),
+    stealth_post_write_reconciliation_policy_proof_store: (
+        FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
+    ),
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None,
     stealth_reveal_trigger_proof_store: FileStealthRevealTriggerProofStore | None,
     stealth_reconciliation_proof_store: FileStealthReconciliationProofStore | None,
@@ -1148,6 +1200,28 @@ def _command_specific_prerequisite(
             metadata=metadata,
             admission_decision=admission_decision,
             stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
+        )
+    if (
+        prerequisite
+        == StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY
+    ):
+        return _resolve_coinbase_exchange_submission_policy_proof(
+            metadata=metadata,
+            admission_decision=admission_decision,
+            stealth_coinbase_exchange_policy_proof_store=(
+                stealth_coinbase_exchange_policy_proof_store
+            ),
+        )
+    if (
+        prerequisite
+        == StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY
+    ):
+        return _resolve_post_write_reconciliation_execution_policy_proof(
+            metadata=metadata,
+            admission_decision=admission_decision,
+            stealth_post_write_reconciliation_policy_proof_store=(
+                stealth_post_write_reconciliation_policy_proof_store
+            ),
         )
     if prerequisite == StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH:
         return _resolve_active_placement_exchange_truth(
@@ -1279,6 +1353,216 @@ def _find_latest_manager_invocation_policy_proof(
 ) -> StealthManagerInvocationPolicyProofRecord | None:
     records = store.read_for_stealth_order_id(stealth_order_id, limit=1)
     return records[0] if records else None
+
+
+def _resolve_coinbase_exchange_submission_policy_proof(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    stealth_coinbase_exchange_policy_proof_store: (
+        FileStealthCoinbaseExchangeSubmissionPolicyProofStore | None
+    ),
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    prerequisite = StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY
+    if (
+        stealth_coinbase_exchange_policy_proof_store is None
+        or not admission_decision.identity_value
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="coinbase_exchange_policy_proof_store_unavailable",
+            detail="Coinbase exchange submission-policy proof store was unavailable.",
+        )
+
+    record = _find_latest_coinbase_exchange_submission_policy_proof(
+        store=stealth_coinbase_exchange_policy_proof_store,
+        stealth_order_id=admission_decision.identity_value,
+        metadata=metadata,
+        admission_decision=admission_decision,
+    )
+    if record is not None and not _is_safe_coinbase_exchange_submission_policy_proof(
+        record,
+        metadata=metadata,
+        admission_decision=admission_decision,
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=record.coinbase_exchange_policy_proof_id,
+            missing_reason="coinbase_exchange_submission_policy_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest exact-command Coinbase exchange submission-policy "
+                "proof was found but is not safe exact-context "
+                "no-live/no-mutation evidence for command execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=_source_for_command_specific_prerequisite(prerequisite),
+        lookup_status=(
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCommandExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.coinbase_exchange_policy_proof_id if record is not None else None
+        ),
+        missing_reason=(
+            None
+            if record is not None
+            else "no_matching_coinbase_exchange_submission_policy_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned Coinbase exchange submission-policy proof lookup is "
+            "read-only and does not submit, cancel, read Coinbase, invoke "
+            "managers, cancel or replace active placements, execute "
+            "reconciliation, mutate state, or authorize execution."
+        ),
+    )
+
+
+def _find_latest_coinbase_exchange_submission_policy_proof(
+    *,
+    store: FileStealthCoinbaseExchangeSubmissionPolicyProofStore,
+    stealth_order_id: str,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> StealthCoinbaseExchangeSubmissionPolicyProofRecord | None:
+    for record in store.read_for_stealth_order_id(stealth_order_id, limit=500):
+        if _coinbase_exchange_submission_policy_proof_matches_admission(
+            record,
+            metadata=metadata,
+            admission_decision=admission_decision,
+        ):
+            return record
+    return None
+
+
+def _resolve_post_write_reconciliation_execution_policy_proof(
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    stealth_post_write_reconciliation_policy_proof_store: (
+        FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
+    ),
+) -> StealthCommandExecutionPrerequisiteResolverItem:
+    prerequisite = (
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY
+    )
+    if (
+        stealth_post_write_reconciliation_policy_proof_store is None
+        or not admission_decision.identity_value
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason=(
+                "post_write_reconciliation_execution_policy_proof_store_unavailable"
+            ),
+            detail=(
+                "Post-write reconciliation execution-policy proof store was "
+                "unavailable."
+            ),
+        )
+
+    record = _find_latest_post_write_reconciliation_execution_policy_proof(
+        store=stealth_post_write_reconciliation_policy_proof_store,
+        stealth_order_id=admission_decision.identity_value,
+        metadata=metadata,
+        admission_decision=admission_decision,
+    )
+    if record is not None and not (
+        _is_safe_post_write_reconciliation_execution_policy_proof(
+            record,
+            metadata=metadata,
+            admission_decision=admission_decision,
+        )
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=record.post_write_reconciliation_policy_proof_id,
+            missing_reason=(
+                "post_write_reconciliation_execution_policy_proof_not_safe"
+            ),
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest exact-command post-write reconciliation "
+                "execution-policy proof was found but is not safe "
+                "exact-context no-live/no-mutation evidence for command "
+                "execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        metadata=metadata,
+        admission_decision=admission_decision,
+        source=_source_for_command_specific_prerequisite(prerequisite),
+        lookup_status=(
+            StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCommandExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.post_write_reconciliation_policy_proof_id
+            if record is not None
+            else None
+        ),
+        missing_reason=(
+            None
+            if record is not None
+            else "no_matching_post_write_reconciliation_execution_policy_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned post-write reconciliation execution-policy proof "
+            "lookup is read-only and does not execute reconciliation, invoke "
+            "managers, call Coinbase, cancel or replace active placements, "
+            "mutate state, or authorize execution."
+        ),
+    )
+
+
+def _find_latest_post_write_reconciliation_execution_policy_proof(
+    *,
+    store: FileStealthPostWriteReconciliationExecutionPolicyProofStore,
+    stealth_order_id: str,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> StealthPostWriteReconciliationExecutionPolicyProofRecord | None:
+    for record in store.read_for_stealth_order_id(stealth_order_id, limit=500):
+        if _post_write_reconciliation_execution_policy_proof_matches_admission(
+            record,
+            metadata=metadata,
+            admission_decision=admission_decision,
+        ):
+            return record
+    return None
 
 
 def _resolve_active_placement_exchange_truth(
@@ -2046,6 +2330,81 @@ def _is_safe_manager_invocation_policy_proof(
     )
 
 
+def _is_safe_coinbase_exchange_submission_policy_proof(
+    record: StealthCoinbaseExchangeSubmissionPolicyProofRecord,
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        _coinbase_exchange_submission_policy_proof_matches_admission(
+            record,
+            metadata=metadata,
+            admission_decision=admission_decision,
+        )
+        and record.proof_persisted is True
+        and record.exchange_submission_policy_verified is False
+        and record.coinbase_submit_allowed is False
+        and record.coinbase_cancel_allowed is False
+        and record.live_coinbase_read_allowed is False
+        and record.live_cap_verified is False
+        and record.manager_invocation_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
+def _is_safe_post_write_reconciliation_execution_policy_proof(
+    record: StealthPostWriteReconciliationExecutionPolicyProofRecord,
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        _post_write_reconciliation_execution_policy_proof_matches_admission(
+            record,
+            metadata=metadata,
+            admission_decision=admission_decision,
+        )
+        and record.proof_persisted is True
+        and record.post_write_reconciliation_execution_policy_verified is False
+        and record.post_write_reconciliation_execution_allowed is False
+        and record.route_bound_reconciliation_plan_required is True
+        and record.execution_journal_required is True
+        and record.reconciliation_verification_required is True
+        and record.safe_reconciliation_chain_verified is False
+        and record.manager_invocation_ran is False
+        and record.reconciliation_plan_built is False
+        and record.reconciliation_execution_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
 def _is_safe_recovery_proof(
     record: StealthRecoveryProofRecord,
     *,
@@ -2205,6 +2564,50 @@ def _manager_invocation_policy_proof_matches_admission(
     )
 
 
+def _coinbase_exchange_submission_policy_proof_matches_admission(
+    record: StealthCoinbaseExchangeSubmissionPolicyProofRecord,
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == admission_decision.route
+        and record.guarded_command_method == admission_decision.method
+        and record.guarded_service_method == admission_decision.service_method
+        and record.guarded_mutation_family == metadata.mutation_family
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+        and record.reconciliation_plan_id == admission_decision.reconciliation_plan_id
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+        and record.cap_guard_decision_id == admission_decision.cap_guard_decision_id
+    )
+
+
+def _post_write_reconciliation_execution_policy_proof_matches_admission(
+    record: StealthPostWriteReconciliationExecutionPolicyProofRecord,
+    *,
+    metadata: StealthCommandExecutionMetadata,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == admission_decision.route
+        and record.guarded_command_method == admission_decision.method
+        and record.guarded_service_method == admission_decision.service_method
+        and record.guarded_mutation_family == metadata.mutation_family
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+        and record.reconciliation_plan_id == admission_decision.reconciliation_plan_id
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+        and record.cap_guard_decision_id == admission_decision.cap_guard_decision_id
+    )
+
+
 def _recovery_proof_matches_admission(
     record: StealthRecoveryProofRecord,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
@@ -2321,6 +2724,12 @@ def _source_for_command_specific_prerequisite(
         ),
         StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY: (
             "admin_api_stealth_manager_invocation_policy_log"
+        ),
+        StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY: (
+            "admin_api_stealth_coinbase_exchange_submission_policy_log"
+        ),
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY: (
+            "admin_api_stealth_post_write_reconciliation_execution_policy_log"
         ),
         StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE: (
             "admin_api_stealth_reveal_trigger_proof_log"

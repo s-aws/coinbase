@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3321-3340`; active range is
-  `3341-3360`.
+- Latest completed autonomous range: `3341-3360`; active range is
+  `3361-3380`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -101,11 +101,19 @@ Keep it short. Keep it factual.
   submission-policy proof/readback evidence for stealth execution contracts
   while preserving no-live, no-Coinbase-call, no-manager, no-reconciliation,
   no-state-write, display-only, and BFF forward-only authority.
-- Active `3341-3360` work: add backend-owned post-write reconciliation
+- Completed `3341-3360` work: added backend-owned post-write reconciliation
   execution-policy proof/readback evidence for stealth execution contracts
   while preserving no-live, no-Coinbase-call, no-manager,
   no-reconciliation-execution, no-state-write, display-only, and BFF
   forward-only authority.
+- Active `3361-3380` work: consume backend-owned Coinbase exchange
+  submission-policy and post-write reconciliation execution-policy
+  proof/readback as exact-command prerequisite resolver evidence for stealth
+  create and non-create execution contracts while preserving no-live,
+  no-Coinbase-call, no-manager, no-reconciliation-execution, no-state-write,
+  display-only, and BFF forward-only authority. Resolver lookups use the
+  newest exact-command policy proof row, ignore newer rows for other guarded
+  command contexts, and block on a newer unsafe exact-command row.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -279,11 +287,13 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3341-3360`.
+- Active autonomous range: `3361-3380`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete post-write reconciliation execution-policy
-  proof/readback evidence for `3341-3360`. Do not run live Coinbase execution unless a future
-  approved phase explicitly authorizes it.
+- Current direction: consume Coinbase exchange submission-policy and
+  post-write reconciliation execution-policy proof/readback records as
+  exact-command prerequisite resolver evidence for `3361-3380`. Do not run
+  live Coinbase execution unless a future approved phase explicitly authorizes
+  it.
 
 ## Decisions (Durable)
 
@@ -848,12 +858,20 @@ Keep it short. Keep it factual.
   stealth execution contracts while preserving no-live, no-Coinbase-call,
   no-manager, no-reconciliation, no-state-write, display-only, and forward-only
   authority.
-- What is active for M55 3341-3360: backend and frontend expose
+- What is completed for M55 3341-3360: backend and frontend expose
   backend-owned post-write reconciliation execution-policy proof/readback
   evidence for stealth execution contracts while preserving no-live,
   no-Coinbase-call, no-manager, no-reconciliation-execution, no-state-write,
   display-only, and forward-only authority.
+- What is active for M55 3361-3380: backend and frontend consume Coinbase
+  exchange submission-policy and post-write reconciliation execution-policy
+  proof/readback records as exact-command prerequisite resolver evidence for
+  stealth create and non-create execution contracts while preserving no-live,
+  no-Coinbase-call, no-manager, no-reconciliation-execution, no-state-write,
+  display-only, and forward-only authority. Resolver lookups use the newest
+  exact-command policy proof row, ignore newer rows for other guarded command
+  contexts, and block on a newer unsafe exact-command row.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3341-3360 implementation, run
+- Exact next command: continue the active 3361-3380 implementation, run
   focused gates, blind/contextless reviews, full gates, browser availability,
   then commit and push both repositories with `$0` live Coinbase execution.

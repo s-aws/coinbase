@@ -670,6 +670,12 @@ def reveal_stealth_order_by_stealth_order_id(
         stealth_manager_policy_proof_store=(
             service.dependencies.stealth_manager_policy_proof_store_getter()
         ),
+        stealth_coinbase_exchange_policy_proof_store=(
+            service.dependencies.stealth_coinbase_exchange_policy_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
+        ),
         stealth_reveal_trigger_proof_store=(
             service.dependencies.stealth_reveal_trigger_proof_store_getter()
         ),
@@ -767,6 +773,12 @@ def move_stealth_order_by_stealth_order_id(
         stealth_manager_policy_proof_store=(
             service.dependencies.stealth_manager_policy_proof_store_getter()
         ),
+        stealth_coinbase_exchange_policy_proof_store=(
+            service.dependencies.stealth_coinbase_exchange_policy_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
+        ),
         stealth_cancel_replace_proof_store=(
             service.dependencies.stealth_cancel_replace_proof_store_getter()
         ),
@@ -863,6 +875,12 @@ def cancel_stealth_order_by_stealth_order_id(
         ),
         stealth_manager_policy_proof_store=(
             service.dependencies.stealth_manager_policy_proof_store_getter()
+        ),
+        stealth_coinbase_exchange_policy_proof_store=(
+            service.dependencies.stealth_coinbase_exchange_policy_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
         ),
         stealth_cancel_replace_proof_store=(
             service.dependencies.stealth_cancel_replace_proof_store_getter()
@@ -964,6 +982,12 @@ def recover_stealth_order_by_stealth_order_id(
         stealth_manager_policy_proof_store=(
             service.dependencies.stealth_manager_policy_proof_store_getter()
         ),
+        stealth_coinbase_exchange_policy_proof_store=(
+            service.dependencies.stealth_coinbase_exchange_policy_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
+        ),
         stealth_recovery_proof_store=(
             service.dependencies.stealth_recovery_proof_store_getter()
         ),
@@ -1060,6 +1084,12 @@ def reconcile_stealth_order_by_stealth_order_id(
         ),
         stealth_manager_policy_proof_store=(
             service.dependencies.stealth_manager_policy_proof_store_getter()
+        ),
+        stealth_coinbase_exchange_policy_proof_store=(
+            service.dependencies.stealth_coinbase_exchange_policy_proof_store_getter()
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            service.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
         ),
         stealth_reconciliation_proof_store=(
             service.dependencies.stealth_reconciliation_proof_store_getter()

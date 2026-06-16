@@ -36,6 +36,12 @@ from application.admin_api.stealth_mutation_claim import (
 from application.admin_api.stealth_manager_policy import (
     FileStealthManagerInvocationPolicyProofStore,
 )
+from application.admin_api.stealth_coinbase_exchange_policy import (
+    FileStealthCoinbaseExchangeSubmissionPolicyProofStore,
+)
+from application.admin_api.stealth_post_write_reconciliation_policy import (
+    FileStealthPostWriteReconciliationExecutionPolicyProofStore,
+)
 from application.admin_api.stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
 )
@@ -441,6 +447,12 @@ def _attach_stealth_execution_posture(
     stealth_manager_policy_proof_store: (
         FileStealthManagerInvocationPolicyProofStore | None
     ) = None,
+    stealth_coinbase_exchange_policy_proof_store: (
+        FileStealthCoinbaseExchangeSubmissionPolicyProofStore | None
+    ) = None,
+    stealth_post_write_reconciliation_policy_proof_store: (
+        FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
+    ) = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
@@ -468,6 +480,12 @@ def _attach_stealth_execution_posture(
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
         stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
+        stealth_coinbase_exchange_policy_proof_store=(
+            stealth_coinbase_exchange_policy_proof_store
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            stealth_post_write_reconciliation_policy_proof_store
+        ),
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
         stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
@@ -607,6 +625,12 @@ def _execute_idempotent_command(
     stealth_manager_policy_proof_store: (
         FileStealthManagerInvocationPolicyProofStore | None
     ) = None,
+    stealth_coinbase_exchange_policy_proof_store: (
+        FileStealthCoinbaseExchangeSubmissionPolicyProofStore | None
+    ) = None,
+    stealth_post_write_reconciliation_policy_proof_store: (
+        FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
+    ) = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
@@ -685,6 +709,12 @@ def _execute_idempotent_command(
             stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
             stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
             stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
+            stealth_coinbase_exchange_policy_proof_store=(
+                stealth_coinbase_exchange_policy_proof_store
+            ),
+            stealth_post_write_reconciliation_policy_proof_store=(
+                stealth_post_write_reconciliation_policy_proof_store
+            ),
             stealth_recovery_proof_store=stealth_recovery_proof_store,
             stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
             stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
@@ -725,6 +755,12 @@ def _execute_idempotent_command(
         stealth_exchange_truth_proof_store=stealth_exchange_truth_proof_store,
         stealth_mutation_claim_proof_store=stealth_mutation_claim_proof_store,
         stealth_manager_policy_proof_store=stealth_manager_policy_proof_store,
+        stealth_coinbase_exchange_policy_proof_store=(
+            stealth_coinbase_exchange_policy_proof_store
+        ),
+        stealth_post_write_reconciliation_policy_proof_store=(
+            stealth_post_write_reconciliation_policy_proof_store
+        ),
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
         stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,

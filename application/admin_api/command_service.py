@@ -1589,6 +1589,12 @@ class AdminApiCommandService:
             manager_policy_proof_store=(
                 self.dependencies.stealth_manager_policy_proof_store_getter()
             ),
+            coinbase_exchange_policy_proof_store=(
+                self.dependencies.stealth_coinbase_exchange_policy_proof_store_getter()
+            ),
+            post_write_reconciliation_policy_proof_store=(
+                self.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
+            ),
             post_write_reconciliation_proof_store=(
                 self.dependencies.stealth_post_write_reconciliation_proof_store_getter()
             ),

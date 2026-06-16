@@ -92,9 +92,11 @@ from application.admin_api.stealth_manager_policy import (
 )
 from application.admin_api.stealth_coinbase_exchange_policy import (
     FileStealthCoinbaseExchangeSubmissionPolicyProofStore,
+    StealthCoinbaseExchangeSubmissionPolicyProofRecord,
 )
 from application.admin_api.stealth_post_write_reconciliation_policy import (
     FileStealthPostWriteReconciliationExecutionPolicyProofStore,
+    StealthPostWriteReconciliationExecutionPolicyProofRecord,
 )
 from application.admin_api.stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
@@ -1154,6 +1156,133 @@ def _stealth_post_write_reconciliation_policy_payload_hash(
         ).model_dump(mode="json"),
         "path_params": {"stealth_order_id": stealth_order_id},
     })
+
+
+def _coinbase_exchange_policy_proof_record(
+    *,
+    proof_id: str,
+    stealth_order_id: str,
+    guarded_command_route: str,
+    guarded_service_method: str,
+    guarded_mutation_family: AdminApiMutationFamilyType,
+    guarded_operator_intent: str,
+    guarded_idempotency_key: str,
+    guarded_payload_hash: str,
+    reconciliation_plan_id: str,
+    approval_snapshot_id: str,
+    admission_audit_id: str,
+    cap_guard_decision_id: str,
+    coinbase_submit_allowed: bool = False,
+    coinbase_cancel_allowed: bool = False,
+    live_coinbase_read_allowed: bool = False,
+) -> StealthCoinbaseExchangeSubmissionPolicyProofRecord:
+    return StealthCoinbaseExchangeSubmissionPolicyProofRecord(
+        coinbase_exchange_policy_proof_id=proof_id,
+        stealth_order_id=stealth_order_id,
+        guarded_command_route=guarded_command_route,
+        guarded_command_method="POST",
+        guarded_service_method=guarded_service_method,
+        guarded_mutation_family=guarded_mutation_family,
+        guarded_actor_id="operator-001",
+        guarded_operator_intent=guarded_operator_intent,
+        guarded_idempotency_key=guarded_idempotency_key,
+        guarded_payload_hash=guarded_payload_hash,
+        exchange_submission_policy_ref=f"{proof_id}:exchange_submission_policy",
+        coinbase_cancel_policy_ref=f"{proof_id}:coinbase_cancel_policy",
+        live_coinbase_read_policy_ref=f"{proof_id}:coinbase_read_policy",
+        live_cap_evidence_ref=f"{proof_id}:live_cap",
+        evidence_source=StealthCoinbaseExchangePolicyEvidenceSource.TEST_EVIDENCE,
+        reconciliation_plan_id=reconciliation_plan_id,
+        approval_snapshot_id=approval_snapshot_id,
+        admission_audit_id=admission_audit_id,
+        cap_guard_decision_id=cap_guard_decision_id,
+        route=(
+            "/api/v1/stealth/orders/{stealth_order_id}/"
+            "coinbase-exchange-submission-policy-proofs"
+        ),
+        method="POST",
+        service_method="record_stealth_coinbase_exchange_submission_policy_proof",
+        actor_id="operator-001",
+        operator_intent="stealth_coinbase_exchange_policy_review",
+        idempotency_key=f"idem-{proof_id}",
+        correlation_id=f"corr-{proof_id}",
+        payload_hash="a" * 64,
+        audit_id=f"audit-{proof_id}",
+        dry_run=True,
+        operator_reason="contract evidence only",
+        manual_live_acknowledgement=False,
+        coinbase_submit_allowed=coinbase_submit_allowed,
+        coinbase_cancel_allowed=coinbase_cancel_allowed,
+        live_coinbase_read_allowed=live_coinbase_read_allowed,
+    )
+
+
+def _post_write_reconciliation_execution_policy_proof_record(
+    *,
+    proof_id: str,
+    stealth_order_id: str,
+    guarded_command_route: str,
+    guarded_service_method: str,
+    guarded_mutation_family: AdminApiMutationFamilyType,
+    guarded_operator_intent: str,
+    guarded_idempotency_key: str,
+    guarded_payload_hash: str,
+    reconciliation_plan_id: str,
+    approval_snapshot_id: str,
+    admission_audit_id: str,
+    cap_guard_decision_id: str,
+    post_write_reconciliation_execution_allowed: bool = False,
+    reconciliation_execution_ran: bool = False,
+) -> StealthPostWriteReconciliationExecutionPolicyProofRecord:
+    return StealthPostWriteReconciliationExecutionPolicyProofRecord(
+        post_write_reconciliation_policy_proof_id=proof_id,
+        stealth_order_id=stealth_order_id,
+        guarded_command_route=guarded_command_route,
+        guarded_command_method="POST",
+        guarded_service_method=guarded_service_method,
+        guarded_mutation_family=guarded_mutation_family,
+        guarded_actor_id="operator-001",
+        guarded_operator_intent=guarded_operator_intent,
+        guarded_idempotency_key=guarded_idempotency_key,
+        guarded_payload_hash=guarded_payload_hash,
+        post_write_reconciliation_execution_policy_ref=(
+            f"{proof_id}:post_write_reconciliation_execution_policy"
+        ),
+        route_bound_reconciliation_plan_ref=f"{proof_id}:route_bound_plan",
+        post_write_execution_journal_policy_ref=f"{proof_id}:execution_journal",
+        post_write_reconciliation_verification_policy_ref=(
+            f"{proof_id}:reconciliation_verification"
+        ),
+        safe_reconciliation_chain_ref=f"{proof_id}:safe_chain",
+        evidence_source=(
+            StealthPostWriteReconciliationExecutionPolicyEvidenceSource.TEST_EVIDENCE
+        ),
+        reconciliation_plan_id=reconciliation_plan_id,
+        approval_snapshot_id=approval_snapshot_id,
+        admission_audit_id=admission_audit_id,
+        cap_guard_decision_id=cap_guard_decision_id,
+        route=(
+            "/api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-reconciliation-execution-policy-proofs"
+        ),
+        method="POST",
+        service_method=(
+            "record_stealth_post_write_reconciliation_execution_policy_proof"
+        ),
+        actor_id="operator-001",
+        operator_intent="stealth_post_write_reconciliation_policy_review",
+        idempotency_key=f"idem-{proof_id}",
+        correlation_id=f"corr-{proof_id}",
+        payload_hash="b" * 64,
+        audit_id=f"audit-{proof_id}",
+        dry_run=True,
+        operator_reason="contract evidence only",
+        manual_live_acknowledgement=False,
+        post_write_reconciliation_execution_allowed=(
+            post_write_reconciliation_execution_allowed
+        ),
+        reconciliation_execution_ran=reconciliation_execution_ran,
+    )
 
 
 def _stealth_recovery_proof_payload_hash(
@@ -6620,6 +6749,16 @@ def _assert_stealth_command_execution_contract(
     assert resolution_by_prerequisite[
         StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value
     ]["missing_reason"] == "admission_prerequisites_missing"
+    for policy_prerequisite in (
+        StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
+    ):
+        assert resolution_by_prerequisite[policy_prerequisite]["lookup_status"] == (
+            StealthCommandExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY.value
+        )
+        assert resolution_by_prerequisite[policy_prerequisite]["missing_reason"] == (
+            "admission_prerequisites_missing"
+        )
     assert resolution_by_prerequisite[
         StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
     ]["lookup_status"] == StealthCommandExecutionPrerequisiteLookupStatus.DISABLED.value
@@ -7125,6 +7264,97 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
             manual_live_acknowledgement=False,
         )
     )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        StealthCoinbaseExchangeSubmissionPolicyProofRecord(
+            coinbase_exchange_policy_proof_id=(
+                "coinbase-policy-proof-create-resolved"
+            ),
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_command_method="POST",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_actor_id="operator-001",
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            exchange_submission_policy_ref="operator-reviewed-coinbase-submit-create",
+            coinbase_cancel_policy_ref="operator-reviewed-coinbase-cancel-create",
+            live_coinbase_read_policy_ref="operator-reviewed-coinbase-read-create",
+            live_cap_evidence_ref="operator-reviewed-live-cap-create",
+            evidence_source=StealthCoinbaseExchangePolicyEvidenceSource.TEST_EVIDENCE,
+            reconciliation_plan_id="recon-stealth-create-resolved",
+            approval_snapshot_id="approval-stealth-create-resolved",
+            admission_audit_id="audit-stealth-create-resolved",
+            cap_guard_decision_id="cap-stealth-create-resolved",
+            route=(
+                "/api/v1/stealth/orders/{stealth_order_id}/"
+                "coinbase-exchange-submission-policy-proofs"
+            ),
+            method="POST",
+            service_method=(
+                "record_stealth_coinbase_exchange_submission_policy_proof"
+            ),
+            actor_id="operator-001",
+            operator_intent="stealth_coinbase_exchange_policy_review",
+            idempotency_key="idem-coinbase-policy-proof-create-resolved",
+            correlation_id="corr-coinbase-policy-proof-create-resolved",
+            payload_hash="a" * 64,
+            audit_id="audit-coinbase-policy-proof-create-resolved",
+            dry_run=True,
+            operator_reason="contract evidence only",
+            manual_live_acknowledgement=False,
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        StealthPostWriteReconciliationExecutionPolicyProofRecord(
+            post_write_reconciliation_policy_proof_id=(
+                "post-write-policy-proof-create-resolved"
+            ),
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_command_method="POST",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_actor_id="operator-001",
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            post_write_reconciliation_execution_policy_ref=(
+                "operator-reviewed-post-write-policy-create"
+            ),
+            route_bound_reconciliation_plan_ref="route-bound-plan-policy-create",
+            post_write_execution_journal_policy_ref="post-write-journal-policy-create",
+            post_write_reconciliation_verification_policy_ref=(
+                "post-write-verification-policy-create"
+            ),
+            safe_reconciliation_chain_ref="safe-reconciliation-chain-create",
+            evidence_source=(
+                StealthPostWriteReconciliationExecutionPolicyEvidenceSource.TEST_EVIDENCE
+            ),
+            reconciliation_plan_id="recon-stealth-create-resolved",
+            approval_snapshot_id="approval-stealth-create-resolved",
+            admission_audit_id="audit-stealth-create-resolved",
+            cap_guard_decision_id="cap-stealth-create-resolved",
+            route=(
+                "/api/v1/stealth/orders/{stealth_order_id}/"
+                "post-write-reconciliation-execution-policy-proofs"
+            ),
+            method="POST",
+            service_method=(
+                "record_stealth_post_write_reconciliation_execution_policy_proof"
+            ),
+            actor_id="operator-001",
+            operator_intent="stealth_post_write_reconciliation_policy_review",
+            idempotency_key="idem-post-write-policy-proof-create-resolved",
+            correlation_id="corr-post-write-policy-proof-create-resolved",
+            payload_hash="b" * 64,
+            audit_id="audit-post-write-policy-proof-create-resolved",
+            dry_run=True,
+            operator_reason="contract evidence only",
+            manual_live_acknowledgement=False,
+        )
+    )
     client.admin_api_test_stealth_lifecycle_write_guard_proof_store.append(
         StealthCreateLifecycleWriteGuardProofRecord(
             lifecycle_write_guard_proof_id="life-write-proof-create-resolved",
@@ -7244,6 +7474,8 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         StealthCreateLifecycleExecutionPrerequisite.CAP_GUARD_DECISION.value,
         StealthCreateLifecycleExecutionPrerequisite.RECONCILIATION_PLAN.value,
         StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
+        StealthCreateLifecycleExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
         StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value,
         StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
     } <= resolved
@@ -7284,6 +7516,34 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
     assert manager_policy_resolution["proof_lookup_authority"] == (
         "backend_store_read_only_no_execution"
     )
+    coinbase_policy_resolution = resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert coinbase_policy_resolution["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert coinbase_policy_resolution["lookup_ran"] is True
+    assert coinbase_policy_resolution["resolved"] is True
+    assert coinbase_policy_resolution["resolved_evidence_id"] == (
+        "coinbase-policy-proof-create-resolved"
+    )
+    assert coinbase_policy_resolution["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
+    post_write_policy_resolution = resolution_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert post_write_policy_resolution["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert post_write_policy_resolution["lookup_ran"] is True
+    assert post_write_policy_resolution["resolved"] is True
+    assert post_write_policy_resolution["resolved_evidence_id"] == (
+        "post-write-policy-proof-create-resolved"
+    )
+    assert post_write_policy_resolution["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
     assert resolution_by_prerequisite[
         StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
     ]["lookup_status"] == (
@@ -7322,7 +7582,7 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
     assert execution_contract["execution_readiness_stage_count"] == len(
         StealthCreateLifecycleExecutionPrerequisite
     )
-    assert execution_contract["passed_execution_readiness_stage_count"] == 7
+    assert execution_contract["passed_execution_readiness_stage_count"] == 9
     assert execution_contract["blocked_execution_readiness_stage_count"] == 2
     assert [row["stage_order"] for row in stages] == list(
         range(1, len(stages) + 1)
@@ -7362,6 +7622,26 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
     assert manager_policy_stage["next_required_contract"] == (
         "POST /api/v1/stealth/orders/{stealth_order_id}/"
         "manager-invocation-policy-proofs"
+    )
+    coinbase_policy_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert coinbase_policy_stage["status"] == AdminApiGateStatus.PASSED.value
+    assert coinbase_policy_stage["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert coinbase_policy_stage["resolved_evidence_id"] == (
+        "coinbase-policy-proof-create-resolved"
+    )
+    post_write_policy_stage = stages_by_prerequisite[
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert post_write_policy_stage["status"] == AdminApiGateStatus.PASSED.value
+    assert post_write_policy_stage["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert post_write_policy_stage["resolved_evidence_id"] == (
+        "post-write-policy-proof-create-resolved"
     )
     live_service_stage = stages_by_prerequisite[
         StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
@@ -7804,6 +8084,312 @@ def test_admin_api_stealth_create_execution_contract_requires_safe_post_write_ch
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_create_execution_policy_resolvers_use_latest_exact_context(
+    monkeypatch,
+):
+    from api.v1.routes.orders import _idempotency_payload_hash
+
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-create-policy-exact-context"
+    idempotency_key = "idem-stealth-create-policy-exact-context"
+    operator_intent = "stealth_create_policy_exact_context_review"
+    body = {
+        "stealth_order_id": stealth_order_id,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "total_size": "0.001",
+        "limit_price": "50000",
+        "reveal_condition": {"type": "time_delay", "delay_seconds": 60},
+        "sizing_strategy": {"type": "fixed"},
+        "target_movement": "0.002",
+        "target_movement_type": "P",
+        "manual_live_acknowledgement": True,
+    }
+    payload_hash = _idempotency_payload_hash(
+        endpoint="POST /api/v1/stealth/orders",
+        actor=AdminApiActor(
+            actor_id="operator-001",
+            roles=[AdminApiRole.TRADER],
+        ),
+        operator_intent=operator_intent,
+        body=StealthCreateRequest.model_validate(body).model_dump(mode="json"),
+    )
+    _append_stealth_create_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_id="approval-stealth-create-policy-exact",
+        admission_audit_id="audit-stealth-create-policy-exact",
+        cap_guard_decision_id="cap-stealth-create-policy-exact",
+        reconciliation_plan_id="recon-stealth-create-policy-exact",
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-create-exact-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-create-policy-exact",
+            approval_snapshot_id="approval-stealth-create-policy-exact",
+            admission_audit_id="audit-stealth-create-policy-exact",
+            cap_guard_decision_id="cap-stealth-create-policy-exact",
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-create-exact-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-create-policy-exact",
+            approval_snapshot_id="approval-stealth-create-policy-exact",
+            admission_audit_id="audit-stealth-create-policy-exact",
+            cap_guard_decision_id="cap-stealth-create-policy-exact",
+        )
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-create-wrong-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent="different_command_review",
+            guarded_idempotency_key="idem-different-command-review",
+            guarded_payload_hash="1" * 64,
+            reconciliation_plan_id="recon-different-command-review",
+            approval_snapshot_id="approval-different-command-review",
+            admission_audit_id="audit-different-command-review",
+            cap_guard_decision_id="cap-different-command-review",
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-create-wrong-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent="different_command_review",
+            guarded_idempotency_key="idem-different-command-review",
+            guarded_payload_hash="1" * 64,
+            reconciliation_plan_id="recon-different-command-review",
+            approval_snapshot_id="approval-different-command-review",
+            admission_audit_id="audit-different-command-review",
+            cap_guard_decision_id="cap-different-command-review",
+        )
+    )
+
+    response = client.post(
+        "/api/v1/stealth/orders",
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 501
+    contract = response.json()["stealth_lifecycle_execution_contract"]
+    rows = {row["prerequisite"]: row for row in contract["prerequisite_resolution"]}
+    coinbase_policy = rows[
+        StealthCreateLifecycleExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert coinbase_policy["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert coinbase_policy["resolved"] is True
+    assert coinbase_policy["resolved_evidence_id"] == (
+        "coinbase-policy-proof-create-exact-safe"
+    )
+    post_write_policy = rows[
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert post_write_policy["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert post_write_policy["resolved"] is True
+    assert post_write_policy["resolved_evidence_id"] == (
+        "post-write-policy-proof-create-exact-safe"
+    )
+    assert contract["execution_allowed"] is False
+    assert contract["coinbase_order_submit_ran"] is False
+    assert contract["live_coinbase_read_ran"] is False
+    assert contract["reconciliation_executed"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_create_execution_policy_resolvers_block_unsafe_exact_rows(
+    monkeypatch,
+):
+    from api.v1.routes.orders import _idempotency_payload_hash
+
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-create-policy-unsafe-exact"
+    idempotency_key = "idem-stealth-create-policy-unsafe-exact"
+    operator_intent = "stealth_create_policy_unsafe_exact_review"
+    body = {
+        "stealth_order_id": stealth_order_id,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "total_size": "0.001",
+        "limit_price": "50000",
+        "reveal_condition": {"type": "time_delay", "delay_seconds": 60},
+        "sizing_strategy": {"type": "fixed"},
+        "target_movement": "0.002",
+        "target_movement_type": "P",
+        "manual_live_acknowledgement": True,
+    }
+    payload_hash = _idempotency_payload_hash(
+        endpoint="POST /api/v1/stealth/orders",
+        actor=AdminApiActor(
+            actor_id="operator-001",
+            roles=[AdminApiRole.TRADER],
+        ),
+        operator_intent=operator_intent,
+        body=StealthCreateRequest.model_validate(body).model_dump(mode="json"),
+    )
+    _append_stealth_create_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_id="approval-stealth-create-policy-unsafe",
+        admission_audit_id="audit-stealth-create-policy-unsafe",
+        cap_guard_decision_id="cap-stealth-create-policy-unsafe",
+        reconciliation_plan_id="recon-stealth-create-policy-unsafe",
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-create-unsafe-older-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-create-policy-unsafe",
+            approval_snapshot_id="approval-stealth-create-policy-unsafe",
+            admission_audit_id="audit-stealth-create-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-create-policy-unsafe",
+        )
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-create-unsafe-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-create-policy-unsafe",
+            approval_snapshot_id="approval-stealth-create-policy-unsafe",
+            admission_audit_id="audit-stealth-create-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-create-policy-unsafe",
+            coinbase_submit_allowed=True,
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-create-unsafe-older-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-create-policy-unsafe",
+            approval_snapshot_id="approval-stealth-create-policy-unsafe",
+            admission_audit_id="audit-stealth-create-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-create-policy-unsafe",
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-create-unsafe-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders",
+            guarded_service_method="create_stealth_order",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-create-policy-unsafe",
+            approval_snapshot_id="approval-stealth-create-policy-unsafe",
+            admission_audit_id="audit-stealth-create-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-create-policy-unsafe",
+            post_write_reconciliation_execution_allowed=True,
+        )
+    )
+
+    response = client.post(
+        "/api/v1/stealth/orders",
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 501
+    contract = response.json()["stealth_lifecycle_execution_contract"]
+    rows = {row["prerequisite"]: row for row in contract["prerequisite_resolution"]}
+    coinbase_policy = rows[
+        StealthCreateLifecycleExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert coinbase_policy["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert coinbase_policy["resolved"] is False
+    assert coinbase_policy["resolved_evidence_id"] == (
+        "coinbase-policy-proof-create-unsafe-latest"
+    )
+    assert coinbase_policy["missing_reason"] == (
+        "coinbase_exchange_submission_policy_proof_not_safe"
+    )
+    assert coinbase_policy["stale_or_invalid"] is True
+    post_write_policy = rows[
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert post_write_policy["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert post_write_policy["resolved"] is False
+    assert post_write_policy["resolved_evidence_id"] == (
+        "post-write-policy-proof-create-unsafe-latest"
+    )
+    assert post_write_policy["missing_reason"] == (
+        "post_write_reconciliation_execution_policy_proof_not_safe"
+    )
+    assert post_write_policy["stale_or_invalid"] is True
+    assert contract["execution_allowed"] is False
+    assert contract["coinbase_order_submit_ran"] is False
+    assert contract["live_coinbase_read_ran"] is False
+    assert contract["reconciliation_executed"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_reveal_contract_is_fail_closed_and_no_live(monkeypatch):
     client = _client(monkeypatch)
 
@@ -7857,6 +8443,8 @@ def test_admin_api_stealth_reveal_contract_is_fail_closed_and_no_live(monkeypatc
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
+            StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
             StealthCommandExecutionPrerequisite.REVEAL_TRIGGER_EVIDENCE.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
@@ -7933,6 +8521,8 @@ def test_admin_api_stealth_move_contract_is_fail_closed_and_no_live(monkeypatch)
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
+            StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
@@ -8469,6 +9059,8 @@ def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypa
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
+            StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
@@ -8545,6 +9137,8 @@ def test_admin_api_stealth_recovery_contract_is_fail_closed_and_no_live(monkeypa
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
+            StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.RECOVERY_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
@@ -8732,7 +9326,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3341-3360"
+    assert readback_payload["approved_phase_range"] == "3361-3380"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -8959,7 +9553,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3341-3360"
+    assert readback_payload["approved_phase_range"] == "3361-3380"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9218,7 +9812,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3341-3360"
+    assert readback_payload["approved_phase_range"] == "3361-3380"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -9443,7 +10037,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3341-3360"
+    assert readback_payload["approved_phase_range"] == "3361-3380"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9712,6 +10306,292 @@ def test_admin_api_stealth_execution_contract_resolves_manager_policy_proof(
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_command_execution_policy_resolvers_use_latest_exact_context(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    stealth_order_id = "stealth-command-policy-exact-context"
+    route = "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    path = f"/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    body = {
+        "reason": "trigger_window_open",
+        "manual_live_acknowledgement": True,
+    }
+    idempotency_key = "idem-stealth-command-policy-exact-context"
+    operator_intent = "stealth_reveal_policy_exact_context_review"
+    payload_hash = _stealth_command_payload_hash(
+        endpoint=f"POST {path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        model=StealthRevealRequest,
+        operator_intent=operator_intent,
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=route,
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        approval_snapshot_id="approval-stealth-command-policy-exact",
+        admission_audit_id="audit-stealth-command-policy-exact",
+        cap_guard_decision_id="cap-stealth-command-policy-exact",
+        reconciliation_plan_id="recon-stealth-command-policy-exact",
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-command-exact-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=route,
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-command-policy-exact",
+            approval_snapshot_id="approval-stealth-command-policy-exact",
+            admission_audit_id="audit-stealth-command-policy-exact",
+            cap_guard_decision_id="cap-stealth-command-policy-exact",
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-command-exact-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=route,
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            reconciliation_plan_id="recon-stealth-command-policy-exact",
+            approval_snapshot_id="approval-stealth-command-policy-exact",
+            admission_audit_id="audit-stealth-command-policy-exact",
+            cap_guard_decision_id="cap-stealth-command-policy-exact",
+        )
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-command-wrong-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders/{stealth_order_id}/move",
+            guarded_service_method="move_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_MOVE,
+            guarded_operator_intent="different_move_policy_review",
+            guarded_idempotency_key="idem-different-move-policy",
+            guarded_payload_hash="2" * 64,
+            reconciliation_plan_id="recon-different-move-policy",
+            approval_snapshot_id="approval-different-move-policy",
+            admission_audit_id="audit-different-move-policy",
+            cap_guard_decision_id="cap-different-move-policy",
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-command-wrong-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route="/api/v1/stealth/orders/{stealth_order_id}/move",
+            guarded_service_method="move_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_MOVE,
+            guarded_operator_intent="different_move_policy_review",
+            guarded_idempotency_key="idem-different-move-policy",
+            guarded_payload_hash="2" * 64,
+            reconciliation_plan_id="recon-different-move-policy",
+            approval_snapshot_id="approval-different-move-policy",
+            admission_audit_id="audit-different-move-policy",
+            cap_guard_decision_id="cap-different-move-policy",
+        )
+    )
+
+    response = client.post(
+        path,
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 501
+    contract = response.json()["stealth_command_execution_contract"]
+    rows = {row["prerequisite"]: row for row in contract["prerequisite_resolution"]}
+    coinbase_policy = rows[
+        StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert coinbase_policy["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert coinbase_policy["resolved"] is True
+    assert coinbase_policy["resolved_evidence_id"] == (
+        "coinbase-policy-proof-command-exact-safe"
+    )
+    post_write_policy = rows[
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert post_write_policy["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED.value
+    )
+    assert post_write_policy["resolved"] is True
+    assert post_write_policy["resolved_evidence_id"] == (
+        "post-write-policy-proof-command-exact-safe"
+    )
+    assert contract["execution_allowed"] is False
+    assert contract["coinbase_order_submitted"] is False
+    assert contract["coinbase_order_cancel_submitted"] is False
+    assert contract["live_coinbase_read_ran"] is False
+    assert contract["reconciliation_executed"] is False
+
+    unsafe_idempotency_key = "idem-stealth-command-policy-unsafe-exact"
+    unsafe_operator_intent = "stealth_reveal_policy_unsafe_exact_review"
+    unsafe_payload_hash = _stealth_command_payload_hash(
+        endpoint=f"POST {path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        model=StealthRevealRequest,
+        operator_intent=unsafe_operator_intent,
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=route,
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=unsafe_idempotency_key,
+        operator_intent=unsafe_operator_intent,
+        payload_hash=unsafe_payload_hash,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        approval_snapshot_id="approval-stealth-command-policy-unsafe",
+        admission_audit_id="audit-stealth-command-policy-unsafe",
+        cap_guard_decision_id="cap-stealth-command-policy-unsafe",
+        reconciliation_plan_id="recon-stealth-command-policy-unsafe",
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-command-unsafe-older-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=route,
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent=unsafe_operator_intent,
+            guarded_idempotency_key=unsafe_idempotency_key,
+            guarded_payload_hash=unsafe_payload_hash,
+            reconciliation_plan_id="recon-stealth-command-policy-unsafe",
+            approval_snapshot_id="approval-stealth-command-policy-unsafe",
+            admission_audit_id="audit-stealth-command-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-command-policy-unsafe",
+        )
+    )
+    client.admin_api_test_stealth_coinbase_exchange_policy_proof_store.append(
+        _coinbase_exchange_policy_proof_record(
+            proof_id="coinbase-policy-proof-command-unsafe-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=route,
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent=unsafe_operator_intent,
+            guarded_idempotency_key=unsafe_idempotency_key,
+            guarded_payload_hash=unsafe_payload_hash,
+            reconciliation_plan_id="recon-stealth-command-policy-unsafe",
+            approval_snapshot_id="approval-stealth-command-policy-unsafe",
+            admission_audit_id="audit-stealth-command-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-command-policy-unsafe",
+            coinbase_submit_allowed=True,
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-command-unsafe-older-safe",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=route,
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent=unsafe_operator_intent,
+            guarded_idempotency_key=unsafe_idempotency_key,
+            guarded_payload_hash=unsafe_payload_hash,
+            reconciliation_plan_id="recon-stealth-command-policy-unsafe",
+            approval_snapshot_id="approval-stealth-command-policy-unsafe",
+            admission_audit_id="audit-stealth-command-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-command-policy-unsafe",
+        )
+    )
+    client.admin_api_test_stealth_post_write_reconciliation_policy_proof_store.append(
+        _post_write_reconciliation_execution_policy_proof_record(
+            proof_id="post-write-policy-proof-command-unsafe-latest",
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=route,
+            guarded_service_method="reveal_stealth_order_by_stealth_order_id",
+            guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+            guarded_operator_intent=unsafe_operator_intent,
+            guarded_idempotency_key=unsafe_idempotency_key,
+            guarded_payload_hash=unsafe_payload_hash,
+            reconciliation_plan_id="recon-stealth-command-policy-unsafe",
+            approval_snapshot_id="approval-stealth-command-policy-unsafe",
+            admission_audit_id="audit-stealth-command-policy-unsafe",
+            cap_guard_decision_id="cap-stealth-command-policy-unsafe",
+            post_write_reconciliation_execution_allowed=True,
+        )
+    )
+
+    unsafe_response = client.post(
+        path,
+        headers=_headers(
+            idempotency_key=unsafe_idempotency_key,
+            operator_intent=unsafe_operator_intent,
+        ),
+        json=body,
+    )
+
+    assert unsafe_response.status_code == 501
+    unsafe_contract = unsafe_response.json()["stealth_command_execution_contract"]
+    unsafe_rows = {
+        row["prerequisite"]: row
+        for row in unsafe_contract["prerequisite_resolution"]
+    }
+    unsafe_coinbase_policy = unsafe_rows[
+        StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert unsafe_coinbase_policy["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert unsafe_coinbase_policy["resolved"] is False
+    assert unsafe_coinbase_policy["resolved_evidence_id"] == (
+        "coinbase-policy-proof-command-unsafe-latest"
+    )
+    assert unsafe_coinbase_policy["missing_reason"] == (
+        "coinbase_exchange_submission_policy_proof_not_safe"
+    )
+    assert unsafe_coinbase_policy["stale_or_invalid"] is True
+    unsafe_post_write_policy = unsafe_rows[
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert unsafe_post_write_policy["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert unsafe_post_write_policy["resolved"] is False
+    assert unsafe_post_write_policy["resolved_evidence_id"] == (
+        "post-write-policy-proof-command-unsafe-latest"
+    )
+    assert unsafe_post_write_policy["missing_reason"] == (
+        "post_write_reconciliation_execution_policy_proof_not_safe"
+    )
+    assert unsafe_post_write_policy["stale_or_invalid"] is True
+    assert unsafe_contract["execution_allowed"] is False
+    assert unsafe_contract["coinbase_order_submitted"] is False
+    assert unsafe_contract["coinbase_order_cancel_submitted"] is False
+    assert unsafe_contract["live_coinbase_read_ran"] is False
+    assert unsafe_contract["reconciliation_executed"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     monkeypatch,
 ):
@@ -9880,7 +10760,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3341-3360"
+    assert readback_payload["approved_phase_range"] == "3361-3380"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12574,6 +13454,8 @@ def test_admin_api_stealth_reconciliation_contract_is_fail_closed_and_no_live(
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
+            StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PROOF.value,
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
@@ -13067,7 +13949,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3341-3360"
+    assert readback_payload["approved_phase_range"] == "3361-3380"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -13282,7 +14164,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3341-3360"
+    assert readback_payload["approved_phase_range"] == "3361-3380"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -13374,6 +14256,8 @@ def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkey
             StealthCommandExecutionPrerequisite.CAP_GUARD_DECISION.value,
             StealthCommandExecutionPrerequisite.RECONCILIATION_PLAN.value,
             StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
+            StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
             StealthCommandExecutionPrerequisite.ACTIVE_PLACEMENT_EXCHANGE_TRUTH.value,
             StealthCommandExecutionPrerequisite.MUTATION_CLAIM_SNAPSHOT.value,
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value,
@@ -15510,7 +16394,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3341-3360"
+    assert payload["approved_phase_range"] == "3361-3380"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -17338,7 +18222,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3341-3360"
+    assert live_payload["approved_phase_range"] == "3361-3380"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -17901,7 +18785,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3341-3360"
+    assert enterprise_payload["approved_phase_range"] == "3361-3380"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -18572,7 +19456,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3341-3360"
+    assert recovery_preview_payload["approved_phase_range"] == "3361-3380"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

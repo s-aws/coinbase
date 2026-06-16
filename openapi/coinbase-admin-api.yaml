@@ -22297,6 +22297,8 @@ components:
       - cap_guard_decision
       - reconciliation_plan
       - manager_invocation_policy
+      - coinbase_exchange_submission_policy
+      - post_write_reconciliation_execution_policy
       - active_placement_exchange_truth
       - reveal_trigger_evidence
       - mutation_claim_snapshot
@@ -23790,6 +23792,8 @@ components:
       - cap_guard_decision
       - reconciliation_plan
       - manager_invocation_policy
+      - coinbase_exchange_submission_policy
+      - post_write_reconciliation_execution_policy
       - lifecycle_write_guard_proof
       - live_execution_service
       - live_execution_adapter

@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3341-3360**.
+- Approved phase range: **3361-3380**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3321-3340`.
+- Previous completed range: `3341-3360`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,95 +23,123 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3341-3360
+## Active Phases 3361-3380
 
-These phases continue M55 by adding backend-owned post-write reconciliation
-execution-policy proof/readback evidence for guarded stealth commands. The
-records are append-only local evidence for future reconciliation execution
-policy review. They must not call Coinbase, invoke managers, submit orders,
-cancel orders, read Coinbase, cancel or replace active placements, execute
-reconciliation, mutate state, grant browser authority, or grant BFF execution
-authority.
+These phases continue M55 by consuming backend-owned Coinbase exchange
+submission-policy proof/readback and post-write reconciliation
+execution-policy proof/readback as exact-command prerequisite resolver evidence
+for stealth create and non-create execution contracts. The resolver lookups
+are append-only backend store reads only. They must not call Coinbase, invoke
+managers, submit orders, cancel orders, read Coinbase, cancel or replace active
+placements, execute reconciliation, mutate state, grant browser authority, or
+grant BFF execution authority.
 
-### Phase 3341 - Advance Active Queue Range
+When multiple policy proof rows exist for a `stealth_order_id`, resolvers must
+scan recent rows and choose the newest row that exactly matches the guarded
+route, method, service method, mutation family, actor, operator intent,
+idempotency key, payload hash, approval snapshot, admission audit, cap/guard,
+and reconciliation plan for the command being evaluated. Newer rows for other
+commands are ignored. A newer unsafe exact-command row blocks even if an older
+safe exact-command row exists.
 
-- Move the durable autonomous queue from completed phases 3321-3340 to active phases 3341-3360 while preserving no-live defaults and cap policy.
+### Phase 3361 - Advance Active Queue Range
 
-### Phase 3342 - Prior Range Completion Evidence
+- Move the durable autonomous queue from completed phases 3341-3360 to active phases 3361-3380 while preserving no-live defaults and cap policy.
 
-- Keep completed phases 3321-3340 recorded as Coinbase exchange submission-policy proof/readback evidence with passing gates, blind reviews, browser check, ownership, backend commit `f00a8d61`, frontend commit `7881985`, and `$0` live Coinbase submitted/executed notional.
+### Phase 3362 - Prior Range Completion Evidence
 
-### Phase 3343 - Backend Policy Proof Enums
+- Keep completed phases 3341-3360 recorded as post-write reconciliation execution-policy proof/readback evidence with passing gates, blind reviews, browser check, ownership, backend commit `d3b26b78`, frontend commit `2cea6a0`, and `$0` live Coinbase submitted/executed notional.
 
-- Add enum-backed permission, mutation family, admission evidence, and evidence source values for post-write reconciliation execution-policy proof evidence.
+### Phase 3363 - Prerequisite Enum Expansion
 
-### Phase 3344 - Backend Policy Proof Store And Service
+- Add enum-backed execution prerequisites for Coinbase exchange submission-policy proof and post-write reconciliation execution-policy proof on stealth create and non-create command contracts.
 
-- Add an append-only JSONL proof store and service that validates exact guarded command context, prerequisite admission evidence, dry-run posture, and no-live/no-reconciliation-execution flags.
+### Phase 3364 - Create Resolver Store Wiring
 
-### Phase 3345 - Backend Readback Model
+- Thread the existing policy proof stores into the stealth create lifecycle-write execution contract builder through the shared command-service dependency surface.
 
-- Add typed proof record and readback response models exposing persisted proof count, latest proof id, policy refs, and explicit no-reconciliation/no-Coinbase/no-write authority.
+### Phase 3365 - Create Coinbase Policy Resolver
 
-### Phase 3346 - Backend Proof Command
+- Resolve the newest exact-command Coinbase exchange submission-policy proof record for stealth create through backend store reads only, with strict no-live/no-mutation safety checks.
 
-- Add the shared command-service method for recording execution-policy proof evidence as a local-state mutation without calling Coinbase, managers, reconciliation, or state writers.
+### Phase 3366 - Create Post-Write Execution Policy Resolver
 
-### Phase 3347 - FastAPI Route Adapters
+- Resolve the newest exact-command post-write reconciliation execution-policy proof record for stealth create through backend store reads only, with strict no-reconciliation/no-write safety checks.
 
-- Add `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy` and `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs`.
+### Phase 3367 - Non-Create Metadata Prerequisites
 
-### Phase 3348 - Route Inventory And Proof-Route Catalog
+- Add both policy prerequisites to reveal, cancel, move, recover, reconcile, and reprice execution metadata between manager policy and command-specific prerequisites.
 
-- Bind the read and proof routes into route inventory, mutation taxonomy, command-suite proof-route evidence, and OpenAPI.
+### Phase 3368 - Non-Create Route Store Wiring
 
-### Phase 3349 - Backend No-Live Regression
+- Thread the existing policy proof stores through stealth and movement/repricing route adapters into the shared execution-posture attachment path.
 
-- Add regression coverage proving RBAC denial, `order_id` rejection, missing-prerequisite rejection, accepted exact admission-chain evidence, idempotent replay, readback, audit linkage, and `$0` live posture.
+### Phase 3369 - Non-Create Coinbase Policy Resolver
 
-### Phase 3350 - Frontend Schema Regeneration
+- Resolve the newest exact-command Coinbase exchange submission-policy proof record for non-create stealth commands through backend store reads only.
 
-- Regenerate frontend API types from backend OpenAPI without hand-editing generated schema.
+### Phase 3370 - Non-Create Post-Write Execution Policy Resolver
 
-### Phase 3351 - Frontend Canonical Client And Route Coverage
+- Resolve the newest exact-command post-write reconciliation execution-policy proof record for non-create stealth commands through backend store reads only.
 
-- Add canonical client wrappers, route contract coverage, BFF GET allowlist, and mutation metadata for the new proof route as forward-only/no-execution.
+### Phase 3371 - Resolver Safety Regression
 
-### Phase 3352 - Frontend Mock Backend Evidence
+- Add/update regression coverage proving missing, unavailable, stale, wrong-latest-command, unsafe latest exact-command, and resolved policy proof rows never authorize live execution.
 
-- Add mock fixtures, route matching, capabilities, proof-route rows, and readback data for post-write reconciliation execution-policy evidence with all execution flags false.
+### Phase 3372 - OpenAPI And Schema Sync
 
-### Phase 3353 - Frontend Runtime And Adapter Mapping
+- Regenerate backend OpenAPI and frontend API schema from the enum/contract changes without hand-editing generated artifacts.
 
-- Load the readback through the canonical runtime path and map it into typed stealth view models without adding proof-writing controls or execution authority.
+### Phase 3373 - Frontend Mock And Runtime Sync
 
-### Phase 3354 - Frontend UI Evidence Display
+- Update frontend mocks, runtime fixtures, and generated type consumers so prerequisite rows include the two policy prerequisites.
 
-- Render post-write reconciliation execution-policy evidence beside other stealth proof surfaces as display-only backend evidence.
+### Phase 3374 - UI Display Verification
 
-### Phase 3355 - Frontend Unit Coverage
+- Verify the existing execution-readiness UI displays the new generic prerequisite rows without adding proof-writing controls or execution authority.
 
-- Cover canonical wrappers, BFF/route coverage, mutation contracts, mock backend, runtime snapshot, and read-model rendering.
+### Phase 3375 - Documentation And Examples
 
-### Phase 3356 - Documentation And Examples
+- Update Admin API, stealth command-suite, examples, docs index, handoff, and local AI context docs for resolver-only policy proof consumption.
 
-- Update Admin API, command-suite, stealth read, examples, docs index, roadmap, handoff, and local AI context docs for the new proof/readback surface.
+### Phase 3376 - Release And Autonomous Metadata
 
-### Phase 3357 - Release And Autonomous Metadata
+- Update release, deployment, autonomous, and artifact-contract checks for phases 3361-3380.
 
-- Update release, deployment, autonomous, and artifact-contract checks for phases 3341-3360.
+### Phase 3377 - Stale Range And Authority Drift Scan
 
-### Phase 3358 - Focused Backend And Frontend Gates
+- Scan backend and frontend docs/tests/mocks for stale 3341-3360 active-range references and for any policy-proof wording that implies Coinbase or reconciliation execution authority.
 
-- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend API/unit/autonomous checks for post-write reconciliation execution-policy proof evidence.
+### Phase 3378 - Focused Backend And Frontend Gates
 
-### Phase 3359 - Blind Contextless Reviews
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend API/unit/autonomous checks for resolver-only policy proof consumption.
 
-- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why this is local policy proof evidence, not permission to execute reconciliation or call Coinbase.
+### Phase 3379 - Blind Contextless Reviews
 
-### Phase 3360 - Full Gates, Browser Check, Commit, Push, And No-Live Report
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why the policy proof rows are prerequisite evidence only, not execution authority.
+
+### Phase 3380 - Full Gates, Browser Check, Commit, Push, And No-Live Report
 
 - Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repositories, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed Phases 3341-3360
+
+These phases added backend-owned post-write reconciliation execution-policy
+proof/readback evidence for guarded stealth commands. The records are
+append-only local evidence for future reconciliation execution policy review.
+They do not call Coinbase, invoke managers, submit orders, cancel orders, read
+Coinbase, cancel or replace active placements, execute reconciliation, mutate
+state, grant browser authority, or grant BFF execution authority.
+
+Completion evidence:
+
+- Backend focused Admin API tests, backend full regression, frontend focused
+  tests, frontend `npm run release:gate`, browser check, and blind/contextless
+  reviews passed.
+- Backend commit `d3b26b78` and frontend commit `2cea6a0` contain the pushed
+  phase range.
+- Live Coinbase execution was not run; submitted and executed notional stayed
+  at `$0`.
 
 ## Completed Phases 3321-3340
 
