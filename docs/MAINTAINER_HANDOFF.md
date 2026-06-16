@@ -100,9 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `3021-3040` under M55. Complete typed
-  live-readiness closure evidence after execution-transition barrier evidence
-  before advancing.
+- Latest completed autonomous range: `3041-3060` under M55.
+- Next active range: pending user restart after requested pause.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -394,10 +393,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   completed 3001-3020 range adds an explicit execution-transition barrier
   derived from preflight without enabling live service, adapters, managers,
   Coinbase, reconciliation, state mutation, browser authority, or BFF
-  execution authority. The active 3021-3040 range adds blocked
+  execution authority. The completed 3021-3040 range added blocked
   live-readiness closure evidence after that barrier, naming required backend
   decisions, handoff blockers, and forbidden execution claims while keeping
-  live execution disabled.
+  live execution disabled. The completed 3041-3060 range added a typed backend
+  decision ledger derived from that live-readiness evidence so required
+  decisions name their owner, required artifact, missing reason, and blocked
+  no-live/no-write proof without adding execution authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

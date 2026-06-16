@@ -9044,6 +9044,18 @@ components:
       title: AdminApiStealthCommandSuiteGapFamily
       description: Stealth command-suite families that still require admin contract
         work.
+    AdminApiStealthLiveReadinessDecision:
+      type: string
+      enum:
+      - explicit_live_enablement_decision
+      - backend_live_service_configuration
+      - backend_live_adapter_construction
+      - manager_invocation_policy
+      - coinbase_exchange_submission_policy
+      - post_write_reconciliation_execution_policy
+      - state_mutation_policy
+      title: AdminApiStealthLiveReadinessDecision
+      description: Backend decisions required before stealth live execution can exist.
     AdminApiVerifierReadinessStatus:
       type: string
       enum:
@@ -24137,6 +24149,136 @@ components:
       - live_coinbase_disabled
       title: StealthExchangeTruthEvidenceSource
       description: Source posture for stealth active-placement exchange-truth evidence.
+    StealthExecutionBackendDecisionEvidence:
+      properties:
+        decision:
+          $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        source_ref:
+          type: string
+          title: Source Ref
+          default: execution_live_readiness
+        decision_authority:
+          type: string
+          title: Decision Authority
+          default: backend_decision_required
+        owner:
+          type: string
+          title: Owner
+        required_artifact:
+          type: string
+          title: Required Artifact
+        missing_reason:
+          type: string
+          title: Missing Reason
+        blocks_m55_completion:
+          type: boolean
+          title: Blocks M55 Completion
+          default: true
+        blocks_live_execution:
+          type: boolean
+          title: Blocks Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_order_submit_allowed:
+          type: boolean
+          title: Coinbase Order Submit Allowed
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_allowed:
+          type: boolean
+          title: Coinbase Order Cancel Allowed
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_coinbase_read_allowed:
+          type: boolean
+          title: Live Coinbase Read Allowed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        state_mutated:
+          type: boolean
+          title: State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      - owner
+      - required_artifact
+      - missing_reason
+      - detail
+      title: StealthExecutionBackendDecisionEvidence
+      description: Blocked backend decision evidence required after live-readiness
+        closure.
     StealthExecutionCandidateEvidence:
       properties:
         mutation_family:
@@ -24411,9 +24553,19 @@ components:
           title: Required Backend Contracts
         required_backend_decisions:
           items:
-            type: string
+            $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
           type: array
           title: Required Backend Decisions
+        backend_decision_count:
+          type: integer
+          minimum: 0.0
+          title: Backend Decision Count
+          default: 0
+        backend_decisions:
+          items:
+            $ref: '#/components/schemas/StealthExecutionBackendDecisionEvidence'
+          type: array
+          title: Backend Decisions
         forbidden_execution_claims:
           items:
             type: string

@@ -18,8 +18,8 @@ ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "3021-3040"
-APPROVED_PHASES = tuple(range(3021, 3041))
+APPROVED_PHASE_RANGE = "3041-3060"
+APPROVED_PHASES = tuple(range(3041, 3061))
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -194,7 +194,8 @@ def _check_maintainer_handoff_docs() -> QueueCheck:
             "docs/LIVE_ORDER_SURFACES.md",
             "pytest tests\\regression\\ -v --tb=short",
             "npm run release:gate",
-            f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
+            f"Latest completed autonomous range: `{APPROVED_PHASE_RANGE}`",
+            "Next active range: pending user restart after requested pause.",
         ],
     }
     missing: dict[str, list[str]] = {}

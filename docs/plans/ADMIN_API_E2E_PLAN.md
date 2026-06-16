@@ -38,7 +38,111 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Readiness Closure Batch - Phases 3021-3040
+## Completed M55 Backend Decision Ledger Batch - Phases 3041-3060
+
+These phases continue M55 after live-readiness closure evidence by exposing a
+blocked backend decision ledger derived from `execution_live_readiness`. The
+ledger maps each required backend decision to an owner, required artifact,
+missing reason, and no-live/no-write proof. It must remain blocked,
+backend-owned, route-bound, command-context-bound, display-only, and BFF
+forward-only. It must not create a decision writer, live adapter, manager
+invocation, Coinbase call, reconciliation executor, cancel/replace path,
+state mutation, browser authority, or BFF execution authority.
+
+Completion evidence:
+
+- Backend full regression passed with `853` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `251` unit tests and `3`
+  Playwright tests.
+- Backend and frontend blind/contextless reviews found no blockers.
+- Browser availability check passed at `http://127.0.0.1:3000/`.
+- Ownership and autonomous queue checks passed.
+- Live Coinbase execution was not run; submitted and executed notional stayed
+  `$0`.
+- The next active range was not created because the user requested a pause
+  after this phase.
+
+### Phase 3041 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3021-3040 to active phases 3041-3060 while preserving no-live defaults and cap policy.
+
+### Phase 3042 - Prior Range Completion Evidence
+
+- Record phases 3021-3040 as completed live-readiness closure evidence with backend commit `dc120798`, frontend commit `b8f3727`, passing gates, blind reviews, browser check, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3043 - Backend Decision Enum
+
+- Add enum-backed decision ids for the backend decisions required before stealth live execution can exist.
+
+### Phase 3044 - Backend Decision Row Model
+
+- Add typed backend decision ledger rows under `execution_live_readiness`.
+
+### Phase 3045 - Shared Decision Ledger Builder
+
+- Derive decision ledger rows from the existing live-readiness decision list so create and non-create stealth contracts keep one code path.
+
+### Phase 3046 - Contract Wiring
+
+- Attach blocked decision rows to stealth create and non-create execution live-readiness evidence without changing execution posture.
+
+### Phase 3047 - Backend OpenAPI And Regression Coverage
+
+- Regenerate backend OpenAPI and assert decision ledger fields are part of the Admin API contract.
+
+### Phase 3048 - Frontend Schema Sync
+
+- Regenerate frontend API types from the backend OpenAPI artifact without hand-editing generated files.
+
+### Phase 3049 - Frontend Mock Runtime Sync
+
+- Update frontend mocks and runtime fixtures so live-readiness evidence includes blocked backend decision rows.
+
+### Phase 3050 - Command Dry-Submit Display
+
+- Render decision ledger rows in command dry-submit evidence as backend evidence only.
+
+### Phase 3051 - Stealth Read-Model Display
+
+- Render decision ledger rows in stealth read-model surfaces without enabling command execution.
+
+### Phase 3052 - Quality Artifact Sync
+
+- Update release, deployment, autonomous, and artifact-contract checks for phase range 3041-3060 and no-live posture.
+
+### Phase 3053 - Documentation And Examples
+
+- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for backend decision ledger semantics.
+
+### Phase 3054 - Stale Authority Scan
+
+- Search both repos for stale active-range and misleading decision/live-readiness wording that would imply execution authority.
+
+### Phase 3055 - Focused Backend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks for the decision ledger.
+
+### Phase 3056 - Focused Frontend Gates
+
+- Run focused frontend unit/API/autonomous/quality checks for decision-ledger display and phase metadata.
+
+### Phase 3057 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why backend decision rows are still blocked and display-only.
+
+### Phase 3058 - Full Gates And Browser Check
+
+- Run backend full regression, frontend `npm run release:gate`, ownership checks, and a browser/dev-server availability check.
+
+### Phase 3059 - Commit, Push, And No-Live Report
+
+- Commit and push synchronized backend/frontend decision-ledger work with `$0` live Coinbase submitted/executed notional.
+
+### Phase 3060 - Next Milestone-Linked Range
+
+- Create the next milestone-linked active range only if a concrete approved M55 gap remains and no stop condition is present.
+
+## Completed M55 Live-Readiness Closure Batch - Phases 3021-3040
 
 These phases continue M55 after execution-transition barrier evidence by
 exposing a blocked live-readiness closure derived from
@@ -129,6 +233,18 @@ lifecycle/order/exchange state, or grant browser/BFF execution authority.
 ### Phase 3040 - Full Gates, Commit, Push, And Next Range
 
 - Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+Completion evidence:
+
+- Backend commit `dc120798` and frontend commit `b8f3727` were pushed.
+- Backend full regression passed with `853` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `251` unit tests and `3`
+  Playwright tests.
+- Backend and frontend blind/contextless reviews passed after the frontend
+  stale testing-doc range was remediated.
+- Browser/dev-server check passed at `http://127.0.0.1:3000/`.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed M55 Execution Transition Barrier Batch - Phases 3001-3020
 

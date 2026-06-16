@@ -65,8 +65,11 @@ The route requires Admin API authentication and `analytics:read`. It returns
 - typed `execution_live_readiness` evidence on exact create and non-create
   command responses. This is derived from `execution_transition_barrier`,
   keeps the M55 completion claim false, lists required backend decisions,
-  handoff blockers, and forbidden execution claims, and remains backend-owned,
-  no-live, browser `display_only`, and BFF `forward_only_no_execution`
+  handoff blockers, forbidden execution claims, and a typed
+  `backend_decisions` ledger. Each ledger row names the backend decision,
+  owner, required artifact, missing reason, and blocked no-live/no-write
+  proof while remaining backend-owned, no-live, browser `display_only`, and
+  BFF `forward_only_no_execution`
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -177,8 +180,11 @@ Those same exact command responses may include `execution_candidate`,
 engine or command gate; it is read-only evidence derived from the backend
 candidate and unresolved blocker chain. `execution_live_readiness` is the
 blocked M55 handoff closure after the transition barrier; it names the
-backend decisions still required before live authority can exist. These
-fields keep execution blocked while proving that manager invocation, Coinbase
+backend decisions still required before live authority can exist and exposes
+typed `backend_decisions` rows for those decisions. The ledger is display
+evidence only; it does not create a decision writer, satisfy a missing
+artifact, construct adapters, or approve execution. These fields keep
+execution blocked while proving that manager invocation, Coinbase
 submit/cancel/read, active-placement cancel/replace, reconciliation
 execution, state mutation, browser approval, and BFF execution authority did
 not run.

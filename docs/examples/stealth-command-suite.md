@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3021-3040",
+  "approved_phase_range": "3041-3060",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -523,8 +523,13 @@ blocked even when exact command-envelope context is present:
       "required_backend_decisions": [
         "explicit_live_enablement_decision",
         "backend_live_service_configuration",
-        "backend_live_adapter_construction"
+        "backend_live_adapter_construction",
+        "manager_invocation_policy",
+        "coinbase_exchange_submission_policy",
+        "post_write_reconciliation_execution_policy",
+        "state_mutation_policy"
       ],
+      "backend_decision_count": 7,
       "forbidden_execution_claims": [
         "frontend_approval_as_authority",
         "bff_execution_authority",
@@ -586,6 +591,12 @@ blocked even when exact command-envelope context is present:
   }
 }
 ```
+
+Actual `execution_live_readiness` payloads also include
+`backend_decisions`. Each row is blocked, required, unresolved, backend-owned,
+route-bound, command-context-bound, browser `display_only`, and BFF
+`forward_only_no_execution`, and names the decision owner, required artifact,
+and missing reason. These rows are not decision writes or live authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

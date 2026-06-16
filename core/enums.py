@@ -614,6 +614,20 @@ class AdminApiLivePreflightCategory(str, Enum):
     BROWSER_AUTHORITY = "browser_authority"
 
 
+class AdminApiStealthLiveReadinessDecision(str, Enum):
+    """Backend decisions required before stealth live execution can exist."""
+
+    EXPLICIT_LIVE_ENABLEMENT = "explicit_live_enablement_decision"
+    BACKEND_LIVE_SERVICE_CONFIGURATION = "backend_live_service_configuration"
+    BACKEND_LIVE_ADAPTER_CONSTRUCTION = "backend_live_adapter_construction"
+    MANAGER_INVOCATION_POLICY = "manager_invocation_policy"
+    COINBASE_EXCHANGE_SUBMISSION_POLICY = "coinbase_exchange_submission_policy"
+    POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
+        "post_write_reconciliation_execution_policy"
+    )
+    STATE_MUTATION_POLICY = "state_mutation_policy"
+
+
 class AdminApiLiveApprovalSnapshotField(str, Enum):
     """Required fields for future route-specific live approval snapshots."""
 

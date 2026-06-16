@@ -45,6 +45,7 @@ from core.enums import (
     AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
     AdminFuturesPositionSide,
     AdminRiskEvidenceSource,
@@ -6017,6 +6018,44 @@ class StealthExecutionTransitionBarrierEvidence(BaseModel):
     detail: str
 
 
+class StealthExecutionBackendDecisionEvidence(BaseModel):
+    """Blocked backend decision evidence required after live-readiness closure."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: AdminApiStealthLiveReadinessDecision
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    resolved: bool = False
+    source_ref: str = "execution_live_readiness"
+    decision_authority: str = "backend_decision_required"
+    owner: str
+    required_artifact: str
+    missing_reason: str
+    blocks_m55_completion: bool = True
+    blocks_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    no_live_execution: bool = True
+    live_execution_allowed: bool = False
+    executable: bool = False
+    manager_invocation_allowed: bool = False
+    coinbase_order_submit_allowed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_allowed: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    state_mutation_allowed: bool = False
+    state_mutated: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthExecutionLiveReadinessEvidence(BaseModel):
     """Blocked live-readiness closure after the transition barrier."""
 
@@ -6046,7 +6085,13 @@ class StealthExecutionLiveReadinessEvidence(BaseModel):
         default_factory=list
     )
     required_backend_contracts: list[str] = Field(default_factory=list)
-    required_backend_decisions: list[str] = Field(default_factory=list)
+    required_backend_decisions: list[AdminApiStealthLiveReadinessDecision] = (
+        Field(default_factory=list)
+    )
+    backend_decision_count: int = Field(default=0, ge=0)
+    backend_decisions: list[StealthExecutionBackendDecisionEvidence] = Field(
+        default_factory=list
+    )
     forbidden_execution_claims: list[str] = Field(default_factory=list)
     backend_owned: bool = True
     route_bound: bool = True

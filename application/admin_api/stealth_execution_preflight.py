@@ -5,15 +5,94 @@ from __future__ import annotations
 from core.enums import (
     AdminApiGateStatus,
     AdminApiLivePreflightCategory,
+    AdminApiStealthLiveReadinessDecision,
 )
 
 from .models import (
     AdminLivePreflightCheckItem,
+    StealthExecutionBackendDecisionEvidence,
     StealthExecutionCandidateEvidence,
     StealthExecutionLiveReadinessEvidence,
     StealthExecutionPreflightEvidence,
     StealthExecutionTransitionBarrierEvidence,
 )
+
+
+_STEALTH_LIVE_READINESS_DECISIONS = [
+    AdminApiStealthLiveReadinessDecision.EXPLICIT_LIVE_ENABLEMENT,
+    AdminApiStealthLiveReadinessDecision.BACKEND_LIVE_SERVICE_CONFIGURATION,
+    AdminApiStealthLiveReadinessDecision.BACKEND_LIVE_ADAPTER_CONSTRUCTION,
+    AdminApiStealthLiveReadinessDecision.MANAGER_INVOCATION_POLICY,
+    AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY,
+    AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY,
+    AdminApiStealthLiveReadinessDecision.STATE_MUTATION_POLICY,
+]
+
+_STEALTH_LIVE_READINESS_DECISION_METADATA = {
+    AdminApiStealthLiveReadinessDecision.EXPLICIT_LIVE_ENABLEMENT: {
+        "owner": "admin_api_contract",
+        "required_artifact": "explicit_backend_live_enablement_decision",
+        "missing_reason": "explicit_live_enablement_decision_missing",
+        "detail": (
+            "A backend-owned live enablement decision must explicitly allow the "
+            "route before any stealth command can become executable."
+        ),
+    },
+    AdminApiStealthLiveReadinessDecision.BACKEND_LIVE_SERVICE_CONFIGURATION: {
+        "owner": "runtime_lifecycle",
+        "required_artifact": "configured_admin_api_live_execution_service",
+        "missing_reason": "backend_live_service_configuration_missing",
+        "detail": (
+            "The Admin API live execution service must be configured by the "
+            "backend; browser or BFF state cannot satisfy this decision."
+        ),
+    },
+    AdminApiStealthLiveReadinessDecision.BACKEND_LIVE_ADAPTER_CONSTRUCTION: {
+        "owner": "admin_api_contract",
+        "required_artifact": "route_bound_stealth_live_execution_adapter",
+        "missing_reason": "backend_live_adapter_construction_missing",
+        "detail": (
+            "A route-bound backend adapter must exist before the shared command "
+            "service can be invoked for live stealth execution."
+        ),
+    },
+    AdminApiStealthLiveReadinessDecision.MANAGER_INVOCATION_POLICY: {
+        "owner": "stealth_lifecycle",
+        "required_artifact": "stealth_manager_invocation_policy",
+        "missing_reason": "manager_invocation_policy_missing",
+        "detail": (
+            "Stealth manager invocation must be allowed only through the "
+            "existing lifecycle path and mutation locks."
+        ),
+    },
+    AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY: {
+        "owner": "exchange_integration",
+        "required_artifact": "coinbase_exchange_submission_policy",
+        "missing_reason": "coinbase_exchange_submission_policy_missing",
+        "detail": (
+            "Coinbase submit, cancel, and read behavior must be governed by "
+            "backend exchange integration policy and exchange-truth evidence."
+        ),
+    },
+    AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY: {
+        "owner": "fill_audit",
+        "required_artifact": "post_write_reconciliation_execution_policy",
+        "missing_reason": "post_write_reconciliation_execution_policy_missing",
+        "detail": (
+            "Post-write reconciliation execution policy must exist before "
+            "accepted journals or proofs can transition into execution."
+        ),
+    },
+    AdminApiStealthLiveReadinessDecision.STATE_MUTATION_POLICY: {
+        "owner": "stealth_lifecycle",
+        "required_artifact": "stealth_state_mutation_policy",
+        "missing_reason": "state_mutation_policy_missing",
+        "detail": (
+            "Lifecycle, order, and exchange-state mutation policy must preserve "
+            "stealth exchange-reality invariants before state can change."
+        ),
+    },
+}
 
 
 def build_stealth_execution_preflight(
@@ -210,6 +289,7 @@ def build_stealth_execution_live_readiness(
         for blocker in handoff_blockers
         if blocker in category_by_blocker
     ]
+    backend_decisions = _build_stealth_live_readiness_decisions()
     return StealthExecutionLiveReadinessEvidence(
         mutation_family=barrier.mutation_family,
         workflow_family=barrier.workflow_family,
@@ -225,15 +305,9 @@ def build_stealth_execution_live_readiness(
         handoff_blockers=handoff_blockers,
         handoff_blocker_categories=list(dict.fromkeys(handoff_blocker_categories)),
         required_backend_contracts=list(barrier.next_required_contracts),
-        required_backend_decisions=[
-            "explicit_live_enablement_decision",
-            "backend_live_service_configuration",
-            "backend_live_adapter_construction",
-            "manager_invocation_policy",
-            "coinbase_exchange_submission_policy",
-            "post_write_reconciliation_execution_policy",
-            "state_mutation_policy",
-        ],
+        required_backend_decisions=list(_STEALTH_LIVE_READINESS_DECISIONS),
+        backend_decision_count=len(backend_decisions),
+        backend_decisions=backend_decisions,
         forbidden_execution_claims=[
             "frontend_approval_as_authority",
             "bff_execution_authority",
@@ -250,6 +324,24 @@ def build_stealth_execution_live_readiness(
             "authority can exist; it does not enable live execution."
         ),
     )
+
+
+def _build_stealth_live_readiness_decisions() -> list[
+    StealthExecutionBackendDecisionEvidence
+]:
+    decisions = []
+    for decision in _STEALTH_LIVE_READINESS_DECISIONS:
+        metadata = _STEALTH_LIVE_READINESS_DECISION_METADATA[decision]
+        decisions.append(
+            StealthExecutionBackendDecisionEvidence(
+                decision=decision,
+                owner=metadata["owner"],
+                required_artifact=metadata["required_artifact"],
+                missing_reason=metadata["missing_reason"],
+                detail=metadata["detail"],
+            )
+        )
+    return decisions
 
 
 def _check(
