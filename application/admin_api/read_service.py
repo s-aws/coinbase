@@ -136,6 +136,8 @@ from .models import (
     StealthCancelReplaceProofRecordItem,
     StealthPostWriteExecutionJournalReadResponse,
     StealthPostWriteExecutionJournalRecordItem,
+    StealthPostWriteReconciliationVerificationReadResponse,
+    StealthPostWriteReconciliationVerificationRecordItem,
     StealthPostWriteReconciliationProofReadResponse,
     StealthPostWriteReconciliationProofRecordItem,
     StealthRevealTriggerProofReadResponse,
@@ -245,15 +247,20 @@ from .stealth_post_write_reconciliation import (
     StealthPostWriteExecutionJournalAcceptanceRecord,
     FileStealthPostWriteReconciliationProofStore,
     StealthPostWriteReconciliationProofRecord,
+    FileStealthPostWriteReconciliationVerificationStore,
+    StealthPostWriteReconciliationVerificationRecord,
     is_safe_stealth_post_write_execution_journal_record,
+    is_safe_stealth_post_write_reconciliation_proof_record,
+    is_safe_stealth_post_write_reconciliation_verification_record,
     post_write_execution_journal_matches_proof,
+    post_write_reconciliation_verification_matches,
 )
 
 
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2881-2900"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2901-2920"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3607,6 +3614,135 @@ def _stealth_post_write_execution_journal_item_from_record(
     )
 
 
+def _stealth_post_write_reconciliation_verification_item_from_record(
+    record: StealthPostWriteReconciliationVerificationRecord,
+    *,
+    chain_verified: bool | None = None,
+) -> StealthPostWriteReconciliationVerificationRecordItem:
+    verified = (
+        record.post_write_reconciliation_verified
+        if chain_verified is None
+        else chain_verified
+    )
+    return StealthPostWriteReconciliationVerificationRecordItem(
+        reconciliation_verification_id=record.reconciliation_verification_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        post_write_reconciliation_proof_id=(
+            record.post_write_reconciliation_proof_id
+        ),
+        execution_journal_acceptance_id=record.execution_journal_acceptance_id,
+        stealth_order_id=record.stealth_order_id,
+        guarded_command_route=record.guarded_command_route,
+        guarded_command_method=record.guarded_command_method,
+        guarded_service_method=record.guarded_service_method,
+        guarded_mutation_family=record.guarded_mutation_family,
+        guarded_actor_id=record.guarded_actor_id,
+        guarded_operator_intent=record.guarded_operator_intent,
+        guarded_idempotency_key=record.guarded_idempotency_key,
+        guarded_payload_hash=record.guarded_payload_hash,
+        post_write_execution_journal_ref=record.post_write_execution_journal_ref,
+        post_write_completion_proof_ref=record.post_write_completion_proof_ref,
+        reconciliation_verification_ref=record.reconciliation_verification_ref,
+        evidence_source=record.evidence_source,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        verification_persisted=record.verification_persisted,
+        execution_journal_accepted=record.execution_journal_accepted,
+        post_write_reconciliation_verified=verified,
+        manager_invocation_ran=record.manager_invocation_ran,
+        reconciliation_execution_ran=record.reconciliation_execution_ran,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_order_cancel_submitted=record.coinbase_order_cancel_submitted,
+        active_placement_cancel_replace_ran=(
+            record.active_placement_cancel_replace_ran
+        ),
+        reconciliation_executed=record.reconciliation_executed,
+        order_state_mutated=record.order_state_mutated,
+        lifecycle_state_mutated=record.lifecycle_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Stealth post-write reconciliation verification is backend-owned "
+            "append-only evidence only. It verifies the proof and accepted "
+            "journal chain without invoking managers, calling Coinbase, "
+            "mutating lifecycle/order/exchange state, or executing "
+            "reconciliation."
+        ),
+    )
+
+
+def _matching_safe_stealth_post_write_reconciliation_verifications(
+    *,
+    proof_records: list[StealthPostWriteReconciliationProofRecord],
+    journal_records: list[StealthPostWriteExecutionJournalAcceptanceRecord],
+    verification_records: list[StealthPostWriteReconciliationVerificationRecord],
+) -> list[StealthPostWriteReconciliationVerificationRecord]:
+    """Return unique verifications that match an exact safe proof+journal chain."""
+
+    matches: list[StealthPostWriteReconciliationVerificationRecord] = []
+    seen_verification_ids: set[str] = set()
+    for proof_record in proof_records:
+        if not is_safe_stealth_post_write_reconciliation_proof_record(
+            proof_record
+        ):
+            continue
+        for journal_record in journal_records:
+            if not is_safe_stealth_post_write_execution_journal_record(
+                journal_record
+            ):
+                continue
+            if not post_write_execution_journal_matches_proof(
+                journal_record,
+                proof_record,
+            ):
+                continue
+            for verification_record in verification_records:
+                if (
+                    verification_record.reconciliation_verification_id
+                    in seen_verification_ids
+                ):
+                    continue
+                if not is_safe_stealth_post_write_reconciliation_verification_record(
+                    verification_record
+                ):
+                    continue
+                if not post_write_reconciliation_verification_matches(
+                    verification_record,
+                    proof_record,
+                    journal_record,
+                ):
+                    continue
+                matches.append(verification_record)
+                seen_verification_ids.add(
+                    verification_record.reconciliation_verification_id
+                )
+    return matches
+
+
 def _spot_recovery_execution_item_from_record(
     record: SpotRecoveryExecutionRecord,
 ) -> SpotRecoveryExecutionRecordItem:
@@ -3833,6 +3969,9 @@ class AdminApiReadService:
         stealth_post_write_execution_journal_store: (
             FileStealthPostWriteExecutionJournalStore | None
         ) = None,
+        stealth_post_write_reconciliation_verification_store: (
+            FileStealthPostWriteReconciliationVerificationStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -3889,6 +4028,10 @@ class AdminApiReadService:
         self.stealth_post_write_execution_journal_store = (
             stealth_post_write_execution_journal_store
             or FileStealthPostWriteExecutionJournalStore()
+        )
+        self.stealth_post_write_reconciliation_verification_store = (
+            stealth_post_write_reconciliation_verification_store
+            or FileStealthPostWriteReconciliationVerificationStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -8105,6 +8248,69 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications",
+                mutation_id="stealth.post_write_reconciliation_verification",
+                mutation_family=(
+                    AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_VERIFICATION
+                ),
+                workflow_id="stealth.post_write_reconciliation_verification_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth post-write reconciliation verification is "
+                    "append-only local evidence keyed by stealth_order_id, "
+                    "safe proof id, accepted journal id, and guarded command "
+                    "context; it verifies the local evidence chain without "
+                    "executing reconciliation, invoking managers, calling "
+                    "Coinbase, cancelling or replacing placements, or "
+                    "mutating lifecycle/order/exchange state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::record_stealth_post_write_reconciliation_verification",
+                    "application/admin_api/command_service.py::record_stealth_post_write_reconciliation_verification",
+                    "application/admin_api/stealth_post_write_reconciliation_service.py",
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordStealthPostWriteReconciliationVerification",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/examples/stealth-command-suite.md",
+                ],
+                required_next_contract=(
+                    "Future executable stealth command paths must still prove "
+                    "post-write prerequisite resolution and live adapter "
+                    "enablement; this verification route is local evidence "
+                    "only."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "post_write_reconciliation_prerequisite_unresolved",
+                    "reconciliation_execution_disabled",
+                    "live_adapter_disabled",
+                    "post-write reconciliation prerequisite unsatisfied",
+                ],
+                frontend_boundary=(
+                    "Do not use browser verification records as command "
+                    "enablement, manager authority, active-placement "
+                    "cancel/replace authority, Coinbase authority, "
+                    "reconciliation execution authority, or lifecycle "
+                    "mutation input."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and inventory rules remain backend guard "
+                    "evidence; stealth post-write verification is not sell "
+                    "authority or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -9782,7 +9988,8 @@ class AdminApiReadService:
             )
         )
         matching_journal_accepted = any(
-            is_safe_stealth_post_write_execution_journal_record(journal_record)
+            is_safe_stealth_post_write_reconciliation_proof_record(proof_record)
+            and is_safe_stealth_post_write_execution_journal_record(journal_record)
             and post_write_execution_journal_matches_proof(
                 journal_record,
                 proof_record,
@@ -9790,20 +9997,42 @@ class AdminApiReadService:
             for proof_record in proof_records
             for journal_record in journal_records
         )
+        verification_records = (
+            self.stealth_post_write_reconciliation_verification_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=100,
+            )
+        )
+        matching_verifications = (
+            _matching_safe_stealth_post_write_reconciliation_verifications(
+                proof_records=proof_records,
+                journal_records=journal_records,
+                verification_records=verification_records,
+            )
+        )
         latest_proof_id = (
             proofs[0].post_write_reconciliation_proof_id if proofs else None
         )
+        latest_verification_id = (
+            matching_verifications[0].reconciliation_verification_id
+            if matching_verifications
+            else None
+        )
         missing_contracts = [
-            "stealth_post_write_reconciliation_resolver",
             "stealth_post_write_reconciliation_execution_executor",
-            "stealth_post_write_reconciliation_completion_verifier",
+            "stealth_post_write_reconciliation_prerequisite_resolution",
         ]
+        if not matching_verifications:
+            missing_contracts.insert(
+                0,
+                "stealth_post_write_reconciliation_verification_record",
+            )
         proof_records_created = bool(proofs)
         return StealthPostWriteReconciliationProofReadResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             stealth_order_id=stealth_order_id,
             status=AdminApiGateStatus.BLOCKED,
-            post_write_reconciliation_verified=False,
+            post_write_reconciliation_verified=bool(matching_verifications),
             persisted_proof_count=len(proofs),
             persisted_proofs=proofs,
             latest_post_write_reconciliation_proof_id=latest_proof_id,
@@ -9819,6 +10048,9 @@ class AdminApiReadService:
             reconciliation_plan_built=False,
             execution_journal_required=True,
             execution_journal_accepted=matching_journal_accepted,
+            reconciliation_verification_required=True,
+            reconciliation_verification_count=len(matching_verifications),
+            latest_reconciliation_verification_id=latest_verification_id,
             completion_proof_required=True,
             completion_proof_recorded=proof_records_created,
             reconciliation_execution_allowed=False,
@@ -9865,10 +10097,43 @@ class AdminApiReadService:
             _stealth_post_write_execution_journal_item_from_record(record)
             for record in records
         ]
-        safe_acceptance_count = sum(
-            1
-            for record in records
-            if is_safe_stealth_post_write_execution_journal_record(record)
+        proof_records = (
+            self.stealth_post_write_reconciliation_proof_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=100,
+            )
+        )
+        matching_journal_records = [
+            journal_record
+            for proof_record in proof_records
+            for journal_record in records
+            if is_safe_stealth_post_write_reconciliation_proof_record(
+                proof_record
+            )
+            and is_safe_stealth_post_write_execution_journal_record(
+                journal_record
+            )
+            and post_write_execution_journal_matches_proof(
+                journal_record,
+                proof_record,
+            )
+        ]
+        safe_acceptance_count = len({
+            record.execution_journal_acceptance_id
+            for record in matching_journal_records
+        })
+        verification_records = (
+            self.stealth_post_write_reconciliation_verification_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=100,
+            )
+        )
+        matching_verifications = (
+            _matching_safe_stealth_post_write_reconciliation_verifications(
+                proof_records=proof_records,
+                journal_records=records,
+                verification_records=verification_records,
+            )
         )
         latest_acceptance_id = (
             acceptances[0].execution_journal_acceptance_id
@@ -9880,10 +10145,20 @@ class AdminApiReadService:
             if acceptances
             else None
         )
+        latest_verification_id = (
+            matching_verifications[0].reconciliation_verification_id
+            if matching_verifications
+            else None
+        )
         missing_contracts = [
             "stealth_post_write_reconciliation_execution_executor",
-            "stealth_post_write_reconciliation_verification_record",
+            "stealth_post_write_reconciliation_prerequisite_resolution",
         ]
+        if not matching_verifications:
+            missing_contracts.insert(
+                0,
+                "stealth_post_write_reconciliation_verification_record",
+            )
         return StealthPostWriteExecutionJournalReadResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             stealth_order_id=stealth_order_id,
@@ -9899,7 +10174,10 @@ class AdminApiReadService:
             route_bound=True,
             execution_journal_required=True,
             execution_journal_accepted=safe_acceptance_count > 0,
-            post_write_reconciliation_verified=False,
+            reconciliation_verification_required=True,
+            reconciliation_verification_count=len(matching_verifications),
+            latest_reconciliation_verification_id=latest_verification_id,
+            post_write_reconciliation_verified=bool(matching_verifications),
             manager_invocation_allowed=False,
             manager_invocation_ran=False,
             reconciliation_execution_allowed=False,
@@ -9926,6 +10204,127 @@ class AdminApiReadService:
                 "reference for a stored proof context but do not invoke managers, "
                 "call Coinbase, mutate lifecycle/order/exchange state, execute "
                 "reconciliation, or verify post-write reconciliation."
+            ),
+        )
+
+    def build_stealth_post_write_reconciliation_verifications(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> StealthPostWriteReconciliationVerificationReadResponse:
+        """Return persisted no-live post-write reconciliation verifications."""
+
+        records = (
+            self.stealth_post_write_reconciliation_verification_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=20,
+            )
+        )
+        proof_records = (
+            self.stealth_post_write_reconciliation_proof_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=100,
+            )
+        )
+        journal_records = (
+            self.stealth_post_write_execution_journal_store.read_for_stealth_order_id(
+                stealth_order_id,
+                limit=100,
+            )
+        )
+        matching_verifications = (
+            _matching_safe_stealth_post_write_reconciliation_verifications(
+                proof_records=proof_records,
+                journal_records=journal_records,
+                verification_records=records,
+            )
+        )
+        matching_verification_ids = {
+            record.reconciliation_verification_id
+            for record in matching_verifications
+        }
+        verifications = [
+            _stealth_post_write_reconciliation_verification_item_from_record(
+                record,
+                chain_verified=(
+                    record.reconciliation_verification_id
+                    in matching_verification_ids
+                ),
+            )
+            for record in records
+        ]
+        latest_matching_verification = (
+            matching_verifications[0] if matching_verifications else None
+        )
+        safe_verification_count = len(matching_verifications)
+        latest_verification_id = (
+            latest_matching_verification.reconciliation_verification_id
+            if latest_matching_verification is not None
+            else None
+        )
+        latest_acceptance_id = (
+            latest_matching_verification.execution_journal_acceptance_id
+            if latest_matching_verification is not None
+            else None
+        )
+        latest_proof_id = (
+            latest_matching_verification.post_write_reconciliation_proof_id
+            if latest_matching_verification is not None
+            else None
+        )
+        missing_contracts = [
+            "stealth_post_write_reconciliation_execution_executor",
+            "stealth_post_write_reconciliation_prerequisite_resolution",
+        ]
+        if not matching_verifications:
+            missing_contracts.insert(
+                0,
+                "safe_matching_post_write_reconciliation_verification_chain",
+            )
+        return StealthPostWriteReconciliationVerificationReadResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            stealth_order_id=stealth_order_id,
+            status=AdminApiGateStatus.BLOCKED,
+            persisted_verification_count=len(verifications),
+            verified_post_write_reconciliation_count=safe_verification_count,
+            persisted_verifications=verifications,
+            latest_reconciliation_verification_id=latest_verification_id,
+            latest_execution_journal_acceptance_id=latest_acceptance_id,
+            latest_post_write_reconciliation_proof_id=latest_proof_id,
+            missing_contracts=missing_contracts,
+            backend_owned=True,
+            read_only=True,
+            route_bound=True,
+            execution_journal_required=True,
+            execution_journal_accepted=safe_verification_count > 0,
+            reconciliation_verification_required=True,
+            post_write_reconciliation_verified=safe_verification_count > 0,
+            manager_invocation_allowed=False,
+            manager_invocation_ran=False,
+            reconciliation_execution_allowed=False,
+            reconciliation_execution_ran=False,
+            coinbase_read_attempted=False,
+            coinbase_read_succeeded=False,
+            coinbase_rest_read_ran=False,
+            coinbase_order_submitted=False,
+            coinbase_order_cancel_submitted=False,
+            active_placement_cancel_replace_ran=False,
+            reconciliation_required=True,
+            reconciliation_executed=False,
+            order_state_mutated=False,
+            lifecycle_state_mutated=False,
+            exchange_state_mutated=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            browser_authority="display_only",
+            bff_authority="read_only_forward",
+            detail=(
+                "Persisted stealth post-write reconciliation verifications are "
+                "backend-owned append-only evidence only. They verify a safe "
+                "proof plus accepted journal chain but do not invoke managers, "
+                "call Coinbase, mutate lifecycle/order/exchange state, execute "
+                "reconciliation, or satisfy the full execution prerequisite."
             ),
         )
 

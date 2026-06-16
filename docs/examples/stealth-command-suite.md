@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2881-2900",
+  "approved_phase_range": "2901-2920",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -648,6 +648,23 @@ operator intent, admission/audit/cap prerequisites, and `reconciliation:record`.
 It does not execute or verify reconciliation, call Coinbase, invoke managers,
 cancel/replace active placements, mutate lifecycle/order/exchange state, or
 grant browser/BFF execution authority.
+
+Post-write reconciliation verification evidence is read back and written
+through one path:
+
+```http
+GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications
+POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications
+```
+
+The POST route is backend-owned append-only evidence only. It requires the
+safe matching post-write proof, accepted execution journal, exact guarded
+command context, idempotency, operator intent, admission/audit/cap
+prerequisites, and `reconciliation:record`. It can clear only the completion
+verifier's `verified_post_write_reconciliation` display field. It does not
+satisfy the execution prerequisite, execute reconciliation, call Coinbase,
+invoke managers, cancel/replace active placements, mutate lifecycle/order/
+exchange state, or grant browser/BFF execution authority.
 
 `create_lifecycle_write_audit.execution_contract` is also evidence only. It
 lists missing exact command context and prerequisites in command-suite

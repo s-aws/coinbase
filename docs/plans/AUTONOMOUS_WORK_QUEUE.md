@@ -4,21 +4,23 @@ This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work
 without relying on chat history.
 
-## Active Approval
+## Approved Range Status
 
-- Approved phase range: **2881-2900**.
-- Work may continue through the approved range without asking for another
-  approval when the work stays inside the phase scope and cap policy below.
+- Approved phase range: **2901-2920**.
+- Range status: completed. Pause before selecting or creating the next active
+  range because the operator requested a restart after this phase.
+- The approved range allowed unattended work without asking for another
+  approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
   remains exceptional. Default work is dry/no-live.
 - If any stop condition occurs, resolve it before advancing to the next phase.
 - Active phases must map to an approved durable milestone and to a concrete
   architecture or planning gap in the milestone ledger. Do not create orphan
   phases, generic polish phases, or unrelated roadmap batches.
-- When the active range completes, mark it complete, create the next
-  milestone-linked active range, update validators/artifacts, and continue.
-  If no remaining approved milestone owns the next gap, stop and request a
-  new decision instead of inventing scope.
+- Normal autonomous continuation may create the next milestone-linked active
+  range only after restart and only when the next gap is directly tied to the
+  approved milestone ledger. If no remaining approved milestone owns the next
+  gap, stop and request a new decision instead of inventing scope.
 
 ## Live Coinbase Cap Policy
 
@@ -53,9 +55,101 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2881-2900
+## Completed Phases 2901-2920
 
-These phases continue M55 after the explicit post-write completion verifier by
+These phases continue M55 after append-only execution-journal acceptance by
+adding backend-owned append-only post-write reconciliation verification
+records. A safe verification record can remove only the nested completion
+verifier's `verified_post_write_reconciliation` display gate when it exactly
+matches a safe proof record and accepted journal. It must not satisfy the
+`post_write_reconciliation` execution prerequisite, execute reconciliation,
+call Coinbase, invoke managers, cancel/replace active placements, mutate
+lifecycle/order/exchange state, or give browser/BFF layers execution
+authority.
+
+### Phase 2901 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2881-2900 to approved phases 2901-2920 while preserving no-live defaults and cap policy.
+
+### Phase 2902 - Prior Range Completion Evidence
+
+- Record phases 2881-2900 as completed execution-journal acceptance work that still leaves verified reconciliation execution prerequisites unresolved.
+
+### Phase 2903 - Verification Record Model
+
+- Add typed append-only post-write reconciliation verification request, command, record, readback, and enum contracts.
+
+### Phase 2904 - Verification Store And Safety Predicate
+
+- Add a separate verification JSONL store, safety predicate, and exact proof-plus-journal matcher without weakening proof or journal safety semantics.
+
+### Phase 2905 - Verification Writer Service
+
+- Add guarded `record_stealth_post_write_reconciliation_verification` validation that requires a safe exact proof and accepted journal plus existing admission prerequisites.
+
+### Phase 2906 - Verification Route Inventory
+
+- Register GET and POST verification routes with read-only or local-state-mutation posture, required permissions, idempotency, audit, and no-live parity text.
+
+### Phase 2907 - Verification HTTP Routes
+
+- Add read and write FastAPI route adapters through the existing read service and idempotent command adapter.
+
+### Phase 2908 - Completion Verifier Verification Resolver
+
+- Teach the post-write completion verifier to remove only `verified_post_write_reconciliation` when a safe verification record matches the exact proof and journal context.
+
+### Phase 2909 - Non-Create Contract Wiring
+
+- Pass the verification store into non-create stealth command execution contracts while keeping `post_write_reconciliation` unresolved.
+
+### Phase 2910 - Create Contract Wiring
+
+- Pass the verification store into stealth create lifecycle-write execution contracts while keeping create execution blocked.
+
+### Phase 2911 - Backend Readback Semantics
+
+- Expose verification readback and proof/journal readback verification status without claiming executable post-write reconciliation.
+
+### Phase 2912 - OpenAPI Contract Sync
+
+- Regenerate and assert Admin API OpenAPI and route inventory artifacts include the verification request, readback, record item, routes, and verifier fields.
+
+### Phase 2913 - Backend Regression Coverage
+
+- Cover verification POST/GET, exact proof-plus-journal matching, mismatch rejection, no-live flags, idempotency, and unresolved execution-prerequisite semantics.
+
+### Phase 2914 - Frontend Schema Sync
+
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated files.
+
+### Phase 2915 - Frontend Client And Mock Intake
+
+- Add canonical frontend API wrappers, BFF/mutation route metadata, mocks, and generated-contract tests for the verification routes.
+
+### Phase 2916 - Frontend Display
+
+- Display verification id/found/safe/route/method/source in command verifier evidence and expose verification readback in stealth order reads.
+
+### Phase 2917 - Frontend Unit And Smoke Coverage
+
+- Cover frontend client, mocks, command display, stealth readback, route coverage, and no-live release artifacts.
+
+### Phase 2918 - Documentation And Handoff Sync
+
+- Update Admin API docs, examples, command workflow docs, stealth read docs, handoff, roadmap, and agent state for verification-record semantics.
+
+### Phase 2919 - Focused Gates And Blind Reviews
+
+- Run focused backend/frontend gates plus blind/contextless reviews proving a fresh reader can explain proof, journal acceptance, verification record, and unresolved execution-prerequisite roles.
+
+### Phase 2920 - Full Gates, Commit, Push, And Continue
+
+- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless review remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then continue only if the next milestone-linked batch is already approved and unblocked.
+
+## Completed Phases 2881-2900
+
+These phases continued M55 after the explicit post-write completion verifier by
 adding backend-owned append-only execution-journal acceptance evidence. A safe
 journal acceptance can remove only `accepted_execution_journal` from the
 completion verifier. It must not satisfy `post_write_reconciliation`, verify

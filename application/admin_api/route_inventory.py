@@ -242,6 +242,25 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface=(
+            "GET /api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-reconciliation-verifications"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_post_write_reconciliation_verifications",
+        parity_test=(
+            "read-only post-write reconciliation verification evidence; no "
+            "manager invocation, Coinbase call, state mutation, or "
+            "reconciliation execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/command-suite",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -284,6 +303,26 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "stealth_order_id identity; append-only journal acceptance only, "
             "no manager invocation, Coinbase activity, reconciliation execution, "
             "or lifecycle/order/exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-reconciliation-verifications"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.RECONCILIATION_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for verified post-write reconciliation evidence",
+        audit="required",
+        shared_method="record_stealth_post_write_reconciliation_verification",
+        parity_test=(
+            "stealth_order_id identity; append-only verification only after "
+            "safe proof and accepted journal, no manager invocation, Coinbase "
+            "activity, reconciliation execution, or lifecycle/order/exchange "
+            "mutation"
         ),
     ),
     AdminApiRouteInventoryItem(

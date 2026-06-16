@@ -2720,23 +2720,26 @@ Current backend evidence:
   exact-context post-write proof records while keeping the prerequisite
   unresolved. The completed phases 2861-2880 added an explicit post-write
   completion verifier that names accepted execution-journal evidence and
-  verified post-write reconciliation as separate missing gates. It now advances
-  to phases 2881-2900 to add append-only backend-owned execution-journal
-  acceptance evidence that can clear only `accepted_execution_journal`.
+  verified post-write reconciliation as separate missing gates. The completed
+  phases 2881-2900 added append-only backend-owned execution-journal
+  acceptance evidence that can clear only `accepted_execution_journal`. The
+  completed phases 2901-2920 added append-only backend-owned post-write
+  reconciliation verification records that can clear only the
+  `verified_post_write_reconciliation` display gate.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Execution-journal acceptance evidence is the active 2881-2900 slice. This
-  evidence may display exact-context proof ids, proof safety, accepted journal
-  ids, and remaining missing verified post-write reconciliation, but it must
-  not satisfy execution prerequisites, verify reconciliation, resolve proof or
-  journal authority through the frontend, read Coinbase, submit or cancel
-  Coinbase orders, write `stealth_orders` or `order_parent`, dispatch lifecycle
-  events, invoke managers, mutate state, execute reconciliation, resolve
-  disabled live prerequisites, or grant browser/BFF authority.
-  Live reveal exchange submission, live repair/rollback, active-placement
+- Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
-  and post-write reconciliation execution remain blocked.
+  and post-write reconciliation execution remain blocked. Post-write
+  reconciliation verification evidence may display exact-context proof ids,
+  proof safety, accepted journal ids, verification ids, and
+  completion-verifier display status, but it must not satisfy execution
+  prerequisites, execute reconciliation, resolve proof/journal/verification
+  authority through the frontend, read Coinbase, submit or cancel Coinbase
+  orders, write `stealth_orders` or `order_parent`, dispatch lifecycle events,
+  invoke managers, mutate state, resolve disabled live prerequisites, or grant
+  browser/BFF authority.
   Stealth create, reveal, cancel exchange
   handling, move revealed, reprice, recovery, reconciliation, and any eventual
   live execution screens must prove the full approval, cap/guard, admission

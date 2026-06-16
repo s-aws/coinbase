@@ -379,15 +379,30 @@ It stores append-only backend evidence only. It does not execute
 reconciliation, verify reconciliation, call Coinbase, invoke managers,
 cancel/replace active placements, mutate lifecycle/order/exchange state, or
 grant browser/BFF authority.
+Post-write reconciliation verification evidence is persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+and read back through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`.
+The readback route lists persisted records but counts a verification as
+verified only when it matches an exact safe post-write proof plus accepted
+execution journal chain. The writer route requires `reconciliation:record`,
+uses path `stealth_order_id` as the identity, requires exact guarded command
+context, and accepts only the same exact safe chain. It stores append-only
+backend evidence only and can clear only the completion verifier's
+`verified_post_write_reconciliation` display field. It does not satisfy the
+`post_write_reconciliation` execution prerequisite, execute reconciliation,
+call Coinbase, invoke managers, cancel/replace active placements, mutate
+lifecycle/order/exchange state, or grant browser/BFF authority.
 Both create and non-create execution contracts also expose
 `post_write_completion_verifier_contract`. It is backend-owned, route-bound,
 blocked, and display-only. A safe proof id may be present, but the verifier
-still lists `verified_post_write_reconciliation` as missing evidence until a
-future backend verifier records completion. If a matching journal acceptance
-exists, the verifier may show its acceptance id, route, method, and source,
-but still reports no manager invocation, Coinbase submit/cancel/read,
-reconciliation execution, cancel/replace, lifecycle/order/exchange mutation,
-browser authority, or BFF execution authority.
+still lists `accepted_execution_journal` or
+`verified_post_write_reconciliation` as missing evidence until matching
+backend records exist. If a matching journal acceptance or verification exists,
+the verifier may show its id, route, method, and source, but still reports no
+manager invocation, Coinbase submit/cancel/read, reconciliation execution,
+cancel/replace, lifecycle/order/exchange mutation, browser authority, or BFF
+execution authority.
 Both contracts also expose `live_execution_adapter_contract`, a nested
 route-bound adapter evidence object produced by the shared backend
 `build_live_execution_adapter_contract` helper. It names the

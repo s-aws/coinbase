@@ -64,6 +64,7 @@ from .models import (
     StealthMoveCommand,
     StealthPostWriteExecutionJournalCommand,
     StealthPostWriteReconciliationProofCommand,
+    StealthPostWriteReconciliationVerificationCommand,
     StealthRevealTriggerProofCommand,
     StealthReconciliationProofCommand,
     StealthRecoveryProofCommand,
@@ -155,12 +156,16 @@ from .stealth_post_write_reconciliation import (
     StealthPostWriteExecutionJournalAcceptanceRecord,
     FileStealthPostWriteReconciliationProofStore,
     StealthPostWriteReconciliationProofRecord,
+    FileStealthPostWriteReconciliationVerificationStore,
+    StealthPostWriteReconciliationVerificationRecord,
 )
 from .stealth_post_write_reconciliation_service import (
     AdminApiStealthPostWriteExecutionJournalService,
     StealthPostWriteExecutionJournalError,
     AdminApiStealthPostWriteReconciliationProofService,
     StealthPostWriteReconciliationProofError,
+    AdminApiStealthPostWriteReconciliationVerificationService,
+    StealthPostWriteReconciliationVerificationError,
 )
 from .stealth_reveal_trigger_proof import (
     FileStealthRevealTriggerProofStore,
@@ -269,6 +274,10 @@ class AdminApiCommandDependencies:
         [],
         FileStealthPostWriteExecutionJournalStore,
     ] = FileStealthPostWriteExecutionJournalStore
+    stealth_post_write_reconciliation_verification_store_getter: Callable[
+        [],
+        FileStealthPostWriteReconciliationVerificationStore,
+    ] = FileStealthPostWriteReconciliationVerificationStore
     audit_store_getter: Callable[[], FileAdminApiAuditStore] = FileAdminApiAuditStore
     spot_recovery_proof_service: AdminApiSpotRecoveryProofService = field(
         default_factory=AdminApiSpotRecoveryProofService
@@ -306,6 +315,11 @@ class AdminApiCommandDependencies:
     stealth_post_write_execution_journal_service: (
         AdminApiStealthPostWriteExecutionJournalService
     ) = field(default_factory=AdminApiStealthPostWriteExecutionJournalService)
+    stealth_post_write_reconciliation_verification_service: (
+        AdminApiStealthPostWriteReconciliationVerificationService
+    ) = field(
+        default_factory=AdminApiStealthPostWriteReconciliationVerificationService
+    )
 
 
 def direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
@@ -824,6 +838,36 @@ def _stealth_post_write_execution_journal_response_data(
         "journal_acceptance_persisted": True,
         "execution_journal_accepted": True,
         "post_write_reconciliation_verified": False,
+        "manager_invocation_ran": False,
+        "reconciliation_execution_ran": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "coinbase_order_cancel_submitted": False,
+        "active_placement_cancel_replace_ran": False,
+        "reconciliation_executed": False,
+        "order_state_mutated": False,
+        "lifecycle_state_mutated": False,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _stealth_post_write_reconciliation_verification_response_data(
+    record: StealthPostWriteReconciliationVerificationRecord,
+) -> dict[str, Any]:
+    """Return command-response data for verified post-write evidence."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "verification_persisted": True,
+        "execution_journal_accepted": True,
+        "post_write_reconciliation_verified": True,
         "manager_invocation_ran": False,
         "reconciliation_execution_ran": False,
         "coinbase_read_attempted": False,
@@ -1399,6 +1443,9 @@ class AdminApiCommandService:
             ),
             post_write_execution_journal_store=(
                 self.dependencies.stealth_post_write_execution_journal_store_getter()
+            ),
+            post_write_reconciliation_verification_store=(
+                self.dependencies.stealth_post_write_reconciliation_verification_store_getter()
             ),
         )
         return AdminApiCommandResponse(
@@ -3139,6 +3186,165 @@ class AdminApiCommandService:
             audit_id=record.audit_id,
             live_exchange_submitted=False,
             data=_stealth_post_write_execution_journal_response_data(record),
+        )
+
+    def _rejected_stealth_post_write_reconciliation_verification_response(
+        self,
+        *,
+        command: StealthPostWriteReconciliationVerificationCommand,
+        message: str,
+    ) -> AdminApiCommandResponse:
+        request = command.request
+        data: dict[str, Any] = {
+            "mutation_family": (
+                AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_VERIFICATION.value
+            ),
+            "stealth_order_id": command.stealth_order_id,
+            "reconciliation_verification_id": (
+                request.reconciliation_verification_id
+            ),
+            "post_write_reconciliation_proof_id": (
+                request.post_write_reconciliation_proof_id
+            ),
+            "execution_journal_acceptance_id": (
+                request.execution_journal_acceptance_id
+            ),
+            "guarded_command_route": request.guarded_command_route,
+            "guarded_command_method": request.guarded_command_method,
+            "guarded_service_method": request.guarded_service_method,
+            "guarded_mutation_family": request.guarded_mutation_family.value,
+            "guarded_actor_id": request.guarded_actor_id,
+            "guarded_operator_intent": request.guarded_operator_intent,
+            "guarded_idempotency_key": request.guarded_idempotency_key,
+            "guarded_payload_hash": request.guarded_payload_hash,
+            "post_write_execution_journal_ref": (
+                request.post_write_execution_journal_ref
+            ),
+            "post_write_completion_proof_ref": (
+                request.post_write_completion_proof_ref
+            ),
+            "reconciliation_verification_ref": (
+                request.reconciliation_verification_ref
+            ),
+            "evidence_source": request.evidence_source.value,
+            "approval_snapshot_id": request.approval_snapshot_id,
+            "admission_audit_id": request.admission_audit_id,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "dry_run": request.dry_run,
+            "operator_reason": request.operator_reason,
+            "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "verification_persisted": False,
+            "execution_journal_accepted": False,
+            "post_write_reconciliation_verified": False,
+            "manager_invocation_ran": False,
+            "reconciliation_execution_ran": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "coinbase_rest_read_ran": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "active_placement_cancel_replace_ran": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "lifecycle_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.RECONCILIATION_RECORD,
+            service_method=(
+                "record_stealth_post_write_reconciliation_verification"
+            ),
+            message=message,
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            data=data,
+            failure_stage="reconciliation_verification_prerequisite",
+        )
+
+    def record_stealth_post_write_reconciliation_verification(
+        self,
+        command: StealthPostWriteReconciliationVerificationCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned post-write reconciliation verification."""
+
+        if command.admission_decision is None:
+            return (
+                self._rejected_stealth_post_write_reconciliation_verification_response(
+                    command=command,
+                    message=(
+                        "Stealth post-write reconciliation verification "
+                        "admission evidence is missing."
+                    ),
+                )
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = (
+                deps.stealth_post_write_reconciliation_verification_service.record_verification(
+                    verification_store=(
+                        deps.stealth_post_write_reconciliation_verification_store_getter()
+                    ),
+                    journal_store=(
+                        deps.stealth_post_write_execution_journal_store_getter()
+                    ),
+                    proof_store=(
+                        deps.stealth_post_write_reconciliation_proof_store_getter()
+                    ),
+                    stealth_order_id=command.stealth_order_id,
+                    body=command.request,
+                    admission_decision=command.admission_decision,
+                    actor_id=command.envelope.actor.actor_id,
+                    operator_intent=command.envelope.operator_intent,
+                    idempotency_key=command.envelope.idempotency_key,
+                    correlation_id=command.envelope.correlation_id,
+                    payload_hash=command.admission_decision.payload_hash,
+                    audit_id=audit_id,
+                )
+            )
+        except (
+            StealthPostWriteReconciliationVerificationError,
+            StealthPostWriteReconciliationProofError,
+        ) as exc:
+            return (
+                self._rejected_stealth_post_write_reconciliation_verification_response(
+                    command=command,
+                    message=str(exc),
+                )
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.RECONCILIATION_RECORD,
+            service_method=(
+                "record_stealth_post_write_reconciliation_verification"
+            ),
+            message=(
+                "Stealth post-write reconciliation verified as append-only "
+                "evidence only; no manager invocation, Coinbase activity, "
+                "state mutation, or reconciliation execution ran."
+            ),
+            stealth_order_id=record.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=(
+                _stealth_post_write_reconciliation_verification_response_data(
+                    record
+                )
+            ),
         )
 
     def record_stealth_recovery_proof(

@@ -172,6 +172,18 @@ safe post-write reconciliation proof and exact guarded command context. It
 does not execute or verify reconciliation, invoke managers, call Coinbase,
 cancel/replace active placements, mutate lifecycle/order/exchange state, or
 authorize browser/BFF execution.
+Post-write reconciliation verification evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+and persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`.
+The readback lists persisted records but counts a verification as verified
+only when it matches an exact safe post-write proof plus accepted execution
+journal chain. The writer stores backend-owned append-only evidence only when
+it matches that same exact guarded command context. It can clear only the
+completion verifier's `verified_post_write_reconciliation` display field. It
+does not satisfy the execution prerequisite, execute reconciliation, invoke
+managers, call Coinbase, cancel/replace active placements, mutate
+lifecycle/order/exchange state, or authorize browser/BFF execution.
 Post-write reconciliation proof records are exposed through
 `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`
 and persisted through

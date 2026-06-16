@@ -292,6 +292,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_POST_WRITE_EXECUTION_JOURNAL = (
         "stealth_post_write_execution_journal"
     )
+    STEALTH_POST_WRITE_RECONCILIATION_VERIFICATION = (
+        "stealth_post_write_reconciliation_verification"
+    )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"

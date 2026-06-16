@@ -16,14 +16,19 @@ from .models import (
     AdminLiveAdmissionDecisionEvidence,
     StealthPostWriteExecutionJournalRequest,
     StealthPostWriteReconciliationProofRequest,
+    StealthPostWriteReconciliationVerificationRequest,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .stealth_post_write_reconciliation import (
     FileStealthPostWriteExecutionJournalStore,
     FileStealthPostWriteReconciliationProofStore,
+    FileStealthPostWriteReconciliationVerificationStore,
     StealthPostWriteExecutionJournalAcceptanceRecord,
     StealthPostWriteReconciliationProofRecord,
+    StealthPostWriteReconciliationVerificationRecord,
+    is_safe_stealth_post_write_execution_journal_record,
     is_safe_stealth_post_write_reconciliation_proof_record,
+    post_write_reconciliation_verification_matches,
     post_write_execution_journal_matches_proof,
 )
 
@@ -40,11 +45,25 @@ JOURNAL_ROUTE = (
 JOURNAL_READBACK_ROUTE = (
     "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals"
 )
+VERIFICATION_ROUTE = (
+    "/api/v1/stealth/orders/{stealth_order_id}/"
+    "post-write-reconciliation-verifications"
+)
+VERIFICATION_READBACK_ROUTE = (
+    "/api/v1/stealth/orders/{stealth_order_id}/"
+    "post-write-reconciliation-verifications"
+)
 PROOF_METHOD = "POST"
 READBACK_METHOD = "GET"
 PROOF_SERVICE_METHOD = "record_stealth_post_write_reconciliation_proof"
 JOURNAL_SERVICE_METHOD = "record_stealth_post_write_execution_journal"
 JOURNAL_READBACK_SERVICE_METHOD = "build_stealth_post_write_execution_journals"
+VERIFICATION_SERVICE_METHOD = (
+    "record_stealth_post_write_reconciliation_verification"
+)
+VERIFICATION_READBACK_SERVICE_METHOD = (
+    "build_stealth_post_write_reconciliation_verifications"
+)
 
 GUARDED_COMMANDS: dict[AdminApiMutationFamilyType, tuple[str, str]] = {
     AdminApiMutationFamilyType.STEALTH_CREATE: (
@@ -84,6 +103,10 @@ class StealthPostWriteReconciliationProofError(ValueError):
 
 class StealthPostWriteExecutionJournalError(ValueError):
     """Raised when stealth post-write execution-journal evidence is invalid."""
+
+
+class StealthPostWriteReconciliationVerificationError(ValueError):
+    """Raised when stealth post-write reconciliation verification is invalid."""
 
 
 class AdminApiStealthPostWriteReconciliationProofService:
@@ -472,6 +495,188 @@ class AdminApiStealthPostWriteExecutionJournalService:
             raise StealthPostWriteExecutionJournalError(
                 "Stealth post-write execution journal cannot include live "
                 "acknowledgement."
+            )
+
+
+class AdminApiStealthPostWriteReconciliationVerificationService:
+    """Service boundary for append-only post-write verification evidence."""
+
+    def record_verification(
+        self,
+        *,
+        verification_store: FileStealthPostWriteReconciliationVerificationStore,
+        journal_store: FileStealthPostWriteExecutionJournalStore,
+        proof_store: FileStealthPostWriteReconciliationProofStore,
+        stealth_order_id: str,
+        body: StealthPostWriteReconciliationVerificationRequest,
+        admission_decision: AdminLiveAdmissionDecisionEvidence,
+        actor_id: str,
+        operator_intent: str,
+        idempotency_key: str,
+        correlation_id: str,
+        payload_hash: str,
+        audit_id: str,
+        now: datetime | None = None,
+    ) -> StealthPostWriteReconciliationVerificationRecord:
+        recorded_at = _normalize_now(now)
+        AdminApiStealthPostWriteReconciliationProofService._validate_route_inventory(
+            route=VERIFICATION_ROUTE,
+            method=PROOF_METHOD,
+            service_method=VERIFICATION_SERVICE_METHOD,
+        )
+        AdminApiStealthPostWriteReconciliationProofService._validate_required({
+            "post_write_reconciliation_proof_id": (
+                body.post_write_reconciliation_proof_id
+            ),
+            "execution_journal_acceptance_id": (
+                body.execution_journal_acceptance_id
+            ),
+            "guarded_payload_hash": body.guarded_payload_hash,
+            "post_write_execution_journal_ref": (
+                body.post_write_execution_journal_ref
+            ),
+            "post_write_completion_proof_ref": (
+                body.post_write_completion_proof_ref
+            ),
+            "reconciliation_verification_ref": (
+                body.reconciliation_verification_ref
+            ),
+            "reconciliation_plan_id": body.reconciliation_plan_id,
+            "approval_snapshot_id": body.approval_snapshot_id,
+            "admission_audit_id": body.admission_audit_id,
+            "cap_guard_decision_id": body.cap_guard_decision_id,
+        })
+        AdminApiStealthPostWriteReconciliationProofService._validate_guarded_command_context(
+            stealth_order_id=stealth_order_id,
+            body=body,
+        )
+        self._validate_safe_verification(body)
+        AdminApiStealthPostWriteReconciliationProofService._validate_admission_prerequisites(
+            admission_decision=admission_decision,
+            stealth_order_id=stealth_order_id,
+            route=VERIFICATION_ROUTE,
+            method=PROOF_METHOD,
+            service_method=VERIFICATION_SERVICE_METHOD,
+            approval_snapshot_id=body.approval_snapshot_id,
+            admission_audit_id=body.admission_audit_id,
+            cap_guard_decision_id=body.cap_guard_decision_id,
+            reconciliation_plan_id=body.reconciliation_plan_id,
+        )
+
+        proof = proof_store.find_by_proof_id(
+            body.post_write_reconciliation_proof_id
+        )
+        if proof is None:
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification requires an "
+                "existing post-write reconciliation proof."
+            )
+        if not is_safe_stealth_post_write_reconciliation_proof_record(proof):
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification proof "
+                "reference is not safe no-live evidence."
+            )
+        journal = journal_store.find_by_acceptance_id(
+            body.execution_journal_acceptance_id
+        )
+        if journal is None:
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification requires an "
+                "existing execution-journal acceptance."
+            )
+        if not is_safe_stealth_post_write_execution_journal_record(journal):
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification journal "
+                "reference is not safe no-live evidence."
+            )
+        if not post_write_execution_journal_matches_proof(journal, proof):
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification journal "
+                "context does not match the referenced proof."
+            )
+
+        draft_record = StealthPostWriteReconciliationVerificationRecord(
+            reconciliation_verification_id=(
+                body.reconciliation_verification_id
+                or _stable_id(
+                    "stealth-post-write-reconciliation-verification",
+                    route=VERIFICATION_ROUTE,
+                    stealth_order_id=stealth_order_id,
+                    proof_id=body.post_write_reconciliation_proof_id,
+                    journal_id=body.execution_journal_acceptance_id,
+                    idempotency_key=idempotency_key,
+                    payload_hash=payload_hash,
+                )
+            ),
+            recorded_at=recorded_at.isoformat(),
+            post_write_reconciliation_proof_id=(
+                body.post_write_reconciliation_proof_id
+            ),
+            execution_journal_acceptance_id=(
+                body.execution_journal_acceptance_id
+            ),
+            stealth_order_id=stealth_order_id,
+            guarded_command_route=body.guarded_command_route,
+            guarded_command_method=body.guarded_command_method,
+            guarded_service_method=body.guarded_service_method,
+            guarded_mutation_family=body.guarded_mutation_family,
+            guarded_actor_id=body.guarded_actor_id,
+            guarded_operator_intent=body.guarded_operator_intent,
+            guarded_idempotency_key=body.guarded_idempotency_key,
+            guarded_payload_hash=body.guarded_payload_hash,
+            post_write_execution_journal_ref=body.post_write_execution_journal_ref,
+            post_write_completion_proof_ref=body.post_write_completion_proof_ref,
+            reconciliation_verification_ref=body.reconciliation_verification_ref,
+            evidence_source=body.evidence_source,
+            reconciliation_plan_id=body.reconciliation_plan_id,
+            approval_snapshot_id=body.approval_snapshot_id,
+            admission_audit_id=body.admission_audit_id,
+            cap_guard_decision_id=body.cap_guard_decision_id,
+            actor_id=actor_id,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
+            dry_run=body.dry_run,
+            operator_reason=body.operator_reason,
+            manual_live_acknowledgement=body.manual_live_acknowledgement,
+        )
+        if not post_write_reconciliation_verification_matches(
+            draft_record,
+            proof,
+            journal,
+        ):
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification context does "
+                "not match the referenced proof and journal."
+            )
+        if (
+            verification_store.find_by_verification_id(
+                draft_record.reconciliation_verification_id
+            )
+            is not None
+        ):
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification already exists."
+            )
+
+        verification_store.append(draft_record)
+        return draft_record
+
+    @staticmethod
+    def _validate_safe_verification(
+        body: StealthPostWriteReconciliationVerificationRequest,
+    ) -> None:
+        if not body.dry_run:
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification must be "
+                "recorded as dry-run evidence."
+            )
+        if body.manual_live_acknowledgement:
+            raise StealthPostWriteReconciliationVerificationError(
+                "Stealth post-write reconciliation verification cannot "
+                "include live acknowledgement."
             )
 
 

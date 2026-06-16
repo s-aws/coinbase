@@ -625,6 +625,39 @@ class StealthPostWriteExecutionJournalRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class StealthPostWriteReconciliationVerificationRequest(BaseModel):
+    """Stealth post-write reconciliation verification keyed by path id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str = Field(min_length=1)
+    post_write_reconciliation_proof_id: str = Field(min_length=1)
+    execution_journal_acceptance_id: str = Field(min_length=1)
+    guarded_command_route: str = Field(min_length=1)
+    guarded_command_method: str = "POST"
+    guarded_service_method: str = Field(min_length=1)
+    guarded_mutation_family: AdminApiMutationFamilyType
+    guarded_actor_id: str = Field(min_length=1)
+    guarded_operator_intent: str = Field(min_length=1)
+    guarded_idempotency_key: str = Field(min_length=1)
+    guarded_payload_hash: str = Field(min_length=64, max_length=64)
+    post_write_execution_journal_ref: str = Field(min_length=1)
+    post_write_completion_proof_ref: str = Field(min_length=1)
+    reconciliation_verification_ref: str = Field(min_length=1)
+    evidence_source: StealthPostWriteReconciliationEvidenceSource
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_verification_id: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class StealthCreateRequest(BaseModel):
     """Stealth create request shape for future gated lifecycle writes."""
 
@@ -1016,6 +1049,18 @@ class StealthPostWriteExecutionJournalCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthPostWriteExecutionJournalRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class StealthPostWriteReconciliationVerificationCommand(BaseModel):
+    """Shared service command for stealth post-write verification evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthPostWriteReconciliationVerificationRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
@@ -2765,6 +2810,70 @@ class StealthPostWriteExecutionJournalRecordItem(BaseModel):
     detail: str
 
 
+class StealthPostWriteReconciliationVerificationRecordItem(BaseModel):
+    """Read-only persisted stealth post-write reconciliation verification."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reconciliation_verification_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    post_write_reconciliation_proof_id: str
+    execution_journal_acceptance_id: str
+    stealth_order_id: str
+    guarded_command_route: str
+    guarded_command_method: str
+    guarded_service_method: str
+    guarded_mutation_family: AdminApiMutationFamilyType
+    guarded_actor_id: str
+    guarded_operator_intent: str
+    guarded_idempotency_key: str
+    guarded_payload_hash: str
+    post_write_execution_journal_ref: str
+    post_write_completion_proof_ref: str
+    reconciliation_verification_ref: str
+    evidence_source: StealthPostWriteReconciliationEvidenceSource
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_stealth_post_write_reconciliation_verification_log"
+    verification_persisted: bool = True
+    execution_journal_accepted: bool = True
+    post_write_reconciliation_verified: bool = True
+    manager_invocation_ran: bool = False
+    reconciliation_execution_ran: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminMutationClaimEvidence(BaseModel):
     """Runtime claim evidence for repeatable stealth mutations."""
 
@@ -3987,6 +4096,9 @@ class StealthPostWriteReconciliationProofReadResponse(AdminApiReadPayload):
     reconciliation_plan_built: bool = False
     execution_journal_required: bool = True
     execution_journal_accepted: bool = False
+    reconciliation_verification_required: bool = True
+    reconciliation_verification_count: int = Field(default=0, ge=0)
+    latest_reconciliation_verification_id: str | None = None
     completion_proof_required: bool = True
     completion_proof_recorded: bool = False
     reconciliation_execution_allowed: bool = False
@@ -4033,7 +4145,83 @@ class StealthPostWriteExecutionJournalReadResponse(AdminApiReadPayload):
     route_bound: bool = True
     execution_journal_required: bool = True
     execution_journal_accepted: bool = False
+    reconciliation_verification_required: bool = True
+    reconciliation_verification_count: int = Field(default=0, ge=0)
+    latest_reconciliation_verification_id: str | None = None
     post_write_reconciliation_verified: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_execution_ran: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_required: bool = True
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
+class StealthPostWriteReconciliationVerificationReadResponse(AdminApiReadPayload):
+    """Read-only stealth post-write reconciliation verification readback."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_post_write_reconciliation_verification"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    persisted_verification_count: int = Field(default=0, ge=0)
+    verified_post_write_reconciliation_count: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Count of unique persisted verification records that match an "
+            "exact safe proof plus accepted execution-journal chain. This is "
+            "display evidence only and does not satisfy the "
+            "post_write_reconciliation execution prerequisite."
+        ),
+    )
+    persisted_verifications: (
+        list[StealthPostWriteReconciliationVerificationRecordItem]
+    ) = Field(default_factory=list)
+    latest_reconciliation_verification_id: str | None = None
+    latest_execution_journal_acceptance_id: str | None = None
+    latest_post_write_reconciliation_proof_id: str | None = None
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    route_bound: bool = True
+    execution_journal_required: bool = True
+    execution_journal_accepted: bool = Field(
+        default=False,
+        description=(
+            "True only when an accepted execution journal participates in an "
+            "exact safe verification chain for this readback; display "
+            "evidence only."
+        ),
+    )
+    reconciliation_verification_required: bool = True
+    post_write_reconciliation_verified: bool = Field(
+        default=False,
+        description=(
+            "True only for an exact safe proof, accepted journal, and "
+            "verification chain. This does not execute reconciliation, does "
+            "not call Coinbase, and does not satisfy the "
+            "post_write_reconciliation execution prerequisite."
+        ),
+    )
     manager_invocation_allowed: bool = False
     manager_invocation_ran: bool = False
     reconciliation_execution_allowed: bool = False
@@ -5597,6 +5785,17 @@ class StealthPostWriteReconciliationCompletionVerifierEvidence(BaseModel):
         "admin_api_stealth_post_write_execution_journal_log"
     )
     reconciliation_verification_required: bool = True
+    reconciliation_verification_id: str | None = None
+    reconciliation_verification_found: bool = False
+    reconciliation_verification_safe: bool = False
+    reconciliation_verification_route: str = (
+        "/api/v1/stealth/orders/{stealth_order_id}/"
+        "post-write-reconciliation-verifications"
+    )
+    reconciliation_verification_method: str = "POST"
+    reconciliation_verification_source: str = (
+        "admin_api_stealth_post_write_reconciliation_verification_log"
+    )
     post_write_reconciliation_verified: bool = False
     completion_proof_required: bool = True
     completion_proof_recorded: bool = False

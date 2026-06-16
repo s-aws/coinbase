@@ -2,6 +2,78 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## M55 Stealth Post-Write Reconciliation Verification Review - Phases 2901-2920
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers are not given chat history.
+
+Reviewer tasks:
+
+- trace `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+  and
+  `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+  through backend routes, services, append-only store, readback, OpenAPI,
+  route inventory, frontend generated schema, canonical wrappers, runtime,
+  BFF/mutation metadata, mocks, UI, tests, and docs
+- verify verification evidence is backend-owned append-only local evidence
+  keyed by `stealth_order_id`, safe post-write proof id, accepted journal id,
+  and exact guarded command context
+- verify verification evidence can satisfy only the
+  `verified_post_write_reconciliation` completion-verifier display field while
+  the `post_write_reconciliation` execution prerequisite remains unresolved
+- verify no Coinbase read/submit/cancel, manager invocation,
+  active-placement cancel/replace, reconciliation execution,
+  lifecycle/order/exchange mutation, or browser/BFF execution authority is
+  granted
+
+Findings and resolution:
+
+- BLOCKER FOUND: backend blind/contextless review found that
+  `GET /post-write-reconciliation-verifications` could mark readback
+  verified by counting safe-shaped verification records without re-matching
+  the exact proof plus journal chain. The read service now counts only unique
+  verification records that match an exact safe post-write proof, safe
+  accepted execution journal, and safe verification record. Persisted
+  mismatched records are still listed but are not displayed as verified.
+- BLOCKER FOUND: backend review found thin negative coverage. Regression now
+  covers mismatched persisted readback, `dry_run=false`, manual live
+  acknowledgement, mismatched journal reference, unsafe proof evidence,
+  unsafe journal evidence, and duplicate verification ids.
+- CLEANUP: backend OpenAPI/schema descriptions and read docs now state that
+  verified evidence is display-only and does not satisfy the
+  `post_write_reconciliation` execution prerequisite.
+- PASS: backend second-pass review found no remaining blockers after the
+  exact-chain readback and negative-test fixes.
+- PASS: frontend blind/contextless review found no authority/runtime blockers.
+  It confirmed canonical wrappers, generated schema, BFF allowlist, mutation
+  metadata, runtime loading, mock fixtures, UI rendering, and tests remain
+  display/forward-only and no-live.
+- CLEANUP: frontend review found
+  `README.stealth-reconciliation-proofs.md` and
+  `docs/STEALTH_RECONCILIATION_PROOFS.md` did not name the post-write proof,
+  execution-journal, and verification routes. Both docs now include those
+  routes and the no-execution boundary.
+- PASS: spot-order contextless review found no blockers. It confirmed the
+  current enterprise admin manual Spot order path uses the frontend command
+  workflow and `BackendApiClient.createManualOrder` to reach backend
+  `POST /api/v1/orders`, where live execution remains disabled and the
+  browser is not trading authority.
+
+Status:
+
+- Backend focused verification/OpenAPI/route-inventory tests passed.
+- Backend full regression passed with `851 passed, 1 warning`.
+- Backend autonomous queue check passed for `2901-2920`.
+- Frontend focused wrapper/mock/runtime/mutation/BFF/read-model tests passed
+  with `132` tests.
+- Frontend full `npm run release:gate` passed with `251` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## M55 Stealth Post-Write Execution-Journal Acceptance Review - Phases 2881-2900
 
 Review scope:

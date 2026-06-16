@@ -38,9 +38,100 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Execution-Journal Acceptance Batch - Phases 2881-2900
+## Completed M55 Reconciliation Verification Record Batch - Phases 2901-2920
 
-These phases continue M55 by adding backend-owned append-only post-write
+These phases added backend-owned append-only post-write reconciliation
+verification records. Readback now counts a verification as verified only when
+it matches an exact safe proof record and accepted journal chain. A safe
+verification record may clear only `verified_post_write_reconciliation` in the
+nested completion verifier. It must not satisfy the
+`post_write_reconciliation` execution prerequisite, execute reconciliation,
+call Coinbase, invoke managers, mutate lifecycle/order/exchange state, or give
+browser/BFF layers execution authority.
+
+### Phase 2901 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2881-2900 to approved phases 2901-2920 while preserving no-live defaults and cap policy.
+
+### Phase 2902 - Prior Range Completion Evidence
+
+- Record phases 2881-2900 as completed journal acceptance evidence with verified reconciliation execution prerequisites still unresolved.
+
+### Phase 2903 - Verification Record Model
+
+- Add typed verification request, command, record, readback, and enum contracts.
+
+### Phase 2904 - Verification Store And Safety Predicate
+
+- Add a separate append-only verification store, safety predicate, and exact proof-plus-journal matcher.
+
+### Phase 2905 - Verification Writer Service
+
+- Add guarded verification writer validation against a safe exact proof, accepted journal, and existing admission prerequisites.
+
+### Phase 2906 - Verification Route Inventory
+
+- Register GET/POST verification routes with route inventory permissions, idempotency, audit, and no-live parity.
+
+### Phase 2907 - Verification HTTP Routes
+
+- Add read and write route adapters through existing read and idempotent command services.
+
+### Phase 2908 - Completion Verifier Verification Resolver
+
+- Resolve `verified_post_write_reconciliation` only when a safe verification record matches the exact proof and journal context.
+
+### Phase 2909 - Non-Create Contract Wiring
+
+- Wire verification-store lookup into non-create stealth command execution contracts while keeping reconciliation unresolved.
+
+### Phase 2910 - Create Contract Wiring
+
+- Wire verification-store lookup into stealth create lifecycle execution contracts while keeping create blocked.
+
+### Phase 2911 - Backend Readback Semantics
+
+- Expose verification readback and proof/journal verification status without executable reconciliation.
+
+### Phase 2912 - OpenAPI Contract Sync
+
+- Regenerate and assert OpenAPI plus route inventory artifacts for the new verification contracts and verifier fields.
+
+### Phase 2913 - Backend Regression Coverage
+
+- Cover verification POST/GET, exact matching, unsafe/missing evidence, no-live flags, and unresolved execution-prerequisite semantics.
+
+### Phase 2914 - Frontend Schema Sync
+
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated code.
+
+### Phase 2915 - Frontend Client And Mock Intake
+
+- Add canonical wrappers, route metadata, mocks, and generated-contract tests for verification routes.
+
+### Phase 2916 - Frontend Display
+
+- Display verification id/found/safe/route/method/source and verification readback evidence.
+
+### Phase 2917 - Frontend Unit And Smoke Coverage
+
+- Cover frontend client, mocks, display, route coverage, and no-live release artifacts.
+
+### Phase 2918 - Documentation And Handoff Sync
+
+- Update Admin API docs, examples, command workflow docs, stealth read docs, handoff, roadmap, and agent state.
+
+### Phase 2919 - Focused Gates And Blind Reviews
+
+- Run focused backend/frontend gates and blind/contextless reviews for proof, journal acceptance, verification record, and unresolved execution-prerequisite roles.
+
+### Phase 2920 - Full Gates, Commit, Push, And Continue
+
+- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless review remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Execution-Journal Acceptance Batch - Phases 2881-2900
+
+These phases continued M55 by adding backend-owned append-only post-write
 execution-journal acceptance evidence. A safe journal acceptance may clear only
 `accepted_execution_journal` in the completion verifier. It must not verify
 post-write reconciliation, satisfy the execution prerequisite, call Coinbase,

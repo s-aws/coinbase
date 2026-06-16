@@ -273,13 +273,24 @@ intent, admission/audit/cap prerequisites, exact guarded command context, and
 no-live posture. It does not execute reconciliation, verify reconciliation,
 invoke managers, call Coinbase, cancel/replace placements, mutate
 lifecycle/order/exchange state, or authorize browser/BFF execution.
+The backend can now persist post-write reconciliation verification evidence
+through
+`POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+and read it through the same path with `GET`. The writer is path-keyed by
+`stealth_order_id`, requires the same guarded admission chain, and accepts a
+verification record only when it exactly matches a safe proof plus accepted
+journal. It can clear only the completion verifier's
+`verified_post_write_reconciliation` display field. It does not satisfy the
+`post_write_reconciliation` execution prerequisite, execute reconciliation,
+invoke managers, call Coinbase, cancel/replace placements, mutate
+lifecycle/order/exchange state, or authorize browser/BFF execution.
 Both exact create and non-create contracts may also include
 `post_write_completion_verifier_contract`. Workflows may display proof id,
-proof safety, matching journal acceptance id when present, missing
-`verified_post_write_reconciliation`, no-run flags, state-mutation flags, and
-display/forward-only authority. The verifier is not reconciliation
-verification, command enablement, Coinbase authority, manager
-authority, state-mutation authority, or BFF execution authority.
+proof safety, matching journal acceptance id when present, matching
+verification id when present, no-run flags, state-mutation flags, and
+display/forward-only authority. The verifier is not command enablement,
+Coinbase authority, manager authority, state-mutation authority, or BFF
+execution authority.
 Both contracts also include a nested `live_execution_adapter_contract` from
 the shared live-execution adapter evidence builder. Workflows may display its
 route, `AdminApiCommandService.*` reference, forbidden methods, disabled

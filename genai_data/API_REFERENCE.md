@@ -42,6 +42,8 @@ Current route adapters:
 - `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
+- `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
 - `POST /api/v1/stealth/orders`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move`
@@ -143,6 +145,22 @@ Current behavior:
   not execute or verify reconciliation, call Coinbase, invoke
   `StealthOrderManager`, cancel/replace placements, mutate
   order/exchange/lifecycle state, or make the command live-executable.
+- `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+  exposes read-only persisted post-write reconciliation verification evidence
+  keyed by `stealth_order_id`. It lists persisted records but counts
+  verification as verified only for an exact safe proof plus accepted journal
+  chain. It is readback only and does not execute reconciliation, call
+  Coinbase, invoke managers, mutate state, or satisfy live execution
+  prerequisites.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
+  persists append-only local verification evidence only when it matches a safe
+  post-write reconciliation proof and accepted execution journal for the exact
+  guarded command context. It can clear only the completion verifier's
+  `verified_post_write_reconciliation` display field. The route does not
+  satisfy the `post_write_reconciliation` execution prerequisite, execute
+  reconciliation, call Coinbase, invoke `StealthOrderManager`, cancel/replace
+  placements, mutate order/exchange/lifecycle state, or make the command
+  live-executable.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

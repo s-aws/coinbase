@@ -100,7 +100,9 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2881-2900`.
+- Active autonomous range: `2901-2920` is complete; pause before selecting the
+  next milestone-linked range because the operator requested a restart after
+  this phase.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -370,13 +372,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   made create and non-create execution prerequisite resolvers aware of
   exact-context post-write proof records while keeping
   `post_write_reconciliation` missing. The completed 2861-2880 range added an
-  explicit post-write completion verifier. The active 2881-2900 range adds
+  explicit post-write completion verifier. The completed 2881-2900 range added
   backend-owned post-write execution-journal acceptance evidence that can
-  satisfy only the journal-acceptance part of the verifier while verified
-  post-write reconciliation remains missing. It must not satisfy execution
-  prerequisites, resolve proof authority through the frontend, read or submit
-  Coinbase orders, invoke managers, write lifecycle rows, execute recovery or
-  reconciliation, mutate state, or grant browser/BFF authority.
+  satisfy only the journal-acceptance part of the verifier. The active
+  2901-2920 range adds backend-owned post-write reconciliation verification
+  records that can satisfy only the verifier's
+  `verified_post_write_reconciliation` display gate when they match the same
+  safe proof and accepted journal. They must not satisfy execution
+  prerequisites, resolve proof/journal/verification authority through the
+  frontend, read or submit Coinbase orders, invoke managers, write lifecycle
+  rows, execute recovery or reconciliation, mutate state, or grant browser/BFF
+  authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,
