@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3001-3020**.
+- Approved phase range: **3021-3040**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
@@ -55,7 +55,98 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 3001-3020
+## Active Phases 3021-3040
+
+These phases continue M55 after execution-transition barrier evidence by
+exposing a blocked live-readiness closure. The closure names the backend
+decisions, contracts, and forbidden claims that still prevent stealth command
+execution after the barrier. It must remain blocked, no-live, backend-owned,
+route-bound, command-context-bound, display-only, and BFF forward-only. It
+must not enable the live service or adapter, invoke managers, call Coinbase,
+execute reconciliation, cancel or replace active placements, mutate
+lifecycle/order/exchange state, or grant browser/BFF execution authority.
+
+### Phase 3021 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3001-3020 to active phases 3021-3040 while preserving no-live defaults and cap policy.
+
+### Phase 3022 - Prior Range Completion Evidence
+
+- Record phases 3001-3020 as completed transition-barrier evidence with backend commit `88e31e0b`, frontend commit `a5c34ad`, passing gates, blind reviews, browser check, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3023 - Live-Readiness Closure Model
+
+- Add a typed backend execution live-readiness model nested under stealth create and non-create execution contracts.
+
+### Phase 3024 - Shared Live-Readiness Builder
+
+- Build live-readiness evidence from the existing `execution_transition_barrier` object so create and non-create stealth contracts use one code path.
+
+### Phase 3025 - Non-Create Contract Wiring
+
+- Attach blocked live-readiness evidence to reveal, cancel, move, recovery, reconciliation, and reprice execution contracts.
+
+### Phase 3026 - Create Contract Wiring
+
+- Attach blocked live-readiness evidence to the stealth create lifecycle-write execution contract.
+
+### Phase 3027 - Handoff Blocker Binding
+
+- Bind live-readiness evidence to the transition barrier's handoff blockers and preflight categories.
+
+### Phase 3028 - Backend Decision Binding
+
+- Name the backend decisions still required for future live enablement, service configuration, adapter construction, manager invocation, Coinbase exchange handling, reconciliation execution, and state mutation.
+
+### Phase 3029 - Forbidden Claim Binding
+
+- Name forbidden execution claims so frontend approval, BFF forwarding, route-local executors, unresolved manager invocation, unresolved Coinbase submission, unresolved cancel/replace, and unresolved state mutation cannot be mistaken for authority.
+
+### Phase 3030 - Backend OpenAPI And Regression Coverage
+
+- Regenerate backend OpenAPI and assert live-readiness fields are part of the Admin API contract for create and non-create stealth command families.
+
+### Phase 3031 - Frontend Schema Sync
+
+- Regenerate frontend API types from the backend OpenAPI artifact without hand-editing generated files.
+
+### Phase 3032 - Frontend Mock Runtime Intake
+
+- Update frontend mock/runtime fixtures so exact command responses expose blocked live-readiness evidence without enabling command execution.
+
+### Phase 3033 - Command Dry-Submit Display
+
+- Render live-readiness rows in command dry-submit evidence as backend evidence only.
+
+### Phase 3034 - Stealth Read-Model Display
+
+- Render live-readiness evidence in stealth read-model surfaces without enabling command execution.
+
+### Phase 3035 - Quality Artifact Sync
+
+- Update release, deployment, autonomous, and artifact-contract checks for phase range 3021-3040 and no-live posture.
+
+### Phase 3036 - Documentation And Examples
+
+- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for live-readiness closure semantics.
+
+### Phase 3037 - Stale Authority Scan
+
+- Search both repos for stale active-range and misleading transition/live-readiness wording that would imply execution authority.
+
+### Phase 3038 - Focused Backend And Frontend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend unit/API/autonomous/quality checks.
+
+### Phase 3039 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why live-readiness closure evidence is still blocked and display-only.
+
+### Phase 3040 - Full Gates, Commit, Push, And Next Range
+
+- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then create the next milestone-linked range if a concrete approved M55 gap remains.
+
+## Completed Phases 3001-3020
 
 These phases continue M55 after candidate preflight evidence by exposing an
 explicit execution-transition barrier. The barrier is derived from
@@ -66,6 +157,16 @@ forward-only. It must not enable the live service or adapter, invoke
 managers, call Coinbase, execute reconciliation, cancel or replace active
 placements, mutate lifecycle/order/exchange state, or grant browser/BFF
 execution authority.
+
+Completion evidence:
+
+- Backend commit `88e31e0b` and frontend commit `a5c34ad` were pushed.
+- Backend full regression passed with `853` tests and `1` warning.
+- Frontend `npm run release:gate` passed.
+- Backend and frontend blind/contextless reviews found no blockers after remediation.
+- Browser render check passed at `http://127.0.0.1:3000/`.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ### Phase 3001 - Advance Active Queue Range
 

@@ -10,6 +10,7 @@ from core.enums import (
 from .models import (
     AdminLivePreflightCheckItem,
     StealthExecutionCandidateEvidence,
+    StealthExecutionLiveReadinessEvidence,
     StealthExecutionPreflightEvidence,
     StealthExecutionTransitionBarrierEvidence,
 )
@@ -183,6 +184,70 @@ def build_stealth_execution_transition_barrier(
             "evidence. The barrier is read-only and cannot invoke managers, "
             "Coinbase, active-placement cancel/replace, reconciliation, or "
             "local state mutation."
+        ),
+    )
+
+
+def build_stealth_execution_live_readiness(
+    barrier: StealthExecutionTransitionBarrierEvidence,
+) -> StealthExecutionLiveReadinessEvidence:
+    """Build blocked M55 live-readiness closure from the transition barrier."""
+
+    category_by_blocker = {
+        "execution_candidate": AdminApiLivePreflightCategory.EXECUTION_CANDIDATE,
+        "remaining_blocker_chain": AdminApiLivePreflightCategory.BLOCKER_CHAIN,
+        "live_execution_service": AdminApiLivePreflightCategory.LIVE_EXECUTION_SERVICE,
+        "live_execution_adapter": AdminApiLivePreflightCategory.LIVE_EXECUTION_ADAPTER,
+        "manager_invocation": AdminApiLivePreflightCategory.MANAGER_INVOCATION,
+        "coinbase_exchange": AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
+        "post_write_reconciliation": AdminApiLivePreflightCategory.RECONCILIATION,
+        "state_mutation": AdminApiLivePreflightCategory.STATE_MUTATION,
+        "browser_bff_authority": AdminApiLivePreflightCategory.BROWSER_AUTHORITY,
+    }
+    handoff_blockers = list(dict.fromkeys(barrier.required_clearance_order))
+    handoff_blocker_categories = [
+        category_by_blocker[blocker]
+        for blocker in handoff_blockers
+        if blocker in category_by_blocker
+    ]
+    return StealthExecutionLiveReadinessEvidence(
+        mutation_family=barrier.mutation_family,
+        workflow_family=barrier.workflow_family,
+        command_route=barrier.command_route,
+        command_method=barrier.command_method,
+        service_method=barrier.service_method,
+        identity_key=barrier.identity_key,
+        identity_value=barrier.identity_value,
+        transition_barrier_passed=barrier.all_preflight_checks_passed,
+        unresolved_blocker_count=barrier.unresolved_blocker_count,
+        unresolved_blockers=list(barrier.unresolved_blockers),
+        handoff_blocker_count=len(handoff_blockers),
+        handoff_blockers=handoff_blockers,
+        handoff_blocker_categories=list(dict.fromkeys(handoff_blocker_categories)),
+        required_backend_contracts=list(barrier.next_required_contracts),
+        required_backend_decisions=[
+            "explicit_live_enablement_decision",
+            "backend_live_service_configuration",
+            "backend_live_adapter_construction",
+            "manager_invocation_policy",
+            "coinbase_exchange_submission_policy",
+            "post_write_reconciliation_execution_policy",
+            "state_mutation_policy",
+        ],
+        forbidden_execution_claims=[
+            "frontend_approval_as_authority",
+            "bff_execution_authority",
+            "route_local_executor",
+            "manager_invocation_without_live_service",
+            "coinbase_order_submit_without_adapter",
+            "coinbase_cancel_replace_without_exchange_truth",
+            "state_mutation_without_post_write_reconciliation",
+        ],
+        detail=(
+            "M55 stealth command-suite evidence remains blocked after the "
+            "transition barrier. This live-readiness closure names the backend "
+            "decisions and contracts still required before any future execution "
+            "authority can exist; it does not enable live execution."
         ),
     )
 

@@ -2732,10 +2732,14 @@ Current backend evidence:
   completed phases 2941-2960 exposed typed remaining blocker-chain evidence,
   the completed phases 2961-2980 exposed typed execution-candidate evidence,
   and the completed phases 2981-3000 exposed typed candidate-bound
-  pre-execution preflight evidence. Active phases 3001-3020 expose an
+  pre-execution preflight evidence. The completed phases 3001-3020 exposed an
   explicit execution-transition barrier derived from preflight while keeping
   live service, adapters, managers, Coinbase, reconciliation execution, state
-  mutation, browser authority, and BFF execution authority disabled.
+  mutation, browser authority, and BFF execution authority disabled. Active
+  phases 3021-3040 expose blocked live-readiness closure evidence after the
+  transition barrier so operators and contextless agents can see which backend
+  decisions, contracts, and forbidden claims still prevent M55 execution
+  authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

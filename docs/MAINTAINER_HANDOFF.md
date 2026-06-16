@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `3001-3020` under M55. Complete typed
-  execution-transition barrier evidence after candidate preflight evidence
+- Active autonomous range: `3021-3040` under M55. Complete typed
+  live-readiness closure evidence after execution-transition barrier evidence
   before advancing.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
@@ -390,11 +390,14 @@ notional, retained inventory, reconciliation result, and audit ids.
   completed 2961-2980 range names the backend execution candidate that would
   run only after every blocker resolves, while keeping the candidate blocked,
   no-live, backend-owned, and display-only. The completed 2981-3000 range
-  binds read-only pre-execution preflight checks to that candidate. The active
-  3001-3020 range adds an explicit execution-transition barrier derived from
-  preflight without enabling live service, adapters, managers, Coinbase,
-  reconciliation, state mutation, browser authority, or BFF execution
-  authority.
+  binds read-only pre-execution preflight checks to that candidate. The
+  completed 3001-3020 range adds an explicit execution-transition barrier
+  derived from preflight without enabling live service, adapters, managers,
+  Coinbase, reconciliation, state mutation, browser authority, or BFF
+  execution authority. The active 3021-3040 range adds blocked
+  live-readiness closure evidence after that barrier, naming required backend
+  decisions, handoff blockers, and forbidden execution claims while keeping
+  live execution disabled.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

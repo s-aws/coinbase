@@ -62,6 +62,11 @@ The route requires Admin API authentication and `analytics:read`. It returns
   backend-owned, no-live, browser `display_only`, and BFF
   `forward_only_no_execution`. It does not call managers, Coinbase,
   cancel/replace, reconciliation, or state mutation paths
+- typed `execution_live_readiness` evidence on exact create and non-create
+  command responses. This is derived from `execution_transition_barrier`,
+  keeps the M55 completion claim false, lists required backend decisions,
+  handoff blockers, and forbidden execution claims, and remains backend-owned,
+  no-live, browser `display_only`, and BFF `forward_only_no_execution`
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -166,13 +171,17 @@ be treated as approval, execution authority, Coinbase read/cancel/submit
 authority, active-placement cancel/replace authority, reconciliation
 execution, lifecycle/order/exchange mutation, browser approval, or BFF
 execution authority.
-Those same exact command responses may include `execution_candidate` and
-`execution_preflight`. `execution_preflight` is not a second preflight engine
-or command gate; it is read-only evidence derived from the backend candidate
-and unresolved blocker chain. It keeps execution blocked while proving that
-manager invocation, Coinbase submit/cancel/read, active-placement
-cancel/replace, reconciliation execution, state mutation, browser approval,
-and BFF execution authority did not run.
+Those same exact command responses may include `execution_candidate`,
+`execution_preflight`, `execution_transition_barrier`, and
+`execution_live_readiness`. `execution_preflight` is not a second preflight
+engine or command gate; it is read-only evidence derived from the backend
+candidate and unresolved blocker chain. `execution_live_readiness` is the
+blocked M55 handoff closure after the transition barrier; it names the
+backend decisions still required before live authority can exist. These
+fields keep execution blocked while proving that manager invocation, Coinbase
+submit/cancel/read, active-placement cancel/replace, reconciliation
+execution, state mutation, browser approval, and BFF execution authority did
+not run.
 
 ## Safety Constraints
 
@@ -221,11 +230,12 @@ and BFF execution authority did not run.
   converted into approval, execution, reconciliation, Coinbase reads,
   `StealthOrderManager` invocation, active-placement cancel/replace behavior,
   lifecycle/order/exchange-state mutation, or browser/BFF authority.
-- `execution_candidate` and `execution_preflight` are exact command-response
-  evidence only. They must not be converted into executable adapters,
-  manager invocation, Coinbase reads/submits/cancels, active-placement
-  cancel/replace behavior, reconciliation execution, lifecycle/order/exchange
-  mutation, browser approval, or BFF execution authority.
+- `execution_candidate`, `execution_preflight`, `execution_transition_barrier`,
+  and `execution_live_readiness` are exact command-response evidence only.
+  They must not be converted into executable adapters, manager invocation,
+  Coinbase reads/submits/cancels, active-placement cancel/replace behavior,
+  reconciliation execution, lifecycle/order/exchange mutation, browser
+  approval, M55 completion claims, or BFF execution authority.
 - `admission_readiness.context_requirements` is not proof lookup. Missing
   command-envelope context must keep resolver lookup and proof resolution
   disabled until the backend mutating command path supplies an exact envelope.

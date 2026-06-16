@@ -67,6 +67,7 @@ from .stealth_exchange_truth_boundary import (
     build_stealth_active_placement_exchange_truth_contract,
 )
 from .stealth_execution_preflight import (
+    build_stealth_execution_live_readiness,
     build_stealth_execution_preflight,
     build_stealth_execution_transition_barrier,
 )
@@ -431,6 +432,9 @@ def build_stealth_command_execution_contract(
         remaining_execution_blockers=remaining_execution_blockers,
     )
     execution_preflight = build_stealth_execution_preflight(execution_candidate)
+    execution_transition_barrier = build_stealth_execution_transition_barrier(
+        execution_preflight
+    )
 
     return StealthCommandExecutionContractEvidence(
         mutation_family=metadata.mutation_family,
@@ -637,8 +641,9 @@ def build_stealth_command_execution_contract(
         ),
         execution_candidate=execution_candidate,
         execution_preflight=execution_preflight,
-        execution_transition_barrier=build_stealth_execution_transition_barrier(
-            execution_preflight
+        execution_transition_barrier=execution_transition_barrier,
+        execution_live_readiness=build_stealth_execution_live_readiness(
+            execution_transition_barrier
         ),
         canonical_execution_path=list(metadata.manager_methods),
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,

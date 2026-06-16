@@ -385,11 +385,14 @@ the manager was not invoked, stealth and `order_parent` rows were not written,
 lifecycle events were not dispatched, Coinbase was not read or submitted to,
 and reconciliation did not run.
 The same exact stealth command contracts may expose `execution_candidate`,
-`execution_preflight`, and `execution_transition_barrier`. These fields show
-the future backend path, blocked preflight checks, first blocking check, and
-clearance order as read-only evidence. They must not become a browser gate
+`execution_preflight`, `execution_transition_barrier`, and
+`execution_live_readiness`. These fields show the future backend path, blocked
+preflight checks, first blocking check, clearance order, blocked M55
+completion claim, required backend decisions, handoff blockers, and forbidden
+execution claims as read-only evidence. They must not become a browser gate
 evaluator, manager invocation path, Coinbase call, cancel/replace path,
-reconciliation executor, local state mutation, or BFF execution authority.
+reconciliation executor, local state mutation, M55 completion authority, or
+BFF execution authority.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence
