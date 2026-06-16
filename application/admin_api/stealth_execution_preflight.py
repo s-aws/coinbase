@@ -14,6 +14,7 @@ from .models import (
     StealthExecutionBackendDecisionEvidence,
     StealthExecutionCandidateEvidence,
     StealthExecutionDecisionResolutionClearanceAction,
+    StealthExecutionDecisionResolutionClearanceDependencySummary,
     StealthExecutionDecisionResolutionHandoff,
     StealthExecutionDecisionResolutionReadinessItem,
     StealthExecutionDecisionResolutionReadinessSummary,
@@ -838,18 +839,25 @@ def _build_decision_resolution_handoff(
 ) -> StealthExecutionDecisionResolutionHandoff:
     clearance_categories = list(metadata["resolution_handoff_categories"])
     blocked_clearance_refs = list(summary.blocking_item_names)
+    clearance_actions = _build_decision_resolution_clearance_actions(
+        decision=decision,
+        metadata=metadata,
+        clearance_categories=clearance_categories,
+        blocked_clearance_refs=blocked_clearance_refs,
+        readiness_items=readiness_items,
+    )
     return StealthExecutionDecisionResolutionHandoff(
         decision=decision,
         owner=str(metadata["owner"]),
         required_artifact=str(metadata["required_artifact"]),
         clearance_categories=clearance_categories,
         blocked_clearance_refs=blocked_clearance_refs,
-        clearance_actions=_build_decision_resolution_clearance_actions(
-            decision=decision,
-            metadata=metadata,
-            clearance_categories=clearance_categories,
-            blocked_clearance_refs=blocked_clearance_refs,
-            readiness_items=readiness_items,
+        clearance_actions=clearance_actions,
+        clearance_dependency_summary=(
+            _build_decision_resolution_clearance_dependency_summary(
+                decision=decision,
+                clearance_actions=clearance_actions,
+            )
         ),
         first_clearance_category=(
             clearance_categories[0] if clearance_categories else None
@@ -911,6 +919,73 @@ def _build_decision_resolution_clearance_actions(
             )
         )
     return actions
+
+
+def _build_decision_resolution_clearance_dependency_summary(
+    *,
+    decision: AdminApiStealthLiveReadinessDecision,
+    clearance_actions: list[StealthExecutionDecisionResolutionClearanceAction],
+) -> StealthExecutionDecisionResolutionClearanceDependencySummary:
+    dependency_blocked_refs = [
+        action.clearance_ref
+        for action in clearance_actions
+        if not action.dependency_ready
+    ]
+    clearable_action_refs = [
+        action.clearance_ref
+        for action in clearance_actions
+        if action.dependency_ready
+        and action.clearance_ready
+        and action.resolver_allowed
+        and action.decision_write_allowed
+        and action.execution_allowed
+    ]
+    terminal_action_refs = [
+        action.clearance_ref
+        for action in clearance_actions
+        if not action.blocking_successor_refs
+    ]
+    return StealthExecutionDecisionResolutionClearanceDependencySummary(
+        decision=decision,
+        total_action_count=len(clearance_actions),
+        blocked_action_count=sum(
+            1
+            for action in clearance_actions
+            if action.status == AdminApiGateStatus.BLOCKED
+            or not action.clearance_ready
+        ),
+        ready_action_count=sum(
+            1 for action in clearance_actions if action.clearance_ready
+        ),
+        dependency_ready_count=sum(
+            1 for action in clearance_actions if action.dependency_ready
+        ),
+        dependency_blocked_count=len(dependency_blocked_refs),
+        predecessor_edge_count=sum(
+            len(action.required_predecessor_refs)
+            for action in clearance_actions
+        ),
+        successor_edge_count=sum(
+            len(action.blocking_successor_refs)
+            for action in clearance_actions
+        ),
+        dependency_blocked_refs=dependency_blocked_refs,
+        clearable_action_refs=clearable_action_refs,
+        terminal_action_refs=terminal_action_refs,
+        first_clearance_ref=(
+            clearance_actions[0].clearance_ref if clearance_actions else None
+        ),
+        first_dependency_blocked_ref=(
+            dependency_blocked_refs[0] if dependency_blocked_refs else None
+        ),
+        detail=(
+            "Clearance dependency summary is backend-derived blocked "
+            "planning evidence over clearance actions. It proves the graph "
+            "has no clearable action and does not run a resolver, write a "
+            "decision, execute a manager, mutate state, reconcile, or call "
+            "Coinbase."
+        ),
+    )
 
 
 def _category_for_resolution_ref(

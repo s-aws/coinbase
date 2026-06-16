@@ -408,10 +408,14 @@ names the source readiness item type/order, clearance sequence, predecessor
 refs, successor refs, backend contract, route, method, service, required
 artifact, evidence ref, dependency authority, dependency readiness, action
 authority, and disabled execution/resolver/writer flags that would be required
-to clear each blocked handoff ref. The handoff and action rows are context for future backend work
-only; they are not a resolver, decision writer, live service switch, live
-adapter, manager invocation path, Coinbase path, reconciliation executor,
-state mutation path, browser authority, or BFF execution authority.
+to clear each blocked handoff ref. `clearance_dependency_summary` aggregates
+those action rows with blocked/ready/dependency-ready counts, predecessor and
+successor edge counts, dependency-blocked refs, clearable refs, terminal refs,
+and disabled graph/clearance/resolver/writer/execution flags. The handoff,
+action rows, and summary are context for future backend work only; they are
+not a resolver, decision writer, live service switch, live adapter, manager
+invocation path, Coinbase path, reconciliation executor, state mutation path,
+browser authority, or BFF execution authority.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

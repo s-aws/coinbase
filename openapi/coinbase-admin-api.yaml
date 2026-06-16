@@ -24732,6 +24732,150 @@ components:
       - detail
       title: StealthExecutionDecisionResolutionClearanceAction
       description: Backend-owned action contract required to clear a handoff blocker.
+    StealthExecutionDecisionResolutionClearanceDependencySummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: resolution_handoff.clearance_actions
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        decision:
+          $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+        total_action_count:
+          type: integer
+          minimum: 0.0
+          title: Total Action Count
+        blocked_action_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Action Count
+        ready_action_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Action Count
+        dependency_ready_count:
+          type: integer
+          minimum: 0.0
+          title: Dependency Ready Count
+        dependency_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Dependency Blocked Count
+        predecessor_edge_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Edge Count
+        successor_edge_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Edge Count
+        dependency_blocked_refs:
+          items:
+            type: string
+          type: array
+          title: Dependency Blocked Refs
+        clearable_action_refs:
+          items:
+            type: string
+          type: array
+          title: Clearable Action Refs
+        terminal_action_refs:
+          items:
+            type: string
+          type: array
+          title: Terminal Action Refs
+        first_clearance_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Clearance Ref
+        first_dependency_blocked_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Dependency Blocked Ref
+        summary_authority:
+          type: string
+          title: Summary Authority
+          default: backend_derived_from_clearance_actions
+        dependency_graph_ready:
+          type: boolean
+          title: Dependency Graph Ready
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      - total_action_count
+      - blocked_action_count
+      - ready_action_count
+      - dependency_ready_count
+      - dependency_blocked_count
+      - predecessor_edge_count
+      - successor_edge_count
+      - dependency_blocked_refs
+      - clearable_action_refs
+      - terminal_action_refs
+      - detail
+      title: StealthExecutionDecisionResolutionClearanceDependencySummary
+      description: Backend-owned aggregate over clearance action dependency evidence.
     StealthExecutionDecisionResolutionHandoff:
       properties:
         source_ref:
@@ -24768,6 +24912,8 @@ components:
             $ref: '#/components/schemas/StealthExecutionDecisionResolutionClearanceAction'
           type: array
           title: Clearance Actions
+        clearance_dependency_summary:
+          $ref: '#/components/schemas/StealthExecutionDecisionResolutionClearanceDependencySummary'
         first_clearance_category:
           anyOf:
           - $ref: '#/components/schemas/AdminApiLivePreflightCategory'
@@ -24841,6 +24987,7 @@ components:
       - clearance_categories
       - blocked_clearance_refs
       - clearance_actions
+      - clearance_dependency_summary
       - detail
       title: StealthExecutionDecisionResolutionHandoff
       description: Backend-owned handoff classification for an unresolved decision.

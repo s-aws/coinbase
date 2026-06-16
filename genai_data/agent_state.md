@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3161-3180`; active range is
-  `3181-3200`.
+- Latest completed autonomous range: `3181-3200`; active range is
+  `3201-3220`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -72,9 +72,12 @@ Keep it short. Keep it factual.
 - Completed `3161-3180` work: added blocked backend-owned clearance action
   contracts for each handoff ref while preserving no-live, display-only, and
   forward-only authority.
-- Active `3181-3200` work: bind each clearance action back to its source
+- Completed `3181-3200` work: bound each clearance action back to its source
   readiness item and expose backend-derived dependency sequence,
   predecessor refs, successor refs, and disabled dependency authority.
+- Active `3201-3220` work: add backend-derived clearance dependency summaries
+  over those action rows with blocked counts, edge counts, clearable refs,
+  terminal refs, and disabled summary authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -248,10 +251,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3181-3200`.
+- Active autonomous range: `3201-3220`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete decision-resolution clearance dependency
-  evidence for `3181-3200`. Do not run live Coinbase execution unless a future
+- Current direction: complete decision-resolution clearance dependency summary
+  evidence for `3201-3220`. Do not run live Coinbase execution unless a future
   approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
@@ -785,11 +788,14 @@ Keep it short. Keep it factual.
 - What is completed for M55 3161-3180: backend and frontend expose blocked
   backend-owned decision-resolution clearance action contracts for each
   handoff ref while keeping actions no-live, display-only, and forward-only.
-- What is active for M55 3181-3200: backend and frontend expose
+- What is completed for M55 3181-3200: backend and frontend expose
   readiness-item binding and predecessor/successor dependency evidence for
   those clearance actions while keeping them blocked, no-live, display-only,
   and forward-only.
+- What is active for M55 3201-3220: backend and frontend expose
+  backend-derived clearance dependency summaries over those action rows while
+  keeping summaries blocked, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3181-3200 implementation, run
+- Exact next command: continue the active 3201-3220 implementation, run
   focused gates, blind/contextless reviews, full gates, browser availability,
   then commit and push both repositories with `$0` live Coinbase execution.

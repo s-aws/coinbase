@@ -415,9 +415,14 @@ type/order, clearance sequence, predecessor refs, successor refs, backend
 contract, route, method, service, artifact, evidence ref, dependency
 authority, dependency readiness, action authority, and disabled
 execution/resolver/writer flags needed to clear each blocked ref. The handoff
-and action rows must not become a decision resolver, decision writer, live service switch, live adapter,
-manager invocation, Coinbase path, reconciliation executor, local state
-mutation, browser authority, or BFF execution path.
+also includes `clearance_dependency_summary`, which aggregates those action
+rows into blocked/ready counts, edge counts, dependency-blocked refs,
+clearable refs, terminal refs, and disabled graph readiness, clearance,
+resolver, writer, and execution flags. The handoff, action rows, and summary
+must not become a
+decision resolver, decision writer, live service switch, live adapter, manager
+invocation, Coinbase path, reconciliation executor, local state mutation,
+browser authority, or BFF execution path.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence

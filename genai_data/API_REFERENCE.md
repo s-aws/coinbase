@@ -212,6 +212,12 @@ Current behavior:
   writer, live service switch, live adapter, manager invocation path, Coinbase
   path, reconciliation executor, state mutation path, browser authority, or
   BFF execution authority.
+  `clearance_dependency_summary` aggregates those rows with blocked/ready
+  counts, predecessor/successor edge counts, dependency-blocked refs,
+  clearable refs, terminal refs, and disabled graph readiness, clearance,
+  resolver, writer, and execution flags. It is also display-only backend
+  evidence and must not be
+  treated as resolution authority.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

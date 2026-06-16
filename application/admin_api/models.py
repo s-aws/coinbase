@@ -6120,6 +6120,44 @@ class StealthExecutionDecisionResolutionClearanceAction(BaseModel):
     detail: str
 
 
+class StealthExecutionDecisionResolutionClearanceDependencySummary(BaseModel):
+    """Backend-owned aggregate over clearance action dependency evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "resolution_handoff.clearance_actions"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    decision: AdminApiStealthLiveReadinessDecision
+    total_action_count: int = Field(ge=0)
+    blocked_action_count: int = Field(ge=0)
+    ready_action_count: int = Field(ge=0)
+    dependency_ready_count: int = Field(ge=0)
+    dependency_blocked_count: int = Field(ge=0)
+    predecessor_edge_count: int = Field(ge=0)
+    successor_edge_count: int = Field(ge=0)
+    dependency_blocked_refs: list[str]
+    clearable_action_refs: list[str]
+    terminal_action_refs: list[str]
+    first_clearance_ref: str | None = None
+    first_dependency_blocked_ref: str | None = None
+    summary_authority: str = "backend_derived_from_clearance_actions"
+    dependency_graph_ready: bool = False
+    clearance_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthExecutionDecisionResolutionHandoff(BaseModel):
     """Backend-owned handoff classification for an unresolved decision."""
 
@@ -6136,6 +6174,9 @@ class StealthExecutionDecisionResolutionHandoff(BaseModel):
     clearance_actions: list[
         StealthExecutionDecisionResolutionClearanceAction
     ]
+    clearance_dependency_summary: (
+        StealthExecutionDecisionResolutionClearanceDependencySummary
+    )
     first_clearance_category: AdminApiLivePreflightCategory | None = None
     first_clearance_ref: str | None = None
     resolution_ready: bool = False

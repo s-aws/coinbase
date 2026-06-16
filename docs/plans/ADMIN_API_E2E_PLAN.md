@@ -38,97 +38,110 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Decision Resolution Clearance Dependency Batch - Phases 3181-3200
+## Active M55 Decision Resolution Clearance Dependency Summary Batch - Phases 3201-3220
 
-These phases continue M55 after blocked clearance action contracts by binding
-each clearance action back to its source readiness item and exposing the
-backend-derived dependency order. Each action row shows item type, item order,
-sequence, predecessor refs, successor refs, and dependency authority. It must
-remain read-only planning evidence and must not add a decision resolver,
-decision writer, plan executor, live service enablement, live adapter, manager
+These phases continue M55 after clearance dependency rows by adding a
+backend-derived clearance dependency summary under each handoff. The summary
+counts total, blocked, ready, dependency-ready, and dependency-blocked actions;
+counts predecessor and successor edges; lists dependency-blocked, clearable,
+and terminal refs; and proves that no action is clearable. It must remain
+read-only planning evidence and must not add a decision resolver, decision
+writer, plan executor, live service enablement, live adapter, manager
 invocation, Coinbase submit/cancel/read, active-placement cancel/replace,
 reconciliation executor, state mutation, browser authority, or BFF execution
 authority.
 
-### Phase 3181 - Advance Active Queue Range
+### Phase 3201 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3161-3180 to active phases 3181-3200 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3181-3200 to active phases 3201-3220 while preserving no-live defaults and cap policy.
 
-### Phase 3182 - Prior Range Completion Evidence
+### Phase 3202 - Prior Range Completion Evidence
 
-- Keep completed phases 3161-3180 recorded as clearance-action contract evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+- Keep completed phases 3181-3200 recorded as clearance-dependency evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3183 - Clearance Readiness Binding Model
+### Phase 3203 - Clearance Dependency Summary Model
 
-- Add typed readiness-item binding fields to each backend clearance action: item type, item order, clearance sequence, predecessor refs, successor refs, and dependency authority.
+- Add a typed backend summary model under each decision-resolution handoff for clearance dependency aggregate evidence.
 
-### Phase 3184 - Handoff Builder Integration
+### Phase 3204 - Summary Builder Integration
 
-- Derive clearance action dependency fields from existing structured readiness items so create and non-create stealth command contracts share one code path.
+- Derive the summary from existing clearance actions so create and non-create stealth command contracts share one code path.
 
-### Phase 3185 - Clearance Sequence Derivation
+### Phase 3205 - Blocked And Ready Counts
 
-- Preserve summary blocking-item order as the clearance sequence without introducing a second ordering source.
+- Count total, blocked, ready, dependency-ready, and dependency-blocked actions without introducing browser-derived readiness.
 
-### Phase 3186 - Predecessor And Successor Evidence
+### Phase 3206 - Edge And Ref Evidence
 
-- Expose required predecessor refs and blocking successor refs for every clearance action so future resolvers cannot treat a single action as sufficient.
+- Count predecessor and successor edges, list dependency-blocked refs, list clearable refs, list terminal refs, and expose first blocked refs.
 
-### Phase 3187 - Dependency No-Execution Invariants
+### Phase 3207 - Summary No-Execution Invariants
 
-- Keep dependency authority backend-derived, dependency readiness false, action readiness false, resolver/writer/execution false, no-live true, display-only, and forward-only.
+- Keep dependency graph readiness false, clearable refs empty, clearance allowed false, resolver/writer/execution false, no-live true, display-only, and forward-only.
 
-### Phase 3188 - Required OpenAPI Contract
+### Phase 3208 - Required OpenAPI Contract
 
-- Regenerate OpenAPI and assert dependency fields are required clearance action evidence beside existing action contract fields.
+- Regenerate OpenAPI and assert the clearance dependency summary is required handoff evidence beside clearance actions.
 
-### Phase 3189 - Backend Runtime Coverage
+### Phase 3209 - Backend Runtime Coverage
 
-- Assert clearance action dependency fields match readiness item type/order and handoff blocked-ref predecessor/successor ordering.
+- Assert summary counts and ref lists match the underlying clearance action dependency rows.
 
-### Phase 3190 - Backend Docs And Examples
+### Phase 3210 - Backend Docs And Examples
 
-- Update Admin API, command workflow, stealth command-suite, roadmap, handoff, and examples docs for clearance dependency evidence.
+- Update Admin API, command workflow, stealth command-suite, roadmap, handoff, and examples docs for clearance dependency summaries.
 
-### Phase 3191 - Frontend Schema Sync
+### Phase 3211 - Frontend Schema Sync
 
 - Regenerate frontend API types from backend OpenAPI without hand-editing generated schema.
 
-### Phase 3192 - Frontend Adapter Mapping
+### Phase 3212 - Frontend Adapter Mapping
 
-- Map backend clearance dependency fields into typed stealth read-model view models without deriving authority in the browser.
+- Map backend clearance dependency summaries into typed stealth read-model view models without deriving authority in the browser.
 
-### Phase 3193 - Frontend Mock Runtime Sync
+### Phase 3213 - Frontend Mock Runtime Sync
 
-- Derive mock clearance dependency evidence from mock backend readiness items so local mode mirrors backend-shaped evidence.
+- Derive mock clearance dependency summaries from mock backend clearance actions so local mode mirrors backend-shaped evidence.
 
-### Phase 3194 - Command Dry-Submit Display
+### Phase 3214 - Command Dry-Submit Display
 
-- Render clearance dependency evidence in dry-submit evidence as blocked backend evidence only.
+- Render clearance dependency summaries in dry-submit evidence as blocked backend evidence only.
 
-### Phase 3195 - Stealth Read-Model Display
+### Phase 3215 - Stealth Read-Model Display
 
-- Render clearance dependency evidence in stealth read-model surfaces without enabling commands.
+- Render clearance dependency summaries in stealth read-model surfaces without enabling commands.
 
-### Phase 3196 - Frontend Unit Coverage
+### Phase 3216 - Frontend Unit Coverage
 
-- Update mock, dry-submit, stealth read-model, and quality tests for clearance dependency evidence and phase metadata.
+- Update mock, dry-submit, stealth read-model, and quality tests for clearance dependency summary evidence and phase metadata.
 
-### Phase 3197 - Autonomous Artifact Sync
+### Phase 3217 - Autonomous Artifact Sync
 
-- Update backend/frontend autonomous, release, deployment, and artifact checks for phase range 3181-3200.
+- Update backend/frontend autonomous, release, deployment, and artifact checks for phase range 3201-3220.
 
-### Phase 3198 - Focused Backend And Frontend Gates
+### Phase 3218 - Focused Backend And Frontend Gates
 
-- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend unit/API/autonomous checks for clearance dependency evidence.
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend unit/API/autonomous checks for clearance dependency summary evidence.
 
-### Phase 3199 - Blind Contextless Reviews
+### Phase 3219 - Blind Contextless Reviews
 
-- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why clearance dependencies are still blocked display evidence.
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why clearance dependency summaries are still blocked display evidence.
 
-### Phase 3200 - Full Gates, Browser Check, Commit, Push, And No-Live Report
+### Phase 3220 - Full Gates, Browser Check, Commit, Push, And No-Live Report
 
 - Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Decision Resolution Clearance Dependency Batch - Phases 3181-3200
+
+These phases continued M55 after blocked clearance action contracts by binding
+each clearance action back to its source readiness item and exposing the
+backend-derived dependency order. Each action row shows item type, item order,
+sequence, predecessor refs, successor refs, dependency authority, and
+dependency readiness. It remains read-only planning evidence and does not add
+a decision resolver, decision writer, plan executor, live service enablement,
+live adapter, manager invocation, Coinbase submit/cancel/read,
+active-placement cancel/replace, reconciliation executor, state mutation,
+browser authority, or BFF execution authority.
 
 ## Completed M55 Decision Resolution Clearance Action Batch - Phases 3161-3180
 

@@ -2761,9 +2761,10 @@ Current backend evidence:
   and BFF authority display-only/forward-only. Completed phases 3141-3160
   added backend-owned decision-resolution handoff classification over those
   summaries. Completed phases 3161-3180 added blocked backend-owned clearance
-  action contracts for each handoff ref. Active phases 3181-3200 bind those
-  clearance actions to source readiness items and predecessor/successor
-  dependency evidence while keeping browser and BFF authority
+  action contracts for each handoff ref. Completed phases 3181-3200 bound
+  those clearance actions to source readiness items and predecessor/successor
+  dependency evidence. Active phases 3201-3220 add backend-derived clearance
+  dependency summaries while keeping browser and BFF authority
   display-only/forward-only.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3181-3200",
+  "approved_phase_range": "3201-3220",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -47,6 +47,12 @@ Expected posture:
 Live-disabled non-create stealth command responses now also include
 `stealth_command_execution_contract`. For example, a cancel dry-submit remains
 blocked even when exact command-envelope context is present:
+
+The JSON below abbreviates repeated readiness and clearance action rows for
+readability. When a summary reports counts greater than the visible row count,
+those counts refer to the complete backend payload; the listed summary refs
+still match the complete `blocked_clearance_refs` sequence shown in the same
+handoff.
 
 ```json
 {
@@ -729,6 +735,52 @@ blocked even when exact command-envelope context is present:
                 "bff_authority": "forward_only_no_execution"
               }
             ],
+            "clearance_dependency_summary": {
+              "source_ref": "resolution_handoff.clearance_actions",
+              "status": "blocked",
+              "decision": "explicit_live_enablement_decision",
+              "total_action_count": 11,
+              "blocked_action_count": 11,
+              "ready_action_count": 0,
+              "dependency_ready_count": 0,
+              "dependency_blocked_count": 11,
+              "predecessor_edge_count": 55,
+              "successor_edge_count": 55,
+              "dependency_blocked_refs": [
+                "capture_route_bound_operator_approval",
+                "verify_admission_audit_cap_guard_and_reconciliation_plan",
+                "record_backend_live_enablement_decision",
+                "route_bound_approval_snapshot",
+                "route_bound_admission_audit",
+                "route_bound_cap_guard_decision",
+                "route_bound_reconciliation_plan",
+                "approval_snapshot_approved",
+                "cap_guard_within_configured_limits",
+                "admission_audit_recorded_for_exact_context",
+                "reconciliation_plan_present_before_live_enablement"
+              ],
+              "clearable_action_refs": [],
+              "terminal_action_refs": [
+                "reconciliation_plan_present_before_live_enablement"
+              ],
+              "first_clearance_ref": "capture_route_bound_operator_approval",
+              "first_dependency_blocked_ref": "capture_route_bound_operator_approval",
+              "summary_authority": "backend_derived_from_clearance_actions",
+              "dependency_graph_ready": false,
+              "clearance_allowed": false,
+              "execution_allowed": false,
+              "executed": false,
+              "resolver_allowed": false,
+              "resolver_ran": false,
+              "decision_write_allowed": false,
+              "decision_written": false,
+              "no_live_execution": true,
+              "backend_owned": true,
+              "route_bound": true,
+              "command_context_bound": true,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            },
             "first_clearance_category": "approval",
             "first_clearance_ref": "capture_route_bound_operator_approval",
             "resolution_ready": false,
@@ -839,6 +891,12 @@ action authority, and disabled resolver/writer/execution flags for each
 blocked ref. The handoff and action rows are not a resolver, writer, live switch, adapter, manager path, Coinbase path,
 reconciliation executor, state mutation path, browser authority, or BFF
 execution authority.
+`clearance_dependency_summary` aggregates those action rows with blocked/ready
+counts, predecessor/successor edge counts, dependency-blocked refs, clearable
+refs, terminal refs, and disabled graph/clearance/resolver/writer/execution
+flags. It is not a resolver, writer, live switch, adapter, manager path,
+Coinbase path, reconciliation executor, state mutation path, browser
+authority, or BFF execution authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend
