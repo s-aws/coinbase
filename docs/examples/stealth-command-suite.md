@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3121-3140",
+  "approved_phase_range": "3141-3160",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -654,6 +654,50 @@ blocked even when exact command-envelope context is present:
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution"
           },
+          "resolution_handoff": {
+            "source_ref": "resolution_readiness_summary",
+            "status": "blocked",
+            "decision": "explicit_live_enablement_decision",
+            "owner": "admin_api_contract",
+            "required_artifact": "explicit_backend_live_enablement_decision",
+            "handoff_authority": "backend_planning_only_no_resolution",
+            "clearance_categories": [
+              "approval",
+              "audit",
+              "cap_guard",
+              "reconciliation",
+              "browser_authority"
+            ],
+            "blocked_clearance_refs": [
+              "capture_route_bound_operator_approval",
+              "verify_admission_audit_cap_guard_and_reconciliation_plan",
+              "record_backend_live_enablement_decision",
+              "route_bound_approval_snapshot",
+              "route_bound_admission_audit",
+              "route_bound_cap_guard_decision",
+              "route_bound_reconciliation_plan",
+              "approval_snapshot_approved",
+              "cap_guard_within_configured_limits",
+              "admission_audit_recorded_for_exact_context",
+              "reconciliation_plan_present_before_live_enablement"
+            ],
+            "first_clearance_category": "approval",
+            "first_clearance_ref": "capture_route_bound_operator_approval",
+            "resolution_ready": false,
+            "execution_allowed": false,
+            "executed": false,
+            "resolver_allowed": false,
+            "resolver_ran": false,
+            "decision_write_allowed": false,
+            "decision_written": false,
+            "no_live_execution": true,
+            "backend_owned": true,
+            "route_bound": true,
+            "command_context_bound": true,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": "Resolution handoff is backend planning evidence only and cannot resolve decisions or enable execution."
+          },
           "resolution_plan_execution_allowed": false,
           "resolution_plan_executed": false,
           "browser_authority": "display_only",
@@ -736,7 +780,12 @@ each plan step, dependency, and verification gate. These rows are not decision
 resolution, decision writes, plan execution, readiness execution, or live
 authority. They also include `resolution_readiness_summary`, a backend-derived
 aggregate over those rows with counts, first-blocker, missing reasons, and
-disabled execution/resolver/writer flags for display only.
+disabled execution/resolver/writer flags for display only. They also include
+`resolution_handoff`, a backend-derived classification over the summary with
+clearance categories, blocked clearance refs, first clearance evidence, and
+disabled resolution/execution/writer flags. The handoff is not a resolver,
+writer, live switch, adapter, manager path, Coinbase path, reconciliation
+executor, state mutation path, browser authority, or BFF execution authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

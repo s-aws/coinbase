@@ -6079,6 +6079,37 @@ class StealthExecutionDecisionResolutionReadinessSummary(BaseModel):
     bff_authority: str = "forward_only_no_execution"
 
 
+class StealthExecutionDecisionResolutionHandoff(BaseModel):
+    """Backend-owned handoff classification for an unresolved decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "resolution_readiness_summary"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    decision: AdminApiStealthLiveReadinessDecision
+    owner: str
+    required_artifact: str
+    handoff_authority: str = "backend_planning_only_no_resolution"
+    clearance_categories: list[AdminApiLivePreflightCategory]
+    blocked_clearance_refs: list[str]
+    first_clearance_category: AdminApiLivePreflightCategory | None = None
+    first_clearance_ref: str | None = None
+    resolution_ready: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthExecutionBackendDecisionEvidence(BaseModel):
     """Blocked backend decision evidence required after live-readiness closure."""
 
@@ -6119,6 +6150,7 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     resolution_readiness_summary: (
         StealthExecutionDecisionResolutionReadinessSummary
     )
+    resolution_handoff: StealthExecutionDecisionResolutionHandoff
     resolution_plan_execution_allowed: bool
     resolution_plan_executed: bool
     blocks_m55_completion: bool = True

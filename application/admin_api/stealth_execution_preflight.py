@@ -13,6 +13,7 @@ from .models import (
     AdminLivePreflightCheckItem,
     StealthExecutionBackendDecisionEvidence,
     StealthExecutionCandidateEvidence,
+    StealthExecutionDecisionResolutionHandoff,
     StealthExecutionDecisionResolutionReadinessItem,
     StealthExecutionDecisionResolutionReadinessSummary,
     StealthExecutionLiveReadinessEvidence,
@@ -73,6 +74,13 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "admission_audit_recorded_for_exact_context",
             "reconciliation_plan_present_before_live_enablement",
         ],
+        "resolution_handoff_categories": [
+            AdminApiLivePreflightCategory.APPROVAL,
+            AdminApiLivePreflightCategory.AUDIT,
+            AdminApiLivePreflightCategory.CAP_GUARD,
+            AdminApiLivePreflightCategory.RECONCILIATION,
+            AdminApiLivePreflightCategory.BROWSER_AUTHORITY,
+        ],
         "detail": (
             "A backend-owned live enablement decision must explicitly allow the "
             "route before any stealth command can become executable."
@@ -109,6 +117,9 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "live_service_configuration_is_backend_owned",
             "browser_and_bff_do_not_hold_live_switch",
             "disabled_service_contract_replaced_by_reviewed_live_service",
+        ],
+        "resolution_handoff_categories": [
+            AdminApiLivePreflightCategory.LIVE_EXECUTION_SERVICE,
         ],
         "detail": (
             "The Admin API live execution service must be configured by the "
@@ -148,6 +159,9 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "adapter_is_route_bound",
             "adapter_calls_shared_command_service_only",
             "no_parallel_manager_or_coinbase_path_exists",
+        ],
+        "resolution_handoff_categories": [
+            AdminApiLivePreflightCategory.LIVE_EXECUTION_ADAPTER,
         ],
         "detail": (
             "A route-bound backend adapter must exist before the shared command "
@@ -189,6 +203,11 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "mutation_claims_are_respected",
             "revealed_state_matches_exchange_reality",
         ],
+        "resolution_handoff_categories": [
+            AdminApiLivePreflightCategory.MANAGER_INVOCATION,
+            AdminApiLivePreflightCategory.MUTATION_CLAIM,
+            AdminApiLivePreflightCategory.LIFECYCLE_WRITE_GUARD,
+        ],
         "detail": (
             "Stealth manager invocation must be allowed only through the "
             "existing lifecycle path and mutation locks."
@@ -229,6 +248,9 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "coinbase_submit_requires_backend_adapter",
             "coinbase_cancel_uses_client_order_id_wrapper",
             "live_coinbase_read_is_backend_owned_and_audited",
+        ],
+        "resolution_handoff_categories": [
+            AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
         ],
         "detail": (
             "Coinbase submit, cancel, and read behavior must be governed by "
@@ -272,6 +294,9 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "reconciliation_execution_is_backend_owned",
             "state_mutation_waits_for_post_write_completion",
         ],
+        "resolution_handoff_categories": [
+            AdminApiLivePreflightCategory.RECONCILIATION,
+        ],
         "detail": (
             "Post-write reconciliation execution policy must exist before "
             "accepted journals or proofs can transition into execution."
@@ -313,6 +338,12 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "state_mutation_requires_live_exchange_handling",
             "order_and_exchange_state_mutation_are_audited",
             "post_write_completion_precedes_local_state_change",
+        ],
+        "resolution_handoff_categories": [
+            AdminApiLivePreflightCategory.STATE_MUTATION,
+            AdminApiLivePreflightCategory.LIFECYCLE_WRITE_GUARD,
+            AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
+            AdminApiLivePreflightCategory.RECONCILIATION,
         ],
         "detail": (
             "Lifecycle, order, and exchange-state mutation policy must preserve "
@@ -562,6 +593,11 @@ def _build_stealth_live_readiness_decisions() -> list[
         resolution_readiness_items = _build_decision_resolution_readiness_items(
             metadata
         )
+        resolution_readiness_summary = (
+            _build_decision_resolution_readiness_summary(
+                resolution_readiness_items
+            )
+        )
         decisions.append(
             StealthExecutionBackendDecisionEvidence(
                 decision=decision,
@@ -591,9 +627,12 @@ def _build_stealth_live_readiness_decisions() -> list[
                     "resolution_verification_gates"
                 ],
                 resolution_readiness_items=resolution_readiness_items,
-                resolution_readiness_summary=(
-                    _build_decision_resolution_readiness_summary(
-                        resolution_readiness_items
+                resolution_readiness_summary=resolution_readiness_summary,
+                resolution_handoff=(
+                    _build_decision_resolution_handoff(
+                        decision,
+                        metadata,
+                        resolution_readiness_summary,
                     )
                 ),
                 resolution_plan_execution_allowed=False,
@@ -677,6 +716,31 @@ def _build_decision_resolution_readiness_summary(
         ),
         first_blocking_item_name=(
             blocked_items[0].item_name if blocked_items else None
+        ),
+    )
+
+
+def _build_decision_resolution_handoff(
+    decision: AdminApiStealthLiveReadinessDecision,
+    metadata: dict[str, object],
+    summary: StealthExecutionDecisionResolutionReadinessSummary,
+) -> StealthExecutionDecisionResolutionHandoff:
+    clearance_categories = list(metadata["resolution_handoff_categories"])
+    return StealthExecutionDecisionResolutionHandoff(
+        decision=decision,
+        owner=str(metadata["owner"]),
+        required_artifact=str(metadata["required_artifact"]),
+        clearance_categories=clearance_categories,
+        blocked_clearance_refs=list(summary.blocking_item_names),
+        first_clearance_category=(
+            clearance_categories[0] if clearance_categories else None
+        ),
+        first_clearance_ref=summary.first_blocking_item_name,
+        detail=(
+            "Resolution handoff is backend planning evidence derived from the "
+            "decision readiness summary. It classifies the blocked clearance "
+            "work but does not run a resolver, write a decision, invoke "
+            "managers, execute reconciliation, mutate state, or call Coinbase."
         ),
     )
 

@@ -407,6 +407,13 @@ the matrix into backend-owned total, blocked, resolved, type-count,
 first-blocker, missing-reason, and no-execution evidence. The summary is for
 operator orientation only and must not become a browser-computed readiness
 gate or BFF execution path.
+The decision rows also expose `resolution_handoff`, which classifies the
+blocked backend decision into clearance categories and blocked clearance refs
+derived from the readiness summary. The handoff is operator/contextless-agent
+orientation only and must not become a decision resolver, decision writer,
+live service switch, live adapter, manager invocation, Coinbase path,
+reconciliation executor, local state mutation, browser authority, or BFF
+execution path.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence

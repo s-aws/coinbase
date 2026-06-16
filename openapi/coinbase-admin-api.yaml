@@ -24271,6 +24271,8 @@ components:
           title: Resolution Readiness Items
         resolution_readiness_summary:
           $ref: '#/components/schemas/StealthExecutionDecisionResolutionReadinessSummary'
+        resolution_handoff:
+          $ref: '#/components/schemas/StealthExecutionDecisionResolutionHandoff'
         resolution_plan_execution_allowed:
           type: boolean
           title: Resolution Plan Execution Allowed
@@ -24393,6 +24395,7 @@ components:
       - resolution_verification_gates
       - resolution_readiness_items
       - resolution_readiness_summary
+      - resolution_handoff
       - resolution_plan_execution_allowed
       - resolution_plan_executed
       - detail
@@ -24581,6 +24584,112 @@ components:
       - detail
       title: StealthExecutionCandidateEvidence
       description: Read-only evidence for the future backend execution candidate.
+    StealthExecutionDecisionResolutionHandoff:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: resolution_readiness_summary
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        decision:
+          $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+        owner:
+          type: string
+          title: Owner
+        required_artifact:
+          type: string
+          title: Required Artifact
+        handoff_authority:
+          type: string
+          title: Handoff Authority
+          default: backend_planning_only_no_resolution
+        clearance_categories:
+          items:
+            $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+          type: array
+          title: Clearance Categories
+        blocked_clearance_refs:
+          items:
+            type: string
+          type: array
+          title: Blocked Clearance Refs
+        first_clearance_category:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+          - type: 'null'
+        first_clearance_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Clearance Ref
+        resolution_ready:
+          type: boolean
+          title: Resolution Ready
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      - owner
+      - required_artifact
+      - clearance_categories
+      - blocked_clearance_refs
+      - detail
+      title: StealthExecutionDecisionResolutionHandoff
+      description: Backend-owned handoff classification for an unresolved decision.
     StealthExecutionDecisionResolutionReadinessItem:
       properties:
         item_type:

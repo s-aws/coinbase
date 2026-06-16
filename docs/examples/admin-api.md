@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "3121-3140",
+  "approved_phase_range": "3141-3160",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "3121-3140",
+  "approved_phase_range": "3141-3160",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1876,7 +1876,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "3121-3140",
+  "approved_phase_range": "3141-3160",
   "command_count": 10,
   "blocked_command_count": 10,
   "live_enabled_command_count": 0,

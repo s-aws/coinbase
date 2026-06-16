@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3101-3120`; active range is
-  `3121-3140`.
+- Latest completed autonomous range: `3121-3140`; active range is
+  `3141-3160`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -63,9 +63,12 @@ Keep it short. Keep it factual.
 - Completed `3101-3120` work: expanded those plan-step/dependency/gate strings
   into structured blocked readiness rows with source, order, missing reason,
   authority, and no-execution evidence.
-- Active `3121-3140` work: add backend-derived readiness summaries over those
-  blocked readiness rows while preserving no-live, display-only, and
+- Completed `3121-3140` work: added backend-derived readiness summaries over
+  those blocked readiness rows while preserving no-live, display-only, and
   forward-only authority.
+- Active `3141-3160` work: add backend-owned decision-resolution handoff
+  classification over those summaries while preserving no-live, display-only,
+  and forward-only authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -239,11 +242,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3121-3140`.
+- Active autonomous range: `3141-3160`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete decision-resolution readiness-summary evidence
-  for `3121-3140`. Do not run live Coinbase execution unless a future
-  approved phase explicitly authorizes it.
+- Current direction: complete decision-resolution handoff classification
+  evidence for `3141-3160`. Do not run live Coinbase execution unless a
+  future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -767,10 +770,13 @@ Keep it short. Keep it factual.
   decision-resolution readiness rows for plan steps, dependencies, and
   verification gates while keeping every item blocked, unresolved, no-live,
   display-only, and forward-only.
-- What is active for M55 3121-3140: backend and frontend expose
+- What is completed for M55 3121-3140: backend and frontend expose
   backend-derived decision-resolution readiness summaries over those rows while
   keeping summaries blocked, no-live, display-only, and forward-only.
+- What is active for M55 3141-3160: backend and frontend expose
+  backend-owned decision-resolution handoff classification over those summaries
+  while keeping handoffs blocked, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3121-3140 implementation, run
+- Exact next command: continue the active 3141-3160 implementation, run
   focused gates, blind/contextless reviews, full gates, browser availability,
   then commit and push both repositories with `$0` live Coinbase execution.
