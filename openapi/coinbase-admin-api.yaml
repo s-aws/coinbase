@@ -9044,6 +9044,14 @@ components:
       title: AdminApiStealthCommandSuiteGapFamily
       description: Stealth command-suite families that still require admin contract
         work.
+    AdminApiStealthDecisionResolutionEvidenceType:
+      type: string
+      enum:
+      - plan_step
+      - dependency
+      - verification_gate
+      title: AdminApiStealthDecisionResolutionEvidenceType
+      description: Read-only evidence item types for stealth decision resolution planning.
     AdminApiStealthLiveReadinessDecision:
       type: string
       enum:
@@ -24256,6 +24264,11 @@ components:
             type: string
           type: array
           title: Resolution Verification Gates
+        resolution_readiness_items:
+          items:
+            $ref: '#/components/schemas/StealthExecutionDecisionResolutionReadinessItem'
+          type: array
+          title: Resolution Readiness Items
         resolution_plan_execution_allowed:
           type: boolean
           title: Resolution Plan Execution Allowed
@@ -24376,6 +24389,7 @@ components:
       - missing_resolution_plan_steps
       - resolution_dependency_refs
       - resolution_verification_gates
+      - resolution_readiness_items
       - resolution_plan_execution_allowed
       - resolution_plan_executed
       - detail
@@ -24564,6 +24578,96 @@ components:
       - detail
       title: StealthExecutionCandidateEvidence
       description: Read-only evidence for the future backend execution candidate.
+    StealthExecutionDecisionResolutionReadinessItem:
+      properties:
+        item_type:
+          $ref: '#/components/schemas/AdminApiStealthDecisionResolutionEvidenceType'
+        item_name:
+          type: string
+          title: Item Name
+        item_order:
+          type: integer
+          minimum: 1.0
+          title: Item Order
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        source_ref:
+          type: string
+          title: Source Ref
+        missing_reason:
+          type: string
+          title: Missing Reason
+        readiness_authority:
+          type: string
+          title: Readiness Authority
+          default: backend_planning_only_no_resolution
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+      additionalProperties: false
+      type: object
+      required:
+      - item_type
+      - item_name
+      - item_order
+      - source_ref
+      - missing_reason
+      title: StealthExecutionDecisionResolutionReadinessItem
+      description: Blocked per-item readiness evidence for a backend decision plan.
     StealthExecutionLiveReadinessEvidence:
       properties:
         mutation_family:

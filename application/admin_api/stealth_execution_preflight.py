@@ -5,6 +5,7 @@ from __future__ import annotations
 from core.enums import (
     AdminApiGateStatus,
     AdminApiLivePreflightCategory,
+    AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
 )
 
@@ -12,6 +13,7 @@ from .models import (
     AdminLivePreflightCheckItem,
     StealthExecutionBackendDecisionEvidence,
     StealthExecutionCandidateEvidence,
+    StealthExecutionDecisionResolutionReadinessItem,
     StealthExecutionLiveReadinessEvidence,
     StealthExecutionPreflightEvidence,
     StealthExecutionTransitionBarrierEvidence,
@@ -584,12 +586,51 @@ def _build_stealth_live_readiness_decisions() -> list[
                 resolution_verification_gates=metadata[
                     "resolution_verification_gates"
                 ],
+                resolution_readiness_items=(
+                    _build_decision_resolution_readiness_items(metadata)
+                ),
                 resolution_plan_execution_allowed=False,
                 resolution_plan_executed=False,
                 detail=metadata["detail"],
             )
         )
     return decisions
+
+
+def _build_decision_resolution_readiness_items(
+    metadata: dict[str, object],
+) -> list[StealthExecutionDecisionResolutionReadinessItem]:
+    items: list[StealthExecutionDecisionResolutionReadinessItem] = []
+
+    item_specs = [
+        (
+            AdminApiStealthDecisionResolutionEvidenceType.PLAN_STEP,
+            "resolution_plan_steps",
+            "resolution_plan_step_missing",
+        ),
+        (
+            AdminApiStealthDecisionResolutionEvidenceType.DEPENDENCY,
+            "resolution_dependency_refs",
+            "resolution_dependency_missing",
+        ),
+        (
+            AdminApiStealthDecisionResolutionEvidenceType.VERIFICATION_GATE,
+            "resolution_verification_gates",
+            "resolution_verification_gate_missing",
+        ),
+    ]
+    for item_type, source_ref, missing_reason in item_specs:
+        for name in metadata[source_ref]:
+            items.append(
+                StealthExecutionDecisionResolutionReadinessItem(
+                    item_type=item_type,
+                    item_name=name,
+                    item_order=len(items) + 1,
+                    source_ref=source_ref,
+                    missing_reason=missing_reason,
+                )
+            )
+    return items
 
 
 def _check(

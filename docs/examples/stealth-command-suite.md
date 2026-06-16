@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3081-3100",
+  "approved_phase_range": "3101-3120",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -586,6 +586,31 @@ blocked even when exact command-envelope context is present:
             "admission_audit_recorded_for_exact_context",
             "reconciliation_plan_present_before_live_enablement"
           ],
+          "resolution_readiness_items": [
+            {
+              "item_type": "plan_step",
+              "item_name": "capture_route_bound_operator_approval",
+              "item_order": 1,
+              "status": "blocked",
+              "required": true,
+              "resolved": false,
+              "source_ref": "resolution_plan_steps",
+              "missing_reason": "resolution_plan_step_missing",
+              "readiness_authority": "backend_planning_only_no_resolution",
+              "execution_allowed": false,
+              "executed": false,
+              "resolver_allowed": false,
+              "resolver_ran": false,
+              "decision_write_allowed": false,
+              "decision_written": false,
+              "no_live_execution": true,
+              "backend_owned": true,
+              "route_bound": true,
+              "command_context_bound": true,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            }
+          ],
           "resolution_plan_execution_allowed": false,
           "resolution_plan_executed": false,
           "browser_authority": "display_only",
@@ -663,8 +688,10 @@ missing reason, resolution artifacts, missing resolution artifacts, backend
 contract refs, evidence refs, disabled resolver flags, and disabled writer
 flags. They also include ordered resolution plan steps, missing plan steps,
 dependency refs, verification gates, `resolution_plan_execution_allowed=false`,
-and `resolution_plan_executed=false`. These rows are not decision resolution,
-decision writes, plan execution, or live authority.
+`resolution_plan_executed=false`, and `resolution_readiness_items` rows for
+each plan step, dependency, and verification gate. These rows are not decision
+resolution, decision writes, plan execution, readiness execution, or live
+authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

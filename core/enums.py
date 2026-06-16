@@ -628,6 +628,14 @@ class AdminApiStealthLiveReadinessDecision(str, Enum):
     STATE_MUTATION_POLICY = "state_mutation_policy"
 
 
+class AdminApiStealthDecisionResolutionEvidenceType(str, Enum):
+    """Read-only evidence item types for stealth decision resolution planning."""
+
+    PLAN_STEP = "plan_step"
+    DEPENDENCY = "dependency"
+    VERIFICATION_GATE = "verification_gate"
+
+
 class AdminApiLiveApprovalSnapshotField(str, Enum):
     """Required fields for future route-specific live approval snapshots."""
 

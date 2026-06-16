@@ -395,9 +395,11 @@ missing reason, resolution artifacts, missing resolution artifacts, backend
 contract refs, evidence refs, disabled resolver flags, disabled writer flags,
 ordered resolution plan steps, missing plan steps, dependency refs,
 verification gates, disabled plan-execution flags, and no-live/no-write proof.
-The plan fields are sequencing evidence for future backend-owned resolver
-work; they are not an executable plan. They must not become a browser gate
-evaluator, decision resolver, decision writer, manager invocation path,
+The same decision rows also expose `resolution_readiness_items`, a structured
+blocked matrix over the plan steps, dependencies, and verification gates. The
+plan and readiness fields are sequencing evidence for future backend-owned
+resolver work; they are not an executable plan. They must not become a browser
+gate evaluator, decision resolver, decision writer, manager invocation path,
 Coinbase call, cancel/replace path, reconciliation executor, local state
 mutation, M55 completion authority, or BFF execution authority.
 The contract also exposes `resolved_prerequisites`,

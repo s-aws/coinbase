@@ -389,6 +389,11 @@ disabled plan-execution flags. These fields are sequencing evidence for future
 backend-owned resolver work only; they are not an executable plan, browser/BFF
 resolver, decision writer, live adapter, Coinbase caller, or M55 completion
 claim.
+The same rows expose `resolution_readiness_items` as a structured readiness
+matrix over those plan-step, dependency, and verification-gate strings. Each
+item is blocked, unresolved, backend-owned, route-bound, command-context-bound,
+no-live, browser `display_only`, BFF `forward_only_no_execution`, and has
+`execution_allowed=false` plus `executed=false`.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

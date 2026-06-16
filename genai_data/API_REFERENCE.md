@@ -180,6 +180,18 @@ Current behavior:
   cancel/replace active placements, execute reconciliation, mutate
   lifecycle/order/exchange state, approve browser actions, or grant BFF
   execution authority.
+- Exact stealth create and non-create command responses may expose
+  `execution_live_readiness.backend_decisions[].resolution_readiness_items`.
+  These rows expand decision-resolution plan steps, dependency refs, and
+  verification gates into structured blocked planning evidence with source,
+  order, missing reason, and backend planning authority. Every item remains
+  required, unresolved, no-live, backend-owned, route-bound,
+  command-context-bound, browser `display_only`, BFF
+  `forward_only_no_execution`, `execution_allowed=false`, and
+  `executed=false`. The rows are not a resolver, writer, plan executor,
+  manager invocation path, Coinbase submit/cancel/read path, reconciliation
+  executor, state mutation path, browser authority, or BFF execution
+  authority.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

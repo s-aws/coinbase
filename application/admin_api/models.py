@@ -45,6 +45,7 @@ from core.enums import (
     AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
     AdminFuturesPositionSide,
@@ -6018,6 +6019,34 @@ class StealthExecutionTransitionBarrierEvidence(BaseModel):
     detail: str
 
 
+class StealthExecutionDecisionResolutionReadinessItem(BaseModel):
+    """Blocked per-item readiness evidence for a backend decision plan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    item_type: AdminApiStealthDecisionResolutionEvidenceType
+    item_name: str
+    item_order: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    resolved: bool = False
+    source_ref: str
+    missing_reason: str
+    readiness_authority: str = "backend_planning_only_no_resolution"
+    execution_allowed: bool = False
+    executed: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+
+
 class StealthExecutionBackendDecisionEvidence(BaseModel):
     """Blocked backend decision evidence required after live-readiness closure."""
 
@@ -6052,6 +6081,9 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     missing_resolution_plan_steps: list[str]
     resolution_dependency_refs: list[str]
     resolution_verification_gates: list[str]
+    resolution_readiness_items: list[
+        StealthExecutionDecisionResolutionReadinessItem
+    ]
     resolution_plan_execution_allowed: bool
     resolution_plan_executed: bool
     blocks_m55_completion: bool = True
