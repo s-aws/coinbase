@@ -24584,6 +24584,121 @@ components:
       - detail
       title: StealthExecutionCandidateEvidence
       description: Read-only evidence for the future backend execution candidate.
+    StealthExecutionDecisionResolutionClearanceAction:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: resolution_handoff
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        decision:
+          $ref: '#/components/schemas/AdminApiStealthLiveReadinessDecision'
+        clearance_category:
+          $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+        clearance_ref:
+          type: string
+          title: Clearance Ref
+        owner:
+          type: string
+          title: Owner
+        required_artifact:
+          type: string
+          title: Required Artifact
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_backend_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Route
+        required_backend_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Method
+        required_backend_service:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Service
+        required_evidence_ref:
+          type: string
+          title: Required Evidence Ref
+        action_authority:
+          type: string
+          title: Action Authority
+          default: backend_planning_only_no_clearance
+        clearance_ready:
+          type: boolean
+          title: Clearance Ready
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      - clearance_category
+      - clearance_ref
+      - owner
+      - required_artifact
+      - required_backend_contract
+      - required_evidence_ref
+      - detail
+      title: StealthExecutionDecisionResolutionClearanceAction
+      description: Backend-owned action contract required to clear a handoff blocker.
     StealthExecutionDecisionResolutionHandoff:
       properties:
         source_ref:
@@ -24615,6 +24730,11 @@ components:
             type: string
           type: array
           title: Blocked Clearance Refs
+        clearance_actions:
+          items:
+            $ref: '#/components/schemas/StealthExecutionDecisionResolutionClearanceAction'
+          type: array
+          title: Clearance Actions
         first_clearance_category:
           anyOf:
           - $ref: '#/components/schemas/AdminApiLivePreflightCategory'
@@ -24687,6 +24807,7 @@ components:
       - required_artifact
       - clearance_categories
       - blocked_clearance_refs
+      - clearance_actions
       - detail
       title: StealthExecutionDecisionResolutionHandoff
       description: Backend-owned handoff classification for an unresolved decision.

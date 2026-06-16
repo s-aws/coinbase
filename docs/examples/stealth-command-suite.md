@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3141-3160",
+  "approved_phase_range": "3161-3180",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -681,6 +681,36 @@ blocked even when exact command-envelope context is present:
               "admission_audit_recorded_for_exact_context",
               "reconciliation_plan_present_before_live_enablement"
             ],
+            "clearance_actions": [
+              {
+                "source_ref": "resolution_handoff",
+                "status": "blocked",
+                "decision": "explicit_live_enablement_decision",
+                "clearance_category": "approval",
+                "clearance_ref": "capture_route_bound_operator_approval",
+                "owner": "admin_api_contract",
+                "required_artifact": "explicit_backend_live_enablement_decision",
+                "required_backend_contract": "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+                "required_backend_route": "/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+                "required_backend_method": "POST",
+                "required_backend_service": "AdminApprovalService",
+                "required_evidence_ref": "route_bound_approval_snapshot",
+                "action_authority": "backend_planning_only_no_clearance",
+                "clearance_ready": false,
+                "resolver_allowed": false,
+                "resolver_ran": false,
+                "decision_write_allowed": false,
+                "decision_written": false,
+                "execution_allowed": false,
+                "executed": false,
+                "no_live_execution": true,
+                "backend_owned": true,
+                "route_bound": true,
+                "command_context_bound": true,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution"
+              }
+            ],
             "first_clearance_category": "approval",
             "first_clearance_ref": "capture_route_bound_operator_approval",
             "resolution_ready": false,
@@ -783,9 +813,12 @@ aggregate over those rows with counts, first-blocker, missing reasons, and
 disabled execution/resolver/writer flags for display only. They also include
 `resolution_handoff`, a backend-derived classification over the summary with
 clearance categories, blocked clearance refs, first clearance evidence, and
-disabled resolution/execution/writer flags. The handoff is not a resolver,
-writer, live switch, adapter, manager path, Coinbase path, reconciliation
-executor, state mutation path, browser authority, or BFF execution authority.
+disabled resolution/execution/writer flags. The handoff also includes
+`clearance_actions` rows naming backend contract, route, method, service,
+artifact, evidence ref, authority, and disabled execution flags for each
+blocked ref. The handoff and action rows are not a resolver, writer, live
+switch, adapter, manager path, Coinbase path, reconciliation executor, state
+mutation path, browser authority, or BFF execution authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

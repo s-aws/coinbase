@@ -6079,6 +6079,40 @@ class StealthExecutionDecisionResolutionReadinessSummary(BaseModel):
     bff_authority: str = "forward_only_no_execution"
 
 
+class StealthExecutionDecisionResolutionClearanceAction(BaseModel):
+    """Backend-owned action contract required to clear a handoff blocker."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "resolution_handoff"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    decision: AdminApiStealthLiveReadinessDecision
+    clearance_category: AdminApiLivePreflightCategory
+    clearance_ref: str
+    owner: str
+    required_artifact: str
+    required_backend_contract: str
+    required_backend_route: str | None = None
+    required_backend_method: str | None = None
+    required_backend_service: str | None = None
+    required_evidence_ref: str
+    action_authority: str = "backend_planning_only_no_clearance"
+    clearance_ready: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthExecutionDecisionResolutionHandoff(BaseModel):
     """Backend-owned handoff classification for an unresolved decision."""
 
@@ -6092,6 +6126,9 @@ class StealthExecutionDecisionResolutionHandoff(BaseModel):
     handoff_authority: str = "backend_planning_only_no_resolution"
     clearance_categories: list[AdminApiLivePreflightCategory]
     blocked_clearance_refs: list[str]
+    clearance_actions: list[
+        StealthExecutionDecisionResolutionClearanceAction
+    ]
     first_clearance_category: AdminApiLivePreflightCategory | None = None
     first_clearance_ref: str | None = None
     resolution_ready: bool = False

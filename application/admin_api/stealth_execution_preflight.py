@@ -13,6 +13,7 @@ from .models import (
     AdminLivePreflightCheckItem,
     StealthExecutionBackendDecisionEvidence,
     StealthExecutionCandidateEvidence,
+    StealthExecutionDecisionResolutionClearanceAction,
     StealthExecutionDecisionResolutionHandoff,
     StealthExecutionDecisionResolutionReadinessItem,
     StealthExecutionDecisionResolutionReadinessSummary,
@@ -349,6 +350,114 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "Lifecycle, order, and exchange-state mutation policy must preserve "
             "stealth exchange-reality invariants before state can change."
         ),
+    },
+}
+
+_CLEARANCE_ACTION_CONTRACTS: dict[
+    AdminApiLivePreflightCategory, dict[str, str | None]
+] = {
+    AdminApiLivePreflightCategory.APPROVAL: {
+        "required_backend_contract": (
+            "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions"
+        ),
+        "required_backend_route": (
+            "/api/v1/admin/approvals/requests/{approval_request_id}/decisions"
+        ),
+        "required_backend_method": "POST",
+        "required_backend_service": "AdminApprovalService",
+        "required_evidence_ref": "route_bound_approval_snapshot",
+    },
+    AdminApiLivePreflightCategory.AUDIT: {
+        "required_backend_contract": "POST /api/v1/admin/admission-audits",
+        "required_backend_route": "/api/v1/admin/admission-audits",
+        "required_backend_method": "POST",
+        "required_backend_service": "AdminAdmissionAuditService",
+        "required_evidence_ref": "route_bound_admission_audit",
+    },
+    AdminApiLivePreflightCategory.CAP_GUARD: {
+        "required_backend_contract": "POST /api/v1/admin/cap-guard/decisions",
+        "required_backend_route": "/api/v1/admin/cap-guard/decisions",
+        "required_backend_method": "POST",
+        "required_backend_service": "AdminCapGuardService",
+        "required_evidence_ref": "route_bound_cap_guard_decision",
+    },
+    AdminApiLivePreflightCategory.RECONCILIATION: {
+        "required_backend_contract": "POST /api/v1/admin/reconciliation/plans",
+        "required_backend_route": "/api/v1/admin/reconciliation/plans",
+        "required_backend_method": "POST",
+        "required_backend_service": "AdminReconciliationService",
+        "required_evidence_ref": "route_bound_reconciliation_plan",
+    },
+    AdminApiLivePreflightCategory.BROWSER_AUTHORITY: {
+        "required_backend_contract": "docs/LIVE_ORDER_SURFACES.md::browser_bff_boundary",
+        "required_backend_route": None,
+        "required_backend_method": None,
+        "required_backend_service": "AdminApiAuthorityBoundaryReview",
+        "required_evidence_ref": "browser_bff_authority_rejection",
+    },
+    AdminApiLivePreflightCategory.LIVE_EXECUTION_SERVICE: {
+        "required_backend_contract": (
+            "application/admin_api/live_execution.py::AdminApiLiveExecutionService"
+        ),
+        "required_backend_route": "/api/v1/admin/live-enablement",
+        "required_backend_method": "GET",
+        "required_backend_service": "AdminApiLiveExecutionService",
+        "required_evidence_ref": "live_execution_service_contract",
+    },
+    AdminApiLivePreflightCategory.LIVE_EXECUTION_ADAPTER: {
+        "required_backend_contract": (
+            "application/admin_api/live_execution.py::"
+            "build_live_execution_adapter_contract"
+        ),
+        "required_backend_route": None,
+        "required_backend_method": None,
+        "required_backend_service": "AdminApiCommandService",
+        "required_evidence_ref": "live_execution_adapter_contract",
+    },
+    AdminApiLivePreflightCategory.MANAGER_INVOCATION: {
+        "required_backend_contract": "core/stealth_order_manager.py",
+        "required_backend_route": None,
+        "required_backend_method": None,
+        "required_backend_service": "StealthOrderManager",
+        "required_evidence_ref": "stealth_manager_invocation_policy",
+    },
+    AdminApiLivePreflightCategory.MUTATION_CLAIM: {
+        "required_backend_contract": (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs"
+        ),
+        "required_backend_route": (
+            "/api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs"
+        ),
+        "required_backend_method": "POST",
+        "required_backend_service": "AdminApiCommandService",
+        "required_evidence_ref": "mutation_claim_snapshot",
+    },
+    AdminApiLivePreflightCategory.LIFECYCLE_WRITE_GUARD: {
+        "required_backend_contract": (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/"
+            "lifecycle-write-guard-proofs"
+        ),
+        "required_backend_route": (
+            "/api/v1/stealth/orders/{stealth_order_id}/"
+            "lifecycle-write-guard-proofs"
+        ),
+        "required_backend_method": "POST",
+        "required_backend_service": "AdminApiCommandService",
+        "required_evidence_ref": "lifecycle_write_guard",
+    },
+    AdminApiLivePreflightCategory.COINBASE_EXCHANGE: {
+        "required_backend_contract": "docs/LIVE_ORDER_SURFACES.md::coinbase_exchange",
+        "required_backend_route": None,
+        "required_backend_method": None,
+        "required_backend_service": "CoinbaseExchangeIntegration",
+        "required_evidence_ref": "active_placement_exchange_truth",
+    },
+    AdminApiLivePreflightCategory.STATE_MUTATION: {
+        "required_backend_contract": "core/stealth_order_manager.py::state_mutation_policy",
+        "required_backend_route": None,
+        "required_backend_method": None,
+        "required_backend_service": "StealthOrderManager",
+        "required_evidence_ref": "stealth_lifecycle_execution_contract",
     },
 }
 
@@ -726,12 +835,19 @@ def _build_decision_resolution_handoff(
     summary: StealthExecutionDecisionResolutionReadinessSummary,
 ) -> StealthExecutionDecisionResolutionHandoff:
     clearance_categories = list(metadata["resolution_handoff_categories"])
+    blocked_clearance_refs = list(summary.blocking_item_names)
     return StealthExecutionDecisionResolutionHandoff(
         decision=decision,
         owner=str(metadata["owner"]),
         required_artifact=str(metadata["required_artifact"]),
         clearance_categories=clearance_categories,
-        blocked_clearance_refs=list(summary.blocking_item_names),
+        blocked_clearance_refs=blocked_clearance_refs,
+        clearance_actions=_build_decision_resolution_clearance_actions(
+            decision=decision,
+            metadata=metadata,
+            clearance_categories=clearance_categories,
+            blocked_clearance_refs=blocked_clearance_refs,
+        ),
         first_clearance_category=(
             clearance_categories[0] if clearance_categories else None
         ),
@@ -743,6 +859,89 @@ def _build_decision_resolution_handoff(
             "managers, execute reconciliation, mutate state, or call Coinbase."
         ),
     )
+
+
+def _build_decision_resolution_clearance_actions(
+    *,
+    decision: AdminApiStealthLiveReadinessDecision,
+    metadata: dict[str, object],
+    clearance_categories: list[AdminApiLivePreflightCategory],
+    blocked_clearance_refs: list[str],
+) -> list[StealthExecutionDecisionResolutionClearanceAction]:
+    actions: list[StealthExecutionDecisionResolutionClearanceAction] = []
+    for clearance_ref in blocked_clearance_refs:
+        category = _category_for_resolution_ref(
+            clearance_ref=clearance_ref,
+            clearance_categories=clearance_categories,
+        )
+        contract = _CLEARANCE_ACTION_CONTRACTS[category]
+        actions.append(
+            StealthExecutionDecisionResolutionClearanceAction(
+                decision=decision,
+                clearance_category=category,
+                clearance_ref=clearance_ref,
+                owner=str(metadata["owner"]),
+                required_artifact=str(metadata["required_artifact"]),
+                required_backend_contract=str(
+                    contract["required_backend_contract"]
+                ),
+                required_backend_route=contract["required_backend_route"],
+                required_backend_method=contract["required_backend_method"],
+                required_backend_service=contract["required_backend_service"],
+                required_evidence_ref=str(contract["required_evidence_ref"]),
+                detail=(
+                    "Clearance action is backend planning evidence for the "
+                    f"{category.value} handoff category and blocked ref "
+                    f"{clearance_ref}. It names the backend-owned contract "
+                    "required to clear the blocker but does not run a "
+                    "resolver, write a decision, execute a manager, mutate "
+                    "state, or call Coinbase."
+                ),
+            )
+        )
+    return actions
+
+
+def _category_for_resolution_ref(
+    *,
+    clearance_ref: str,
+    clearance_categories: list[AdminApiLivePreflightCategory],
+) -> AdminApiLivePreflightCategory:
+    lowered_ref = clearance_ref.lower()
+    candidates: list[AdminApiLivePreflightCategory] = []
+    if "approval" in lowered_ref or "operator" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.APPROVAL)
+    if "admission" in lowered_ref or "audit" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.AUDIT)
+    if "cap" in lowered_ref or "limit" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.CAP_GUARD)
+    if "reconciliation" in lowered_ref or "journal" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.RECONCILIATION)
+    if (
+        "browser" in lowered_ref
+        or "bff" in lowered_ref
+        or "frontend" in lowered_ref
+    ):
+        candidates.append(AdminApiLivePreflightCategory.BROWSER_AUTHORITY)
+    if "service" in lowered_ref or "deployment" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.LIVE_EXECUTION_SERVICE)
+    if "adapter" in lowered_ref or "command_service" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.LIVE_EXECUTION_ADAPTER)
+    if "manager" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.MANAGER_INVOCATION)
+    if "mutation" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.MUTATION_CLAIM)
+    if "state_mutation" in lowered_ref or "state mutation" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.STATE_MUTATION)
+    if "lifecycle" in lowered_ref or "write_guard" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.LIFECYCLE_WRITE_GUARD)
+    if "coinbase" in lowered_ref or "exchange" in lowered_ref:
+        candidates.append(AdminApiLivePreflightCategory.COINBASE_EXCHANGE)
+
+    for candidate in candidates:
+        if candidate in clearance_categories:
+            return candidate
+    return clearance_categories[0]
 
 
 def _check(

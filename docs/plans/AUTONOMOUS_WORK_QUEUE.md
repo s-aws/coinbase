@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3141-3160**.
+- Approved phase range: **3161-3180**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3121-3140`.
+- Previous completed range: `3141-3160`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,7 +23,98 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3141-3160
+## Active Phases 3161-3180
+
+These phases continue M55 after decision-resolution handoff classification by
+adding backend-owned clearance action contracts for each blocked handoff ref.
+The action rows name the backend contract, route, service, artifact, and
+evidence ref that would be required to clear a category/ref pair. They are
+planning evidence only and must not add a resolver, decision writer, live
+service enablement, live adapter construction, manager invocation, Coinbase
+submit/cancel/read, active-placement cancel/replace, reconciliation execution,
+state mutation, browser authority, or BFF execution authority.
+
+### Phase 3161 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3141-3160 to active phases 3161-3180 while preserving no-live defaults and cap policy.
+
+### Phase 3162 - Prior Range Completion Evidence
+
+- Keep completed phases 3141-3160 recorded as handoff-classification evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3163 - Clearance Action Model
+
+- Add a typed backend clearance action model under each decision-resolution handoff with category, blocked ref, backend contract, route, method, service, artifact, evidence ref, and disabled authority flags.
+
+### Phase 3164 - Clearance Category Contract Map
+
+- Map each `AdminApiLivePreflightCategory` used by M55 handoffs to the backend-owned contract or evidence route that would be needed to clear it.
+
+### Phase 3165 - Clearance Action Builder Integration
+
+- Derive clearance actions from the existing handoff blocked refs and readiness summaries so create and non-create stealth command contracts share one code path.
+
+### Phase 3166 - Clearance No-Execution Invariants
+
+- Keep every clearance action blocked, not ready, backend-owned, route-bound, command-context-bound, no-live, display-only, and forward-only.
+
+### Phase 3167 - Required OpenAPI Contract
+
+- Regenerate OpenAPI and assert clearance actions are required handoff evidence beside readiness summary and handoff classification.
+
+### Phase 3168 - Backend Runtime Coverage
+
+- Assert clearance action refs match handoff blocked refs, categories stay within handoff categories, and contracts remain backend-owned.
+
+### Phase 3169 - Backend Docs And Examples
+
+- Update Admin API, command workflow, stealth command-suite, roadmap, handoff, and examples docs for clearance action evidence.
+
+### Phase 3170 - Frontend Schema Sync
+
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated schema.
+
+### Phase 3171 - Frontend Adapter Mapping
+
+- Map backend clearance actions into typed stealth read-model view models without deriving authority in the browser.
+
+### Phase 3172 - Frontend Mock Runtime Sync
+
+- Derive mock clearance actions from mock backend handoff refs so local mode mirrors backend-shaped evidence.
+
+### Phase 3173 - Command Dry-Submit Display
+
+- Render clearance actions in dry-submit evidence as blocked backend evidence only.
+
+### Phase 3174 - Stealth Read-Model Display
+
+- Render clearance actions in stealth read-model surfaces without enabling commands.
+
+### Phase 3175 - Frontend Unit Coverage
+
+- Update mock, dry-submit, stealth read-model, and quality tests for clearance action evidence and phase metadata.
+
+### Phase 3176 - Autonomous Artifact Sync
+
+- Update backend/frontend autonomous, release, deployment, and artifact checks for phase range 3161-3180.
+
+### Phase 3177 - Stale Authority Scan
+
+- Search both repos for stale active-range and misleading clearance-action wording that would imply resolution or execution authority.
+
+### Phase 3178 - Focused Backend And Frontend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend API/unit/autonomous checks for clearance action evidence.
+
+### Phase 3179 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why clearance actions are still blocked display evidence.
+
+### Phase 3180 - Full Gates, Browser Check, Commit, Push, And No-Live Report
+
+- Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed Phases 3141-3160
 
 These phases continue M55 after decision-resolution readiness summaries by
 adding backend-owned resolution handoff classification to each blocked
@@ -34,6 +125,18 @@ writer, live service enablement, live adapter construction, manager
 invocation, Coinbase submit/cancel/read, active-placement cancel/replace,
 reconciliation execution, state mutation, browser authority, or BFF execution
 authority.
+
+Completion evidence:
+
+- Backend full regression passed with `853` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `251` unit tests and `3`
+  Playwright tests.
+- Backend and frontend blind/contextless reviews found no blockers after
+  stale authority wording was corrected.
+- Browser availability check passed at `http://127.0.0.1:3000/`.
+- Backend ownership and autonomous queue checks passed.
+- Live Coinbase execution was not run; submitted and executed notional stayed
+  `$0`.
 
 ### Phase 3141 - Advance Active Queue Range
 
