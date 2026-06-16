@@ -253,17 +253,19 @@ The backend can now persist post-write reconciliation proof evidence through
 and read it through
 `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`.
 Workflows may display those reviewed plan, execution-journal, and completion
-references only. The records do not satisfy `post_write_reconciliation`, do
-not execute reconciliation, do not call Coinbase, do not invoke managers, do
-not mutate lifecycle/order/exchange state, and do not grant browser/BFF
-authority.
+references only. The records do not execute reconciliation, do not call
+Coinbase, do not invoke managers, do not mutate lifecycle/order/exchange
+state, and do not grant browser/BFF authority.
 Create and non-create execution prerequisite resolvers may now read the
-post-write proof store for an exact command-context record. A found record is
-reported as evidence with `resolved_evidence_id`,
-`proof_lookup_authority=backend_store_read_only_no_execution`, and
-`missing_reason=post_write_reconciliation_proof_not_sufficient`; the
-prerequisite remains missing until accepted execution-journal evidence and
-verified post-write reconciliation are both present.
+post-write proof, execution-journal, and verification stores for exact
+command-context records. A safe proof without a matching accepted journal is
+reported with `missing_reason=no_matching_post_write_execution_journal`. A
+safe proof and accepted journal without a matching verification is reported
+with `missing_reason=no_matching_post_write_reconciliation_verification`. Only
+the exact safe proof, accepted journal, and verification chain may resolve the
+`post_write_reconciliation` prerequisite evidence, while live execution,
+manager invocation, Coinbase calls, reconciliation execution, and state
+mutation remain disabled.
 The backend can now persist post-write execution-journal acceptance evidence
 through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
@@ -279,11 +281,11 @@ through
 and read it through the same path with `GET`. The writer is path-keyed by
 `stealth_order_id`, requires the same guarded admission chain, and accepts a
 verification record only when it exactly matches a safe proof plus accepted
-journal. It can clear only the completion verifier's
-`verified_post_write_reconciliation` display field. It does not satisfy the
-`post_write_reconciliation` execution prerequisite, execute reconciliation,
-invoke managers, call Coinbase, cancel/replace placements, mutate
-lifecycle/order/exchange state, or authorize browser/BFF execution.
+journal. It can participate in resolving the
+`post_write_reconciliation` prerequisite evidence only as part of that exact
+safe chain. It does not execute reconciliation, invoke managers, call
+Coinbase, cancel/replace placements, mutate lifecycle/order/exchange state, or
+authorize browser/BFF execution.
 Both exact create and non-create contracts may also include
 `post_write_completion_verifier_contract`. Workflows may display proof id,
 proof safety, matching journal acceptance id when present, matching

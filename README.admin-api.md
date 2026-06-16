@@ -360,14 +360,18 @@ and read back through
 `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`.
 Those records are backend-owned append-only evidence for guarded stealth
 command families. They can record reviewed plan, journal, and completion
-references, but they do not satisfy the execution prerequisite, call Coinbase,
-invoke managers, mutate state, execute reconciliation, or grant browser/BFF
-authority.
-Execution prerequisite resolvers may read those records for exact command
-context and return the found proof id as fail-closed evidence. The resolver
-still reports `post_write_reconciliation_proof_not_sufficient` and keeps
-`post_write_reconciliation` unresolved until accepted execution-journal
-evidence and verified reconciliation are both present.
+references. A proof record alone does not resolve the
+`post_write_reconciliation` prerequisite evidence, call Coinbase, invoke
+managers, mutate state, execute reconciliation, or grant browser/BFF authority.
+Execution prerequisite resolvers may read proof, execution-journal, and
+verification records for exact command context. A safe proof without an
+accepted journal reports `no_matching_post_write_execution_journal`; a safe
+proof and journal without a verification reports
+`no_matching_post_write_reconciliation_verification`; only the exact safe
+proof, accepted journal, and verification chain may resolve
+`post_write_reconciliation` prerequisite evidence. Live execution service,
+adapter, manager, Coinbase, reconciliation execution, cancel/replace, and state
+mutation boundaries remain disabled.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through
@@ -388,19 +392,18 @@ verified only when it matches an exact safe post-write proof plus accepted
 execution journal chain. The writer route requires `reconciliation:record`,
 uses path `stealth_order_id` as the identity, requires exact guarded command
 context, and accepts only the same exact safe chain. It stores append-only
-backend evidence only and can clear only the completion verifier's
-`verified_post_write_reconciliation` display field. It does not satisfy the
-`post_write_reconciliation` execution prerequisite, execute reconciliation,
-call Coinbase, invoke managers, cancel/replace active placements, mutate
-lifecycle/order/exchange state, or grant browser/BFF authority.
+backend evidence only and may participate in resolving only
+`post_write_reconciliation` prerequisite evidence as part of the exact safe
+proof, accepted journal, and verification chain. It does not execute
+reconciliation, call Coinbase, invoke managers, cancel/replace active
+placements, mutate lifecycle/order/exchange state, or grant browser/BFF
+authority.
 Both create and non-create execution contracts also expose
-`post_write_completion_verifier_contract`. It is backend-owned, route-bound,
-blocked, and display-only. A safe proof id may be present, but the verifier
-still lists `accepted_execution_journal` or
-`verified_post_write_reconciliation` as missing evidence until matching
-backend records exist. If a matching journal acceptance or verification exists,
-the verifier may show its id, route, method, and source, but still reports no
-manager invocation, Coinbase submit/cancel/read, reconciliation execution,
+`post_write_completion_verifier_contract`. It is backend-owned and route-bound.
+It reports blocked while safe proof, accepted journal, or verification evidence
+is missing, and passed only when the exact safe proof, accepted journal, and
+verification chain exists. Passed verifier evidence still reports no manager
+invocation, Coinbase submit/cancel/read, reconciliation execution,
 cancel/replace, lifecycle/order/exchange mutation, browser authority, or BFF
 execution authority.
 Both contracts also expose `live_execution_adapter_contract`, a nested

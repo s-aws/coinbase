@@ -26013,8 +26013,9 @@ components:
           title: Verified Post Write Reconciliation Count
           description: Count of unique persisted verification records that match an
             exact safe proof plus accepted execution-journal chain. This is display
-            evidence only and does not satisfy the post_write_reconciliation execution
-            prerequisite.
+            evidence only and may participate in resolving the post_write_reconciliation
+            prerequisite evidence only as part of the exact safe proof/journal/verification
+            chain.
           default: 0
         persisted_verifications:
           items:
@@ -26072,7 +26073,7 @@ components:
           title: Post Write Reconciliation Verified
           description: True only for an exact safe proof, accepted journal, and verification
             chain. This does not execute reconciliation, does not call Coinbase, and
-            does not satisfy the post_write_reconciliation execution prerequisite.
+            may resolve only the post_write_reconciliation prerequisite evidence.
           default: false
         manager_invocation_allowed:
           type: boolean

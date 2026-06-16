@@ -4189,8 +4189,9 @@ class StealthPostWriteReconciliationVerificationReadResponse(AdminApiReadPayload
         description=(
             "Count of unique persisted verification records that match an "
             "exact safe proof plus accepted execution-journal chain. This is "
-            "display evidence only and does not satisfy the "
-            "post_write_reconciliation execution prerequisite."
+            "display evidence only and may participate in resolving the "
+            "post_write_reconciliation prerequisite evidence only as part of "
+            "the exact safe proof/journal/verification chain."
         ),
     )
     persisted_verifications: (
@@ -4218,8 +4219,8 @@ class StealthPostWriteReconciliationVerificationReadResponse(AdminApiReadPayload
         description=(
             "True only for an exact safe proof, accepted journal, and "
             "verification chain. This does not execute reconciliation, does "
-            "not call Coinbase, and does not satisfy the "
-            "post_write_reconciliation execution prerequisite."
+            "not call Coinbase, and may resolve only the "
+            "post_write_reconciliation prerequisite evidence."
         ),
     )
     manager_invocation_allowed: bool = False

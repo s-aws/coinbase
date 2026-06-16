@@ -150,14 +150,14 @@ Current behavior:
   keyed by `stealth_order_id`. It lists persisted records but counts
   verification as verified only for an exact safe proof plus accepted journal
   chain. It is readback only and does not execute reconciliation, call
-  Coinbase, invoke managers, mutate state, or satisfy live execution
-  prerequisites.
+  Coinbase, invoke managers, mutate state, or satisfy live execution service
+  or adapter prerequisites.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications`
   persists append-only local verification evidence only when it matches a safe
   post-write reconciliation proof and accepted execution journal for the exact
-  guarded command context. It can clear only the completion verifier's
-  `verified_post_write_reconciliation` display field. The route does not
-  satisfy the `post_write_reconciliation` execution prerequisite, execute
+  guarded command context. It may participate in resolving only the
+  `post_write_reconciliation` prerequisite evidence as part of the exact safe
+  proof, accepted journal, and verification chain. The route does not execute
   reconciliation, call Coinbase, invoke `StealthOrderManager`, cancel/replace
   placements, mutate order/exchange/lifecycle state, or make the command
   live-executable.

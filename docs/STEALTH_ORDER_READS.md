@@ -179,11 +179,12 @@ and persisted through
 The readback lists persisted records but counts a verification as verified
 only when it matches an exact safe post-write proof plus accepted execution
 journal chain. The writer stores backend-owned append-only evidence only when
-it matches that same exact guarded command context. It can clear only the
-completion verifier's `verified_post_write_reconciliation` display field. It
-does not satisfy the execution prerequisite, execute reconciliation, invoke
-managers, call Coinbase, cancel/replace active placements, mutate
-lifecycle/order/exchange state, or authorize browser/BFF execution.
+it matches that same exact guarded command context. It may participate in
+resolving only the `post_write_reconciliation` prerequisite evidence as part
+of the exact safe proof, accepted journal, and verification chain. It does not
+execute reconciliation, invoke managers, call Coinbase, cancel/replace active
+placements, mutate lifecycle/order/exchange state, or authorize browser/BFF
+execution.
 Post-write reconciliation proof records are exposed through
 `GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof`
 and persisted through
@@ -191,9 +192,10 @@ and persisted through
 The writer route requires `reconciliation:record`, stores append-only backend
 local evidence only after exact admission prerequisites match, and supports
 guarded contexts for stealth create, reveal, cancel, move, reprice, recovery,
-and reconciliation. It does not satisfy the execution prerequisite, call
-Coinbase, invoke managers, execute reconciliation, cancel/replace active
-placements, mutate lifecycle/order/exchange state, or authorize the frontend.
+and reconciliation. A proof record alone does not satisfy the
+`post_write_reconciliation` prerequisite evidence, call Coinbase, invoke
+managers, execute reconciliation, cancel/replace active placements, mutate
+lifecycle/order/exchange state, or authorize the frontend.
 The nested `live_execution_adapter_contract` object makes the disabled adapter
 construction boundary explicit. It binds the stealth command route to the
 shared `AdminApiCommandService.*` reference and lists forbidden execution

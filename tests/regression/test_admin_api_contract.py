@@ -4095,10 +4095,17 @@ def _assert_stealth_post_write_completion_verifier(
     assert verifier["service_method"] == service_method
     assert verifier["identity_key"] == "stealth_order_id"
     assert verifier["stealth_order_id"] == identity_value
-    assert verifier["status"] == AdminApiGateStatus.BLOCKED.value
+    journal_accepted = journal_acceptance_id is not None
+    verification_present = reconciliation_verification_id is not None
+    verifier_resolved = proof_safe and journal_accepted and verification_present
+    assert verifier["status"] == (
+        AdminApiGateStatus.PASSED.value
+        if verifier_resolved
+        else AdminApiGateStatus.BLOCKED.value
+    )
     assert verifier["required"] is True
-    assert verifier["resolved"] is False
-    assert verifier["blocking"] is True
+    assert verifier["resolved"] is verifier_resolved
+    assert verifier["blocking"] is not verifier_resolved
     assert verifier["backend_owned"] is True
     assert verifier["route_bound"] is True
     assert verifier["command_context_bound"] is exact_context_present
@@ -4113,7 +4120,6 @@ def _assert_stealth_post_write_completion_verifier(
     assert verifier["post_write_proof_safe"] is proof_safe
     assert verifier["safe_post_write_proof_required"] is True
     assert verifier["execution_journal_required"] is True
-    journal_accepted = journal_acceptance_id is not None
     assert verifier["execution_journal_accepted"] is journal_accepted
     assert verifier["execution_journal_acceptance_id"] == journal_acceptance_id
     assert verifier["execution_journal_acceptance_found"] is journal_accepted
@@ -4140,7 +4146,7 @@ def _assert_stealth_post_write_completion_verifier(
     assert verifier["reconciliation_verification_source"] == (
         "admin_api_stealth_post_write_reconciliation_verification_log"
     )
-    assert verifier["post_write_reconciliation_verified"] is verification_present
+    assert verifier["post_write_reconciliation_verified"] is verifier_resolved
     assert verifier["completion_proof_required"] is True
     assert verifier["completion_proof_recorded"] is (proof_id is not None)
     assert verifier["required_evidence"] == [
@@ -5026,6 +5032,30 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
             manual_live_acknowledgement=False,
         )
     )
+    post_write_proof_record = (
+        client.admin_api_test_stealth_post_write_reconciliation_proof_store
+        .find_by_proof_id("post-write-proof-create-exact-context")
+    )
+    assert post_write_proof_record is not None
+    post_write_journal_record = (
+        _append_stealth_post_write_execution_journal_acceptance(
+            store=client.admin_api_test_stealth_post_write_execution_journal_store,
+            proof_record=post_write_proof_record,
+            execution_journal_acceptance_id=(
+                "post-write-journal-create-exact-context"
+            ),
+        )
+    )
+    _append_stealth_post_write_reconciliation_verification(
+        store=(
+            client.admin_api_test_stealth_post_write_reconciliation_verification_store
+        ),
+        proof_record=post_write_proof_record,
+        journal_record=post_write_journal_record,
+        reconciliation_verification_id=(
+            "post-write-verification-create-exact-context"
+        ),
+    )
 
     response = client.post(
         "/api/v1/stealth/orders",
@@ -5048,12 +5078,16 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         StealthCreateLifecycleExecutionPrerequisite.CAP_GUARD_DECISION.value,
         StealthCreateLifecycleExecutionPrerequisite.RECONCILIATION_PLAN.value,
         StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value,
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
     } <= resolved
     assert {
         StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
         StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
-        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value,
     } <= set(execution_contract["missing_prerequisites"])
+    assert (
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+        not in execution_contract["missing_prerequisites"]
+    )
     resolution_by_prerequisite = {
         row["prerequisite"]: row
         for row in execution_contract["prerequisite_resolution"]
@@ -5087,28 +5121,28 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
     ]
     assert post_write_resolution["lookup_status"] == (
-        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING.value
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED.value
     )
     assert post_write_resolution["lookup_ran"] is True
-    assert post_write_resolution["resolved"] is False
+    assert post_write_resolution["resolved"] is True
     assert post_write_resolution["resolved_evidence_id"] == (
-        "post-write-proof-create-exact-context"
+        "post-write-verification-create-exact-context"
     )
-    assert post_write_resolution["missing_reason"] == (
-        "post_write_reconciliation_proof_not_sufficient"
-    )
-    assert post_write_resolution["stale_or_invalid"] is True
+    assert post_write_resolution["missing_reason"] is None
+    assert post_write_resolution["stale_or_invalid"] is False
     assert post_write_resolution["proof_lookup_authority"] == (
         "backend_store_read_only_no_execution"
     )
+    assert "reconciliation execution" in post_write_resolution["detail"]
+    assert "cancel/replace" in post_write_resolution["detail"]
     stages = execution_contract["execution_readiness_stages"]
     stages_by_prerequisite = {row["prerequisite"]: row for row in stages}
     assert execution_contract["execution_readiness_stage_count"] == len(stages)
     assert execution_contract["execution_readiness_stage_count"] == len(
         StealthCreateLifecycleExecutionPrerequisite
     )
-    assert execution_contract["passed_execution_readiness_stage_count"] == 5
-    assert execution_contract["blocked_execution_readiness_stage_count"] == 3
+    assert execution_contract["passed_execution_readiness_stage_count"] == 6
+    assert execution_contract["blocked_execution_readiness_stage_count"] == 2
     assert [row["stage_order"] for row in stages] == list(
         range(1, len(stages) + 1)
     )
@@ -5193,9 +5227,7 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
     assert execution_contract["post_write_reconciliation_source"] == (
         POST_WRITE_RECONCILIATION_SOURCE
     )
-    assert execution_contract["post_write_reconciliation_missing_reason"] == (
-        "post_write_reconciliation_missing"
-    )
+    assert execution_contract["post_write_reconciliation_missing_reason"] is None
     _assert_stealth_post_write_reconciliation_boundary(
         execution_contract["post_write_reconciliation_boundary"],
         mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE.value,
@@ -5212,6 +5244,10 @@ def test_admin_api_stealth_create_execution_contract_resolves_local_prerequisite
         identity_value=body["stealth_order_id"],
         proof_id="post-write-proof-create-exact-context",
         exact_context_present=True,
+        journal_acceptance_id="post-write-journal-create-exact-context",
+        reconciliation_verification_id=(
+            "post-write-verification-create-exact-context"
+        ),
     )
     assert execution_contract["canonical_execution_path"] == [
         execution_contract["manager_method"]
@@ -5361,6 +5397,190 @@ def test_admin_api_stealth_create_execution_contract_rejects_unsafe_post_write_p
     assert post_write["resolved_evidence_id"] == proof_id
     assert post_write["missing_reason"] == "post_write_reconciliation_proof_not_safe"
     assert post_write["stale_or_invalid"] is True
+    assert post_write["proof_lookup_authority"] == (
+        "backend_store_read_only_no_execution"
+    )
+    assert (
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+        in contract["missing_prerequisites"]
+    )
+    assert (
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+        not in contract["resolved_prerequisites"]
+    )
+    assert contract["manager_invocation_ran"] is False
+    assert contract["coinbase_order_submit_ran"] is False
+    assert contract["live_coinbase_read_ran"] is False
+    assert contract["reconciliation_executed"] is False
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    (
+        "scenario",
+        "add_journal",
+        "add_unsafe_verification",
+        "expected_evidence_id",
+        "expected_missing_reason",
+        "expected_stale",
+    ),
+    [
+        (
+            "proof_only",
+            False,
+            False,
+            "post-write-proof-create-proof_only",
+            "no_matching_post_write_execution_journal",
+            False,
+        ),
+        (
+            "unsafe_verification",
+            True,
+            True,
+            "post-write-verification-create-unsafe-verification",
+            "post_write_reconciliation_verification_not_safe",
+            True,
+        ),
+    ],
+)
+def test_admin_api_stealth_create_execution_contract_requires_safe_post_write_chain(
+    monkeypatch,
+    scenario,
+    add_journal,
+    add_unsafe_verification,
+    expected_evidence_id,
+    expected_missing_reason,
+    expected_stale,
+):
+    from api.v1.routes.orders import _idempotency_payload_hash
+
+    client = _client(monkeypatch)
+    stealth_order_id = f"stealth-create-post-write-{scenario}"
+    idempotency_key = f"idem-{stealth_order_id}"
+    operator_intent = f"stealth_create_post_write_{scenario}"
+    body = {
+        "stealth_order_id": stealth_order_id,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "total_size": "0.001",
+        "limit_price": "50000",
+        "reveal_condition": {"type": "time_delay", "delay_seconds": 60},
+        "sizing_strategy": {"type": "fixed"},
+        "target_movement": "0.002",
+        "target_movement_type": "P",
+        "manual_live_acknowledgement": True,
+    }
+    payload_hash = _idempotency_payload_hash(
+        endpoint="POST /api/v1/stealth/orders",
+        actor=AdminApiActor(
+            actor_id="operator-001",
+            roles=[AdminApiRole.TRADER],
+        ),
+        operator_intent=operator_intent,
+        body=StealthCreateRequest.model_validate(body).model_dump(mode="json"),
+    )
+    _append_stealth_create_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        stealth_order_id=stealth_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_id=f"approval-{stealth_order_id}",
+        admission_audit_id=f"audit-{stealth_order_id}",
+        cap_guard_decision_id=f"cap-{stealth_order_id}",
+        reconciliation_plan_id=f"recon-{stealth_order_id}",
+    )
+    client.admin_api_test_stealth_lifecycle_write_guard_proof_store.append(
+        StealthCreateLifecycleWriteGuardProofRecord(
+            lifecycle_write_guard_proof_id=f"life-write-proof-{stealth_order_id}",
+            stealth_order_id=stealth_order_id,
+            guarded_actor_id="operator-001",
+            guarded_operator_intent=operator_intent,
+            guarded_idempotency_key=idempotency_key,
+            guarded_payload_hash=payload_hash,
+            product_id="BTC-USDC",
+            side="BUY",
+            total_size="0.001",
+            limit_price="50000",
+            evidence_source=StealthLifecycleWriteGuardEvidenceSource.TEST_EVIDENCE,
+            guard_evidence_ref=f"{stealth_order_id}-guard",
+            approval_snapshot_id=f"approval-{stealth_order_id}",
+            admission_audit_id=f"audit-{stealth_order_id}",
+            cap_guard_decision_id=f"cap-{stealth_order_id}",
+            reconciliation_plan_id=f"recon-{stealth_order_id}",
+            route=(
+                "/api/v1/stealth/orders/{stealth_order_id}/"
+                "lifecycle-write-guard-proofs"
+            ),
+            method="POST",
+            service_method="record_stealth_create_lifecycle_write_guard_proof",
+            actor_id="operator-001",
+            operator_intent="record_stealth_lifecycle_write_guard",
+            idempotency_key=f"idem-life-write-proof-{stealth_order_id}",
+            correlation_id=f"corr-life-write-proof-{stealth_order_id}",
+            payload_hash=payload_hash,
+            audit_id=f"audit-life-write-proof-{stealth_order_id}",
+        )
+    )
+    proof_record = _append_stealth_post_write_reconciliation_proof(
+        store=client.admin_api_test_stealth_post_write_reconciliation_proof_store,
+        post_write_reconciliation_proof_id=f"post-write-proof-create-{scenario}",
+        stealth_order_id=stealth_order_id,
+        guarded_command_route="/api/v1/stealth/orders",
+        guarded_service_method="create_stealth_order",
+        guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+        guarded_operator_intent=operator_intent,
+        guarded_idempotency_key=idempotency_key,
+        guarded_payload_hash=payload_hash,
+        reconciliation_plan_id=f"recon-{stealth_order_id}",
+        approval_snapshot_id=f"approval-{stealth_order_id}",
+        admission_audit_id=f"audit-{stealth_order_id}",
+        cap_guard_decision_id=f"cap-{stealth_order_id}",
+    )
+    if add_journal:
+        journal_record = _append_stealth_post_write_execution_journal_acceptance(
+            store=client.admin_api_test_stealth_post_write_execution_journal_store,
+            proof_record=proof_record,
+            execution_journal_acceptance_id=f"post-write-journal-create-{scenario}",
+        )
+        if add_unsafe_verification:
+            _append_stealth_post_write_reconciliation_verification(
+                store=(
+                    client
+                    .admin_api_test_stealth_post_write_reconciliation_verification_store
+                ),
+                proof_record=proof_record,
+                journal_record=journal_record,
+                reconciliation_verification_id=expected_evidence_id,
+                record_updates={"coinbase_read_attempted": True},
+            )
+
+    response = client.post(
+        "/api/v1/stealth/orders",
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 501
+    contract = response.json()["stealth_lifecycle_execution_contract"]
+    rows = {row["prerequisite"]: row for row in contract["prerequisite_resolution"]}
+    post_write = rows[
+        StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+    ]
+    assert post_write["lookup_status"] == (
+        StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert post_write["lookup_ran"] is True
+    assert post_write["resolved"] is False
+    assert post_write["resolved_evidence_id"] == expected_evidence_id
+    assert post_write["missing_reason"] == expected_missing_reason
+    assert post_write["stale_or_invalid"] is expected_stale
     assert post_write["proof_lookup_authority"] == (
         "backend_store_read_only_no_execution"
     )
@@ -6303,7 +6523,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2901-2920"
+    assert readback_payload["approved_phase_range"] == "2921-2940"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -6517,7 +6737,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2901-2920"
+    assert readback_payload["approved_phase_range"] == "2921-2940"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -7936,10 +8156,29 @@ def test_admin_api_stealth_post_write_reconciliation_verification_is_no_live_and
         for item in contract["prerequisite_resolution"]
         if item["prerequisite"] == "post_write_reconciliation"
     )
-    assert post_write_resolver["resolved"] is False
-    assert post_write_resolver["missing_reason"] == (
-        "post_write_reconciliation_proof_not_sufficient"
+    assert post_write_resolver["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED.value
     )
+    assert post_write_resolver["resolved"] is True
+    assert post_write_resolver["resolved_evidence_id"] == (
+        "stealth-post-write-reconciliation-verification"
+    )
+    assert post_write_resolver["missing_reason"] is None
+    assert post_write_resolver["stale_or_invalid"] is False
+    assert "reconciliation execution" in post_write_resolver["detail"]
+    assert "cancel/replace" in post_write_resolver["detail"]
+    assert (
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+        in contract["resolved_prerequisites"]
+    )
+    assert (
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+        not in contract["missing_prerequisites"]
+    )
+    assert contract["execution_allowed"] is False
+    assert contract["manager_invocation_ran"] is False
+    assert contract["coinbase_order_submitted"] is False
+    assert contract["reconciliation_executed"] is False
 
 
 @pytest.mark.regression
@@ -8768,12 +9007,12 @@ def test_admin_api_stealth_reconciliation_execution_contract_resolves_proof(
     assert post_write_reconciliation["lookup_ran"] is True
     assert post_write_reconciliation["resolved"] is False
     assert post_write_reconciliation["resolved_evidence_id"] == (
-        "post-write-proof-reconciliation-exact-context"
+        "post-write-journal-acceptance-reconciliation-exact-context"
     )
     assert post_write_reconciliation["missing_reason"] == (
-        "post_write_reconciliation_proof_not_sufficient"
+        "no_matching_post_write_reconciliation_verification"
     )
-    assert post_write_reconciliation["stale_or_invalid"] is True
+    assert post_write_reconciliation["stale_or_invalid"] is False
     assert post_write_reconciliation["proof_lookup_authority"] == (
         "backend_store_read_only_no_execution"
     )
@@ -8804,6 +9043,110 @@ def test_admin_api_stealth_reconciliation_execution_contract_resolves_proof(
     assert contract["coinbase_order_cancel_submitted"] is False
     assert contract["live_coinbase_read_ran"] is False
     assert contract["reconciliation_executed"] is False
+
+    unsafe_journal_idempotency_key = "idem-post-write-unsafe-journal"
+    unsafe_journal_operator_intent = "stealth_reconciliation_post_write_unsafe_journal"
+    unsafe_journal_payload_hash = _stealth_command_payload_hash(
+        endpoint=f"POST {path}",
+        stealth_order_id=stealth_order_id,
+        body=body,
+        model=StealthReconciliationRequest,
+        operator_intent=unsafe_journal_operator_intent,
+        roles=[AdminApiRole.ADMIN.value],
+    )
+    _append_stealth_command_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=route,
+        service_method="reconcile_stealth_order_by_stealth_order_id",
+        stealth_order_id=stealth_order_id,
+        idempotency_key=unsafe_journal_idempotency_key,
+        operator_intent=unsafe_journal_operator_intent,
+        payload_hash=unsafe_journal_payload_hash,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.STEALTH_RECONCILIATION_EXECUTE,
+        approval_snapshot_id="stealth-reconciliation-approval-unsafe-journal",
+        admission_audit_id="stealth-reconciliation-admission-audit-unsafe-journal",
+        cap_guard_decision_id="stealth-reconciliation-cap-guard-unsafe-journal",
+        reconciliation_plan_id="stealth-reconciliation-recon-plan-unsafe-journal",
+    )
+    client.admin_api_test_stealth_reconciliation_proof_store.append(
+        safe_reconciliation_proof.model_copy(
+            update={
+                "reconciliation_proof_id": (
+                    "stealth-reconciliation-proof-unsafe-journal"
+                ),
+                "guarded_operator_intent": unsafe_journal_operator_intent,
+                "guarded_idempotency_key": unsafe_journal_idempotency_key,
+                "guarded_payload_hash": unsafe_journal_payload_hash,
+                "idempotency_key": "stealth-reconciliation-proof-unsafe-journal",
+                "audit_id": "audit-stealth-reconciliation-proof-unsafe-journal",
+            }
+        )
+    )
+    unsafe_journal_proof = _append_stealth_post_write_reconciliation_proof(
+        store=client.admin_api_test_stealth_post_write_reconciliation_proof_store,
+        post_write_reconciliation_proof_id=(
+            "post-write-proof-reconciliation-unsafe-journal"
+        ),
+        stealth_order_id=stealth_order_id,
+        guarded_command_route=route,
+        guarded_service_method="reconcile_stealth_order_by_stealth_order_id",
+        guarded_mutation_family=AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+        guarded_operator_intent=unsafe_journal_operator_intent,
+        guarded_idempotency_key=unsafe_journal_idempotency_key,
+        guarded_payload_hash=unsafe_journal_payload_hash,
+        reconciliation_plan_id="stealth-reconciliation-recon-plan-unsafe-journal",
+        approval_snapshot_id="stealth-reconciliation-approval-unsafe-journal",
+        admission_audit_id="stealth-reconciliation-admission-audit-unsafe-journal",
+        cap_guard_decision_id="stealth-reconciliation-cap-guard-unsafe-journal",
+    )
+    unsafe_journal_record = _append_stealth_post_write_execution_journal_acceptance(
+        store=client.admin_api_test_stealth_post_write_execution_journal_store,
+        proof_record=unsafe_journal_proof,
+        execution_journal_acceptance_id=(
+            "post-write-journal-acceptance-reconciliation-unsafe-journal"
+        ),
+        record_updates={"coinbase_read_attempted": True},
+    )
+
+    unsafe_journal_response = client.post(
+        path,
+        headers=_headers(
+            idempotency_key=unsafe_journal_idempotency_key,
+            operator_intent=unsafe_journal_operator_intent,
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=body,
+    )
+    assert unsafe_journal_response.status_code == 501
+    unsafe_journal_contract = unsafe_journal_response.json()[
+        "stealth_command_execution_contract"
+    ]
+    unsafe_journal_rows = {
+        row["prerequisite"]: row
+        for row in unsafe_journal_contract["prerequisite_resolution"]
+    }
+    unsafe_journal_post_write = unsafe_journal_rows[
+        StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+    ]
+    assert unsafe_journal_post_write["lookup_status"] == (
+        StealthCommandExecutionPrerequisiteLookupStatus.MISSING.value
+    )
+    assert unsafe_journal_post_write["resolved"] is False
+    assert unsafe_journal_post_write["resolved_evidence_id"] == (
+        unsafe_journal_record.execution_journal_acceptance_id
+    )
+    assert unsafe_journal_post_write["missing_reason"] == (
+        "post_write_execution_journal_not_safe"
+    )
+    assert unsafe_journal_post_write["stale_or_invalid"] is True
+    assert unsafe_journal_contract["manager_invocation_ran"] is False
+    assert unsafe_journal_contract["active_placement_cancel_replace_ran"] is False
+    assert unsafe_journal_contract["live_coinbase_read_ran"] is False
+    assert unsafe_journal_contract["reconciliation_executed"] is False
 
     for unsafe_flag, unsafe_post_write_proof_id in (
         (
@@ -9575,7 +9918,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2901-2920"
+    assert readback_payload["approved_phase_range"] == "2921-2940"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9790,7 +10133,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2901-2920"
+    assert readback_payload["approved_phase_range"] == "2921-2940"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12017,7 +12360,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2901-2920"
+    assert payload["approved_phase_range"] == "2921-2940"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -13839,7 +14182,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2901-2920"
+    assert live_payload["approved_phase_range"] == "2921-2940"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -14402,7 +14745,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2901-2920"
+    assert enterprise_payload["approved_phase_range"] == "2921-2940"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -15000,7 +15343,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2901-2920"
+    assert recovery_preview_payload["approved_phase_range"] == "2921-2940"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

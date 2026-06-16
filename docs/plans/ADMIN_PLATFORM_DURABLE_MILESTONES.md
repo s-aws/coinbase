@@ -2725,21 +2725,22 @@ Current backend evidence:
   acceptance evidence that can clear only `accepted_execution_journal`. The
   completed phases 2901-2920 added append-only backend-owned post-write
   reconciliation verification records that can clear only the
-  `verified_post_write_reconciliation` display gate.
+  `verified_post_write_reconciliation` display gate. Active phases 2921-2940
+  make the post-write reconciliation prerequisite resolver chain-aware so it
+  can resolve only when exact safe proof, accepted journal, and verification
+  records all match the same guarded command context.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
 - Live reveal exchange submission, live repair/rollback, active-placement
   cancel/replace execution, live service enablement, live adapter construction,
-  and post-write reconciliation execution remain blocked. Post-write
-  reconciliation verification evidence may display exact-context proof ids,
-  proof safety, accepted journal ids, verification ids, and
-  completion-verifier display status, but it must not satisfy execution
-  prerequisites, execute reconciliation, resolve proof/journal/verification
-  authority through the frontend, read Coinbase, submit or cancel Coinbase
-  orders, write `stealth_orders` or `order_parent`, dispatch lifecycle events,
-  invoke managers, mutate state, resolve disabled live prerequisites, or grant
-  browser/BFF authority.
+  and post-write reconciliation execution remain blocked. Exact backend proof,
+  journal, and verification evidence may resolve only the
+  `post_write_reconciliation` prerequisite. It must not execute reconciliation,
+  resolve proof/journal/verification authority through the frontend, read
+  Coinbase, submit or cancel Coinbase orders, write `stealth_orders` or
+  `order_parent`, dispatch lifecycle events, invoke managers, mutate state,
+  resolve disabled live prerequisites, or grant browser/BFF authority.
   Stealth create, reveal, cancel exchange
   handling, move revealed, reprice, recovery, reconciliation, and any eventual
   live execution screens must prove the full approval, cap/guard, admission

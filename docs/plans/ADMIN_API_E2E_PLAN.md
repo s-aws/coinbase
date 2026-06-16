@@ -38,6 +38,95 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Active M55 Chain-Aware Resolver Batch - Phases 2921-2940
+
+These phases make backend stealth post-write reconciliation prerequisite
+resolution consume the full exact proof, accepted execution-journal, and
+verification chain. The resolver may mark `post_write_reconciliation` resolved
+only for that exact safe chain. This is still no-live evidence: live service,
+live adapter, manager invocation, Coinbase calls, reconciliation execution,
+cancel/replace, and lifecycle/order/exchange state mutation remain disabled.
+
+### Phase 2921 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2901-2920 to active phases 2921-2940 while preserving no-live defaults and cap policy.
+
+### Phase 2922 - Prior Range Completion Evidence
+
+- Record phases 2901-2920 as completed verification-record work that did not yet resolve the execution prerequisite.
+
+### Phase 2923 - Completion Verifier Status Semantics
+
+- Make the nested completion verifier passed/resolved only for exact safe proof, journal, and verification records.
+
+### Phase 2924 - Non-Create Resolver Chain Wiring
+
+- Wire non-create stealth command execution contracts to proof, journal, and verification stores.
+
+### Phase 2925 - Create Resolver Chain Wiring
+
+- Wire stealth create lifecycle execution contracts to the same exact-chain rule.
+
+### Phase 2926 - Proof-Only Missing Semantics
+
+- Keep proof-only evidence blocked with an accepted-journal missing reason.
+
+### Phase 2927 - Journal-Only Missing Semantics
+
+- Keep proof-plus-journal evidence blocked with a verification missing reason.
+
+### Phase 2928 - Verification Safety Semantics
+
+- Keep unsafe or mismatched verification evidence stale/invalid and unresolved.
+
+### Phase 2929 - Missing Reason Clearing
+
+- Clear post-write missing reasons only when the exact safe chain resolves.
+
+### Phase 2930 - Live Blocker Preservation
+
+- Prove live service, adapter, manager, Coinbase, reconciliation execution, and state-mutation blockers survive exact-chain resolution.
+
+### Phase 2931 - Backend Regression Coverage
+
+- Cover create and non-create exact-chain resolution, blocked partial chains, and no-live behavior.
+
+### Phase 2932 - Frontend Runtime Intake
+
+- Update frontend fixtures and runtime evidence for resolver-complete rows without command enablement.
+
+### Phase 2933 - Frontend Read-Model Display
+
+- Display resolver-complete post-write evidence as backend evidence only.
+
+### Phase 2934 - Frontend Quality Artifacts
+
+- Sync release, deployment, autonomous, and artifact-contract checks for phases 2921-2940.
+
+### Phase 2935 - Documentation And Examples
+
+- Update backend/frontend docs and examples for exact-chain resolver semantics.
+
+### Phase 2936 - Stale Range Scan
+
+- Remove stale active-range metadata and obsolete proof-only wording from current-state docs and tests.
+
+### Phase 2937 - Focused Backend Gates
+
+- Run focused Admin API and autonomous queue checks.
+
+### Phase 2938 - Focused Frontend Gates
+
+- Run focused frontend unit/API/autonomous checks for resolver display.
+
+### Phase 2939 - Blind Contextless Reviews
+
+- Verify a fresh agent can explain why exact-chain resolution does not authorize execution.
+
+### Phase 2940 - Full Gates, Commit, Push, And Continue
+
+- Run backend full regression, frontend `npm run release:gate`, ownership/autonomous checks, contextless remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional.
+
 ## Completed M55 Reconciliation Verification Record Batch - Phases 2901-2920
 
 These phases added backend-owned append-only post-write reconciliation

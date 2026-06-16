@@ -6,10 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **2901-2920**.
-- Range status: completed. Pause before selecting or creating the next active
-  range because the operator requested a restart after this phase.
-- The approved range allowed unattended work without asking for another
+- Approved phase range: **2921-2940**.
+- Range status: active under M55 - Stealth Full Admin Command Suite.
+- The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
   remains exceptional. Default work is dry/no-live.
@@ -18,9 +17,10 @@ without relying on chat history.
   architecture or planning gap in the milestone ledger. Do not create orphan
   phases, generic polish phases, or unrelated roadmap batches.
 - Normal autonomous continuation may create the next milestone-linked active
-  range only after restart and only when the next gap is directly tied to the
-  approved milestone ledger. If no remaining approved milestone owns the next
-  gap, stop and request a new decision instead of inventing scope.
+  range when this range is completed and pushed, but only when the next gap is
+  directly tied to the approved milestone ledger. If no remaining approved
+  milestone owns the next gap, stop and request a new decision instead of
+  inventing scope.
 
 ## Live Coinbase Cap Policy
 
@@ -54,6 +54,98 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Active Phases 2921-2940
+
+These phases continue M55 after append-only post-write verification records by
+making the backend prerequisite resolver chain-aware. The resolver may mark
+`post_write_reconciliation` resolved only when the exact safe proof, accepted
+execution journal, and post-write reconciliation verification records all
+match the same guarded command context. This resolves prerequisite evidence
+only. It must not enable live service or adapter execution, invoke managers,
+call Coinbase, execute reconciliation, cancel/replace active placements,
+mutate lifecycle/order/exchange state, or grant browser/BFF execution
+authority.
+
+### Phase 2921 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2901-2920 to active phases 2921-2940 while preserving no-live defaults and cap policy.
+
+### Phase 2922 - Prior Range Completion Evidence
+
+- Record phases 2901-2920 as completed append-only verification evidence that did not yet resolve the post-write reconciliation prerequisite.
+
+### Phase 2923 - Completion Verifier Status Semantics
+
+- Make the post-write completion verifier report passed/resolved only when safe proof, accepted journal, and safe verification records are all present.
+
+### Phase 2924 - Non-Create Resolver Chain Wiring
+
+- Wire non-create stealth command prerequisites to proof, journal, and verification stores instead of proof-only evidence.
+
+### Phase 2925 - Create Resolver Chain Wiring
+
+- Wire stealth create lifecycle-write prerequisites to proof, journal, and verification stores using the same exact-chain rule.
+
+### Phase 2926 - Proof-Only Missing Semantics
+
+- Keep exact proof-only evidence blocked with a missing accepted-journal reason and no execution authority.
+
+### Phase 2927 - Journal-Only Missing Semantics
+
+- Keep exact proof-plus-journal evidence blocked with a missing verification reason and no execution authority.
+
+### Phase 2928 - Verification Safety Semantics
+
+- Reject unsafe or mismatched verification records as stale/invalid resolver evidence.
+
+### Phase 2929 - Post-Write Missing Reason Clearing
+
+- Clear the post-write missing reason only when the exact safe chain resolves the prerequisite.
+
+### Phase 2930 - Live Blocker Preservation
+
+- Prove live service, live adapter, manager, Coinbase, reconciliation execution, and state-mutation blockers remain present after post-write prerequisite resolution.
+
+### Phase 2931 - Backend Contract Tests
+
+- Update Admin API regression coverage for create and non-create exact-chain resolution plus proof-only and journal-only blocked cases.
+
+### Phase 2932 - Frontend Runtime Intake
+
+- Update frontend mock/runtime fixtures so post-write prerequisite resolution and verifier passed status display without enabling commands.
+
+### Phase 2933 - Frontend Read-Model Display
+
+- Ensure stealth command and read-model surfaces show exact-chain resolution as backend evidence only.
+
+### Phase 2934 - Frontend Quality Artifacts
+
+- Update release, deployment, autonomous, and artifact-contract checks for phase range 2921-2940 and no-live posture.
+
+### Phase 2935 - Documentation And Examples
+
+- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for chain-aware resolver semantics.
+
+### Phase 2936 - Stale Range Scan
+
+- Search both repos for stale active-range and obsolete proof-only wording that would mislead contextless agents.
+
+### Phase 2937 - Focused Backend Gates
+
+- Run backend focused Admin API and autonomous queue checks with repo-local pytest temp handling if the user temp root remains inaccessible.
+
+### Phase 2938 - Focused Frontend Gates
+
+- Run focused frontend unit, API, autonomous, and quality checks for resolver display and phase metadata.
+
+### Phase 2939 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why exact-chain resolver completion still does not authorize execution.
+
+### Phase 2940 - Full Gates, Commit, Push, And Continue
+
+- Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then continue only if the next milestone-linked batch is unblocked.
 
 ## Completed Phases 2901-2920
 

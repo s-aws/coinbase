@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiGateStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
     StealthPostWriteReconciliationEvidenceSource,
@@ -828,12 +829,24 @@ def build_stealth_post_write_completion_verifier_contract(
         missing_evidence.append("accepted_execution_journal")
     if not reconciliation_verification_safe:
         missing_evidence.append("verified_post_write_reconciliation")
+    verifier_resolved = (
+        proof_safe
+        and execution_journal_safe
+        and reconciliation_verification_safe
+    )
 
     return StealthPostWriteReconciliationCompletionVerifierEvidence(
         mutation_family=mutation_family,
         command_route=command_route,
         service_method=service_method,
         stealth_order_id=stealth_order_id,
+        status=(
+            AdminApiGateStatus.PASSED
+            if verifier_resolved
+            else AdminApiGateStatus.BLOCKED
+        ),
+        resolved=verifier_resolved,
+        blocking=not verifier_resolved,
         command_context_bound=exact_context_present,
         payload_bound=exact_context_present,
         idempotency_bound=exact_context_present,

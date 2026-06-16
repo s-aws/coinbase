@@ -73,7 +73,9 @@ from .stealth_post_write_reconciliation import (
     build_stealth_post_write_reconciliation_boundary,
     find_matching_post_write_execution_journal_acceptance,
     find_matching_post_write_reconciliation_verification,
+    is_safe_stealth_post_write_execution_journal_record,
     is_safe_stealth_post_write_reconciliation_proof_record,
+    is_safe_stealth_post_write_reconciliation_verification_record,
 )
 
 
@@ -119,7 +121,6 @@ BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS: tuple[str, ...] = (
     StealthCommandExecutionBlocker.ORDER_STATE_MUTATION_DISABLED.value,
     StealthCommandExecutionBlocker.EXCHANGE_STATE_MUTATION_DISABLED.value,
     StealthCommandExecutionBlocker.RECONCILIATION_EXECUTION_DISABLED.value,
-    StealthCommandExecutionBlocker.POST_WRITE_RECONCILIATION_MISSING.value,
 )
 
 STEALTH_COMMAND_EXECUTION_METADATA: dict[str, StealthCommandExecutionMetadata] = {
@@ -359,6 +360,12 @@ def build_stealth_command_execution_contract(
         stealth_post_write_reconciliation_proof_store=(
             stealth_post_write_reconciliation_proof_store
         ),
+        stealth_post_write_execution_journal_store=(
+            stealth_post_write_execution_journal_store
+        ),
+        stealth_post_write_reconciliation_verification_store=(
+            stealth_post_write_reconciliation_verification_store
+        ),
     )
     resolved = sorted(
         item.prerequisite.value
@@ -572,11 +579,18 @@ def build_stealth_command_execution_contract(
             service_method=metadata.service_method,
             action_class=admission_decision.action_class,
         ),
+        post_write_reconciliation_resolved=(
+            StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+            in resolved
+        ),
         post_write_reconciliation_route=POST_WRITE_RECONCILIATION_ROUTE,
         post_write_reconciliation_method=POST_WRITE_RECONCILIATION_METHOD,
         post_write_reconciliation_source=POST_WRITE_RECONCILIATION_SOURCE,
         post_write_reconciliation_missing_reason=(
-            "post_write_reconciliation_missing"
+            None
+            if StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
+            in resolved
+            else "post_write_reconciliation_missing"
         ),
         post_write_reconciliation_boundary=(
             build_stealth_post_write_reconciliation_boundary(
@@ -625,6 +639,12 @@ def _build_prerequisite_resolution(
     stealth_cancel_replace_proof_store: FileStealthCancelReplaceProofStore | None,
     stealth_post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
+    ),
+    stealth_post_write_execution_journal_store: (
+        FileStealthPostWriteExecutionJournalStore | None
+    ),
+    stealth_post_write_reconciliation_verification_store: (
+        FileStealthPostWriteReconciliationVerificationStore | None
     ),
 ) -> list[StealthCommandExecutionPrerequisiteResolverItem]:
     approval = _resolver_item_from_flag(
@@ -692,6 +712,12 @@ def _build_prerequisite_resolution(
             stealth_cancel_replace_proof_store=stealth_cancel_replace_proof_store,
             stealth_post_write_reconciliation_proof_store=(
                 stealth_post_write_reconciliation_proof_store
+            ),
+            stealth_post_write_execution_journal_store=(
+                stealth_post_write_execution_journal_store
+            ),
+            stealth_post_write_reconciliation_verification_store=(
+                stealth_post_write_reconciliation_verification_store
             ),
         )
         for prerequisite in metadata.prerequisites
@@ -807,6 +833,12 @@ def _command_specific_prerequisite(
     stealth_post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
     ),
+    stealth_post_write_execution_journal_store: (
+        FileStealthPostWriteExecutionJournalStore | None
+    ),
+    stealth_post_write_reconciliation_verification_store: (
+        FileStealthPostWriteReconciliationVerificationStore | None
+    ),
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE:
         return _resolver_item(
@@ -842,6 +874,12 @@ def _command_specific_prerequisite(
             admission_decision=admission_decision,
             stealth_post_write_reconciliation_proof_store=(
                 stealth_post_write_reconciliation_proof_store
+            ),
+            stealth_post_write_execution_journal_store=(
+                stealth_post_write_execution_journal_store
+            ),
+            stealth_post_write_reconciliation_verification_store=(
+                stealth_post_write_reconciliation_verification_store
             ),
         )
     if not common_resolved:
@@ -1385,6 +1423,12 @@ def _resolve_post_write_reconciliation_proof(
     stealth_post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
     ),
+    stealth_post_write_execution_journal_store: (
+        FileStealthPostWriteExecutionJournalStore | None
+    ),
+    stealth_post_write_reconciliation_verification_store: (
+        FileStealthPostWriteReconciliationVerificationStore | None
+    ),
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     prerequisite = StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION
     if (
@@ -1401,12 +1445,12 @@ def _resolve_post_write_reconciliation_proof(
             detail="Post-write reconciliation proof store was not available.",
         )
 
-    record = _find_matching_post_write_reconciliation_proof(
+    proof_record = _find_matching_post_write_reconciliation_proof(
         store=stealth_post_write_reconciliation_proof_store,
         metadata=metadata,
         admission_decision=admission_decision,
     )
-    if record is None:
+    if proof_record is None:
         return _resolver_item(
             prerequisite=prerequisite,
             metadata=metadata,
@@ -1422,7 +1466,7 @@ def _resolve_post_write_reconciliation_proof(
             ),
         )
 
-    if not is_safe_stealth_post_write_reconciliation_proof_record(record):
+    if not is_safe_stealth_post_write_reconciliation_proof_record(proof_record):
         return _resolver_item(
             prerequisite=prerequisite,
             metadata=metadata,
@@ -1430,7 +1474,7 @@ def _resolve_post_write_reconciliation_proof(
             source=_source_for_command_specific_prerequisite(prerequisite),
             lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
             lookup_ran=True,
-            resolved_evidence_id=record.post_write_reconciliation_proof_id,
+            resolved_evidence_id=proof_record.post_write_reconciliation_proof_id,
             missing_reason="post_write_reconciliation_proof_not_safe",
             stale_or_invalid=True,
             proof_lookup_authority="backend_store_read_only_no_execution",
@@ -1440,23 +1484,143 @@ def _resolve_post_write_reconciliation_proof(
             ),
         )
 
+    if stealth_post_write_execution_journal_store is None:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            lookup_ran=True,
+            resolved_evidence_id=proof_record.post_write_reconciliation_proof_id,
+            missing_reason="post_write_execution_journal_store_unavailable",
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Exact post-write reconciliation proof was found, but the "
+                "execution-journal store was unavailable. No reconciliation "
+                "execution, Coinbase call, manager call, or state mutation ran."
+            ),
+        )
+
+    journal_record = find_matching_post_write_execution_journal_acceptance(
+        store=stealth_post_write_execution_journal_store,
+        proof_record=proof_record,
+    )
+    if journal_record is None:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=proof_record.post_write_reconciliation_proof_id,
+            missing_reason="no_matching_post_write_execution_journal",
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Exact post-write reconciliation proof was found, but no "
+                "matching accepted execution-journal evidence was found. "
+                "Execution remains blocked without running reconciliation."
+            ),
+        )
+    if not is_safe_stealth_post_write_execution_journal_record(journal_record):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=journal_record.execution_journal_acceptance_id,
+            missing_reason="post_write_execution_journal_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Matching post-write execution-journal evidence was found but "
+                "is not safe no-live/no-mutation evidence."
+            ),
+        )
+
+    if stealth_post_write_reconciliation_verification_store is None:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            lookup_ran=True,
+            resolved_evidence_id=journal_record.execution_journal_acceptance_id,
+            missing_reason="post_write_reconciliation_verification_store_unavailable",
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Exact proof and accepted execution-journal evidence were found, "
+                "but the reconciliation-verification store was unavailable. "
+                "No reconciliation execution, Coinbase call, manager call, or "
+                "state mutation ran."
+            ),
+        )
+
+    verification_record = find_matching_post_write_reconciliation_verification(
+        store=stealth_post_write_reconciliation_verification_store,
+        proof_record=proof_record,
+        execution_journal_record=journal_record,
+    )
+    if verification_record is None:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=journal_record.execution_journal_acceptance_id,
+            missing_reason="no_matching_post_write_reconciliation_verification",
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Exact proof and accepted execution-journal evidence were found, "
+                "but no matching post-write reconciliation verification was "
+                "found. Execution remains blocked without running reconciliation."
+            ),
+        )
+    if not is_safe_stealth_post_write_reconciliation_verification_record(
+        verification_record
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            metadata=metadata,
+            admission_decision=admission_decision,
+            source=_source_for_command_specific_prerequisite(prerequisite),
+            lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=(
+                verification_record.reconciliation_verification_id
+            ),
+            missing_reason="post_write_reconciliation_verification_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Matching post-write reconciliation verification was found but "
+                "is not safe no-live/no-mutation evidence."
+            ),
+        )
+
     return _resolver_item(
         prerequisite=prerequisite,
         metadata=metadata,
         admission_decision=admission_decision,
         source=_source_for_command_specific_prerequisite(prerequisite),
-        lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.MISSING,
+        lookup_status=StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED,
         lookup_ran=True,
-        resolved=False,
-        resolved_evidence_id=record.post_write_reconciliation_proof_id,
-        missing_reason="post_write_reconciliation_proof_not_sufficient",
-        stale_or_invalid=True,
+        resolved=True,
+        resolved_evidence_id=verification_record.reconciliation_verification_id,
         proof_lookup_authority="backend_store_read_only_no_execution",
         detail=(
-            "Latest exact-context post-write reconciliation proof was found, "
-            "but current proof records deliberately do not accept execution "
-            "journals or verify post-write reconciliation; execution remains "
-            "blocked."
+            "Exact safe post-write reconciliation proof, accepted "
+            "execution-journal evidence, and post-write reconciliation "
+            "verification were found. This resolves only prerequisite evidence; "
+            "live execution service, live adapter, manager invocation, "
+            "Coinbase calls, reconciliation execution, active-placement "
+            "cancel/replace, and state mutation boundaries remain disabled."
         ),
     )
 

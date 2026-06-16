@@ -260,7 +260,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2901-2920"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2921-2940"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -8285,17 +8285,17 @@ class AdminApiReadService:
                     "docs/examples/stealth-command-suite.md",
                 ],
                 required_next_contract=(
-                    "Future executable stealth command paths must still prove "
-                    "post-write prerequisite resolution and live adapter "
-                    "enablement; this verification route is local evidence "
-                    "only."
+                    "Future executable stealth command paths must still enable "
+                    "the live adapter and executor after the exact proof, "
+                    "journal, and verification chain resolves prerequisite "
+                    "evidence; this verification route is local evidence only."
                 ),
                 blockers=[
                     "live_execution_disabled",
-                    "post_write_reconciliation_prerequisite_unresolved",
+                    "post_write_reconciliation_executor_missing",
                     "reconciliation_execution_disabled",
                     "live_adapter_disabled",
-                    "post-write reconciliation prerequisite unsatisfied",
+                    "post-write reconciliation execution disabled",
                 ],
                 frontend_boundary=(
                     "Do not use browser verification records as command "
@@ -10020,7 +10020,6 @@ class AdminApiReadService:
         )
         missing_contracts = [
             "stealth_post_write_reconciliation_execution_executor",
-            "stealth_post_write_reconciliation_prerequisite_resolution",
         ]
         if not matching_verifications:
             missing_contracts.insert(
@@ -10074,9 +10073,11 @@ class AdminApiReadService:
             detail=(
                 "Persisted stealth post-write reconciliation proof records are "
                 "backend-owned evidence only. They record reviewed plan, "
-                "journal, and completion references but do not invoke managers, "
-                "call Coinbase, mutate lifecycle/order/exchange state, execute "
-                "reconciliation, or satisfy the execution prerequisite yet."
+                "journal, and completion references. Only the exact safe proof, "
+                "accepted journal, and verification chain may resolve "
+                "post_write_reconciliation prerequisite evidence. The readback "
+                "does not invoke managers, call Coinbase, mutate lifecycle/"
+                "order/exchange state, or execute reconciliation."
             ),
         )
 
@@ -10152,7 +10153,6 @@ class AdminApiReadService:
         )
         missing_contracts = [
             "stealth_post_write_reconciliation_execution_executor",
-            "stealth_post_write_reconciliation_prerequisite_resolution",
         ]
         if not matching_verifications:
             missing_contracts.insert(
@@ -10201,9 +10201,11 @@ class AdminApiReadService:
             detail=(
                 "Persisted stealth post-write execution-journal acceptances are "
                 "backend-owned append-only evidence only. They accept a journal "
-                "reference for a stored proof context but do not invoke managers, "
-                "call Coinbase, mutate lifecycle/order/exchange state, execute "
-                "reconciliation, or verify post-write reconciliation."
+                "reference for a stored proof context. They require a matching "
+                "verification before post_write_reconciliation prerequisite "
+                "evidence can resolve, and do not invoke managers, call "
+                "Coinbase, mutate lifecycle/order/exchange state, or execute "
+                "reconciliation."
             ),
         )
 
@@ -10274,7 +10276,6 @@ class AdminApiReadService:
         )
         missing_contracts = [
             "stealth_post_write_reconciliation_execution_executor",
-            "stealth_post_write_reconciliation_prerequisite_resolution",
         ]
         if not matching_verifications:
             missing_contracts.insert(
@@ -10322,9 +10323,11 @@ class AdminApiReadService:
             detail=(
                 "Persisted stealth post-write reconciliation verifications are "
                 "backend-owned append-only evidence only. They verify a safe "
-                "proof plus accepted journal chain but do not invoke managers, "
-                "call Coinbase, mutate lifecycle/order/exchange state, execute "
-                "reconciliation, or satisfy the full execution prerequisite."
+                "proof plus accepted journal chain and may resolve only "
+                "post_write_reconciliation prerequisite evidence. They do not "
+                "invoke managers, call Coinbase, mutate lifecycle/order/"
+                "exchange state, execute reconciliation, or satisfy live "
+                "execution service/adapter prerequisites."
             ),
         )
 
