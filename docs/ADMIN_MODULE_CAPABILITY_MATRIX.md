@@ -16,6 +16,17 @@ implicit platform model.
 | Guard / Risk Policy | Implemented as backend read-only guard/risk policy evidence and consumed by the enterprise frontend | Not a frontend command module | Not applicable | Not approved through frontend | `/api/v1/admin/guard-risk-policy` | Backend-defined policy ids, product id filter, correlation ids, and audit ids | Browser must not calculate wallet, margin, guard, profitability, or live approval authority; route does not fetch Coinbase wallets | Guard regression, Admin API contract tests, frontend release gate, contextless review |
 | Audit Workbench | Implemented as backend read-only cross-module route, command, correlation, audit, and exchange evidence | Not a frontend command module | Not applicable | Not approved through frontend | `/api/v1/admin/audit-workbench` | `client_order_id`, `stealth_order_id`, or `position_key` depending on module; exchange ids are evidence only | Browser must not mutate audit history, call Coinbase, replay commands, or treat exchange ids as tracking/cancel keys | Admin API contract tests, frontend route coverage, frontend release gate, contextless review |
 
+## Stealth Manager-Invocation Policy Note
+
+The Stealth Orders row includes manager-invocation policy evidence through
+`GET /api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy` and
+`POST /api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy-proofs`.
+The GET route is read-only backend evidence. The POST route records
+append-only local proof evidence after backend guarded-context validation. It
+does not invoke `StealthOrderManager`, call Coinbase, cancel or replace active
+placements, execute reconciliation, mutate lifecycle/order/exchange state, or
+create browser/BFF authority.
+
 ## Update Rules
 
 - Add or update a row before adding a module route or frontend module.

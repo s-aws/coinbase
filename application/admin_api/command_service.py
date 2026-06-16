@@ -60,6 +60,7 @@ from .models import (
     StealthCancelReplaceProofCommand,
     StealthCreateLifecycleWriteGuardProofCommand,
     StealthCreateCommand,
+    StealthManagerInvocationPolicyProofCommand,
     StealthMutationClaimSnapshotProofCommand,
     StealthMoveCommand,
     StealthPostWriteExecutionJournalCommand,
@@ -126,6 +127,14 @@ from .stealth_mutation_claim import (
 from .stealth_mutation_claim_service import (
     AdminApiStealthMutationClaimProofService,
     StealthMutationClaimProofError,
+)
+from .stealth_manager_policy import (
+    FileStealthManagerInvocationPolicyProofStore,
+    StealthManagerInvocationPolicyProofRecord,
+)
+from .stealth_manager_policy_service import (
+    AdminApiStealthManagerInvocationPolicyService,
+    StealthManagerInvocationPolicyError,
 )
 from .stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
@@ -250,6 +259,10 @@ class AdminApiCommandDependencies:
         [],
         FileStealthMutationClaimProofStore,
     ] = FileStealthMutationClaimProofStore
+    stealth_manager_policy_proof_store_getter: Callable[
+        [],
+        FileStealthManagerInvocationPolicyProofStore,
+    ] = FileStealthManagerInvocationPolicyProofStore
     stealth_recovery_proof_store_getter: Callable[
         [],
         FileStealthRecoveryProofStore,
@@ -297,6 +310,9 @@ class AdminApiCommandDependencies:
     stealth_mutation_claim_proof_service: (
         AdminApiStealthMutationClaimProofService
     ) = field(default_factory=AdminApiStealthMutationClaimProofService)
+    stealth_manager_policy_service: (
+        AdminApiStealthManagerInvocationPolicyService
+    ) = field(default_factory=AdminApiStealthManagerInvocationPolicyService)
     stealth_recovery_proof_service: AdminApiStealthRecoveryProofService = field(
         default_factory=AdminApiStealthRecoveryProofService
     )
@@ -718,6 +734,37 @@ def _stealth_reveal_trigger_proof_response_data(
         "trigger_evaluation_ran": False,
         "should_trigger_reveal_called": False,
         "reveal_order_slice_called": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "coinbase_order_cancel_submitted": False,
+        "active_placement_cancel_replace_ran": False,
+        "reconciliation_executed": False,
+        "order_state_mutated": False,
+        "lifecycle_state_mutated": False,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _stealth_manager_policy_proof_response_data(
+    record: StealthManagerInvocationPolicyProofRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted manager policy proof."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "proof_persisted": True,
+        "manager_policy_verified": False,
+        "manager_invocation_allowed": False,
+        "manager_invocation_ran": False,
+        "mutation_lock_policy_verified": False,
+        "exchange_reality_policy_verified": False,
         "coinbase_read_attempted": False,
         "coinbase_read_succeeded": False,
         "coinbase_rest_read_ran": False,
@@ -2632,6 +2679,127 @@ class AdminApiCommandService:
             live_exchange_submitted=False,
             data=data,
             failure_stage="proof_prerequisite",
+        )
+
+    def _rejected_stealth_manager_policy_proof_response(
+        self,
+        *,
+        command: StealthManagerInvocationPolicyProofCommand,
+        message: str,
+    ) -> AdminApiCommandResponse:
+        request = command.request
+        data: dict[str, Any] = {
+            "mutation_family": (
+                AdminApiMutationFamilyType.STEALTH_MANAGER_INVOCATION_POLICY_PROOF.value
+            ),
+            "stealth_order_id": command.stealth_order_id,
+            "manager_policy_proof_id": request.manager_policy_proof_id,
+            "guarded_command_route": request.guarded_command_route,
+            "guarded_command_method": request.guarded_command_method,
+            "guarded_service_method": request.guarded_service_method,
+            "guarded_mutation_family": request.guarded_mutation_family.value,
+            "guarded_actor_id": request.guarded_actor_id,
+            "guarded_operator_intent": request.guarded_operator_intent,
+            "guarded_idempotency_key": request.guarded_idempotency_key,
+            "guarded_payload_hash": request.guarded_payload_hash,
+            "manager_policy_ref": request.manager_policy_ref,
+            "mutation_lock_policy_ref": request.mutation_lock_policy_ref,
+            "exchange_reality_policy_ref": request.exchange_reality_policy_ref,
+            "evidence_source": request.evidence_source.value,
+            "approval_snapshot_id": request.approval_snapshot_id,
+            "admission_audit_id": request.admission_audit_id,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "dry_run": request.dry_run,
+            "operator_reason": request.operator_reason,
+            "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "proof_persisted": False,
+            "manager_policy_verified": False,
+            "manager_invocation_allowed": False,
+            "manager_invocation_ran": False,
+            "mutation_lock_policy_verified": False,
+            "exchange_reality_policy_verified": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "coinbase_rest_read_ran": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "active_placement_cancel_replace_ran": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "lifecycle_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_MANAGER_POLICY_RECORD,
+            service_method="record_stealth_manager_invocation_policy_proof",
+            message=message,
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            data=data,
+            failure_stage="proof_prerequisite",
+        )
+
+    def record_stealth_manager_invocation_policy_proof(
+        self,
+        command: StealthManagerInvocationPolicyProofCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned stealth manager-invocation policy evidence."""
+
+        if command.admission_decision is None:
+            return self._rejected_stealth_manager_policy_proof_response(
+                command=command,
+                message=(
+                    "Stealth manager-invocation policy proof admission evidence "
+                    "is missing."
+                ),
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.stealth_manager_policy_service.record_proof(
+                proof_store=deps.stealth_manager_policy_proof_store_getter(),
+                stealth_order_id=command.stealth_order_id,
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except StealthManagerInvocationPolicyError as exc:
+            return self._rejected_stealth_manager_policy_proof_response(
+                command=command,
+                message=str(exc),
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.STEALTH_MANAGER_POLICY_RECORD,
+            service_method="record_stealth_manager_invocation_policy_proof",
+            message=(
+                "Stealth manager-invocation policy proof recorded as evidence "
+                "only; no StealthOrderManager invocation, Coinbase activity, "
+                "reconciliation, or state mutation ran."
+            ),
+            stealth_order_id=record.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_stealth_manager_policy_proof_response_data(record),
         )
 
     def record_stealth_reveal_trigger_proof(

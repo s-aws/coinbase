@@ -148,6 +148,7 @@ class AdminApiPermission(str, Enum):
     STEALTH_EXCHANGE_TRUTH_RECORD = "stealth_exchange_truth:record"
     STEALTH_LIFECYCLE_WRITE_RECORD = "stealth_lifecycle_write:record"
     STEALTH_MUTATION_CLAIM_RECORD = "stealth_mutation_claim:record"
+    STEALTH_MANAGER_POLICY_RECORD = "stealth_manager_policy:record"
     STEALTH_REVEAL_TRIGGER_RECORD = "stealth_reveal_trigger:record"
     STEALTH_RECOVERY_RECORD = "stealth_recovery:record"
     STEALTH_RECONCILIATION_RECORD = "stealth_reconciliation:record"
@@ -282,6 +283,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_MUTATION_CLAIM_SNAPSHOT_PROOF = (
         "stealth_mutation_claim_snapshot_proof"
     )
+    STEALTH_MANAGER_INVOCATION_POLICY_PROOF = (
+        "stealth_manager_invocation_policy_proof"
+    )
     STEALTH_REVEAL_TRIGGER_PROOF = "stealth_reveal_trigger_proof"
     STEALTH_RECOVERY_PROOF = "stealth_recovery_proof"
     STEALTH_RECONCILIATION_PROOF = "stealth_reconciliation_proof"
@@ -314,6 +318,7 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
     LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
+    MANAGER_INVOCATION_POLICY = "manager_invocation_policy"
     REVEAL_TRIGGER_EVIDENCE = "reveal_trigger_evidence"
     RECOVERY_PROOF = "recovery_proof"
     RECONCILIATION_PROOF = "reconciliation_proof"
@@ -486,6 +491,14 @@ class StealthMutationClaimEvidenceSource(str, Enum):
     MANUAL_REVIEW = "manual_review"
     TEST_EVIDENCE = "test_evidence"
     RUNTIME_SNAPSHOT_REVIEW = "runtime_snapshot_review"
+
+
+class StealthManagerPolicyEvidenceSource(str, Enum):
+    """Source posture for stealth manager-invocation policy evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    LIFECYCLE_POLICY_REVIEW = "lifecycle_policy_review"
 
 
 class StealthRevealTriggerEvidenceSource(str, Enum):

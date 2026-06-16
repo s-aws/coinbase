@@ -2768,10 +2768,13 @@ Current backend evidence:
   backend-derived decision resolution summary over the full backend decision
   ledger. Completed phases 3241-3260 added backend-derived decision
   resolution work queue rows over each unresolved decision's first blocked
-  clearance action. Active phases 3261-3280 add backend-derived forbidden
+  clearance action. Completed phases 3261-3280 added backend-derived forbidden
   execution claim traceability that maps each forbidden claim to the backend
   decision and clearance action that keeps it blocked while keeping browser
-  and BFF authority display-only/forward-only.
+  and BFF authority display-only/forward-only. Active phases 3281-3300 add
+  backend-owned manager-invocation policy proof/readback evidence without
+  granting manager invocation, Coinbase, reconciliation, browser, or BFF
+  authority.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

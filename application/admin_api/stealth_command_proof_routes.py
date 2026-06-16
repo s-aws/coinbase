@@ -33,6 +33,35 @@ class StealthCommandProofRouteSpec:
 
 STEALTH_COMMAND_PROOF_ROUTE_SPECS: tuple[StealthCommandProofRouteSpec, ...] = (
     StealthCommandProofRouteSpec(
+        gate=AdminApiLivePreflightCategory.MANAGER_INVOCATION,
+        mutation_families=(
+            AdminApiMutationFamilyType.STEALTH_CREATE,
+            AdminApiMutationFamilyType.STEALTH_REVEAL,
+            AdminApiMutationFamilyType.STEALTH_CANCEL,
+            AdminApiMutationFamilyType.STEALTH_MOVE,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+            AdminApiMutationFamilyType.STEALTH_RECOVERY,
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+        ),
+        route=(
+            "/api/v1/stealth/orders/{stealth_order_id}/"
+            "manager-invocation-policy-proofs"
+        ),
+        required_permission=AdminApiPermission.STEALTH_MANAGER_POLICY_RECORD,
+        shared_method="record_stealth_manager_invocation_policy_proof",
+        documentation_refs=(
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/STEALTH_ORDER_READS.md",
+        ),
+        detail=(
+            "Record backend-owned manager-invocation policy evidence for the "
+            "guarded stealth command. This does not invoke StealthOrderManager, "
+            "call Coinbase, cancel or replace placements, mutate state, or "
+            "execute reconciliation."
+        ),
+    ),
+    StealthCommandProofRouteSpec(
         gate=AdminApiLivePreflightCategory.MUTATION_CLAIM,
         mutation_families=(
             AdminApiMutationFamilyType.STEALTH_MOVE,

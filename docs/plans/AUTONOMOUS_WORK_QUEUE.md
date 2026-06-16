@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3261-3280**.
+- Approved phase range: **3281-3300**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3241-3260`.
+- Previous completed range: `3261-3280`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,97 +23,115 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3261-3280
+## Active Phases 3281-3300
 
-These phases continue M55 after the backend decision resolution work queue by
+These phases continue M55 by adding backend-owned manager-invocation policy
+proof/readback for guarded stealth commands. The proof records are append-only
+local evidence that a future backend execution design may evaluate as one
+prerequisite before manager invocation can ever be considered. They must not
+invoke managers, call Coinbase, cancel or replace active placements, execute
+reconciliation, mutate state, grant browser authority, or grant BFF execution
+authority.
+
+### Phase 3281 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3261-3280 to active phases 3281-3300 while preserving no-live defaults and cap policy.
+
+### Phase 3282 - Prior Range Completion Evidence
+
+- Keep completed phases 3261-3280 recorded as forbidden execution claim traceability evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3283 - Backend Enum And Model Contract
+
+- Add the manager-policy permission, mutation family, admission evidence, evidence-source enum, request/command/readback models, and command response shape without magic strings.
+
+### Phase 3284 - Backend Proof Store
+
+- Add a durable append-only manager-invocation policy proof store keyed by `stealth_order_id` and proof id.
+
+### Phase 3285 - Backend Policy Service Guard
+
+- Validate exact guarded command context, route inventory metadata, required refs, dry-run/no-live posture, and duplicate proof ids before recording proof evidence.
+
+### Phase 3286 - Backend Command Service Integration
+
+- Route proof recording through the existing Admin API command service, admission checks, audit response shape, and no-live rejection path.
+
+### Phase 3287 - Backend Readback Integration
+
+- Expose read-only manager-invocation policy evidence through the Admin API read service and admission evidence mapping.
+
+### Phase 3288 - Route Inventory And OpenAPI
+
+- Add route inventory rows, OpenAPI paths, route exports, and proof-route metadata for the manager-policy readback and proof writer.
+
+### Phase 3289 - Backend Contract Coverage
+
+- Add regression coverage for no-live proof recording, path identity, readback, admission evidence, route inventory, and OpenAPI freshness.
+
+### Phase 3290 - Frontend Schema And Client Sync
+
+- Regenerate frontend API types and add canonical client wrappers for manager-policy readback and proof recording.
+
+### Phase 3291 - Frontend Contract Boundary
+
+- Add route coverage, BFF allowlist, mutation contract, and command capability evidence without adding browser execution authority.
+
+### Phase 3292 - Frontend Mock Runtime Sync
+
+- Add mock route keys, capability rows, populated/empty fixtures, and mock route handlers for manager-policy evidence.
+
+### Phase 3293 - Frontend Runtime Snapshot
+
+- Include manager-policy readback in the runtime snapshot and admin shell mapping without creating a command path.
+
+### Phase 3294 - Frontend Read-Model Display
+
+- Render manager-policy evidence in the stealth read model with no-manager/no-live/no-write flags visible.
+
+### Phase 3295 - Documentation And Examples
+
+- Update API, mock API, roadmap, handoff, and examples docs so contextless readers can find and reason about the manager-policy proof surface.
+
+### Phase 3296 - Focused Backend And Frontend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend API/unit/autonomous checks for manager-policy evidence.
+
+### Phase 3297 - Release And Autonomous Metadata
+
+- Update release, deployment, autonomous, and artifact-contract checks for phases 3281-3300.
+
+### Phase 3298 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why manager-policy evidence is not manager invocation authority.
+
+### Phase 3299 - Full Gates
+
+- Run backend full regression, frontend `npm run release:gate`, ownership checks, and browser availability.
+
+### Phase 3300 - Commit, Push, Pause, And No-Live Report
+
+- Commit and push both repos, report `$0` live Coinbase submitted/executed notional, and pause for the requested restart.
+
+## Completed Phases 3261-3280
+
+These phases continued M55 after the backend decision resolution work queue by
 adding backend-derived forbidden execution claim traceability. Each claim row
-must map an existing forbidden execution claim to the backend decision and
+maps an existing forbidden execution claim to the backend decision and
 clearance action that keeps the claim forbidden, plus any related first work
-queue ref. The trace and summary are read-only planning evidence only and must
+queue ref. The trace and summary are read-only planning evidence only and do
 not clear claims, write decisions, enable live service or adapter behavior,
 invoke managers, call Coinbase, cancel or replace active placements, execute
 reconciliation, mutate state, grant browser authority, or grant BFF execution
 authority.
 
-### Phase 3261 - Advance Active Queue Range
+Completion evidence:
 
-- Move the durable autonomous queue from completed phases 3241-3260 to active phases 3261-3280 while preserving no-live defaults and cap policy.
-
-### Phase 3262 - Prior Range Completion Evidence
-
-- Keep completed phases 3241-3260 recorded as backend decision resolution work queue evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3263 - Backend Claim Evidence Model
-
-- Add a typed backend forbidden-claim evidence model that names the blocked backend decision, clearance category/ref, backend contract, evidence ref, and disabled authority flags for each claim.
-
-### Phase 3264 - Backend Claim Summary Model
-
-- Add a typed backend forbidden-claim summary with counts, claims, decisions, owners, clearance refs, work queue refs, contracts, and disabled authority flags.
-
-### Phase 3265 - Claim-To-Decision Trace Map
-
-- Derive claim traces from the existing `forbidden_execution_claims`, backend decision ledger, and clearance actions without adding a resolver or second path.
-
-### Phase 3266 - Claim-To-Clearance Fidelity
-
-- Prove every claim trace points to the backend clearance action that would be required before the claim could ever be cleared.
-
-### Phase 3267 - Claim-To-Work-Queue Linkage
-
-- Link claim traces back to the existing first-blocked-action work queue for the same backend decision.
-
-### Phase 3268 - Claim No-Execution Invariants
-
-- Keep every claim forbidden, uncleared, no-live, non-executable, display-only, and forward-only.
-
-### Phase 3269 - Required OpenAPI Contract
-
-- Regenerate OpenAPI and assert claim trace rows and summary are required live-readiness evidence beside raw forbidden claims.
-
-### Phase 3270 - Backend Runtime Coverage
-
-- Assert claim trace rows and summary fields match the underlying forbidden claims, backend decisions, clearance actions, and work queue rows.
-
-### Phase 3271 - Backend Docs And Examples
-
-- Update Admin API, command workflow, stealth command-suite, roadmap, handoff, and examples docs for forbidden execution claim traceability.
-
-### Phase 3272 - Frontend Schema Sync
-
-- Regenerate frontend API types from backend OpenAPI without hand-editing generated schema.
-
-### Phase 3273 - Frontend Adapter Mapping
-
-- Map forbidden execution claim trace rows and summary into typed stealth read-model view models without deriving authority in the browser.
-
-### Phase 3274 - Frontend Mock Runtime Sync
-
-- Derive mock forbidden execution claim trace rows and summary from mock backend decision and clearance evidence.
-
-### Phase 3275 - Command Dry-Submit Display
-
-- Render forbidden execution claim traceability in dry-submit output without enabling command execution.
-
-### Phase 3276 - Stealth Read-Model Display
-
-- Render forbidden execution claim traceability in stealth read-model surfaces without enabling commands.
-
-### Phase 3277 - Frontend Unit Coverage
-
-- Update mock, dry-submit, stealth read-model, and quality tests for claim trace evidence and phase metadata.
-
-### Phase 3278 - Focused Backend And Frontend Gates
-
-- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend API/unit/autonomous checks for claim trace evidence.
-
-### Phase 3279 - Blind Contextless Reviews
-
-- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why forbidden execution claim traces are still blocked display evidence.
-
-### Phase 3280 - Full Gates, Browser Check, Commit, Push, And No-Live Report
-
-- Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+- Backend and frontend focused gates passed for forbidden execution claim traceability.
+- Backend full regression and frontend release gates passed before this range
+  moved to completed status.
+- Live Coinbase execution was not run; submitted and executed notional stayed
+  at `$0`.
 
 ## Completed Phases 3241-3260
 
