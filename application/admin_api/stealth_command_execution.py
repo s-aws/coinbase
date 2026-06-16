@@ -66,6 +66,7 @@ from .stealth_exchange_truth_boundary import (
     EXCHANGE_TRUTH_SURFACES_BY_FAMILY,
     build_stealth_active_placement_exchange_truth_contract,
 )
+from .stealth_execution_preflight import build_stealth_execution_preflight
 from .stealth_post_write_reconciliation import (
     FileStealthPostWriteExecutionJournalStore,
     FileStealthPostWriteReconciliationProofStore,
@@ -421,6 +422,12 @@ def build_stealth_command_execution_contract(
         else None
     )
 
+    execution_candidate = _build_execution_candidate(
+        metadata=metadata,
+        admission_decision=admission_decision,
+        remaining_execution_blockers=remaining_execution_blockers,
+    )
+
     return StealthCommandExecutionContractEvidence(
         mutation_family=metadata.mutation_family,
         command_route=metadata.route,
@@ -624,11 +631,8 @@ def build_stealth_command_execution_contract(
                 ),
             )
         ),
-        execution_candidate=_build_execution_candidate(
-            metadata=metadata,
-            admission_decision=admission_decision,
-            remaining_execution_blockers=remaining_execution_blockers,
-        ),
+        execution_candidate=execution_candidate,
+        execution_preflight=build_stealth_execution_preflight(execution_candidate),
         canonical_execution_path=list(metadata.manager_methods),
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,
         evidence=[

@@ -2685,6 +2685,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         stealth_command_execution_schema["properties"]
     )
     assert "execution_candidate" in stealth_command_execution_schema["properties"]
+    assert "execution_preflight" in stealth_command_execution_schema["properties"]
     assert "manager_invocation_ran" in stealth_command_execution_schema["properties"]
     assert "coinbase_order_cancel_submitted" in stealth_command_execution_schema[
         "properties"
@@ -2722,6 +2723,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         execution_contract_schema["properties"]
     )
     assert "execution_candidate" in execution_contract_schema["properties"]
+    assert "execution_preflight" in execution_contract_schema["properties"]
     assert "manager_invocation_ran" in execution_contract_schema["properties"]
     assert "stealth_row_write_ran" in execution_contract_schema["properties"]
     assert "order_parent_write_ran" in execution_contract_schema["properties"]
@@ -2746,6 +2748,16 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "canonical_execution_path" in candidate_schema["properties"]
     assert "coinbase_order_submitted" in candidate_schema["properties"]
     assert "reconciliation_executed" in candidate_schema["properties"]
+    assert "StealthExecutionPreflightEvidence" in written["components"]["schemas"]
+    preflight_schema = written["components"]["schemas"][
+        "StealthExecutionPreflightEvidence"
+    ]
+    assert "candidate_ref" in preflight_schema["properties"]
+    assert "candidate_executable" in preflight_schema["properties"]
+    assert "all_blockers_resolved" in preflight_schema["properties"]
+    assert "preflight_checks" in preflight_schema["properties"]
+    assert "coinbase_order_submitted" in preflight_schema["properties"]
+    assert "reconciliation_executed" in preflight_schema["properties"]
     assert "StealthPostWriteReconciliationCompletionVerifierEvidence" in written[
         "components"
     ]["schemas"]
@@ -4675,6 +4687,109 @@ def _assert_stealth_execution_candidate(
     assert candidate["detail"]
 
 
+def _assert_stealth_execution_preflight(
+    contract: dict,
+    *,
+    mutation_family: str,
+    route: str,
+    service_method: str,
+    identity_value: str,
+) -> None:
+    preflight = contract["execution_preflight"]
+    candidate = contract["execution_candidate"]
+    assert preflight["mutation_family"] == mutation_family
+    assert preflight["workflow_family"] == _expected_stealth_workflow_family(
+        mutation_family
+    )
+    assert preflight["command_route"] == route
+    assert preflight["command_method"] == "POST"
+    assert preflight["service_method"] == service_method
+    assert preflight["identity_key"] == "stealth_order_id"
+    assert preflight["identity_value"] == identity_value
+    assert preflight["status"] == AdminApiGateStatus.BLOCKED.value
+    assert preflight["preflight_available"] is True
+    assert preflight["preflight_authority"] == "read_only_candidate_preflight"
+    assert preflight["candidate_ref"] == "execution_candidate"
+    assert preflight["candidate_available"] is True
+    assert preflight["candidate_executable"] is False
+    assert preflight["candidate_execution_allowed"] is False
+    assert preflight["all_blockers_resolved"] is False
+    assert preflight["unresolved_blocker_count"] == (
+        candidate["unresolved_blocker_count"]
+    )
+    assert set(preflight["unresolved_blockers"]) == set(
+        candidate["unresolved_blockers"]
+    )
+    assert set(preflight["next_required_contracts"]) == set(
+        candidate["next_required_contracts"]
+    )
+    assert preflight["check_count"] == 9
+    assert preflight["blocking_check_count"] == 9
+    assert preflight["passed_check_count"] == 0
+    checks = {item["name"]: item for item in preflight["preflight_checks"]}
+    assert set(checks) == {
+        "execution_candidate",
+        "remaining_blocker_chain",
+        "live_execution_service",
+        "live_execution_adapter",
+        "manager_invocation",
+        "coinbase_exchange",
+        "post_write_reconciliation",
+        "state_mutation",
+        "browser_bff_authority",
+    }
+    assert checks["execution_candidate"]["category"] == (
+        AdminApiLivePreflightCategory.EXECUTION_CANDIDATE.value
+    )
+    assert checks["remaining_blocker_chain"]["category"] == (
+        AdminApiLivePreflightCategory.BLOCKER_CHAIN.value
+    )
+    assert checks["live_execution_adapter"]["category"] == (
+        AdminApiLivePreflightCategory.LIVE_EXECUTION_ADAPTER.value
+    )
+    assert checks["manager_invocation"]["category"] == (
+        AdminApiLivePreflightCategory.MANAGER_INVOCATION.value
+    )
+    assert checks["coinbase_exchange"]["category"] == (
+        AdminApiLivePreflightCategory.COINBASE_EXCHANGE.value
+    )
+    assert checks["state_mutation"]["category"] == (
+        AdminApiLivePreflightCategory.STATE_MUTATION.value
+    )
+    for check in checks.values():
+        assert check["status"] == AdminApiGateStatus.BLOCKED.value
+        assert check["required"] is True
+        assert check["blocking"] is True
+        assert check["owner"]
+        assert check["evidence"]
+        assert check["detail"]
+    assert preflight["backend_owned"] is True
+    assert preflight["route_bound"] is True
+    assert preflight["command_context_bound"] is True
+    assert preflight["execution_allowed"] is False
+    assert preflight["executable"] is False
+    assert preflight["live_execution_service_enabled"] is False
+    assert preflight["live_execution_adapter_executable"] is False
+    assert preflight["manager_invocation_allowed"] is False
+    assert preflight["manager_invocation_ran"] is False
+    assert preflight["coinbase_order_submit_allowed"] is False
+    assert preflight["coinbase_order_submitted"] is False
+    assert preflight["coinbase_order_cancel_allowed"] is False
+    assert preflight["coinbase_order_cancel_submitted"] is False
+    assert preflight["live_coinbase_read_allowed"] is False
+    assert preflight["live_coinbase_read_ran"] is False
+    assert preflight["active_placement_cancel_replace_allowed"] is False
+    assert preflight["active_placement_cancel_replace_ran"] is False
+    assert preflight["reconciliation_execution_allowed"] is False
+    assert preflight["reconciliation_executed"] is False
+    assert preflight["state_mutation_allowed"] is False
+    assert preflight["state_mutated"] is False
+    assert preflight["no_live_execution"] is True
+    assert preflight["browser_authority"] == "display_only"
+    assert preflight["bff_authority"] == "forward_only_no_execution"
+    assert preflight["detail"]
+
+
 def _assert_stealth_command_execution_contract(
     payload: dict,
     *,
@@ -4888,6 +5003,13 @@ def _assert_stealth_command_execution_contract(
         manager_methods=contract["manager_methods"],
         exact_command_context_present=True,
     )
+    _assert_stealth_execution_preflight(
+        contract,
+        mutation_family=mutation_family,
+        route=route,
+        service_method=service_method,
+        identity_value=identity_value,
+    )
     assert contract["execution_boundary_authority"] == (
         EXECUTION_BOUNDARY_AUTHORITY
     )
@@ -5092,6 +5214,13 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
             "core/stealth_order_manager.py::create_stealth_order"
         ],
         exact_command_context_present=True,
+    )
+    _assert_stealth_execution_preflight(
+        execution_contract,
+        mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE.value,
+        route="/api/v1/stealth/orders",
+        service_method="create_stealth_order",
+        identity_value="stealth-create-abc",
     )
     assert execution_contract["manager_invocation_allowed"] is False
     assert execution_contract["manager_invocation_ran"] is False
@@ -6734,7 +6863,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2961-2980"
+    assert readback_payload["approved_phase_range"] == "2981-3000"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -6948,7 +7077,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2961-2980"
+    assert readback_payload["approved_phase_range"] == "2981-3000"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10134,7 +10263,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2961-2980"
+    assert readback_payload["approved_phase_range"] == "2981-3000"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10349,7 +10478,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "2961-2980"
+    assert readback_payload["approved_phase_range"] == "2981-3000"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12576,7 +12705,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2961-2980"
+    assert payload["approved_phase_range"] == "2981-3000"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -14398,7 +14527,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2961-2980"
+    assert live_payload["approved_phase_range"] == "2981-3000"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -14961,7 +15090,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2961-2980"
+    assert enterprise_payload["approved_phase_range"] == "2981-3000"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -15559,7 +15688,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2961-2980"
+    assert recovery_preview_payload["approved_phase_range"] == "2981-3000"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

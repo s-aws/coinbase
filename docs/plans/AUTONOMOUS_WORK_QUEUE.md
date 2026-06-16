@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **2961-2980**.
+- Approved phase range: **2981-3000**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
@@ -55,95 +55,111 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2961-2980
+## Active Phases 2981-3000
 
-These phases continue M55 by naming the backend execution candidate that would
-run only after the remaining blocker chain is resolved. The candidate is
-planning evidence, not authority. It must be derived from existing route,
-service, manager, and blocker metadata; must report blocked/no-live posture;
-and must not enable a live service or adapter, invoke managers, call Coinbase,
-execute reconciliation, cancel/replace active placements, mutate lifecycle/
-order/exchange state, or grant browser/BFF execution authority.
+These phases continue M55 after execution-candidate evidence by exposing
+candidate-bound pre-execution preflight checks. The preflight is derived from
+the existing backend candidate and remaining blocker chain. It must remain
+blocked, no-live, backend-owned, route-bound, command-context-bound,
+display-only, and BFF forward-only. It must not enable the live service or
+adapter, invoke managers, call Coinbase, execute reconciliation, cancel or
+replace active placements, mutate lifecycle/order/exchange state, or grant
+browser/BFF execution authority.
 
-### Phase 2961 - Advance Active Queue Range
+### Phase 2981 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2941-2960 to active phases 2961-2980 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2961-2980 to active phases 2981-3000 while preserving no-live defaults and cap policy.
 
-### Phase 2962 - Prior Range Completion Evidence
+### Phase 2982 - Prior Range Completion Evidence
 
-- Record phases 2941-2960 as completed remaining-execution-blocker work with backend commit `11e026a0`, frontend commit `7e667d7`, passing gates, and `$0` live Coinbase submitted/executed notional.
+- Record phases 2961-2980 as completed execution-candidate evidence with backend commit `76d27d83`, frontend commit `5bca39c`, passing gates, blind reviews, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 2963 - Execution Candidate Model
+### Phase 2983 - Preflight Category Vocabulary
 
-- Add a typed backend execution-candidate evidence model for stealth create and non-create command execution contracts.
+- Add enum-backed candidate preflight categories for execution candidate, blocker chain, live adapter, manager invocation, Coinbase exchange, and state mutation evidence.
 
-### Phase 2964 - Non-Create Candidate Builder
+### Phase 2984 - Backend Preflight Model
 
-- Derive non-create candidates from existing stealth command route metadata, canonical manager paths, and remaining blocker-chain evidence.
+- Add a typed backend candidate preflight model nested under stealth create and non-create execution contracts.
 
-### Phase 2965 - Create Candidate Builder
+### Phase 2985 - Shared Preflight Builder
 
-- Derive the create lifecycle candidate from the existing create route, service method, manager method, and remaining blocker-chain evidence.
+- Build candidate preflight from the existing `execution_candidate` object so create and non-create stealth contracts use one code path.
 
-### Phase 2966 - Candidate Authority Flags
+### Phase 2986 - Non-Create Contract Wiring
 
-- Prove each candidate is backend-owned, route-bound, command-context-bound, display-only, BFF forward-only, non-executable, and no-live.
+- Attach blocked candidate preflight to reveal, cancel, move, recovery, reconciliation, and reprice execution contracts.
 
-### Phase 2967 - Blocker Binding
+### Phase 2987 - Create Contract Wiring
 
-- Bind every candidate to unresolved blocker values and next-required contracts so no candidate can appear executable while any blocker remains.
+- Attach blocked candidate preflight to the stealth create lifecycle-write execution contract.
 
-### Phase 2968 - Backend Contract Tests
+### Phase 2988 - Preflight Authority Flags
 
-- Add regression coverage for create, reveal, cancel, move, recovery, reconciliation, and reprice candidates without executing managers or Coinbase paths.
+- Prove candidate preflight is backend-owned, route-bound, command-context-bound, display-only, BFF forward-only, non-executable, and no-live.
 
-### Phase 2969 - Backend OpenAPI Sync
+### Phase 2989 - Blocker And Next-Contract Binding
 
-- Regenerate backend OpenAPI and assert candidate fields are part of the Admin API contract.
+- Bind candidate preflight to unresolved blocker values and next-required contracts from the candidate evidence.
 
-### Phase 2970 - Frontend Schema Sync
+### Phase 2990 - Backend OpenAPI And Regression Coverage
+
+- Regenerate backend OpenAPI and assert preflight fields are part of the Admin API contract for create and non-create stealth command families.
+
+### Phase 2991 - Frontend Schema Sync
 
 - Regenerate frontend API types from the backend OpenAPI artifact without hand-editing generated files.
 
-### Phase 2971 - Frontend Mock Runtime Intake
+### Phase 2992 - Frontend Mock Runtime Intake
 
-- Update frontend mock/runtime fixtures so exact command responses expose candidate evidence without enabling command execution.
+- Update frontend mock/runtime fixtures so exact command responses expose blocked candidate preflight evidence without enabling command execution.
 
-### Phase 2972 - Command Dry-Submit Display
+### Phase 2993 - Command Dry-Submit Display
 
-- Render or preserve execution-candidate evidence in command dry-submit surfaces as backend evidence only.
+- Render or preserve candidate preflight rows in command dry-submit evidence as backend evidence only.
 
-### Phase 2973 - Stealth Read-Model Display
+### Phase 2994 - Stealth Read-Model Display
 
-- Render or preserve execution-candidate evidence in stealth read-model surfaces without enabling command execution.
+- Render or preserve candidate preflight evidence in stealth read-model surfaces without enabling command execution.
 
-### Phase 2974 - Quality Artifact Sync
+### Phase 2995 - Quality Artifact Sync
 
-- Update release, deployment, autonomous, and artifact-contract checks for phase range 2961-2980 and no-live posture.
+- Update release, deployment, autonomous, and artifact-contract checks for phase range 2981-3000 and no-live posture.
 
-### Phase 2975 - Documentation And Examples
+### Phase 2996 - Documentation And Examples
 
-- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for execution-candidate semantics.
+- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for candidate preflight semantics.
 
-### Phase 2976 - Stale Range Scan
+### Phase 2997 - Stale Authority Scan
 
-- Search both repos for stale active-range and misleading candidate/blocker wording that would imply execution authority.
+- Search both repos for stale active-range and misleading preflight/candidate wording that would imply execution authority.
 
-### Phase 2977 - Focused Backend Gates
+### Phase 2998 - Focused Backend And Frontend Gates
 
-- Run backend focused Admin API, OpenAPI, and autonomous queue checks.
+- Run focused backend Admin API/OpenAPI/autonomous checks and focused frontend unit/API/autonomous/quality checks.
 
-### Phase 2978 - Focused Frontend Gates
+### Phase 2999 - Blind Contextless Reviews
 
-- Run focused frontend unit, API, autonomous, and quality checks for candidate display and phase metadata.
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why candidate preflight is blocked evidence only.
 
-### Phase 2979 - Blind Contextless Reviews
-
-- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why execution candidates are still blocked planning evidence.
-
-### Phase 2980 - Full Gates, Commit, Push, And Continue
+### Phase 3000 - Full Gates, Commit, Push, And Continue
 
 - Run backend full regression, frontend `npm run release:gate`, autonomous checks, ownership checks, blind/contextless remediation, and synchronized commit/push with `$0` live Coinbase submitted/executed notional; then continue only if the next milestone-linked batch is unblocked.
+
+## Completed Phases 2961-2980
+
+These phases exposed typed execution-candidate evidence that names the future
+backend path while remaining blocked, no-live, backend-owned, display-only,
+and bound to the unresolved blocker chain.
+
+Completion evidence:
+
+- Backend commit `76d27d83` and frontend commit `5bca39c` were pushed.
+- Backend full regression passed with `853` tests and `1` warning.
+- Frontend `npm run release:gate` passed.
+- Backend and frontend blind/contextless reviews found no blockers.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 2941-2960
 

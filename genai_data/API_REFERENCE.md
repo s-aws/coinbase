@@ -168,6 +168,18 @@ Current behavior:
   active-placement cancel/replace, reconciliation execution, and state
   mutation disabled. A resolved exact post-write chain removes only the
   `post_write_reconciliation_missing` blocker.
+- Exact stealth create and non-create command responses may expose
+  `execution_candidate` and `execution_preflight`. `execution_candidate`
+  names the future backend manager path and unresolved blocker chain as
+  blocked planning evidence. `execution_preflight` is derived from that
+  candidate and reports blocked checks for candidate readiness, remaining
+  blockers, live service, live adapter, manager invocation, Coinbase exchange
+  actions, post-write reconciliation, state mutation, and browser/BFF
+  authority. These fields are read-only evidence only: they do not construct
+  an executable adapter, invoke `StealthOrderManager`, call Coinbase,
+  cancel/replace active placements, execute reconciliation, mutate
+  lifecycle/order/exchange state, approve browser actions, or grant BFF
+  execution authority.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

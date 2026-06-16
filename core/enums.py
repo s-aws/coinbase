@@ -604,6 +604,12 @@ class AdminApiLivePreflightCategory(str, Enum):
     REVEAL_TRIGGER = "reveal_trigger"
     RECOVERY_PROOF = "recovery_proof"
     RECONCILIATION_PROOF = "reconciliation_proof"
+    EXECUTION_CANDIDATE = "execution_candidate"
+    BLOCKER_CHAIN = "blocker_chain"
+    LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
+    MANAGER_INVOCATION = "manager_invocation"
+    COINBASE_EXCHANGE = "coinbase_exchange"
+    STATE_MUTATION = "state_mutation"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     BROWSER_AUTHORITY = "browser_authority"
 

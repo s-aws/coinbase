@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2961-2980",
+  "approved_phase_range": "2981-3000",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -385,6 +385,58 @@ blocked even when exact command-envelope context is present:
       "canonical_execution_path": [
         "core/stealth_order_manager.py::cancel_stealth_order",
         "bridges/stealth_order_bridge.py::cancel_stealth_order"
+      ],
+      "manager_invocation_ran": false,
+      "coinbase_order_submitted": false,
+      "coinbase_order_cancel_submitted": false,
+      "live_coinbase_read_ran": false,
+      "reconciliation_executed": false,
+      "state_mutated": false,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "no_live_execution": true
+    },
+    "execution_preflight": {
+      "mutation_family": "stealth_cancel",
+      "workflow_family": "stealth_cancel_exchange_handling",
+      "command_route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+      "command_method": "POST",
+      "service_method": "cancel_stealth_order_by_stealth_order_id",
+      "identity_key": "stealth_order_id",
+      "identity_value": "stealth-123",
+      "status": "blocked",
+      "preflight_available": true,
+      "preflight_authority": "read_only_candidate_preflight",
+      "candidate_ref": "execution_candidate",
+      "candidate_executable": false,
+      "candidate_execution_allowed": false,
+      "all_blockers_resolved": false,
+      "unresolved_blocker_count": 13,
+      "check_count": 9,
+      "blocking_check_count": 9,
+      "passed_check_count": 0,
+      "preflight_checks": [
+        {
+          "name": "execution_candidate",
+          "category": "execution_candidate",
+          "status": "blocked",
+          "blocking": true,
+          "owner": "admin_api_contract"
+        },
+        {
+          "name": "live_execution_adapter",
+          "category": "live_execution_adapter",
+          "status": "blocked",
+          "blocking": true,
+          "owner": "admin_api_contract"
+        },
+        {
+          "name": "coinbase_exchange",
+          "category": "coinbase_exchange",
+          "status": "blocked",
+          "blocking": true,
+          "owner": "exchange_integration"
+        }
       ],
       "manager_invocation_ran": false,
       "coinbase_order_submitted": false,

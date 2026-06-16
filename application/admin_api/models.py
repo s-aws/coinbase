@@ -5909,6 +5909,60 @@ class StealthExecutionCandidateEvidence(BaseModel):
     detail: str
 
 
+class StealthExecutionPreflightEvidence(BaseModel):
+    """Candidate-bound pre-execution checks for stealth command evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    workflow_family: AdminApiStealthCommandSuiteGapFamily
+    command_route: str
+    command_method: str = "POST"
+    service_method: str
+    identity_key: str = "stealth_order_id"
+    identity_value: str | None = None
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    preflight_available: bool = True
+    preflight_authority: str = "read_only_candidate_preflight"
+    candidate_ref: str = "execution_candidate"
+    candidate_available: bool = True
+    candidate_executable: bool = False
+    candidate_execution_allowed: bool = False
+    all_blockers_resolved: bool = False
+    unresolved_blocker_count: int = Field(default=0, ge=0)
+    unresolved_blockers: list[str] = Field(default_factory=list)
+    next_required_contracts: list[str] = Field(default_factory=list)
+    check_count: int = Field(default=0, ge=0)
+    blocking_check_count: int = Field(default=0, ge=0)
+    passed_check_count: int = Field(default=0, ge=0)
+    preflight_checks: list[AdminLivePreflightCheckItem] = Field(default_factory=list)
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    execution_allowed: bool = False
+    executable: bool = False
+    live_execution_service_enabled: bool = False
+    live_execution_adapter_executable: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    coinbase_order_submit_allowed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_allowed: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    state_mutation_allowed: bool = False
+    state_mutated: bool = False
+    no_live_execution: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthCommandExecutionContractEvidence(BaseModel):
     """No-live execution posture evidence for non-create stealth commands."""
 
@@ -6007,6 +6061,7 @@ class StealthCommandExecutionContractEvidence(BaseModel):
         StealthPostWriteReconciliationCompletionVerifierEvidence | None
     ) = None
     execution_candidate: StealthExecutionCandidateEvidence | None = None
+    execution_preflight: StealthExecutionPreflightEvidence | None = None
     canonical_execution_path: list[str] = Field(default_factory=list)
     execution_boundary_authority: str = "backend_contract_only_no_execution"
     manager_invocation_allowed: bool = False
@@ -6216,6 +6271,7 @@ class StealthCreateLifecycleWriteExecutionContractEvidence(BaseModel):
         StealthPostWriteReconciliationCompletionVerifierEvidence | None
     ) = None
     execution_candidate: StealthExecutionCandidateEvidence | None = None
+    execution_preflight: StealthExecutionPreflightEvidence | None = None
     canonical_execution_path: list[str] = Field(default_factory=list)
     execution_boundary_authority: str = "backend_contract_only_no_execution"
     manager_invocation_allowed: bool = False
