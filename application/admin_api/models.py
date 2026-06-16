@@ -6680,6 +6680,34 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     resolution_allowed: bool
     resolution_resolved: bool
     resolution_artifacts: list[str]
+    resolved_resolution_artifacts: list[str] = Field(
+        description=(
+            "Evidence-only policy artifacts proven by prerequisite lookups. "
+            "These artifacts remove the matching artifact from the missing "
+            "evidence list but do not resolve the backend decision or enable "
+            "live execution."
+        )
+    )
+    resolved_resolution_evidence_ids: list[str] = Field(
+        description=(
+            "Evidence-only prerequisite proof ids for resolved policy "
+            "artifacts. Proof ids are audit evidence and are not execution "
+            "authorization."
+        )
+    )
+    resolved_resolution_sources: list[str] = Field(
+        description=(
+            "Evidence-only backend proof-store sources for resolved policy "
+            "artifacts. Sources are display and audit context only."
+        )
+    )
+    resolution_evidence_present: bool = Field(
+        description=(
+            "True when prerequisite evidence exists for at least one policy "
+            "artifact. This does not make the backend decision resolved and "
+            "does not enable live execution."
+        )
+    )
     missing_resolution_artifacts: list[str]
     resolution_contract_refs: list[str]
     resolution_evidence_refs: list[str]

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from core.enums import (
     AdminApiGateStatus,
     AdminApiLivePreflightCategory,
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
+    StealthCommandExecutionPrerequisite,
+    StealthCreateLifecycleExecutionPrerequisite,
 )
 
 from .models import (
@@ -38,6 +42,41 @@ _STEALTH_LIVE_READINESS_DECISIONS = [
     AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY,
     AdminApiStealthLiveReadinessDecision.STATE_MUTATION_POLICY,
 ]
+
+
+@dataclass(frozen=True)
+class _ResolvedDecisionArtifact:
+    artifact: str
+    evidence_id: str
+    source: str
+
+
+_PREREQUISITE_DECISION_ARTIFACTS = {
+    StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.MANAGER_INVOCATION_POLICY,
+        "stealth_manager_invocation_policy",
+    ),
+    StealthCommandExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.MANAGER_INVOCATION_POLICY,
+        "stealth_manager_invocation_policy",
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY,
+        "coinbase_exchange_submission_policy",
+    ),
+    StealthCommandExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY,
+        "coinbase_exchange_submission_policy",
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY,
+        "post_write_reconciliation_execution_policy",
+    ),
+    StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY,
+        "post_write_reconciliation_execution_policy",
+    ),
+}
 
 _FORBIDDEN_EXECUTION_CLAIMS = [
     "frontend_approval_as_authority",
@@ -683,6 +722,7 @@ def build_stealth_execution_transition_barrier(
 
 def build_stealth_execution_live_readiness(
     barrier: StealthExecutionTransitionBarrierEvidence,
+    prerequisite_resolution: list[object] | None = None,
 ) -> StealthExecutionLiveReadinessEvidence:
     """Build blocked M55 live-readiness closure from the transition barrier."""
 
@@ -703,7 +743,14 @@ def build_stealth_execution_live_readiness(
         for blocker in handoff_blockers
         if blocker in category_by_blocker
     ]
-    backend_decisions = _build_stealth_live_readiness_decisions()
+    resolved_artifacts_by_decision = (
+        _resolved_decision_artifacts_from_prerequisites(
+            prerequisite_resolution or []
+        )
+    )
+    backend_decisions = _build_stealth_live_readiness_decisions(
+        resolved_artifacts_by_decision
+    )
     backend_decision_resolution_summary = (
         _build_backend_decision_resolution_summary(backend_decisions)
     )
@@ -1155,12 +1202,57 @@ def _build_backend_decision_resolution_summary(
     )
 
 
-def _build_stealth_live_readiness_decisions() -> list[
+def _resolved_decision_artifacts_from_prerequisites(
+    prerequisite_resolution: list[object],
+) -> dict[
+    AdminApiStealthLiveReadinessDecision,
+    list[_ResolvedDecisionArtifact],
+]:
+    resolved_by_decision: dict[
+        AdminApiStealthLiveReadinessDecision,
+        list[_ResolvedDecisionArtifact],
+    ] = {}
+    for item in prerequisite_resolution:
+        prerequisite = getattr(item, "prerequisite", None)
+        prerequisite_value = getattr(prerequisite, "value", prerequisite)
+        mapping = _PREREQUISITE_DECISION_ARTIFACTS.get(prerequisite_value)
+        if mapping is None or not bool(getattr(item, "resolved", False)):
+            continue
+        evidence_id = getattr(item, "resolved_evidence_id", None)
+        if not evidence_id:
+            continue
+        decision, artifact = mapping
+        resolved_by_decision.setdefault(decision, []).append(
+            _ResolvedDecisionArtifact(
+                artifact=artifact,
+                evidence_id=evidence_id,
+                source=str(getattr(item, "source", "prerequisite_resolution")),
+            )
+        )
+    return resolved_by_decision
+
+
+def _build_stealth_live_readiness_decisions(
+    resolved_artifacts_by_decision: dict[
+        AdminApiStealthLiveReadinessDecision,
+        list[_ResolvedDecisionArtifact],
+    ]
+) -> list[
     StealthExecutionBackendDecisionEvidence
 ]:
     decisions = []
     for decision in _STEALTH_LIVE_READINESS_DECISIONS:
         metadata = _STEALTH_LIVE_READINESS_DECISION_METADATA[decision]
+        resolved_artifacts = resolved_artifacts_by_decision.get(decision, [])
+        resolved_artifact_names = {
+            item.artifact for item in resolved_artifacts
+        }
+        resolution_artifacts = list(metadata["resolution_artifacts"])
+        missing_resolution_artifacts = [
+            artifact
+            for artifact in resolution_artifacts
+            if artifact not in resolved_artifact_names
+        ]
         resolution_readiness_items = _build_decision_resolution_readiness_items(
             metadata
         )
@@ -1179,8 +1271,20 @@ def _build_stealth_live_readiness_decisions() -> list[
                 resolution_required=True,
                 resolution_allowed=False,
                 resolution_resolved=False,
-                resolution_artifacts=metadata["resolution_artifacts"],
-                missing_resolution_artifacts=metadata["resolution_artifacts"],
+                resolution_artifacts=resolution_artifacts,
+                resolved_resolution_artifacts=[
+                    artifact
+                    for artifact in resolution_artifacts
+                    if artifact in resolved_artifact_names
+                ],
+                resolved_resolution_evidence_ids=list(
+                    dict.fromkeys(item.evidence_id for item in resolved_artifacts)
+                ),
+                resolved_resolution_sources=list(
+                    dict.fromkeys(item.source for item in resolved_artifacts)
+                ),
+                resolution_evidence_present=bool(resolved_artifacts),
+                missing_resolution_artifacts=missing_resolution_artifacts,
                 resolution_contract_refs=metadata["resolution_contract_refs"],
                 resolution_evidence_refs=metadata["resolution_evidence_refs"],
                 resolver_allowed=False,

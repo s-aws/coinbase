@@ -712,7 +712,8 @@ def build_stealth_command_execution_contract(
         execution_preflight=execution_preflight,
         execution_transition_barrier=execution_transition_barrier,
         execution_live_readiness=build_stealth_execution_live_readiness(
-            execution_transition_barrier
+            execution_transition_barrier,
+            prerequisite_resolution=resolution,
         ),
         canonical_execution_path=list(metadata.manager_methods),
         execution_boundary_authority=EXECUTION_BOUNDARY_AUTHORITY,

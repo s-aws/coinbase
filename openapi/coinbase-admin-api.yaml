@@ -25320,6 +25320,34 @@ components:
             type: string
           type: array
           title: Resolution Artifacts
+        resolved_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Resolved Resolution Artifacts
+          description: Evidence-only policy artifacts proven by prerequisite lookups.
+            These artifacts remove the matching artifact from the missing evidence
+            list but do not resolve the backend decision or enable live execution.
+        resolved_resolution_evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Resolved Resolution Evidence Ids
+          description: Evidence-only prerequisite proof ids for resolved policy artifacts.
+            Proof ids are audit evidence and are not execution authorization.
+        resolved_resolution_sources:
+          items:
+            type: string
+          type: array
+          title: Resolved Resolution Sources
+          description: Evidence-only backend proof-store sources for resolved policy
+            artifacts. Sources are display and audit context only.
+        resolution_evidence_present:
+          type: boolean
+          title: Resolution Evidence Present
+          description: True when prerequisite evidence exists for at least one policy
+            artifact. This does not make the backend decision resolved and does not
+            enable live execution.
         missing_resolution_artifacts:
           items:
             type: string
@@ -25492,6 +25520,10 @@ components:
       - resolution_allowed
       - resolution_resolved
       - resolution_artifacts
+      - resolved_resolution_artifacts
+      - resolved_resolution_evidence_ids
+      - resolved_resolution_sources
+      - resolution_evidence_present
       - missing_resolution_artifacts
       - resolution_contract_refs
       - resolution_evidence_refs

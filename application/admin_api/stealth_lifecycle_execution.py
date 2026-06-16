@@ -423,7 +423,8 @@ def build_stealth_create_lifecycle_write_execution_contract(
         execution_preflight=execution_preflight,
         execution_transition_barrier=execution_transition_barrier,
         execution_live_readiness=build_stealth_execution_live_readiness(
-            execution_transition_barrier
+            execution_transition_barrier,
+            prerequisite_resolution=resolution,
         ),
         canonical_execution_path=[
             STEALTH_CREATE_MANAGER_METHOD

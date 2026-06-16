@@ -2784,14 +2784,19 @@ Current backend evidence:
   reconciliation execution-policy proof/readback evidence without granting
   reconciliation execution, Coinbase activity, manager invocation,
   active-placement cancel/replace, state mutation, browser, or BFF authority.
-  Active phases 3361-3380 consume Coinbase exchange submission-policy and
+  Completed phases 3361-3380 consume Coinbase exchange submission-policy and
   post-write reconciliation execution-policy proof/readback records as
   exact-command prerequisite resolver evidence only, without granting
   Coinbase activity, manager invocation, reconciliation execution,
   active-placement cancel/replace, state mutation, browser, or BFF authority.
   Resolver lookups use the newest exact-command policy proof row, ignore newer
   rows for other guarded command contexts, and block on a newer unsafe
-  exact-command row.
+  exact-command row. Active phases 3381-3400 consume those resolver rows
+  inside `execution_live_readiness` decision artifact evidence. Resolved
+  artifacts, evidence ids, and sources are display/backend evidence only;
+  backend decisions remain blocked and live execution, Coinbase, manager,
+  reconciliation, active-placement, state mutation, browser, and BFF authority
+  remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

@@ -3306,6 +3306,19 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "resolution_allowed" in backend_decision_schema["properties"]
     assert "resolution_resolved" in backend_decision_schema["properties"]
     assert "resolution_artifacts" in backend_decision_schema["properties"]
+    assert "resolved_resolution_artifacts" in backend_decision_schema["properties"]
+    assert (
+        "resolved_resolution_evidence_ids"
+        in backend_decision_schema["properties"]
+    )
+    assert "resolved_resolution_sources" in backend_decision_schema["properties"]
+    assert "resolution_evidence_present" in backend_decision_schema["properties"]
+    assert "Evidence-only" in backend_decision_schema["properties"][
+        "resolved_resolution_artifacts"
+    ]["description"]
+    assert "does not enable live execution" in backend_decision_schema[
+        "properties"
+    ]["resolution_evidence_present"]["description"]
     assert "missing_resolution_artifacts" in backend_decision_schema["properties"]
     assert "resolution_contract_refs" in backend_decision_schema["properties"]
     assert "resolution_evidence_refs" in backend_decision_schema["properties"]
@@ -3455,6 +3468,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "resolution_allowed",
         "resolution_resolved",
         "resolution_artifacts",
+        "resolved_resolution_artifacts",
+        "resolved_resolution_evidence_ids",
+        "resolved_resolution_sources",
+        "resolution_evidence_present",
         "missing_resolution_artifacts",
         "resolution_contract_refs",
         "resolution_evidence_refs",
@@ -5830,6 +5847,10 @@ def _assert_stealth_execution_live_readiness(
         assert decision["resolution_allowed"] is False
         assert decision["resolution_resolved"] is False
         assert decision["resolution_artifacts"]
+        assert decision["resolved_resolution_artifacts"] == []
+        assert decision["resolved_resolution_evidence_ids"] == []
+        assert decision["resolved_resolution_sources"] == []
+        assert decision["resolution_evidence_present"] is False
         assert decision["missing_resolution_artifacts"] == decision[
             "resolution_artifacts"
         ]
@@ -8225,6 +8246,40 @@ def test_admin_api_stealth_create_execution_policy_resolvers_use_latest_exact_co
     assert post_write_policy["resolved_evidence_id"] == (
         "post-write-policy-proof-create-exact-safe"
     )
+    live_readiness = contract["execution_live_readiness"]
+    live_decisions = {
+        row["decision"]: row for row in live_readiness["backend_decisions"]
+    }
+    coinbase_decision = live_decisions[
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert coinbase_decision["resolved_resolution_artifacts"] == [
+        "coinbase_exchange_submission_policy"
+    ]
+    assert coinbase_decision["resolved_resolution_evidence_ids"] == [
+        "coinbase-policy-proof-create-exact-safe"
+    ]
+    assert coinbase_decision["resolution_evidence_present"] is True
+    assert "coinbase_exchange_submission_policy" not in (
+        coinbase_decision["missing_resolution_artifacts"]
+    )
+    assert coinbase_decision["resolved"] is False
+    assert coinbase_decision["live_execution_allowed"] is False
+    post_write_decision = live_decisions[
+        AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert post_write_decision["resolved_resolution_artifacts"] == [
+        "post_write_reconciliation_execution_policy"
+    ]
+    assert post_write_decision["resolved_resolution_evidence_ids"] == [
+        "post-write-policy-proof-create-exact-safe"
+    ]
+    assert post_write_decision["resolution_evidence_present"] is True
+    assert "post_write_reconciliation_execution_policy" not in (
+        post_write_decision["missing_resolution_artifacts"]
+    )
+    assert post_write_decision["resolved"] is False
+    assert post_write_decision["reconciliation_execution_allowed"] is False
     assert contract["execution_allowed"] is False
     assert contract["coinbase_order_submit_ran"] is False
     assert contract["live_coinbase_read_ran"] is False
@@ -8383,6 +8438,16 @@ def test_admin_api_stealth_create_execution_policy_resolvers_block_unsafe_exact_
         "post_write_reconciliation_execution_policy_proof_not_safe"
     )
     assert post_write_policy["stale_or_invalid"] is True
+    live_decisions = {
+        row["decision"]: row
+        for row in contract["execution_live_readiness"]["backend_decisions"]
+    }
+    assert live_decisions[
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]["resolved_resolution_artifacts"] == []
+    assert live_decisions[
+        AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]["resolved_resolution_artifacts"] == []
     assert contract["execution_allowed"] is False
     assert contract["coinbase_order_submit_ran"] is False
     assert contract["live_coinbase_read_ran"] is False
@@ -9326,7 +9391,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3361-3380"
+    assert readback_payload["approved_phase_range"] == "3381-3400"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9553,7 +9618,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3361-3380"
+    assert readback_payload["approved_phase_range"] == "3381-3400"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -9812,7 +9877,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3361-3380"
+    assert readback_payload["approved_phase_range"] == "3381-3400"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -10037,7 +10102,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3361-3380"
+    assert readback_payload["approved_phase_range"] == "3381-3400"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10198,6 +10263,29 @@ def test_admin_api_stealth_execution_contract_resolves_manager_policy_proof(
     assert manager_policy_row["proof_lookup_authority"] == (
         "backend_store_read_only_no_execution"
     )
+    live_decisions = {
+        row["decision"]: row
+        for row in contract["execution_live_readiness"]["backend_decisions"]
+    }
+    manager_policy_decision = live_decisions[
+        AdminApiStealthLiveReadinessDecision.MANAGER_INVOCATION_POLICY.value
+    ]
+    assert manager_policy_decision["resolved_resolution_artifacts"] == [
+        "stealth_manager_invocation_policy"
+    ]
+    assert manager_policy_decision["resolved_resolution_evidence_ids"] == [
+        "stealth-manager-policy-exec-proof-001"
+    ]
+    assert manager_policy_decision["resolved_resolution_sources"] == [
+        "admin_api_stealth_manager_invocation_policy_log"
+    ]
+    assert manager_policy_decision["resolution_evidence_present"] is True
+    assert "stealth_manager_invocation_policy" not in (
+        manager_policy_decision["missing_resolution_artifacts"]
+    )
+    assert manager_policy_decision["resolved"] is False
+    assert manager_policy_decision["manager_invocation_allowed"] is False
+    assert manager_policy_decision["live_execution_allowed"] is False
     assert contract["manager_invocation_allowed"] is False
     assert contract["manager_invocation_ran"] is False
     assert contract["coinbase_order_submitted"] is False
@@ -10298,6 +10386,15 @@ def test_admin_api_stealth_execution_contract_resolves_manager_policy_proof(
     assert unsafe_manager_policy_row["proof_lookup_authority"] == (
         "backend_store_read_only_no_execution"
     )
+    unsafe_live_decisions = {
+        row["decision"]: row
+        for row in unsafe_contract["execution_live_readiness"][
+            "backend_decisions"
+        ]
+    }
+    assert unsafe_live_decisions[
+        AdminApiStealthLiveReadinessDecision.MANAGER_INVOCATION_POLICY.value
+    ]["resolved_resolution_artifacts"] == []
     assert unsafe_contract["manager_invocation_allowed"] is False
     assert unsafe_contract["manager_invocation_ran"] is False
     assert unsafe_contract["coinbase_order_submitted"] is False
@@ -10441,6 +10538,34 @@ def test_admin_api_stealth_command_execution_policy_resolvers_use_latest_exact_c
     assert post_write_policy["resolved_evidence_id"] == (
         "post-write-policy-proof-command-exact-safe"
     )
+    live_decisions = {
+        row["decision"]: row
+        for row in contract["execution_live_readiness"]["backend_decisions"]
+    }
+    coinbase_decision = live_decisions[
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]
+    assert coinbase_decision["resolved_resolution_artifacts"] == [
+        "coinbase_exchange_submission_policy"
+    ]
+    assert coinbase_decision["resolved_resolution_evidence_ids"] == [
+        "coinbase-policy-proof-command-exact-safe"
+    ]
+    assert coinbase_decision["resolution_evidence_present"] is True
+    assert coinbase_decision["resolved"] is False
+    assert coinbase_decision["live_execution_allowed"] is False
+    post_write_decision = live_decisions[
+        AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]
+    assert post_write_decision["resolved_resolution_artifacts"] == [
+        "post_write_reconciliation_execution_policy"
+    ]
+    assert post_write_decision["resolved_resolution_evidence_ids"] == [
+        "post-write-policy-proof-command-exact-safe"
+    ]
+    assert post_write_decision["resolution_evidence_present"] is True
+    assert post_write_decision["resolved"] is False
+    assert post_write_decision["reconciliation_execution_allowed"] is False
     assert contract["execution_allowed"] is False
     assert contract["coinbase_order_submitted"] is False
     assert contract["coinbase_order_cancel_submitted"] is False
@@ -10584,6 +10709,16 @@ def test_admin_api_stealth_command_execution_policy_resolvers_use_latest_exact_c
         "post_write_reconciliation_execution_policy_proof_not_safe"
     )
     assert unsafe_post_write_policy["stale_or_invalid"] is True
+    unsafe_live_decisions = {
+        row["decision"]: row
+        for row in unsafe_contract["execution_live_readiness"]["backend_decisions"]
+    }
+    assert unsafe_live_decisions[
+        AdminApiStealthLiveReadinessDecision.COINBASE_EXCHANGE_SUBMISSION_POLICY.value
+    ]["resolved_resolution_artifacts"] == []
+    assert unsafe_live_decisions[
+        AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value
+    ]["resolved_resolution_artifacts"] == []
     assert unsafe_contract["execution_allowed"] is False
     assert unsafe_contract["coinbase_order_submitted"] is False
     assert unsafe_contract["coinbase_order_cancel_submitted"] is False
@@ -10760,7 +10895,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3361-3380"
+    assert readback_payload["approved_phase_range"] == "3381-3400"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -13949,7 +14084,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3361-3380"
+    assert readback_payload["approved_phase_range"] == "3381-3400"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -14164,7 +14299,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3361-3380"
+    assert readback_payload["approved_phase_range"] == "3381-3400"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -16394,7 +16529,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3361-3380"
+    assert payload["approved_phase_range"] == "3381-3400"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -18222,7 +18357,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3361-3380"
+    assert live_payload["approved_phase_range"] == "3381-3400"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -18785,7 +18920,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3361-3380"
+    assert enterprise_payload["approved_phase_range"] == "3381-3400"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -19456,7 +19591,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3361-3380"
+    assert recovery_preview_payload["approved_phase_range"] == "3381-3400"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
