@@ -394,6 +394,12 @@ matrix over those plan-step, dependency, and verification-gate strings. Each
 item is blocked, unresolved, backend-owned, route-bound, command-context-bound,
 no-live, browser `display_only`, BFF `forward_only_no_execution`, and has
 `execution_allowed=false` plus `executed=false`.
+The rows also expose `resolution_readiness_summary`, a backend-derived
+aggregate over that matrix with total/blocked/resolved/type counts,
+first-blocking item, missing reasons, summary authority, and disabled
+execution/resolver/writer flags. The summary is read-only evidence and must
+not become a browser evaluator, decision resolver, plan executor, Coinbase
+path, reconciliation executor, or BFF execution authority.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

@@ -402,6 +402,11 @@ resolver work; they are not an executable plan. They must not become a browser
 gate evaluator, decision resolver, decision writer, manager invocation path,
 Coinbase call, cancel/replace path, reconciliation executor, local state
 mutation, M55 completion authority, or BFF execution authority.
+The decision rows also expose `resolution_readiness_summary`, which aggregates
+the matrix into backend-owned total, blocked, resolved, type-count,
+first-blocker, missing-reason, and no-execution evidence. The summary is for
+operator orientation only and must not become a browser-computed readiness
+gate or BFF execution path.
 The contract also exposes `resolved_prerequisites`,
 `prerequisite_resolver_lookup_ran`, `prerequisite_resolver_authority`, and
 `prerequisite_resolution` rows. Those rows are backend-owned read evidence

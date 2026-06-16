@@ -192,6 +192,13 @@ Current behavior:
   manager invocation path, Coinbase submit/cancel/read path, reconciliation
   executor, state mutation path, browser authority, or BFF execution
   authority.
+- The same backend decision rows expose
+  `execution_live_readiness.backend_decisions[].resolution_readiness_summary`.
+  This is a backend-derived aggregate over the readiness items with item
+  counts, type counts, first-blocking item, missing reasons, summary
+  authority, and disabled execution/resolver/writer flags. It is not a
+  resolver, writer, plan executor, Coinbase path, reconciliation executor,
+  browser evaluator, or BFF execution authority.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

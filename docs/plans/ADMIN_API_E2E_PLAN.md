@@ -38,7 +38,98 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Decision Resolution Readiness Matrix Batch - Phases 3101-3120
+## Active M55 Decision Resolution Readiness Summary Batch - Phases 3121-3140
+
+These phases continue M55 after the decision-resolution readiness matrix by
+adding a backend-derived readiness summary for each blocked decision row. The
+summary aggregates readiness item counts, first-blocking item, missing
+reasons, authority, and no-execution flags from the existing matrix. It must
+remain read-only display evidence and must not add a decision resolver,
+decision writer, plan executor, live adapter, manager invocation, Coinbase
+submit/cancel/read, reconciliation executor, cancel/replace execution, state
+mutation, browser authority, or BFF execution authority.
+
+### Phase 3121 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3101-3120 to active phases 3121-3140 while preserving no-live defaults and cap policy.
+
+### Phase 3122 - Prior Range Completion Evidence
+
+- Keep completed phases 3101-3120 recorded as structured readiness-matrix evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3123 - Resolution Readiness Summary Model
+
+- Add a typed backend summary model for per-decision readiness item counts, first blocker, missing reasons, and disabled authority flags.
+
+### Phase 3124 - Summary Builder Integration
+
+- Derive each summary from the existing readiness item list so create and non-create stealth command contracts share one code path.
+
+### Phase 3125 - Summary No-Execution Invariants
+
+- Keep every summary blocked, backend-owned, route-bound, command-context-bound, no-live, display-only, and forward-only.
+
+### Phase 3126 - Required OpenAPI Contract
+
+- Regenerate OpenAPI and assert the readiness summary is required backend evidence beside the readiness item matrix.
+
+### Phase 3127 - Backend Runtime Coverage
+
+- Assert summary counts match plan-step, dependency, verification-gate, blocked, required, and resolved item evidence.
+
+### Phase 3128 - Backend Docs And Examples
+
+- Update Admin API, command workflow, stealth command-suite, roadmap, handoff, and examples docs for the readiness summary.
+
+### Phase 3129 - Frontend Schema Sync
+
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated schema.
+
+### Phase 3130 - Frontend Adapter Mapping
+
+- Map the backend readiness summary into typed stealth read-model view models without deriving authority in the browser.
+
+### Phase 3131 - Frontend Mock Runtime Sync
+
+- Derive mock readiness summaries from mock backend readiness items so local mode mirrors backend-shaped evidence.
+
+### Phase 3132 - Command Dry-Submit Display
+
+- Render the readiness summary in dry-submit evidence as blocked backend evidence only.
+
+### Phase 3133 - Stealth Read-Model Display
+
+- Render the readiness summary in stealth read-model surfaces without enabling commands.
+
+### Phase 3134 - Frontend Unit Coverage
+
+- Update mock, dry-submit, stealth read-model, and quality tests for readiness-summary evidence and phase metadata.
+
+### Phase 3135 - Autonomous Artifact Sync
+
+- Update backend/frontend autonomous, release, deployment, and artifact checks for phase range 3121-3140.
+
+### Phase 3136 - Stale Authority Scan
+
+- Search both repos for stale active-range and misleading readiness-summary wording that would imply execution authority.
+
+### Phase 3137 - Focused Backend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks for the readiness summary.
+
+### Phase 3138 - Focused Frontend Gates
+
+- Run focused frontend unit/API/autonomous/quality checks for summary display and phase metadata.
+
+### Phase 3139 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why readiness summaries are still blocked display evidence.
+
+### Phase 3140 - Full Gates, Browser Check, Commit, Push, And No-Live Report
+
+- Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Decision Resolution Readiness Matrix Batch - Phases 3101-3120
 
 These phases continue M55 after decision-resolution sequencing by adding a
 structured readiness matrix for each blocked decision row. The matrix expands

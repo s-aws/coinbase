@@ -6047,6 +6047,38 @@ class StealthExecutionDecisionResolutionReadinessItem(BaseModel):
     bff_authority: str = "forward_only_no_execution"
 
 
+class StealthExecutionDecisionResolutionReadinessSummary(BaseModel):
+    """Backend-derived aggregate over blocked decision readiness items."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "resolution_readiness_items"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    total_item_count: int = Field(ge=0)
+    required_item_count: int = Field(ge=0)
+    resolved_item_count: int = Field(ge=0)
+    blocked_item_count: int = Field(ge=0)
+    plan_step_count: int = Field(ge=0)
+    dependency_count: int = Field(ge=0)
+    verification_gate_count: int = Field(ge=0)
+    blocking_item_names: list[str]
+    missing_reasons: list[str]
+    first_blocking_item_name: str | None = None
+    summary_authority: str = "backend_derived_from_readiness_items"
+    execution_allowed: bool = False
+    executed: bool = False
+    resolver_allowed: bool = False
+    resolver_ran: bool = False
+    decision_write_allowed: bool = False
+    decision_written: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+
+
 class StealthExecutionBackendDecisionEvidence(BaseModel):
     """Blocked backend decision evidence required after live-readiness closure."""
 
@@ -6084,6 +6116,9 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     resolution_readiness_items: list[
         StealthExecutionDecisionResolutionReadinessItem
     ]
+    resolution_readiness_summary: (
+        StealthExecutionDecisionResolutionReadinessSummary
+    )
     resolution_plan_execution_allowed: bool
     resolution_plan_executed: bool
     blocks_m55_completion: bool = True

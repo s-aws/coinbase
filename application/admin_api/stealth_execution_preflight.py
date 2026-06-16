@@ -14,6 +14,7 @@ from .models import (
     StealthExecutionBackendDecisionEvidence,
     StealthExecutionCandidateEvidence,
     StealthExecutionDecisionResolutionReadinessItem,
+    StealthExecutionDecisionResolutionReadinessSummary,
     StealthExecutionLiveReadinessEvidence,
     StealthExecutionPreflightEvidence,
     StealthExecutionTransitionBarrierEvidence,
@@ -558,6 +559,9 @@ def _build_stealth_live_readiness_decisions() -> list[
     decisions = []
     for decision in _STEALTH_LIVE_READINESS_DECISIONS:
         metadata = _STEALTH_LIVE_READINESS_DECISION_METADATA[decision]
+        resolution_readiness_items = _build_decision_resolution_readiness_items(
+            metadata
+        )
         decisions.append(
             StealthExecutionBackendDecisionEvidence(
                 decision=decision,
@@ -586,8 +590,11 @@ def _build_stealth_live_readiness_decisions() -> list[
                 resolution_verification_gates=metadata[
                     "resolution_verification_gates"
                 ],
-                resolution_readiness_items=(
-                    _build_decision_resolution_readiness_items(metadata)
+                resolution_readiness_items=resolution_readiness_items,
+                resolution_readiness_summary=(
+                    _build_decision_resolution_readiness_summary(
+                        resolution_readiness_items
+                    )
                 ),
                 resolution_plan_execution_allowed=False,
                 resolution_plan_executed=False,
@@ -631,6 +638,47 @@ def _build_decision_resolution_readiness_items(
                 )
             )
     return items
+
+
+def _build_decision_resolution_readiness_summary(
+    items: list[StealthExecutionDecisionResolutionReadinessItem],
+) -> StealthExecutionDecisionResolutionReadinessSummary:
+    blocked_items = [
+        item
+        for item in items
+        if item.status == AdminApiGateStatus.BLOCKED or not item.resolved
+    ]
+    return StealthExecutionDecisionResolutionReadinessSummary(
+        total_item_count=len(items),
+        required_item_count=sum(1 for item in items if item.required),
+        resolved_item_count=sum(1 for item in items if item.resolved),
+        blocked_item_count=len(blocked_items),
+        plan_step_count=sum(
+            1
+            for item in items
+            if item.item_type
+            == AdminApiStealthDecisionResolutionEvidenceType.PLAN_STEP
+        ),
+        dependency_count=sum(
+            1
+            for item in items
+            if item.item_type
+            == AdminApiStealthDecisionResolutionEvidenceType.DEPENDENCY
+        ),
+        verification_gate_count=sum(
+            1
+            for item in items
+            if item.item_type
+            == AdminApiStealthDecisionResolutionEvidenceType.VERIFICATION_GATE
+        ),
+        blocking_item_names=[item.item_name for item in blocked_items],
+        missing_reasons=list(
+            dict.fromkeys(item.missing_reason for item in blocked_items)
+        ),
+        first_blocking_item_name=(
+            blocked_items[0].item_name if blocked_items else None
+        ),
+    )
 
 
 def _check(

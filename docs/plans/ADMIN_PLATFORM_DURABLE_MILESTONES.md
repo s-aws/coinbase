@@ -2754,9 +2754,11 @@ Current backend evidence:
   phase can resolve the decision. Completed phases 3081-3100 added ordered
   backend planning steps, dependency refs, verification gates, and disabled
   plan-execution flags to those rows so future resolver work cannot skip
-  backend-owned sequencing. Active phases 3101-3120 expand those strings into
-  structured blocked readiness rows with source, order, missing reason,
-  authority, and no-execution evidence.
+  backend-owned sequencing. Completed phases 3101-3120 expanded those strings
+  into structured blocked readiness rows with source, order, missing reason,
+  authority, and no-execution evidence. Active phases 3121-3140 add
+  backend-derived readiness summaries over those rows while keeping browser
+  and BFF authority display-only/forward-only.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

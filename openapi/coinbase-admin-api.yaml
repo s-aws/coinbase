@@ -24269,6 +24269,8 @@ components:
             $ref: '#/components/schemas/StealthExecutionDecisionResolutionReadinessItem'
           type: array
           title: Resolution Readiness Items
+        resolution_readiness_summary:
+          $ref: '#/components/schemas/StealthExecutionDecisionResolutionReadinessSummary'
         resolution_plan_execution_allowed:
           type: boolean
           title: Resolution Plan Execution Allowed
@@ -24390,6 +24392,7 @@ components:
       - resolution_dependency_refs
       - resolution_verification_gates
       - resolution_readiness_items
+      - resolution_readiness_summary
       - resolution_plan_execution_allowed
       - resolution_plan_executed
       - detail
@@ -24668,6 +24671,124 @@ components:
       - missing_reason
       title: StealthExecutionDecisionResolutionReadinessItem
       description: Blocked per-item readiness evidence for a backend decision plan.
+    StealthExecutionDecisionResolutionReadinessSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: resolution_readiness_items
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        total_item_count:
+          type: integer
+          minimum: 0.0
+          title: Total Item Count
+        required_item_count:
+          type: integer
+          minimum: 0.0
+          title: Required Item Count
+        resolved_item_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Item Count
+        blocked_item_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Item Count
+        plan_step_count:
+          type: integer
+          minimum: 0.0
+          title: Plan Step Count
+        dependency_count:
+          type: integer
+          minimum: 0.0
+          title: Dependency Count
+        verification_gate_count:
+          type: integer
+          minimum: 0.0
+          title: Verification Gate Count
+        blocking_item_names:
+          items:
+            type: string
+          type: array
+          title: Blocking Item Names
+        missing_reasons:
+          items:
+            type: string
+          type: array
+          title: Missing Reasons
+        first_blocking_item_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Blocking Item Name
+        summary_authority:
+          type: string
+          title: Summary Authority
+          default: backend_derived_from_readiness_items
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        resolver_allowed:
+          type: boolean
+          title: Resolver Allowed
+          default: false
+        resolver_ran:
+          type: boolean
+          title: Resolver Ran
+          default: false
+        decision_write_allowed:
+          type: boolean
+          title: Decision Write Allowed
+          default: false
+        decision_written:
+          type: boolean
+          title: Decision Written
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+      additionalProperties: false
+      type: object
+      required:
+      - total_item_count
+      - required_item_count
+      - resolved_item_count
+      - blocked_item_count
+      - plan_step_count
+      - dependency_count
+      - verification_gate_count
+      - blocking_item_names
+      - missing_reasons
+      title: StealthExecutionDecisionResolutionReadinessSummary
+      description: Backend-derived aggregate over blocked decision readiness items.
     StealthExecutionLiveReadinessEvidence:
       properties:
         mutation_family:
