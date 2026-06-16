@@ -53,6 +53,23 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "execution_transition_barrier",
             "execution_live_readiness",
         ],
+        "resolution_plan_steps": [
+            "capture_route_bound_operator_approval",
+            "verify_admission_audit_cap_guard_and_reconciliation_plan",
+            "record_backend_live_enablement_decision",
+        ],
+        "resolution_dependency_refs": [
+            "route_bound_approval_snapshot",
+            "route_bound_admission_audit",
+            "route_bound_cap_guard_decision",
+            "route_bound_reconciliation_plan",
+        ],
+        "resolution_verification_gates": [
+            "approval_snapshot_approved",
+            "cap_guard_within_configured_limits",
+            "admission_audit_recorded_for_exact_context",
+            "reconciliation_plan_present_before_live_enablement",
+        ],
         "detail": (
             "A backend-owned live enablement decision must explicitly allow the "
             "route before any stealth command can become executable."
@@ -74,6 +91,21 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
         "resolution_evidence_refs": [
             "live_execution_service_contract",
             "admin_live_enablement.paths",
+        ],
+        "resolution_plan_steps": [
+            "configure_admin_api_live_execution_service",
+            "bind_runtime_live_service_configuration",
+            "record_deployment_live_service_enablement",
+        ],
+        "resolution_dependency_refs": [
+            "admin_live_enablement.paths",
+            "runtime_live_service_configuration",
+            "deployment_live_service_enablement_record",
+        ],
+        "resolution_verification_gates": [
+            "live_service_configuration_is_backend_owned",
+            "browser_and_bff_do_not_hold_live_switch",
+            "disabled_service_contract_replaced_by_reviewed_live_service",
         ],
         "detail": (
             "The Admin API live execution service must be configured by the "
@@ -98,6 +130,21 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "live_execution_adapter_contract",
             "canonical_execution_path",
             "execution_candidate",
+        ],
+        "resolution_plan_steps": [
+            "bind_route_to_shared_command_service_adapter",
+            "prove_adapter_uses_canonical_execution_path",
+            "reject_route_local_executor",
+        ],
+        "resolution_dependency_refs": [
+            "route_bound_stealth_live_execution_adapter",
+            "shared_command_service_adapter",
+            "route_inventory_execution_binding",
+        ],
+        "resolution_verification_gates": [
+            "adapter_is_route_bound",
+            "adapter_calls_shared_command_service_only",
+            "no_parallel_manager_or_coinbase_path_exists",
         ],
         "detail": (
             "A route-bound backend adapter must exist before the shared command "
@@ -124,6 +171,21 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "mutation_claim_snapshot",
             "lifecycle_write_guard",
         ],
+        "resolution_plan_steps": [
+            "bind_manager_invocation_to_existing_lifecycle_path",
+            "prove_mutation_lock_policy",
+            "prove_exchange_reality_invariant_policy",
+        ],
+        "resolution_dependency_refs": [
+            "stealth_manager_invocation_policy",
+            "mutation_lock_policy",
+            "exchange_reality_invariant_policy",
+        ],
+        "resolution_verification_gates": [
+            "manager_invocation_requires_live_service_and_adapter",
+            "mutation_claims_are_respected",
+            "revealed_state_matches_exchange_reality",
+        ],
         "detail": (
             "Stealth manager invocation must be allowed only through the "
             "existing lifecycle path and mutation locks."
@@ -148,6 +210,22 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "active_placement_exchange_truth",
             "coinbase_exchange",
             "live_execution_adapter_contract",
+        ],
+        "resolution_plan_steps": [
+            "define_coinbase_submit_cancel_read_policy",
+            "bind_submission_to_live_adapter",
+            "prove_cap_and_exchange_truth_evidence",
+        ],
+        "resolution_dependency_refs": [
+            "coinbase_exchange_submission_policy",
+            "coinbase_cancel_policy",
+            "live_coinbase_read_policy",
+            "live_cap_evidence",
+        ],
+        "resolution_verification_gates": [
+            "coinbase_submit_requires_backend_adapter",
+            "coinbase_cancel_uses_client_order_id_wrapper",
+            "live_coinbase_read_is_backend_owned_and_audited",
         ],
         "detail": (
             "Coinbase submit, cancel, and read behavior must be governed by "
@@ -176,6 +254,21 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "post_write_execution_journal",
             "post_write_reconciliation_verification",
         ],
+        "resolution_plan_steps": [
+            "require_route_bound_reconciliation_plan",
+            "accept_execution_journal_for_exact_context",
+            "verify_post_write_reconciliation_before_completion",
+        ],
+        "resolution_dependency_refs": [
+            "route_bound_reconciliation_plan",
+            "accepted_execution_journal",
+            "verified_post_write_reconciliation",
+        ],
+        "resolution_verification_gates": [
+            "proof_journal_and_verification_match_same_context",
+            "reconciliation_execution_is_backend_owned",
+            "state_mutation_waits_for_post_write_completion",
+        ],
         "detail": (
             "Post-write reconciliation execution policy must exist before "
             "accepted journals or proofs can transition into execution."
@@ -201,6 +294,22 @@ _STEALTH_LIVE_READINESS_DECISION_METADATA = {
             "stealth_lifecycle_execution_contract",
             "stealth_command_execution_contract",
             "post_write_completion_verifier",
+        ],
+        "resolution_plan_steps": [
+            "prove_lifecycle_write_guard",
+            "prove_active_placement_exchange_truth",
+            "prove_post_write_reconciliation_completion",
+        ],
+        "resolution_dependency_refs": [
+            "stealth_state_mutation_policy",
+            "lifecycle_write_guard",
+            "active_placement_exchange_truth",
+            "post_write_reconciliation_completion",
+        ],
+        "resolution_verification_gates": [
+            "state_mutation_requires_live_exchange_handling",
+            "order_and_exchange_state_mutation_are_audited",
+            "post_write_completion_precedes_local_state_change",
         ],
         "detail": (
             "Lifecycle, order, and exchange-state mutation policy must preserve "
@@ -465,6 +574,18 @@ def _build_stealth_live_readiness_decisions() -> list[
                 resolver_ran=False,
                 decision_write_allowed=False,
                 decision_written=False,
+                resolution_plan_required=True,
+                resolution_plan_available=True,
+                resolution_plan_status=AdminApiGateStatus.BLOCKED,
+                resolution_plan_authority="backend_planning_only_no_resolution",
+                resolution_plan_steps=metadata["resolution_plan_steps"],
+                missing_resolution_plan_steps=metadata["resolution_plan_steps"],
+                resolution_dependency_refs=metadata["resolution_dependency_refs"],
+                resolution_verification_gates=metadata[
+                    "resolution_verification_gates"
+                ],
+                resolution_plan_execution_allowed=False,
+                resolution_plan_executed=False,
                 detail=metadata["detail"],
             )
         )

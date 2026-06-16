@@ -24225,6 +24225,43 @@ components:
         decision_written:
           type: boolean
           title: Decision Written
+        resolution_plan_required:
+          type: boolean
+          title: Resolution Plan Required
+        resolution_plan_available:
+          type: boolean
+          title: Resolution Plan Available
+        resolution_plan_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        resolution_plan_authority:
+          type: string
+          title: Resolution Plan Authority
+        resolution_plan_steps:
+          items:
+            type: string
+          type: array
+          title: Resolution Plan Steps
+        missing_resolution_plan_steps:
+          items:
+            type: string
+          type: array
+          title: Missing Resolution Plan Steps
+        resolution_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Resolution Dependency Refs
+        resolution_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Resolution Verification Gates
+        resolution_plan_execution_allowed:
+          type: boolean
+          title: Resolution Plan Execution Allowed
+        resolution_plan_executed:
+          type: boolean
+          title: Resolution Plan Executed
         blocks_m55_completion:
           type: boolean
           title: Blocks M55 Completion
@@ -24331,6 +24368,16 @@ components:
       - resolver_ran
       - decision_write_allowed
       - decision_written
+      - resolution_plan_required
+      - resolution_plan_available
+      - resolution_plan_status
+      - resolution_plan_authority
+      - resolution_plan_steps
+      - missing_resolution_plan_steps
+      - resolution_dependency_refs
+      - resolution_verification_gates
+      - resolution_plan_execution_allowed
+      - resolution_plan_executed
       - detail
       title: StealthExecutionBackendDecisionEvidence
       description: Blocked backend decision evidence required after live-readiness

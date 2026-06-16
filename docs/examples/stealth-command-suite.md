@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3061-3080",
+  "approved_phase_range": "3081-3100",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -560,6 +560,34 @@ blocked even when exact command-envelope context is present:
           "resolver_ran": false,
           "decision_write_allowed": false,
           "decision_written": false,
+          "resolution_plan_required": true,
+          "resolution_plan_available": true,
+          "resolution_plan_status": "blocked",
+          "resolution_plan_authority": "backend_planning_only_no_resolution",
+          "resolution_plan_steps": [
+            "capture_route_bound_operator_approval",
+            "verify_admission_audit_cap_guard_and_reconciliation_plan",
+            "record_backend_live_enablement_decision"
+          ],
+          "missing_resolution_plan_steps": [
+            "capture_route_bound_operator_approval",
+            "verify_admission_audit_cap_guard_and_reconciliation_plan",
+            "record_backend_live_enablement_decision"
+          ],
+          "resolution_dependency_refs": [
+            "route_bound_approval_snapshot",
+            "route_bound_admission_audit",
+            "route_bound_cap_guard_decision",
+            "route_bound_reconciliation_plan"
+          ],
+          "resolution_verification_gates": [
+            "approval_snapshot_approved",
+            "cap_guard_within_configured_limits",
+            "admission_audit_recorded_for_exact_context",
+            "reconciliation_plan_present_before_live_enablement"
+          ],
+          "resolution_plan_execution_allowed": false,
+          "resolution_plan_executed": false,
           "browser_authority": "display_only",
           "bff_authority": "forward_only_no_execution",
           "no_live_execution": true
@@ -633,8 +661,10 @@ route-bound, command-context-bound, browser `display_only`, and BFF
 `forward_only_no_execution`, and names the decision owner, required artifact,
 missing reason, resolution artifacts, missing resolution artifacts, backend
 contract refs, evidence refs, disabled resolver flags, and disabled writer
-flags. These rows are not decision resolution, decision writes, or live
-authority.
+flags. They also include ordered resolution plan steps, missing plan steps,
+dependency refs, verification gates, `resolution_plan_execution_allowed=false`,
+and `resolution_plan_executed=false`. These rows are not decision resolution,
+decision writes, plan execution, or live authority.
 
 Exact non-create command responses also include
 `execution_readiness_stages`. These ordered rows are derived from the backend

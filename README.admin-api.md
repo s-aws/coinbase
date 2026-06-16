@@ -383,6 +383,12 @@ The `post_write_reconciliation_missing` blocker is omitted only when the exact
 safe proof, accepted journal, and verification chain resolves that prerequisite.
 The blocker chain is display evidence only and does not create execution,
 proof lookup, Coinbase, manager, reconciliation, browser, or BFF authority.
+Execution live-readiness backend decision rows also expose ordered resolution
+plan steps, missing plan steps, dependency refs, verification gates, and
+disabled plan-execution flags. These fields are sequencing evidence for future
+backend-owned resolver work only; they are not an executable plan, browser/BFF
+resolver, decision writer, live adapter, Coinbase caller, or M55 completion
+claim.
 Post-write execution-journal acceptance evidence is persisted through
 `POST /api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals`
 and read back through

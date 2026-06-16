@@ -2751,7 +2751,10 @@ Current backend evidence:
   phases 3061-3080 added explicit resolution artifacts, backend contract references,
   evidence references, and disabled resolver/writer flags to each backend
   decision row so contextless agents can see what must exist before a future
-  phase can resolve the decision.
+  phase can resolve the decision. Active phases 3081-3100 add ordered
+  backend planning steps, dependency refs, verification gates, and disabled
+  plan-execution flags to those rows so future resolver work cannot skip
+  backend-owned sequencing.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

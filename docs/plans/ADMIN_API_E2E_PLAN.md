@@ -38,6 +38,97 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Active M55 Decision Resolution Sequencing Batch - Phases 3081-3100
+
+These phases continue M55 after decision-resolution criteria by adding ordered
+backend resolution sequencing to each blocked decision row. The sequence names
+the backend planning steps, dependency refs, and verification gates required
+before a future phase may resolve the decision. It must remain read-only
+planning evidence and must not add a decision resolver, decision writer, live
+adapter, manager invocation, Coinbase submit/cancel/read, reconciliation
+executor, cancel/replace execution, state mutation, browser authority, or BFF
+execution authority.
+
+### Phase 3081 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3061-3080 to active phases 3081-3100 while preserving no-live defaults and cap policy.
+
+### Phase 3082 - Prior Range Completion Evidence
+
+- Keep completed phases 3061-3080 recorded as decision-resolution criteria evidence with passing gates, blind reviews, browser check, ownership, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3083 - Resolution Sequence Model
+
+- Add typed decision-resolution sequencing fields to backend decision evidence without allowing plan execution, resolution, writers, or live execution.
+
+### Phase 3084 - Per-Decision Sequence Metadata
+
+- Add ordered planning steps for each backend decision row.
+
+### Phase 3085 - Dependency References
+
+- Add dependency refs that bind each sequence to backend-owned artifacts and contracts.
+
+### Phase 3086 - Verification Gate References
+
+- Add verification gates that must pass before a future resolver can clear the decision.
+
+### Phase 3087 - No-Execution Sequence Flags
+
+- Keep resolution-plan execution flags false for all decision rows.
+
+### Phase 3088 - Shared Builder Wiring
+
+- Wire sequencing through the shared live-readiness decision builder for create and non-create stealth command contracts.
+
+### Phase 3089 - Backend OpenAPI And Regression Coverage
+
+- Regenerate backend OpenAPI and assert sequencing fields are required contract evidence.
+
+### Phase 3090 - Frontend Schema Sync
+
+- Regenerate frontend API types from backend OpenAPI without hand-editing generated files.
+
+### Phase 3091 - Frontend Mock Runtime Sync
+
+- Update frontend mock backend evidence so decision rows expose sequence steps, dependencies, verification gates, and no-execution flags.
+
+### Phase 3092 - Command Dry-Submit Display
+
+- Render decision-resolution sequencing in command dry-submit evidence as display-only backend planning evidence.
+
+### Phase 3093 - Stealth Read-Model Display
+
+- Render decision-resolution sequencing in stealth order read-model surfaces without enabling commands.
+
+### Phase 3094 - Quality Artifact Sync
+
+- Update release, deployment, autonomous, and artifact-contract checks for phase range 3081-3100 and no-live posture.
+
+### Phase 3095 - Documentation And Examples
+
+- Update Admin API, command workflow, stealth command-suite, frontend API, testing, and example docs for decision-resolution sequencing.
+
+### Phase 3096 - Stale Authority Scan
+
+- Search both repos for stale active-range and misleading sequencing wording that would imply execution authority.
+
+### Phase 3097 - Focused Backend Gates
+
+- Run focused backend Admin API/OpenAPI/autonomous checks for decision-resolution sequencing.
+
+### Phase 3098 - Focused Frontend Gates
+
+- Run focused frontend unit/API/autonomous/quality checks for sequencing display and phase metadata.
+
+### Phase 3099 - Blind Contextless Reviews
+
+- Run backend and frontend blind/contextless reviews asking whether a fresh agent can explain why sequencing is still blocked planning evidence.
+
+### Phase 3100 - Full Gates, Browser Check, Commit, Push, And No-Live Report
+
+- Run backend full regression, frontend `npm run release:gate`, ownership checks, browser availability, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
 ## Completed M55 Decision Resolution Criteria Batch - Phases 3061-3080
 
 These phases continue M55 after the backend decision ledger by adding explicit

@@ -6044,6 +6044,16 @@ class StealthExecutionBackendDecisionEvidence(BaseModel):
     resolver_ran: bool
     decision_write_allowed: bool
     decision_written: bool
+    resolution_plan_required: bool
+    resolution_plan_available: bool
+    resolution_plan_status: AdminApiGateStatus
+    resolution_plan_authority: str
+    resolution_plan_steps: list[str]
+    missing_resolution_plan_steps: list[str]
+    resolution_dependency_refs: list[str]
+    resolution_verification_gates: list[str]
+    resolution_plan_execution_allowed: bool
+    resolution_plan_executed: bool
     blocks_m55_completion: bool = True
     blocks_live_execution: bool = True
     backend_owned: bool = True

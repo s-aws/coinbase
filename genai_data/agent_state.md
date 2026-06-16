@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3061-3080`; next active range is
-  pending user restart after requested pause.
+- Latest completed autonomous range: `3061-3080`; active range is
+  `3081-3100`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -56,6 +56,10 @@ Keep it short. Keep it factual.
   references, evidence references, and disabled resolver/writer flags to each
   blocked backend decision row. This is display evidence only and must not
   resolve decisions or enable live execution.
+- Active `3081-3100` work: add ordered decision-resolution planning steps,
+  dependency refs, verification gates, and disabled plan-execution flags to
+  each blocked backend decision row. This is planning/display evidence only
+  and must not resolve decisions or enable live execution.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -229,12 +233,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: pending user restart after completed `3061-3080`.
+- Active autonomous range: `3081-3100`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: pause after completed decision resolution-criteria
-  evidence for `3061-3080`. On restart, create the next milestone-linked M55
-  range only if a concrete approved gap remains. Do not run live Coinbase
-  execution unless a future approved phase explicitly authorizes it.
+- Current direction: complete decision-resolution sequencing evidence for
+  `3081-3100`. Do not run live Coinbase execution unless a future approved
+  phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -750,6 +753,11 @@ Keep it short. Keep it factual.
   decision-resolution criteria for those decision rows, including resolution
   artifacts, backend contract refs, evidence refs, and disabled resolver/writer
   flags.
+- What is active for M55 3081-3100: backend and frontend expose ordered
+  decision-resolution sequencing for each blocked decision row, including
+  required plan steps, missing plan steps, dependency refs, verification gates,
+  and disabled plan-execution flags.
 - What is blocked: Nothing currently known.
-- Exact next command: pause for user restart. After restart, create the next
-  milestone-linked M55 active range only if a concrete approved gap remains.
+- Exact next command: continue the active 3081-3100 implementation, run
+  focused gates, blind/contextless reviews, full gates, browser availability,
+  then commit and push both repositories with `$0` live Coinbase execution.
