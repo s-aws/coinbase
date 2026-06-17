@@ -169,15 +169,19 @@ claims without resolving those claims. Completed phases 3981-4000 add blocked
 producer-route contract clearance plans and a clearance-plan summary that turn
 those unresolved claim traces into backend-owned sequencing evidence for the
 route, inventory, shared-service, handler, store, validation/replay, writer,
-and acceptance-path work required before the claim could ever resolve. Active
+and acceptance-path work required before the claim could ever resolve. Completed
 phases 4001-4020 expand those clearance plans into blocked ordered clearance
 steps and a step summary without performing any of the named backend work.
+Active phases 4021-4040 add blocked clearance-step review rows and a review
+summary that list the backend-owned review inputs and gates required before
+those steps could ever become ready.
 These layers
-do not register routes, bind route inventory, bind shared command services,
-register handlers, create stores, configure validation/replay, create writers,
-construct adapters, write or accept evidence, satisfy construction artifacts,
-enable live service, call Coinbase, invoke managers, execute reconciliation,
-mutate state, or grant browser/BFF authority.
+do not complete reviews, make steps ready, register routes, bind route
+inventory, bind shared command services, register handlers, create stores,
+configure validation/replay, create writers, construct adapters, write or
+accept evidence, satisfy construction artifacts, enable live service, call
+Coinbase, invoke managers, execute reconciliation, mutate state, or grant
+browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3981-4000` is backend `eff81cec`
-  and frontend `be13946`; active range is `4001-4020`.
+- Commit (optional): completed range `4001-4020` is backend `a428ef41`
+  and frontend `d8948db`; active range is `4021-4040`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3981-4000`; active range is `4001-4020`.
+- Latest completed autonomous range: `4001-4020`; active range is `4021-4040`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -367,12 +367,21 @@ Keep it short. Keep it factual.
   inventory, bind shared command services, register handlers, write or accept
   evidence, satisfy artifacts, construct adapters, or create live execution
   authority.
-- Active `4001-4020` work: add blocked producer-route contract clearance
+- Completed `4001-4020` work: add blocked producer-route contract clearance
   steps and a clearance-step summary derived from clearance plans. The steps
   and summary may list plan ids, step ids, required refs, prior-step ids,
   next-step ids, planned sequence, verification gates, blockers, and disabled
   step/claim/work-item/route/acceptance/construction/execution flags, but they
   must not complete steps, resolve claims, clear work items, perform
+  remediation, register routes, bind route inventory, bind shared command
+  services, register handlers, write or accept evidence, satisfy artifacts,
+  construct adapters, or create live execution authority.
+- Active `4021-4040` work: add blocked producer-route contract clearance-step
+  review rows and a review summary derived from clearance steps. The reviews
+  and summary may list review ids, step ids, plan ids, required refs, required
+  review inputs, review gates, blockers, and disabled review/step/claim/
+  route/acceptance/construction/execution flags, but they must not complete
+  reviews, make steps ready, resolve claims, clear work items, perform
   remediation, register routes, bind route inventory, bind shared command
   services, register handlers, write or accept evidence, satisfy artifacts,
   construct adapters, or create live execution authority.
@@ -549,24 +558,25 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4001-4020`.
+- Active autonomous range: `4021-4040`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add blocked producer-route contract clearance steps and a
-  clearance-step summary under the existing live-adapter construction contract
-  in active phases `4001-4020` so future backend work can see the ordered
-  backend prerequisites inside each clearance plan. The steps and summary may
-  list false step/sequence/claim/work-item/remediation/dependency/action
-  readiness, prior-step and next-step ids, route-registration,
-  route-inventory, shared-service, handler, store, validation/replay, writer,
-  acceptance, construction, clearance, and execution flags and false producer
-  satisfaction. They must not enable live service, complete steps, resolve
-  claims, clear work items, perform remediation, register routes, bind route
-  inventory, bind shared command services, register handlers, construct
-  adapters, satisfy construction artifacts, write or accept evidence, create a
-  second adapter path, call Coinbase, invoke managers, execute reconciliation,
-  cancel/replace active placements, mutate lifecycle/order/exchange state,
-  grant browser authority, or grant BFF execution authority unless a future
-  approved phase explicitly authorizes it.
+- Current direction: add blocked producer-route contract clearance-step review
+  rows and a review summary under the existing live-adapter construction
+  contract in active phases `4021-4040` so future backend work can see the
+  review inputs and gates that still block a clearance step from becoming
+  ready. The reviews and summary may list false review/step/claim/work-item/
+  remediation/dependency/action readiness, prior-step and next-step ids,
+  route-registration, route-inventory, shared-service, handler, store,
+  validation/replay, writer, acceptance, construction, clearance, and
+  execution flags and false producer satisfaction. They must not enable live
+  service, complete reviews, make steps ready, resolve claims, clear work
+  items, perform remediation, register routes, bind route inventory, bind
+  shared command services, register handlers, construct adapters, satisfy
+  construction artifacts, write or accept evidence, create a second adapter
+  path, call Coinbase, invoke managers, execute reconciliation, cancel/replace
+  active placements, mutate lifecycle/order/exchange state, grant browser
+  authority, or grant BFF execution authority unless a future approved phase
+  explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -1161,8 +1171,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: complete the active 4001-4020 backend live-adapter
-  acceptance-evidence producer-route contract clearance-step implementation,
-  sync frontend generated schema/display, run focused gates, blind/contextless
-  review, full gates, then commit and push both repositories with `$0` live
-  Coinbase execution before pausing for the requested restart.
+- Exact next command: complete the active 4021-4040 backend live-adapter
+  acceptance-evidence producer-route contract clearance-step review
+  implementation, sync frontend generated schema/display, run focused gates,
+  blind/contextless review, full gates, then commit and push both repositories
+  with `$0` live Coinbase execution.
