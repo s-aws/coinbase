@@ -12884,6 +12884,46 @@ components:
           type: integer
           title: Missing Artifact Count
           default: 0
+        acceptance_evidence_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        acceptance_evidence_source:
+          type: string
+          title: Acceptance Evidence Source
+          default: backend_live_adapter_artifact_acceptance_readback
+        acceptance_evidence_authority:
+          type: string
+          title: Acceptance Evidence Authority
+          default: backend_acceptance_evidence_readback_only_no_construction
+        acceptance_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Acceptance Evidence Count
+          default: 0
+        missing_acceptance_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Acceptance Evidence Count
+          default: 0
+        accepted_acceptance_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Acceptance Evidence Count
+          default: 0
+        acceptance_evidence_satisfies_construction:
+          type: boolean
+          title: Acceptance Evidence Satisfies Construction
+          default: false
+        acceptance_evidence_blockers:
+          items:
+            type: string
+          type: array
+          title: Acceptance Evidence Blockers
+        next_required_acceptance_evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Next Required Acceptance Evidence Ids
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

@@ -112,6 +112,9 @@ LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY = (
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_READBACK_SOURCE = (
     "backend_live_adapter_artifact_acceptance_readback"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_AUTHORITY = (
+    "backend_acceptance_evidence_readback_only_no_construction"
+)
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_MISSING_REASON = (
     "required_backend_acceptance_evidence_missing"
 )
@@ -654,6 +657,25 @@ def build_live_adapter_construction_contract(
             LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
         )
     ]
+    acceptance_evidence_rows = [
+        evidence
+        for artifact_item in artifacts
+        for evidence in artifact_item["acceptance_evidence"]
+    ]
+    missing_acceptance_evidence = [
+        evidence
+        for evidence in acceptance_evidence_rows
+        if not evidence["evidence_present"]
+    ]
+    accepted_acceptance_evidence = [
+        evidence for evidence in acceptance_evidence_rows if evidence["accepted"]
+    ]
+    acceptance_evidence_blockers = [
+        evidence["blocker"] for evidence in missing_acceptance_evidence
+    ]
+    next_required_acceptance_evidence_ids = [
+        evidence["evidence_id"] for evidence in missing_acceptance_evidence
+    ]
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -673,6 +695,21 @@ def build_live_adapter_construction_contract(
         "required_artifact_count": len(artifacts),
         "satisfied_artifact_count": 0,
         "missing_artifact_count": len(artifacts),
+        "acceptance_evidence_status": AdminApiGateStatus.BLOCKED,
+        "acceptance_evidence_source": (
+            LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_READBACK_SOURCE
+        ),
+        "acceptance_evidence_authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_AUTHORITY
+        ),
+        "acceptance_evidence_count": len(acceptance_evidence_rows),
+        "missing_acceptance_evidence_count": len(missing_acceptance_evidence),
+        "accepted_acceptance_evidence_count": len(accepted_acceptance_evidence),
+        "acceptance_evidence_satisfies_construction": False,
+        "acceptance_evidence_blockers": acceptance_evidence_blockers,
+        "next_required_acceptance_evidence_ids": (
+            next_required_acceptance_evidence_ids
+        ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
         "satisfied_artifacts": [],

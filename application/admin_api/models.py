@@ -4276,6 +4276,17 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     required_artifact_count: int = 0
     satisfied_artifact_count: int = 0
     missing_artifact_count: int = 0
+    acceptance_evidence_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    acceptance_evidence_source: str = "backend_live_adapter_artifact_acceptance_readback"
+    acceptance_evidence_authority: str = (
+        "backend_acceptance_evidence_readback_only_no_construction"
+    )
+    acceptance_evidence_count: int = Field(default=0, ge=0)
+    missing_acceptance_evidence_count: int = Field(default=0, ge=0)
+    accepted_acceptance_evidence_count: int = Field(default=0, ge=0)
+    acceptance_evidence_satisfies_construction: bool = False
+    acceptance_evidence_blockers: list[str] = Field(default_factory=list)
+    next_required_acceptance_evidence_ids: list[str] = Field(default_factory=list)
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
         default_factory=list
     )

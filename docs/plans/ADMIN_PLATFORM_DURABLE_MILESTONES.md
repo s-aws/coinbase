@@ -2819,9 +2819,11 @@ Current backend evidence:
   typed backend live-adapter construction contract as read-only evidence so
   the next required contract is inspectable without constructing adapters.
   Completed phases 3641-3660 add per-artifact acceptance requirements to that
-  contract while keeping every artifact unsatisfied. Active phases 3661-3680
-  add blocked acceptance evidence readback rows for those requirements while
-  keeping every artifact unsatisfied.
+  contract while keeping every artifact unsatisfied. Completed phases
+  3661-3680 add blocked acceptance evidence readback rows for those
+  requirements while keeping every artifact unsatisfied. Active phases
+  3681-3700 add a contract-level aggregate over those acceptance evidence rows
+  while preserving missing evidence, false satisfaction, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.
