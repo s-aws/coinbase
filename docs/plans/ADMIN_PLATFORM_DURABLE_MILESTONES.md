@@ -2875,10 +2875,14 @@ Current backend evidence:
   contract while preserving no remediation, no route registration, no route
   inventory binding, no shared service binding, no-handler, no-store,
   no-validation, no-replay, no-writer, no-acceptance, no-construction,
-  no-execution, false satisfaction, and no-live authority. Active phases
+  no-execution, false satisfaction, and no-live authority. Completed phases
   3941-3960 add remediation work-item rows and a work-queue summary that name
   required backend work, required backend refs, and handoff blockers while
   preserving the same no-remediation/no-construction/no-execution/no-live
+  authority. Active phases 3961-3980 add remediation work-item claim traces
+  and a claim-trace summary that map those work items back to unresolved
+  producer-route contract availability claims while preserving no-claim-
+  resolution, no-remediation, no-construction, no-execution, and no-live
   authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state

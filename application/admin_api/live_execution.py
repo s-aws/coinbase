@@ -250,6 +250,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATIO
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_QUEUE_AUTHORITY = (
     "backend_derived_from_route_contract_remediation_work_items"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_remediation_work_item_claim_traces"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_AUTHORITY = (
+    "backend_derived_from_route_contract_remediation_work_items_no_claim_resolution"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_remediation_work_item_claim_trace_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_SUMMARY_AUTHORITY = (
+    "backend_derived_from_route_contract_remediation_work_item_claim_traces"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_CHECKS = (
     ("route_contract_available", "producer route contract exists"),
     ("route_registered", "producer route is registered"),
@@ -3103,6 +3115,359 @@ def build_live_adapter_construction_contract(
             "evidence, construct adapters, or enable live execution."
         ),
     }
+    producer_route_contract_remediation_work_item_claim_traces = [
+        {
+            "source_ref": (
+                "acceptance_evidence_producer_route_contract_remediation_work_items"
+            ),
+            "status": AdminApiGateStatus.BLOCKED,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_SOURCE
+            ),
+            "authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_AUTHORITY
+            ),
+            "claim_trace_index": index,
+            "claim_trace_id": f"{item['work_item_id']}_claim_trace",
+            "claim_id": item["claim_id"],
+            "claim": item["claim"],
+            "work_item_id": item["work_item_id"],
+            "dependency_id": item["dependency_id"],
+            "remediation_id": item["remediation_id"],
+            "validation_id": item["validation_id"],
+            "route_contract_id": item["route_contract_id"],
+            "route_requirement_id": item["route_requirement_id"],
+            "producer_contract_id": item["producer_contract_id"],
+            "evidence_id": item["evidence_id"],
+            "artifact": item["artifact"],
+            "source_work_item_ref": item["source_work_item_ref"],
+            "route_contract_ref": item["route_contract_ref"],
+            "route_inventory_ref": item["route_inventory_ref"],
+            "shared_command_service_ref": item["shared_command_service_ref"],
+            "check_key": item["check_key"],
+            "dependency_stage": item["dependency_stage"],
+            "dependency_order": item["dependency_order"],
+            "remediation_action": item["remediation_action"],
+            "required_backend_work": item["required_backend_work"],
+            "required_backend_refs": item["required_backend_refs"],
+            "predecessor_dependency_ids": item["predecessor_dependency_ids"],
+            "successor_dependency_ids": item["successor_dependency_ids"],
+            "handoff_blockers": item["handoff_blockers"],
+            "first_handoff_blocker": item["first_handoff_blocker"],
+            "required_before_claim_resolved": True,
+            "verification_gate": (
+                "producer_route_contract_remediation_work_item_claim_traces_remain_fail_closed"
+            ),
+            "blocker": f"{item['work_item_id']}_claim_trace_blocked",
+            "work_item_blocker": item["blocker"],
+            "dependency_blocker": item["dependency_blocker"],
+            "remediation_blocker": item["remediation_blocker"],
+            "validation_blocker": item["validation_blocker"],
+            "claim_allowed": False,
+            "claim_resolved": False,
+            "clears_work_item": False,
+            "clears_route_requirement": False,
+            "clears_claim_trace": False,
+            "work_item_ready": False,
+            "handoff_ready": False,
+            "dependency_ready": False,
+            "all_predecessors_ready": False,
+            "remediation_ready": False,
+            "action_ready": False,
+            "dependency_graph_ready": False,
+            "route_contract_available": False,
+            "route_registered": False,
+            "route_inventory_entry_present": False,
+            "route_inventory_bound": False,
+            "shared_command_service_method_present": False,
+            "shared_command_service_bound": False,
+            "route_handler_present": False,
+            "producer_route_available": False,
+            "requirement_resolved": False,
+            "store_available": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "writer_allowed": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_producer_contract": False,
+            "satisfies_construction": False,
+            "construction_allowed": False,
+            "adapter_constructed": False,
+            "live_execution_allowed": False,
+            "execution_allowed": False,
+            "executed": False,
+            "no_live_execution": True,
+            "backend_owned": True,
+            "route_bound": True,
+            "command_context_bound": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This remediation work-item claim trace maps an unresolved "
+                "producer-route contract availability claim back to one "
+                "blocked remediation work item. It cannot resolve claims, "
+                "clear work items, perform remediation, register routes, write "
+                "or accept evidence, construct adapters, or enable live "
+                "execution."
+            ),
+        }
+        for index, item in enumerate(
+            producer_route_contract_remediation_work_items, start=1
+        )
+    ]
+    blocked_producer_route_contract_remediation_work_item_claim_traces = [
+        trace
+        for trace in producer_route_contract_remediation_work_item_claim_traces
+        if not trace["claim_resolved"]
+    ]
+    resolved_producer_route_contract_remediation_work_item_claim_traces = [
+        trace
+        for trace in producer_route_contract_remediation_work_item_claim_traces
+        if trace["claim_resolved"]
+    ]
+    producer_route_contract_remediation_work_item_claim_trace_summary = {
+        "source_ref": (
+            "acceptance_evidence_producer_route_contract_remediation_work_item_claim_traces"
+        ),
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_ITEM_CLAIM_TRACE_SUMMARY_AUTHORITY
+        ),
+        "total_claim_trace_count": len(
+            producer_route_contract_remediation_work_item_claim_traces
+        ),
+        "blocked_claim_trace_count": len(
+            blocked_producer_route_contract_remediation_work_item_claim_traces
+        ),
+        "resolved_claim_trace_count": len(
+            resolved_producer_route_contract_remediation_work_item_claim_traces
+        ),
+        "claim_trace_ids": [
+            trace["claim_trace_id"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "claim_ids": list(
+            dict.fromkeys(
+                trace["claim_id"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "claims": list(
+            dict.fromkeys(
+                trace["claim"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "work_item_ids": [
+            trace["work_item_id"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "dependency_ids": [
+            trace["dependency_id"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "remediation_ids": [
+            trace["remediation_id"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "validation_ids": [
+            trace["validation_id"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "route_contract_ids": list(
+            dict.fromkeys(
+                trace["route_contract_id"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "route_requirement_ids": list(
+            dict.fromkeys(
+                trace["route_requirement_id"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "source_work_item_refs": list(
+            dict.fromkeys(
+                trace["source_work_item_ref"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "route_contract_refs": list(
+            dict.fromkeys(
+                trace["route_contract_ref"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "route_inventory_refs": list(
+            dict.fromkeys(
+                trace["route_inventory_ref"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "shared_command_service_refs": list(
+            dict.fromkeys(
+                trace["shared_command_service_ref"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "required_backend_refs": list(
+            dict.fromkeys(
+                ref
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+                for ref in trace["required_backend_refs"]
+            )
+        ),
+        "producer_contract_ids": list(
+            dict.fromkeys(
+                trace["producer_contract_id"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "evidence_ids": list(
+            dict.fromkeys(
+                trace["evidence_id"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "artifacts": list(
+            dict.fromkeys(
+                trace["artifact"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "check_keys": list(
+            dict.fromkeys(
+                trace["check_key"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "dependency_stages": list(
+            dict.fromkeys(
+                trace["dependency_stage"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "remediation_actions": list(
+            dict.fromkeys(
+                trace["remediation_action"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "required_backend_work": list(
+            dict.fromkeys(
+                trace["required_backend_work"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "blockers": [
+            trace["blocker"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "work_item_blockers": [
+            trace["work_item_blocker"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "dependency_blockers": [
+            trace["dependency_blocker"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "remediation_blockers": [
+            trace["remediation_blocker"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "validation_blockers": [
+            trace["validation_blocker"]
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ],
+        "verification_gates": list(
+            dict.fromkeys(
+                trace["verification_gate"]
+                for trace in producer_route_contract_remediation_work_item_claim_traces
+            )
+        ),
+        "predecessor_edge_count": sum(
+            len(trace["predecessor_dependency_ids"])
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ),
+        "successor_edge_count": sum(
+            len(trace["successor_dependency_ids"])
+            for trace in producer_route_contract_remediation_work_item_claim_traces
+        ),
+        "first_claim_trace_id": (
+            producer_route_contract_remediation_work_item_claim_traces[0][
+                "claim_trace_id"
+            ]
+            if producer_route_contract_remediation_work_item_claim_traces
+            else None
+        ),
+        "first_work_item_id": (
+            producer_route_contract_remediation_work_item_claim_traces[0][
+                "work_item_id"
+            ]
+            if producer_route_contract_remediation_work_item_claim_traces
+            else None
+        ),
+        "first_blocker": (
+            producer_route_contract_remediation_work_item_claim_traces[0][
+                "blocker"
+            ]
+            if producer_route_contract_remediation_work_item_claim_traces
+            else None
+        ),
+        "all_claims_resolved": False,
+        "all_work_items_ready": False,
+        "work_queue_ready": False,
+        "handoff_ready": False,
+        "dependency_graph_ready": False,
+        "all_dependencies_ready": False,
+        "all_predecessors_ready": False,
+        "any_action_ready": False,
+        "all_remediations_ready": False,
+        "route_contract_validation_ready": False,
+        "all_checks_passed": False,
+        "all_route_contracts_available": False,
+        "all_routes_registered": False,
+        "route_inventory_entry_present": False,
+        "route_inventory_bound": False,
+        "shared_command_service_method_present": False,
+        "shared_command_service_bound": False,
+        "route_handler_present": False,
+        "producer_route_available": False,
+        "all_requirements_resolved": False,
+        "producer_clearance_ready": False,
+        "m55_completion_claim_allowed": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-route contract remediation work-item claim trace summary "
+            "maps unresolved claims to blocked remediation work items. It "
+            "cannot resolve claims, clear work items, perform remediation, "
+            "register routes, bind services, write or accept evidence, "
+            "construct adapters, or enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -3237,6 +3602,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_route_contract_remediation_work_queue_summary": (
             producer_route_contract_remediation_work_queue_summary
+        ),
+        "acceptance_evidence_producer_route_contract_remediation_work_item_claim_traces": (
+            producer_route_contract_remediation_work_item_claim_traces
+        ),
+        "acceptance_evidence_producer_route_contract_remediation_work_item_claim_trace_summary": (
+            producer_route_contract_remediation_work_item_claim_trace_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),

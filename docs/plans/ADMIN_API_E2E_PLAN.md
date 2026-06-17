@@ -38,41 +38,52 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Remediation Work Queue Batch - Phases 3941-3960
+## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Remediation Work-Item Claim Trace Batch - Phases 3961-3980
 
-These phases add backend-owned remediation work-item rows and a blocked
+These phases add backend-owned remediation work-item claim traces and a
+blocked claim-trace summary over producer-route contract remediation work-item
+rows while keeping adapter construction disabled. Each trace is derived from a
+blocked work item and maps the work item back to the unresolved
+`producer_route_contract_available` claim before any producer route contract
+can become available. It remains planning/readback evidence only. It cannot
+resolve claims, clear work items, perform remediation, register producer
+routes, bind route inventory, bind shared command services, create handlers,
+create stores, configure validation or replay gates, create writers,
+construct adapters, record or accept evidence, mark artifacts satisfied,
+enable adapters, enable service, call Coinbase, invoke managers, execute
+reconciliation, cancel/replace active placements, mutate lifecycle/order/
+exchange state, clear M55 blockers, grant browser authority, or grant BFF
+execution authority.
+
+### Phase 3961 - Prior Range Completion Evidence
+
+- Record completed phases 3941-3960 with backend commit `fad5dc71`, frontend commit `527c5a5`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3962 - Backend Producer Route Contract Remediation Work-Item Claim Traces
+
+- Add typed blocked remediation work-item claim traces and populate one row per blocked remediation work item, preserving work item ids, dependency ids, route refs, remediation ids, validation ids, check keys, action names, handoff blockers, and required backend refs.
+
+### Phase 3963 - Backend Claim Trace Summary
+
+- Add a blocked claim-trace summary aggregating trace ids, work item ids, dependency ids, refs, blockers, required backend work labels, edge counts, gates, and disabled authority flags.
+
+### Phase 3964 - Frontend Contract Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract remediation work-item claim traces and summary readback.
+
+### Phase 3965 - Validators, Gates, Review, Commit, And No-Live Report
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, report `$0` live Coinbase submitted/executed notional, and continue only to the next milestone-linked gap.
+
+## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Remediation Work Queue Batch - Phases 3941-3960
+
+These phases added backend-owned remediation work-item rows and a blocked
 work-queue summary over producer-route contract remediation dependency rows
 while keeping adapter construction disabled. Each work item is derived from a
 blocked dependency row and names the backend-owned remediation work, required
-backend refs, predecessor/successor dependency ids, and handoff blockers before
-any producer route contract can become available. It remains planning evidence
-only. It cannot perform remediation, register producer routes, bind route
-inventory, bind shared command services, create handlers, create stores,
-configure validation or replay gates, create writers, construct adapters,
-record or accept evidence, mark artifacts satisfied, enable adapters, enable
-service, call Coinbase, invoke managers, execute reconciliation,
-cancel/replace active placements, mutate lifecycle/order/exchange state, clear
-M55 blockers, grant browser authority, or grant BFF execution authority.
-
-### Phase 3941 - Prior Range Completion Evidence
-
-- Record completed phases 3921-3940 with backend commit `9cd3e921`, frontend commit `234368f`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3942 - Backend Producer Route Contract Remediation Work Items
-
-- Add typed blocked remediation work items and populate one row per blocked route-contract remediation dependency, preserving dependency ids, route refs, remediation ids, validation ids, check keys, action names, handoff blockers, and required backend refs.
-
-### Phase 3943 - Backend Work Queue Summary
-
-- Add a blocked work-queue summary aggregating work item ids, dependency ids, refs, blockers, required backend work labels, edge counts, gates, and disabled authority flags.
-
-### Phase 3944 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract remediation work-item rows and summary readback.
-
-### Phase 3945 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, report `$0` live Coinbase submitted/executed notional, and continue only to the next milestone-linked gap.
+backend refs, predecessor/successor dependency ids, and handoff blockers
+before any producer route contract can become available. Backend commit
+`fad5dc71` and frontend commit `527c5a5` contain the pushed range.
 
 ## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Remediation Dependency Batch - Phases 3921-3940
 
