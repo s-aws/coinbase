@@ -131,12 +131,16 @@ M55 phases 3701-3720 add a blocked producer contract over those missing
 acceptance evidence ids so future backend work knows which contract must
 create or record each evidence id. M55 phases 3721-3740 add blocked
 producer-readiness rows for the missing route, append-only store, and
-validation/replay gate. Active phases 3741-3760 add a blocked contract-level
+validation/replay gate. M55 phases 3741-3760 add a blocked contract-level
 aggregate over those producer-readiness rows with total, missing, and
 satisfied readiness counts, category lists, producer contract ids, next
 required readiness item ids, blockers, first blocker, disabled route/store/
 validation/replay/writer/acceptance flags, false satisfaction, and no-live
-authority. These layers do not construct adapters, write or accept evidence,
+authority. Active phases 3761-3780 add blocked clearance-action rows for each
+missing producer-readiness item so future backend work can see the exact
+required ref, route/method, verification gate, source blocker, and disabled
+writer/acceptance/construction flags. These layers do not construct adapters,
+write or accept evidence,
 satisfy construction artifacts, enable live service, call Coinbase, invoke
 managers, execute reconciliation, mutate state, or grant browser/BFF
 authority.

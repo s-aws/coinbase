@@ -4330,6 +4330,48 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary(
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction(
+    BaseModel
+):
+    """Blocked action naming the backend work required for a readiness item."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    clearance_action_id: str
+    clearance_sequence: int = Field(ge=1)
+    readiness_item_id: str
+    producer_contract_id: str
+    evidence_id: str
+    artifact: AdminApiLiveAdapterConstructionArtifact
+    category: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    ready: bool = False
+    source: str = "backend_acceptance_evidence_producer_clearance_action_contract"
+    authority: str = "backend_clearance_action_only_no_write"
+    required_ref: str
+    required_route: str | None = None
+    required_method: str | None = None
+    verification_gate: str
+    missing_reason: str = "acceptance_evidence_producer_clearance_action_missing"
+    readiness_blocker: str
+    blocker: str
+    route_available: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contract: bool = False
+    satisfies_construction: bool = False
+    clearance_allowed: bool = False
+    clearance_executed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -4429,6 +4471,30 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary
         )
     )
+    acceptance_evidence_producer_clearance_action_status: AdminApiGateStatus = (
+        AdminApiGateStatus.BLOCKED
+    )
+    acceptance_evidence_producer_clearance_action_source: str = (
+        "backend_acceptance_evidence_producer_clearance_action_contract"
+    )
+    acceptance_evidence_producer_clearance_action_authority: str = (
+        "backend_clearance_action_only_no_write"
+    )
+    acceptance_evidence_producer_clearance_action_count: int = Field(
+        default=0, ge=0
+    )
+    blocked_acceptance_evidence_producer_clearance_action_count: int = Field(
+        default=0, ge=0
+    )
+    ready_acceptance_evidence_producer_clearance_action_count: int = Field(
+        default=0, ge=0
+    )
+    acceptance_evidence_producer_clearance_action_blockers: list[str] = Field(
+        default_factory=list
+    )
+    acceptance_evidence_producer_clearance_actions: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction
+    ] = Field(default_factory=list)
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
         default_factory=list
     )

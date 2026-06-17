@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3721-3740` is backend `bcee6e7c`
-  and frontend `95c587f`; active range is `3741-3760`.
+- Commit (optional): completed range `3741-3760` is backend `155e77bb`
+  and frontend `6e01bb2`; active range is `3761-3780`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3721-3740`; active range is `3741-3760`.
+- Latest completed autonomous range: `3741-3760`; active range is `3761-3780`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -229,13 +229,20 @@ Keep it short. Keep it factual.
   route/store/validation/replay/writer flags, but they must not write or
   accept evidence, satisfy artifacts, construct adapters, or create live
   execution authority.
-- Active `3741-3760` work: add a blocked contract-level aggregate over those
-  producer-readiness rows. The summary may list readiness item totals,
+- Completed `3741-3760` work: add a blocked contract-level aggregate over
+  those producer-readiness rows. The summary may list readiness item totals,
   missing/satisfied counts, required and missing categories, producer contract
   ids, next required readiness item ids, blockers, first blocker, and disabled
   route/store/validation/replay/writer/acceptance flags, but it must not write
   or accept evidence, satisfy artifacts, construct adapters, or create live
-  execution authority.
+  execution authority. Backend commit `155e77bb` and frontend commit
+  `6e01bb2` contain the pushed range.
+- Active `3761-3780` work: add blocked producer-readiness clearance action
+  rows. The actions may name source readiness item ids, producer contract ids,
+  evidence ids, required refs, required route/method, verification gates,
+  readiness blockers, and disabled route/store/validation/replay/writer/
+  acceptance/construction flags, but they must not write or accept evidence,
+  satisfy artifacts, construct adapters, or create live execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -409,21 +416,21 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3741-3760`.
+- Active autonomous range: `3761-3780`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add a blocked producer-readiness aggregate summary under
+- Current direction: add blocked producer-readiness clearance action rows under
   the existing live-adapter construction contract in active phases
-  `3741-3760` so future backend work has aggregate route, store,
-  validation/replay, writer, and acceptance blocker evidence without inferring
-  it item by item. The summary may list counts, categories, producer contract
-  ids, next required readiness item ids, blocker ids, first blocker, disabled
-  writer flags, disabled acceptance flags, and false producer satisfaction. It
-  must not enable live service, resolve blockers, construct adapters, satisfy
-  construction artifacts, write or accept evidence, create a second adapter
-  path, call Coinbase, invoke managers, execute reconciliation, cancel/replace
-  active placements, mutate lifecycle/order/exchange state, grant browser
-  authority, or grant BFF execution authority unless a future approved phase
-  explicitly authorizes it.
+  `3761-3780` so future backend work can see the exact readiness item,
+  required backend ref, route/method, verification gate, and source blocker to
+  clear. The actions may list producer contract ids, evidence ids, missing
+  reasons, disabled route/store/validation/replay/writer/acceptance/
+  construction flags, and false producer satisfaction. They must not enable
+  live service, resolve blockers, construct adapters, satisfy construction
+  artifacts, write or accept evidence, create a second adapter path, call
+  Coinbase, invoke managers, execute reconciliation, cancel/replace active
+  placements, mutate lifecycle/order/exchange state, grant browser authority,
+  or grant BFF execution authority unless a future approved phase explicitly
+  authorizes it.
 
 ## Decisions (Durable)
 
@@ -1018,8 +1025,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3741-3760 backend live-adapter
-  acceptance-evidence producer-readiness summary implementation, sync
-  frontend generated schema/display, run focused gates, blind/contextless
-  review, full gates, then commit and push both repositories with `$0` live
-  Coinbase execution.
+- Exact next command: continue the active 3761-3780 backend live-adapter
+  acceptance-evidence producer-readiness clearance action implementation,
+  sync frontend generated schema/display, run focused gates,
+  blind/contextless review, full gates, then commit and push both
+  repositories with `$0` live Coinbase execution.

@@ -139,6 +139,15 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SUMMARY_AUTHORI
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_MISSING_REASON = (
     "acceptance_evidence_producer_readiness_item_missing"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_SOURCE = (
+    "backend_acceptance_evidence_producer_clearance_action_contract"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_AUTHORITY = (
+    "backend_clearance_action_only_no_write"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_MISSING_REASON = (
+    "acceptance_evidence_producer_clearance_action_missing"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS = (
     "producer_route_contract",
     "append_only_acceptance_evidence_store",
@@ -920,6 +929,75 @@ def build_live_adapter_construction_contract(
             "acceptance-evidence write authority."
         ),
     }
+    missing_producer_readiness_entries = [
+        (contract, item)
+        for contract in acceptance_evidence_producer_contracts
+        for item in contract["readiness_items"]
+        if not item["satisfied"]
+    ]
+    producer_readiness_clearance_actions = [
+        {
+            "clearance_action_id": (
+                f"{item['readiness_item_id']}_clearance_action"
+            ),
+            "clearance_sequence": sequence,
+            "readiness_item_id": item["readiness_item_id"],
+            "producer_contract_id": contract["producer_contract_id"],
+            "evidence_id": contract["evidence_id"],
+            "artifact": contract["artifact"],
+            "category": item["category"],
+            "status": AdminApiGateStatus.BLOCKED,
+            "required": True,
+            "ready": False,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_SOURCE
+            ),
+            "authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_AUTHORITY
+            ),
+            "required_ref": item["required_ref"],
+            "required_route": item["required_route"],
+            "required_method": item["required_method"],
+            "verification_gate": item["verification_gate"],
+            "missing_reason": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_MISSING_REASON
+            ),
+            "readiness_blocker": item["blocker"],
+            "blocker": f"{item['blocker']}_clearance_action_missing",
+            "route_available": False,
+            "store_available": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "writer_allowed": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_producer_contract": False,
+            "satisfies_construction": False,
+            "clearance_allowed": False,
+            "clearance_executed": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This clearance action names the backend work required to "
+                "resolve one producer-readiness item. It is planning evidence "
+                "only and cannot configure routes, stores, writers, replay "
+                "gates, or live adapter construction."
+            ),
+        }
+        for sequence, (contract, item) in enumerate(
+            missing_producer_readiness_entries, start=1
+        )
+    ]
+    blocked_producer_readiness_clearance_actions = [
+        action
+        for action in producer_readiness_clearance_actions
+        if not action["ready"]
+    ]
+    ready_producer_readiness_clearance_actions = [
+        action
+        for action in producer_readiness_clearance_actions
+        if action["ready"]
+    ]
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -979,6 +1057,31 @@ def build_live_adapter_construction_contract(
         "acceptance_evidence_producer_readiness_summary": (
             producer_readiness_summary
         ),
+        "acceptance_evidence_producer_clearance_action_status": (
+            AdminApiGateStatus.BLOCKED
+        ),
+        "acceptance_evidence_producer_clearance_action_source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_SOURCE
+        ),
+        "acceptance_evidence_producer_clearance_action_authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_AUTHORITY
+        ),
+        "acceptance_evidence_producer_clearance_action_count": len(
+            producer_readiness_clearance_actions
+        ),
+        "blocked_acceptance_evidence_producer_clearance_action_count": len(
+            blocked_producer_readiness_clearance_actions
+        ),
+        "ready_acceptance_evidence_producer_clearance_action_count": len(
+            ready_producer_readiness_clearance_actions
+        ),
+        "acceptance_evidence_producer_clearance_action_blockers": [
+            action["blocker"]
+            for action in blocked_producer_readiness_clearance_actions
+        ],
+        "acceptance_evidence_producer_clearance_actions": (
+            producer_readiness_clearance_actions
+        ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
         "satisfied_artifacts": [],
@@ -1001,6 +1104,7 @@ def build_live_adapter_construction_contract(
             "No route-bound executable adapter has been constructed.",
             "Adapter construction remains blocked until every artifact is satisfied by backend-owned code and gates.",
             "No backend-owned acceptance-evidence producer contract is configured.",
+            "Producer-readiness clearance actions are blocked planning evidence only.",
             "Browser and BFF layers may display this contract but cannot satisfy it.",
         ],
         "detail": (
