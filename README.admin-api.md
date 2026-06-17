@@ -114,6 +114,14 @@ construction artifacts unsatisfied. It also reports
 `latest_adapter_decision_forbidden_resolution_claims`, and
 `latest_adapter_decision_next_required_contract` so a decision record cannot
 be confused with adapter construction authority.
+The current `latest_adapter_decision_next_required_contract` is
+`backend_live_adapter_construction_contract`. M55 phases 3621-3640 expose that
+contract as typed read-only evidence under `live_execution_adapter_contract`.
+It lists route binding, shared command service binding, required and missing
+construction artifacts, verification gates, blockers, and forbidden execution
+methods. It does not construct adapters, satisfy construction artifacts,
+enable live service, call Coinbase, invoke managers, execute reconciliation,
+mutate state, or grant browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

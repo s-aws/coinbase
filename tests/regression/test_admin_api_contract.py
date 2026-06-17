@@ -136,6 +136,9 @@ from application.admin_api.live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
     FileAdminApiLiveAdapterDecisionStore,
+    LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF,
+    LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE,
     LIVE_ADAPTER_DECISION_FORBIDDEN_RESOLUTION_CLAIMS,
     LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
     LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
@@ -160,6 +163,7 @@ from application.admin_api.live_execution import (
     LiveServiceDecisionRecord,
     build_disabled_live_execution_adapter_contract,
     build_disabled_live_execution_intent,
+    build_live_adapter_construction_contract,
     build_live_execution_adapter_contract,
     build_live_execution_service_contract,
     get_disabled_live_execution_service,
@@ -214,6 +218,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiLiveAdmissionBlocker,
+    AdminApiLiveAdapterConstructionArtifact,
     AdminApiLiveAdapterDecisionResolutionStatus,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
@@ -5194,6 +5199,18 @@ def _assert_stealth_live_execution_adapter_contract(
     assert adapter["construction_blockers"] == list(
         LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
     )
+    assert adapter["construction_contract_available"] is True
+    assert adapter["construction_contract_ref"] == (
+        LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT
+    )
+    assert adapter["construction_contract_satisfies_construction"] is False
+    _assert_live_adapter_construction_contract(
+        adapter["construction_contract"],
+        route=route,
+        module_id=module_id,
+        service_method=service_method,
+        action_class=action_class,
+    )
     assert adapter["route_mapping_satisfies_construction"] is False
     assert adapter["adapter_configuration_satisfies_construction"] is False
     assert adapter["construction_satisfaction_authority"] == (
@@ -5248,6 +5265,75 @@ def _assert_stealth_live_execution_adapter_contract(
         "submit",
         "coinbase_client",
     ]
+
+
+def _assert_live_adapter_construction_contract(
+    contract: dict,
+    *,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+) -> None:
+    assert contract["contract_id"] == LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT
+    assert contract["status"] == AdminApiGateStatus.BLOCKED
+    assert contract["required"] is True
+    assert contract["configured"] is False
+    assert contract["backend_owned"] is True
+    assert contract["route_bound"] is True
+    assert contract["source"] == LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE
+    assert contract["authority"] == LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY
+    assert contract["module_id"] == module_id
+    assert contract["route"] == route
+    assert contract["method"] == "POST"
+    assert contract["service_method"] == service_method
+    assert contract["adapter_reference"] == f"AdminApiCommandService.{service_method}"
+    assert contract["action_class"] == action_class
+    assert contract["artifact_count"] == 3
+    assert contract["required_artifact_count"] == 3
+    assert contract["satisfied_artifact_count"] == 0
+    assert contract["missing_artifact_count"] == 3
+    assert contract["required_artifacts"] == list(
+        LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+    )
+    assert contract["satisfied_artifacts"] == []
+    assert contract["missing_artifacts"] == list(
+        LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+    )
+    assert contract["verification_gates"] == list(
+        LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
+    )
+    assert contract["blockers"] == list(LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS)
+    assert contract["construction_allowed"] is False
+    assert contract["adapter_constructed"] is False
+    assert contract["adapter_enabled"] is False
+    assert contract["executable"] is False
+    assert contract["live_exchange_submission_allowed"] is False
+    assert contract["live_coinbase_execution_approved"] is False
+    assert contract["browser_authority"] == "display_only"
+    assert contract["bff_authority"] == "forward_only_no_execution"
+    assert contract["forbidden_methods"] == [
+        "create_order",
+        "cancel_order",
+        "execute",
+        "submit",
+        "coinbase_client",
+    ]
+    assert [item["artifact"] for item in contract["artifacts"]] == [
+        AdminApiLiveAdapterConstructionArtifact.ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER,
+        AdminApiLiveAdapterConstructionArtifact.SHARED_COMMAND_SERVICE_ADAPTER,
+        AdminApiLiveAdapterConstructionArtifact.ROUTE_INVENTORY_EXECUTION_BINDING,
+    ]
+    for item in contract["artifacts"]:
+        assert item["status"] == AdminApiGateStatus.BLOCKED
+        assert item["required"] is True
+        assert item["satisfied"] is False
+        assert item["source_ref"] == LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE
+        assert item["expected_evidence_ref"] == LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF
+        assert item["missing_reason"].endswith("_missing")
+        assert item["verification_gate"]
+    assert "read-only evidence" in " ".join(contract["evidence"])
+    assert LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT in contract["detail"]
 
 
 def _assert_stealth_live_execution_service_contract(
@@ -9849,7 +9935,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10076,7 +10162,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10316,7 +10402,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10575,7 +10661,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -10800,7 +10886,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11705,7 +11791,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -14895,7 +14981,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15110,7 +15196,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3601-3620"
+    assert readback_payload["approved_phase_range"] == "3621-3640"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -17842,6 +17928,18 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only(tmp_path):
     assert adapter["construction_blockers"] == list(
         LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
     )
+    assert adapter["construction_contract_available"] is True
+    assert adapter["construction_contract_ref"] == (
+        LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT
+    )
+    assert adapter["construction_contract_satisfies_construction"] is False
+    _assert_live_adapter_construction_contract(
+        adapter["construction_contract"],
+        route="/api/v1/orders",
+        module_id="spot_operations",
+        service_method="place_manual_order",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+    )
     assert adapter["route_mapping_satisfies_construction"] is False
     assert adapter["adapter_configuration_satisfies_construction"] is False
     assert adapter["construction_satisfaction_authority"] == (
@@ -18046,6 +18144,18 @@ def test_admin_api_m53_pilot_adapter_is_single_route_dry_run_only():
     assert pilot["executable"] is False
     assert pilot["route_mapping_satisfies_construction"] is False
     assert pilot["adapter_configuration_satisfies_construction"] is False
+    assert pilot["construction_contract_available"] is True
+    assert pilot["construction_contract_ref"] == (
+        LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT
+    )
+    assert pilot["construction_contract_satisfies_construction"] is False
+    _assert_live_adapter_construction_contract(
+        pilot["construction_contract"],
+        route="/api/v1/orders",
+        module_id="spot_operations",
+        service_method="place_manual_order",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+    )
     assert pilot["construction_satisfaction_authority"] == (
         "backend_live_adapter_construction_only"
     )
@@ -18165,7 +18275,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3601-3620"
+    assert payload["approved_phase_range"] == "3621-3640"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -19993,7 +20103,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3601-3620"
+    assert live_payload["approved_phase_range"] == "3621-3640"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -20556,7 +20666,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3601-3620"
+    assert enterprise_payload["approved_phase_range"] == "3621-3640"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -21331,7 +21441,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3601-3620"
+    assert recovery_preview_payload["approved_phase_range"] == "3621-3640"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

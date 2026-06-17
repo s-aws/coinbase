@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3581-3600` is backend `9dd8c1f3`
-  and frontend `ac5f0ef`; active range is `3601-3620`.
+- Commit (optional): completed range `3601-3620` is backend `0827ef82`
+  and frontend `69b6bd6`; active range is `3621-3640`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3581-3600`; active range is `3601-3620`.
+- Latest completed autonomous range: `3601-3620`; active range is `3621-3640`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -184,14 +184,22 @@ Keep it short. Keep it factual.
   Coinbase, invoke managers, execute reconciliation, mutate state, or grant
   browser/BFF execution authority. Backend commit `9dd8c1f3` and frontend
   commit `ac5f0ef` contain the pushed range.
-- Active `3601-3620` work: add explicit non-resolution readback fields to the
+- Completed `3601-3620` work: add explicit non-resolution readback fields to the
   disabled live-adapter contract so latest adapter decisions report
   readback-only status, non-resolution reason, required/missing construction
   artifacts, forbidden resolution claims, and the next backend construction
   contract still required. This must not construct adapters, satisfy
   construction artifacts, enable service, call Coinbase, invoke managers,
   execute reconciliation, mutate state, or grant browser/BFF execution
-  authority.
+  authority. Backend commit `0827ef82` and frontend commit `69b6bd6` contain
+  the pushed range.
+- Active `3621-3640` work: add the backend live-adapter construction contract
+  as typed read-only evidence under the existing adapter contract. The
+  contract may list route binding, shared command service binding,
+  required/missing artifacts, verification gates, blockers, and forbidden
+  execution methods, but it must not construct adapters, satisfy construction
+  artifacts, enable service, call Coinbase, invoke managers, execute
+  reconciliation, mutate state, or grant browser/BFF execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -365,19 +373,18 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3601-3620`.
+- Active autonomous range: `3621-3640`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add explicit non-resolution readback fields in active
-  phases `3601-3620` so latest live-adapter decisions state readback-only
-  status, non-resolution reason, required/missing construction artifacts,
-  forbidden resolution claims, and the next required backend construction
-  contract. Decision records must not be treated as adapter construction,
-  construction satisfaction, or live execution authority. Do not enable live
-  service, resolve blockers, construct adapters, create a second adapter path,
-  call Coinbase, invoke managers, execute reconciliation, cancel/replace
-  active placements, mutate lifecycle/order/exchange state, grant browser
-  authority, or grant BFF execution authority unless a future approved phase
-  explicitly authorizes it.
+- Current direction: add the typed backend live-adapter construction contract
+  in active phases `3621-3640` so the next required construction contract is
+  inspectable without construction authority. The contract may list route
+  binding, shared command service binding, required/missing artifacts,
+  verification gates, blockers, and forbidden execution methods. It must not
+  enable live service, resolve blockers, construct adapters, satisfy
+  construction artifacts, create a second adapter path, call Coinbase, invoke
+  managers, execute reconciliation, cancel/replace active placements, mutate
+  lifecycle/order/exchange state, grant browser authority, or grant BFF
+  execution authority unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -972,7 +979,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3601-3620 live-adapter decision
-  non-resolution evidence implementation, run focused gates,
-  blind/contextless review, full gates, then commit and push both
-  repositories with `$0` live Coinbase execution.
+- Exact next command: continue the active 3621-3640 backend live-adapter
+  construction-contract evidence implementation, sync frontend generated
+  schema/display, run focused gates, blind/contextless review, full gates,
+  then commit and push both repositories with `$0` live Coinbase execution.

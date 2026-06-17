@@ -28,6 +28,7 @@ from core.enums import (
     AdminApiHealthStatus,
     AdminApiLiveAdmissionAuditFact,
     AdminApiLiveAdmissionBlocker,
+    AdminApiLiveAdapterConstructionArtifact,
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveCapGuardRequirement,
@@ -4194,6 +4195,72 @@ class AdminLiveCapGuardContractEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveAdapterConstructionArtifactItem(BaseModel):
+    """One backend artifact required for live-adapter construction."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact: AdminApiLiveAdapterConstructionArtifact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    satisfied: bool = False
+    source_ref: str
+    expected_evidence_ref: str
+    missing_reason: str
+    verification_gate: str
+    detail: str
+
+
+class AdminLiveAdapterConstructionContractEvidence(BaseModel):
+    """Read-only evidence for the required backend live-adapter construction contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_id: str = "backend_live_adapter_construction_contract"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    configured: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    source: str = "backend_live_adapter_construction_contract"
+    authority: str = "backend_contract_only_no_execution"
+    module_id: str
+    route: str
+    method: str
+    service_method: str
+    adapter_reference: str
+    action_class: AdminApiActionClass
+    artifact_count: int = 0
+    required_artifact_count: int = 0
+    satisfied_artifact_count: int = 0
+    missing_artifact_count: int = 0
+    artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
+        default_factory=list
+    )
+    required_artifacts: list[AdminApiLiveAdapterConstructionArtifact] = Field(
+        default_factory=list
+    )
+    satisfied_artifacts: list[AdminApiLiveAdapterConstructionArtifact] = Field(
+        default_factory=list
+    )
+    missing_artifacts: list[AdminApiLiveAdapterConstructionArtifact] = Field(
+        default_factory=list
+    )
+    verification_gates: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    adapter_enabled: bool = False
+    executable: bool = False
+    live_exchange_submission_allowed: bool = False
+    live_coinbase_execution_approved: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    forbidden_methods: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     """Read-only evidence for the missing live execution adapter contract."""
 
@@ -4223,6 +4290,10 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     construction_contract_refs: list[str] = Field(default_factory=list)
     construction_verification_gates: list[str] = Field(default_factory=list)
     construction_blockers: list[str] = Field(default_factory=list)
+    construction_contract_available: bool = True
+    construction_contract_ref: str = "backend_live_adapter_construction_contract"
+    construction_contract_satisfies_construction: bool = False
+    construction_contract: AdminLiveAdapterConstructionContractEvidence
     route_mapping_satisfies_construction: bool = False
     adapter_configuration_satisfies_construction: bool = False
     construction_satisfaction_authority: str = (

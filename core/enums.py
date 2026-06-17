@@ -671,6 +671,16 @@ class AdminApiLiveAdapterDecisionResolutionStatus(str, Enum):
     READBACK_ONLY = "readback_only"
 
 
+class AdminApiLiveAdapterConstructionArtifact(str, Enum):
+    """Backend artifacts required before a live adapter can be constructed."""
+
+    ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER = (
+        "route_bound_stealth_live_execution_adapter"
+    )
+    SHARED_COMMAND_SERVICE_ADAPTER = "shared_command_service_adapter"
+    ROUTE_INVENTORY_EXECUTION_BINDING = "route_inventory_execution_binding"
+
+
 class AdminApiLivePreflightCategory(str, Enum):
     """Controlled-live preflight evidence categories for Admin API routes."""
 

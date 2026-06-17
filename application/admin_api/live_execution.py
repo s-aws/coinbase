@@ -21,6 +21,7 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiGateStatus,
     AdminApiLiveAdmissionBlocker,
+    AdminApiLiveAdapterConstructionArtifact,
     AdminApiLiveAdapterDecisionResolutionStatus,
     AdminApiLiveExecutionStatus,
     AdminApiPermission,
@@ -97,12 +98,20 @@ LIVE_EXECUTION_ADAPTER_CONSTRUCTION_SATISFACTION_AUTHORITY = (
     "backend_live_adapter_construction_only"
 )
 LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS = (
-    "route_bound_stealth_live_execution_adapter",
-    "shared_command_service_adapter",
-    "route_inventory_execution_binding",
+    AdminApiLiveAdapterConstructionArtifact.ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER,
+    AdminApiLiveAdapterConstructionArtifact.SHARED_COMMAND_SERVICE_ADAPTER,
+    AdminApiLiveAdapterConstructionArtifact.ROUTE_INVENTORY_EXECUTION_BINDING,
+)
+LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE = (
+    "backend_live_adapter_construction_contract"
+)
+LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY = "backend_contract_only_no_execution"
+LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF = (
+    "application/admin_api/live_execution.py::build_live_adapter_construction_contract"
 )
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS = (
     "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+    LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF,
     "application/admin_api/command_service.py::AdminApiCommandService",
     "application/admin_api/route_inventory.py",
 )
@@ -475,6 +484,100 @@ def build_live_execution_adapter_construction_satisfaction() -> dict[str, Any]:
     }
 
 
+def build_live_adapter_construction_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+) -> dict[str, Any]:
+    """Return typed no-live evidence for the required adapter construction contract."""
+
+    adapter_reference = f"AdminApiCommandService.{service_method}"
+    artifact_details = {
+        AdminApiLiveAdapterConstructionArtifact.ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER: (
+            "A reviewed backend adapter object must bind exactly one route, "
+            "method, module, service method, action class, and command identity."
+        ),
+        AdminApiLiveAdapterConstructionArtifact.SHARED_COMMAND_SERVICE_ADAPTER: (
+            "Adapter construction must call the shared AdminApiCommandService "
+            "method only; it must not call managers, Coinbase, or route-local "
+            "execution code directly."
+        ),
+        AdminApiLiveAdapterConstructionArtifact.ROUTE_INVENTORY_EXECUTION_BINDING: (
+            "The route inventory must identify the same live-shaped command "
+            "route, module id, permission, action class, and shared method."
+        ),
+    }
+    artifacts = [
+        {
+            "artifact": artifact,
+            "status": AdminApiGateStatus.BLOCKED,
+            "required": True,
+            "satisfied": False,
+            "source_ref": LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE,
+            "expected_evidence_ref": LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF,
+            "missing_reason": f"{artifact.value}_missing",
+            "verification_gate": (
+                LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES[index]
+            ),
+            "detail": artifact_details[artifact],
+        }
+        for index, artifact in enumerate(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        )
+    ]
+    return {
+        "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
+        "status": AdminApiGateStatus.BLOCKED,
+        "required": True,
+        "configured": False,
+        "backend_owned": True,
+        "route_bound": True,
+        "source": LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE,
+        "authority": LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY,
+        "module_id": module_id,
+        "route": route,
+        "method": method,
+        "service_method": service_method,
+        "adapter_reference": adapter_reference,
+        "action_class": action_class,
+        "artifact_count": len(artifacts),
+        "required_artifact_count": len(artifacts),
+        "satisfied_artifact_count": 0,
+        "missing_artifact_count": len(artifacts),
+        "artifacts": artifacts,
+        "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
+        "satisfied_artifacts": [],
+        "missing_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
+        "verification_gates": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
+        ),
+        "blockers": list(LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS),
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "adapter_enabled": False,
+        "executable": False,
+        "live_exchange_submission_allowed": False,
+        "live_coinbase_execution_approved": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
+        "evidence": [
+            "The backend construction contract is present as read-only evidence.",
+            "No route-bound executable adapter has been constructed.",
+            "Adapter construction remains blocked until every artifact is satisfied by backend-owned code and gates.",
+            "Browser and BFF layers may display this contract but cannot satisfy it.",
+        ],
+        "detail": (
+            f"{method} {route} still requires "
+            f"{LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT} before "
+            f"{adapter_reference} can be considered for live execution."
+        ),
+    }
+
+
 def build_live_execution_adapter_decision_readback(
     *,
     method: str,
@@ -749,6 +852,16 @@ def build_disabled_live_execution_adapter_contract(
         "construction_blockers": list(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
         ),
+        "construction_contract_available": True,
+        "construction_contract_ref": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
+        "construction_contract_satisfies_construction": False,
+        "construction_contract": build_live_adapter_construction_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            action_class=action_class,
+        ),
         **build_live_execution_adapter_construction_satisfaction(),
         **build_live_execution_adapter_decision_readback(
             method=method,
@@ -826,6 +939,16 @@ def build_m53_pilot_live_execution_adapter_contract(
         ),
         "construction_blockers": list(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
+        ),
+        "construction_contract_available": True,
+        "construction_contract_ref": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
+        "construction_contract_satisfies_construction": False,
+        "construction_contract": build_live_adapter_construction_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            action_class=action_class,
         ),
         **build_live_execution_adapter_construction_satisfaction(),
         **build_live_execution_adapter_decision_readback(

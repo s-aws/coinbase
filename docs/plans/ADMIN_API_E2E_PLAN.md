@@ -38,38 +38,51 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Decision Non-Resolution Batch - Phases 3601-3620
+## Active M55 Live-Adapter Construction Contract Batch - Phases 3621-3640
 
-These phases add explicit non-resolution evidence to latest live-adapter
-decision readback while keeping adapter construction disabled. A record may be
-displayed as append-only local-state evidence, but the disabled adapter
-contract must also show that the decision is readback-only, construction
-artifacts remain missing, forbidden resolution claims are rejected, and a
-future backend construction contract is still required. It cannot construct
+These phases make the backend construction contract named by
+`latest_adapter_decision_next_required_contract` typed and inspectable while
+keeping adapter construction disabled. The contract may list required
+artifacts, missing artifacts, route binding, shared command service binding,
+verification gates, blockers, and forbidden methods. It cannot construct
 adapters, enable adapters, mark construction artifacts satisfied, enable
 service, call Coinbase, invoke managers, execute reconciliation,
 cancel/replace active placements, mutate lifecycle/order/exchange state,
 clear M55 blockers, grant browser authority, or grant BFF execution authority.
 
-### Phase 3601 - Advance Active Queue Range
+### Phase 3621 - Prior Range Completion Evidence
 
-- Move the durable autonomous queue from completed phases 3581-3600 to active phases 3601-3620 while preserving no-live defaults and cap policy.
+- Record completed phases 3601-3620 with backend commit `0827ef82`, frontend commit `69b6bd6`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3602 - Backend Non-Resolution Contract
+### Phase 3622 - Backend Construction Contract
 
-- Add enum-backed resolution status and explicit latest-decision non-resolution fields to the disabled live-adapter contract.
+- Add enum-backed construction artifacts, a typed read-only construction-contract builder, and nested adapter-contract projection with construction satisfaction false.
 
-### Phase 3603 - Backend Focused Coverage
+### Phase 3623 - Backend Focused Coverage
 
-- Prove absent-record and latest-record readback cases remain resolver-ineligible, construction-unresolved, and no-live.
+- Prove the construction contract is present, route-bound, backend-owned, unsatisfied, non-executable, no-live, and unable to clear adapter blockers.
 
-### Phase 3604 - Frontend Contract Sync
+### Phase 3624 - Frontend Contract Sync
 
-- Regenerate frontend schema and sync mocks, runtime snapshots, quality metadata, and focused tests for the new non-resolution fields.
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for construction-contract evidence.
 
-### Phase 3605 - Validators, Gates, Review, Commit, And No-Live Report
+### Phase 3625 - Validators, Gates, Review, Commit, And No-Live Report
 
 - Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Decision Non-Resolution Batch - Phases 3601-3620
+
+These phases added explicit non-resolution evidence to latest live-adapter
+decision readback while keeping adapter construction disabled. A record may be
+displayed as append-only local-state evidence, but the disabled adapter
+contract also shows that the decision is readback-only, construction artifacts
+remain missing, forbidden resolution claims are rejected, and a future backend
+construction contract is still required. It cannot construct adapters, enable
+adapters, mark construction artifacts satisfied, enable service, call
+Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
+browser authority, or grant BFF execution authority. Backend commit
+`0827ef82` and frontend commit `69b6bd6` contain the pushed range.
 
 ## Completed M55 Live-Adapter Decision Evidence Batch - Phases 3581-3600
 

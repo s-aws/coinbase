@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3601-3620**.
+- Approved phase range: **3621-3640**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3581-3600`.
+- Previous completed range: `3601-3620`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,98 +23,122 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3601-3620
+## Active Phases 3621-3640
 
-These phases harden live-adapter decision readback by exposing explicit
-non-resolution evidence on the disabled live-adapter contract. The latest
-decision may be displayed as append-only local evidence, but the contract must
-also name why it is readback-only, which construction artifacts remain
-missing, which claims are forbidden, and which backend construction contract
-is still required. It must not construct adapters, enable service, mark
-construction artifacts satisfied, call Coinbase, invoke managers, execute
-reconciliation, cancel or replace active placements, mutate lifecycle/order/
-exchange state, clear M55 blockers, grant browser authority, or grant BFF
-execution authority.
+These phases add the typed backend construction contract named by
+`latest_adapter_decision_next_required_contract`. The contract is evidence
+only: it may enumerate required backend artifacts, missing artifacts,
+verification gates, route binding, shared command service binding, and
+forbidden execution methods. It must not construct adapters, enable service,
+mark construction artifacts satisfied, call Coinbase, invoke managers,
+execute reconciliation, cancel or replace active placements, mutate
+lifecycle/order/exchange state, clear M55 blockers, grant browser authority,
+or grant BFF execution authority.
 
-### Phase 3601 - Advance Active Queue Range
+### Phase 3621 - Prior Range Completion Evidence
 
-- Move the durable autonomous queue from completed phases 3581-3600 to active phases 3601-3620 while preserving no-live defaults and cap policy.
+- Record completed phases 3601-3620 with backend commit `0827ef82`, frontend commit `69b6bd6`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3602 - Prior Range Completion Evidence
+### Phase 3622 - Advance Active Queue Range
 
-- Record completed phases 3581-3600 as append-only disabled live-adapter decision evidence with passing gates, blind/contextless review, backend commit `9dd8c1f3`, frontend commit `ac5f0ef`, and `$0` live Coinbase submitted/executed notional.
+- Move the durable autonomous queue from completed phases 3601-3620 to active phases 3621-3640 while preserving no-live defaults and cap policy.
 
-### Phase 3603 - Adapter Decision Resolution Enum
+### Phase 3623 - Construction Artifact Enum
 
-- Add enum-backed live-adapter decision resolution status values for unavailable and readback-only contract evidence.
+- Add enum-backed artifact identifiers for the backend live-adapter construction contract.
 
-### Phase 3604 - Adapter Decision Non-Resolution Projection
+### Phase 3624 - Construction Contract Builder
 
-- Add latest-decision resolution status, non-resolution reason, required resolution artifacts, missing resolution artifacts, forbidden resolution claims, and next required backend contract fields to the disabled live-adapter contract.
+- Add a read-only construction-contract builder that lists required artifacts, missing artifacts, verification gates, blockers, authority, and forbidden execution methods.
 
-### Phase 3605 - Backend Model And Schema Sync
+### Phase 3625 - Adapter Contract Projection
 
-- Add typed model fields and regenerate backend OpenAPI so frontend schema consumption remains generated from the backend contract.
+- Nest the construction contract under the existing live-adapter contract with construction satisfaction false and executable false.
 
-### Phase 3606 - Backend Focused Coverage
+### Phase 3626 - Backend Model And Schema Sync
 
-- Add focused assertions for both no-record and latest-record adapter decision readback so recorded decisions remain resolver-ineligible and construction unresolved.
+- Add typed Pydantic models and regenerate backend OpenAPI so the frontend consumes the construction contract from generated schema.
 
-### Phase 3607 - Frontend Schema Sync
+### Phase 3627 - Backend Focused Coverage
+
+- Add focused assertions proving the construction contract is present, route-bound, backend-owned, unsatisfied, non-executable, and no-live.
+
+### Phase 3628 - Frontend Schema Sync
 
 - Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
 
-### Phase 3608 - Frontend Mock Contract Sync
+### Phase 3629 - Frontend Mock And Runtime Sync
 
-- Add the new non-resolution fields to mock disabled and pilot adapter contract evidence in all readback fixtures.
+- Add construction-contract evidence to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
 
-### Phase 3609 - Frontend Runtime And Quality Sync
+### Phase 3630 - Frontend Display Sync
 
-- Update runtime fixtures, release/deployment/autonomous checks, and artifact contract metadata for approved phases 3601-3620.
+- Render construction-contract status, missing artifacts, blockers, and authority through existing adapter evidence rows.
 
-### Phase 3610 - Frontend Focused Coverage
+### Phase 3631 - Frontend Focused Coverage
 
-- Update focused mock, runtime, read-model, dry-submit, and quality tests so the new non-resolution fields cannot drift.
+- Update focused mock, runtime, read-model, dry-submit, and quality tests so construction-contract evidence cannot drift.
 
-### Phase 3611 - Documentation Sync
+### Phase 3632 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for adapter decision non-resolution evidence.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for construction-contract evidence.
 
-### Phase 3612 - Stale Authority Scan
+### Phase 3633 - Autonomous Validator Sync
 
-- Search backend/frontend code and docs for stale 3581-3600 active-range wording or text implying adapter decision readback resolves construction.
+- Update backend/frontend autonomous validators and active-range metadata for phases 3621-3640.
 
-### Phase 3613 - Backend Focused Gates
+### Phase 3634 - Stale Authority Scan
 
-- Run focused Admin API/live-adapter decision tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+- Search backend/frontend code and docs for stale 3601-3620 active-range wording or text implying construction-contract evidence constructs adapters.
 
-### Phase 3614 - Frontend Focused Gates
+### Phase 3635 - Backend Focused Gates
+
+- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+
+### Phase 3636 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3615 - Full Backend Regression
+### Phase 3637 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3616 - Full Frontend Release Gate
+### Phase 3638 - Full Frontend Release Gate And UI Smoke
 
-- Run `npm run release:gate` in `C:\coinbase-frontend`.
+- Run `npm run release:gate` in `C:\coinbase-frontend` and verify the live-updated admin UI remains available with no-live posture.
 
-### Phase 3617 - Live UI Smoke
+### Phase 3639 - Blind Contextless Review
 
-- Verify the live-updated admin UI remains available and reports no live execution posture drift.
+- Run blind/contextless review proving a fresh agent can explain that the construction contract is evidence only and cannot build or enable an adapter.
 
-### Phase 3618 - Blind Contextless Review
+### Phase 3640 - Commit, Push, And No-Live Report
 
-- Run blind/contextless review proving a fresh agent can explain that adapter decision readback is non-resolution evidence and cannot clear live-adapter blockers.
+- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
 
-### Phase 3619 - Commit And Push
+## Completed Phases 3601-3620
 
-- Commit and push backend and frontend repositories after gates and review pass.
+These phases hardened live-adapter decision readback by exposing explicit
+non-resolution evidence on the disabled live-adapter contract. The latest
+decision may be displayed as append-only local evidence, but the contract also
+names why it is readback-only, which construction artifacts remain missing,
+which claims are forbidden, and which backend construction contract is still
+required. It does not construct adapters, enable service, mark construction
+artifacts satisfied, call Coinbase, invoke managers, execute reconciliation,
+cancel or replace active placements, mutate lifecycle/order/exchange state,
+clear M55 blockers, grant browser authority, or grant BFF execution authority.
 
-### Phase 3620 - No-Live Report
+Completion evidence:
 
-- Report `$0` live Coinbase submitted/executed notional and verify clean worktrees.
+- Backend commit `0827ef82` and frontend commit `69b6bd6` were pushed.
+- Backend full regression passed with `867` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `260` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review found no blockers after the phase-map drift was
+  fixed and validator enforcement was added.
+- Live UI rendered at `http://127.0.0.1:3000` with current phase and no-live
+  evidence.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 3581-3600
 
