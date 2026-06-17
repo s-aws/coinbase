@@ -38,42 +38,52 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Batch - Phases 4041-4060
+## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Requirement Batch - Phases 4061-4080
 
 These phases add backend-owned producer-route contract clearance-step
-review-input rows and a blocked review-input summary over the existing
-clearance-step reviews while keeping adapter construction disabled. Each input
-row is derived from one blocked clearance-step review and names a missing
-review input required before that review could ever become ready. It remains
-readback evidence only. It cannot create, accept, validate, or complete
-inputs, complete reviews, make steps ready, resolve claims, clear work items,
-perform remediation, register producer routes, bind route inventory, bind
-shared command services, create handlers, create stores, configure validation
-or replay gates, create writers, construct adapters, record or accept
+review-input store requirement rows and a blocked store-requirement summary
+over the existing review-input rows while keeping adapter construction
+disabled. Each requirement row is derived from one blocked review input and
+names the missing store, writer, record key, schema-validation gate, and
+replay-protection gate required before that input could ever be accepted. It
+remains readback evidence only. It cannot create stores, create writers,
+write evidence, accept records, validate records, complete inputs, complete
+reviews, make steps ready, resolve claims, clear work items, perform
+remediation, register producer routes, bind route inventory, bind shared
+command services, create handlers, construct adapters, record or accept
 evidence, mark artifacts satisfied, enable adapters, enable service, call
 Coinbase, invoke managers, execute reconciliation, cancel/replace active
 placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
 browser authority, or grant BFF execution authority.
 
-### Phase 4041 - Prior Range Completion Evidence
+### Phase 4061 - Prior Range Completion Evidence
 
-- Record completed phases 4021-4040 with backend commit `5b6b9f1e`, frontend commit `b71e612`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 4041-4060 with backend commit `b67aa1db`, frontend commit `a5bd09d`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 4042 - Backend Clearance-Step Review Inputs
+### Phase 4062 - Backend Store Requirement Rows
 
-- Add typed blocked clearance-step review-input rows and populate one row per required review input, preserving input id, input name, review id, step id, plan id, claim trace id, required refs, review gates, input gate, review blocker, step blocker, plan blocker, and disabled authority flags.
+- Add typed blocked clearance-step review-input store requirement rows and populate one row per review input, preserving input id, review id, step id, plan id, claim trace id, required store ref, writer ref, record key, validation gate, replay gate, blockers, and disabled authority flags.
 
-### Phase 4043 - Backend Review-Input Summary
+### Phase 4063 - Backend Store Requirement Summary
 
-- Add a blocked review-input summary aggregating input ids, review ids, step ids, plan ids, claim trace ids, claims, required refs, required review inputs, review gates, input gates, blockers, and disabled authority flags.
+- Add a blocked store-requirement summary aggregating requirement ids, input ids, store refs, writer refs, record keys, validation gates, replay gates, blockers, counts, and disabled authority flags.
 
-### Phase 4044 - Frontend Contract Sync
+### Phase 4064 - Frontend Contract Sync
 
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract clearance-step review-input and review-input summary readback.
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract clearance-step review-input store requirement and store-requirement summary readback.
 
-### Phase 4045 - Validators, Gates, Review, Commit, And No-Live Report
+### Phase 4065 - Validators, Gates, Review, Commit, And No-Live Report
 
 - Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Batch - Phases 4041-4060
+
+These phases added backend-owned producer-route contract clearance-step
+review-input rows and a blocked review-input summary over the existing
+clearance-step reviews while keeping adapter construction disabled. Each input
+row is derived from one blocked clearance-step review and names a missing
+review input required before that review could ever become ready. Backend
+commit `b67aa1db` and frontend commit `a5bd09d` contain the pushed range.
 
 ## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Batch - Phases 4021-4040
 

@@ -174,10 +174,15 @@ phases 4001-4020 expand those clearance plans into blocked ordered clearance
 steps and a step summary without performing any of the named backend work.
 Completed phases 4021-4040 add blocked clearance-step review rows and a
 review summary that list the backend-owned review inputs and gates required
-before those steps could ever become ready. Active phases 4041-4060 add
+before those steps could ever become ready. Completed phases 4041-4060 add
 blocked clearance-step review-input rows and a review-input summary derived
 from those review rows without creating, accepting, validating, or completing
-any input.
+any input. Active phases 4061-4080 add blocked clearance-step review-input
+store requirement rows and a store-requirement summary derived from those
+review-input rows without creating stores, writing evidence, accepting
+records, validating records, completing inputs, completing reviews, resolving
+claims, satisfying construction, constructing adapters, or executing live
+paths.
 These layers
 do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,

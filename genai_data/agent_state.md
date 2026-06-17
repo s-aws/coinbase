@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4021-4040` is backend `5b6b9f1e`
-  and frontend `b71e612`; active range is `4041-4060`.
+- Commit (optional): completed range `4041-4060` is backend `b67aa1db`
+  and frontend `a5bd09d`; active range is `4061-4080`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `4021-4040`; active range is `4041-4060`.
+- Latest completed autonomous range: `4041-4060`; active range is `4061-4080`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -385,7 +385,7 @@ Keep it short. Keep it factual.
   items, perform remediation, register routes, bind route inventory, bind
   shared command services, register handlers, write or accept evidence,
   satisfy artifacts, construct adapters, or create live execution authority.
-- Active `4041-4060` work: add blocked producer-route contract
+- Completed `4041-4060` work: add blocked producer-route contract
   clearance-step review-input rows and a review-input summary derived from
   clearance-step reviews. The input rows and summary may list input ids, input
   names, review ids, step ids, plan ids, required review inputs, required
@@ -396,6 +396,19 @@ Keep it short. Keep it factual.
   routes, bind route inventory, bind shared command services, register
   handlers, write or accept evidence, satisfy artifacts, construct adapters,
   or create live execution authority.
+- Active `4061-4080` work: add blocked producer-route contract
+  clearance-step review-input store requirement rows and a store-requirement
+  summary derived from clearance-step review-input rows. The requirement rows
+  and summary may list requirement ids, input ids, review ids, step ids, plan
+  ids, required store refs, writer refs, record keys, validation gates,
+  replay gates, blockers, and disabled store/record/writer/validation/replay/
+  input/review/step/claim/construction/execution flags, but they must not
+  create stores, create records, accept records, validate records, create
+  writers, complete inputs, complete reviews, make steps ready, resolve
+  claims, clear work items, perform remediation, register routes, bind route
+  inventory, bind shared command services, register handlers, write or accept
+  evidence, satisfy artifacts, construct adapters, or create live execution
+  authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -569,21 +582,23 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4041-4060`.
+- Active autonomous range: `4061-4080`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: add blocked producer-route contract clearance-step
-  review-input rows and a review-input summary under the existing live-adapter
-  construction contract in active phases `4041-4060` so future backend work
-  can see the missing review inputs that still block a review from becoming
-  ready. The input rows and summary may list false input/review/step/claim/
-  work-item/remediation/dependency/action readiness, route-registration,
-  route-inventory, shared-service, handler, store, validation/replay, writer,
-  acceptance, construction, clearance, and execution flags and false producer
-  satisfaction. They must not enable live service, create inputs, accept
-  inputs, validate inputs, complete inputs, complete reviews, make steps
-  ready, resolve claims, clear work items, perform remediation, register
-  routes, bind route inventory, bind shared command services, register
-  handlers, construct adapters, satisfy construction artifacts, write or
+  review-input store requirement rows and a store-requirement summary under
+  the existing live-adapter construction contract in active phases
+  `4061-4080` so future backend work can see the missing store, writer,
+  record key, validation gate, and replay gate that still block a review input
+  from becoming acceptable. The rows and summary may list false store/record/
+  writer/validation/replay/input/review/step/claim/work-item/remediation/
+  dependency/action readiness, route-registration, route-inventory,
+  shared-service, handler, acceptance, construction, clearance, and execution
+  flags and false producer satisfaction. They must not enable live service,
+  create stores, create records, accept records, validate records, create
+  writers, complete inputs, complete reviews, make steps ready, resolve
+  claims, clear work items, perform remediation, register routes, bind route
+  inventory, bind shared command services, register handlers, construct
+  adapters, satisfy construction artifacts, write or
   accept evidence, create a second adapter path, call Coinbase, invoke
   managers, execute reconciliation, cancel/replace active placements, mutate
   lifecycle/order/exchange state, grant browser authority, or grant BFF
@@ -1182,8 +1197,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: complete the active 4041-4060 backend live-adapter
+- Exact next command: complete the active 4061-4080 backend live-adapter
   acceptance-evidence producer-route contract clearance-step review-input
-  implementation, sync frontend generated schema/display, run focused gates,
-  blind/contextless review, full gates, then commit and push both repositories
-  with `$0` live Coinbase execution.
+  store requirement implementation, sync frontend generated schema/display,
+  run focused gates, blind/contextless review, full gates, then commit and
+  push both repositories with `$0` live Coinbase execution.
