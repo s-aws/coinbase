@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3901-3920` is backend `a15017c5`
-  and frontend `0fcf8b5`; active range is `3921-3940`.
+- Commit (optional): completed range `3921-3940` is backend `9cd3e921`
+  and frontend `234368f`; active range is `3941-3960`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3901-3920`; active range is `3921-3940`.
+- Latest completed autonomous range: `3921-3940`; active range is `3941-3960`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -322,7 +322,7 @@ Keep it short. Keep it factual.
   inventory, bind shared command services, register handlers, write or accept
   evidence, satisfy artifacts, clear readiness, construct adapters, or create
   live execution authority.
-- Active `3921-3940` work: add blocked producer-route contract remediation
+- Completed `3921-3940` work: add blocked producer-route contract remediation
   dependency rows and a dependency summary derived from those remediation
   rows. The dependency rows and summary may order missing backend work per
   route contract and list predecessor/successor remediation ids, blockers,
@@ -333,6 +333,17 @@ Keep it short. Keep it factual.
   command services, register handlers, write or accept evidence, satisfy
   artifacts, clear readiness, construct adapters, or create live execution
   authority.
+- Active `3941-3960` work: add blocked producer-route contract remediation
+  work-item rows and a work-queue summary derived from remediation dependency
+  rows. The work items and summary may name dependency ids, remediation ids,
+  validation ids, route contract ids, required backend work labels, required
+  backend refs, handoff blockers, route refs, check keys, stages,
+  remediation actions, and disabled route-registration/route-inventory/shared-
+  service/handler/store/validation/replay/writer/acceptance/construction/
+  execution flags, but they must not perform remediation, register routes,
+  bind route inventory, bind shared command services, register handlers, write
+  or accept evidence, satisfy artifacts, clear readiness, construct adapters,
+  or create live execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -506,11 +517,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3921-3940`.
+- Active autonomous range: `3941-3960`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: add blocked producer-route contract remediation
   dependency rows and a dependency summary under the existing live-adapter
-  construction contract in active phases `3921-3940` so future backend work
+  construction contract in active phases `3941-3960` so future backend work
   can see the ordering between missing backend work items for each failed
   route-contract remediation row. The dependency rows and summary may list
   false dependency/remediation/action readiness, predecessor and successor
@@ -1118,8 +1129,9 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3921-3940 backend live-adapter
-  acceptance-evidence producer-route contract remediation-dependency
+- Exact next command: continue the active 3941-3960 backend live-adapter
+  acceptance-evidence producer-route contract remediation work-queue
   implementation, sync frontend generated schema/display, run focused gates,
   blind/contextless review, full gates, then commit and push both repositories
-  with `$0` live Coinbase execution and pause for restart.
+  with `$0` live Coinbase execution before continuing only to the next
+  milestone-linked gap.

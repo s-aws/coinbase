@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3901-3920` under M55.
-- Active autonomous range: `3921-3940` under M55.
+- Latest completed autonomous range: `3921-3940` under M55.
+- Active autonomous range: `3941-3960` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -207,12 +207,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   binding, no shared service binding, no handler, no store, no validation, no
   replay, no writer, no acceptance, no construction, no execution, false
   satisfaction, and no-live authority. Those fields remain evidence only and
-  do not satisfy artifacts. Active 3921-3940 work adds remediation-dependency
+  do not satisfy artifacts. Completed 3921-3940 work adds remediation-dependency
   rows and a summary that order those blocked remediation items per route
   contract while preserving no remediation, no route registration, no route
   inventory binding, no shared service binding, no handler, no store, no
   validation, no replay, no writer, no acceptance, no construction, no
-  execution, false satisfaction, and no-live authority.
+  execution, false satisfaction, and no-live authority. Active 3941-3960 work
+  adds remediation work-item rows and a work-queue summary that name required
+  backend work, required backend refs, and handoff blockers while preserving
+  the same no-remediation/no-construction/no-execution/no-live authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through

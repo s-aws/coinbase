@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3921-3940**.
+- Approved phase range: **3941-3960**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3901-3920`.
+- Previous completed range: `3921-3940`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,99 +23,114 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3921-3940
+## Active Phases 3941-3960
 
-These phases add backend-owned dependency rows and a dependency summary over
-the producer-route contract remediation rows. Each dependency row is derived
-from one blocked remediation row and orders it against sibling remediation
-items for the same route contract so a contextless reader can see which
-backend work must precede another missing backend prerequisite. This remains
-evidence only. It must not perform remediation, register a route, bind route
-inventory, bind a shared command service, register a handler, create a store,
-configure validation/replay gates, create a writer, write or accept evidence,
-construct adapters, call Coinbase, invoke managers, execute reconciliation,
-cancel/replace active placements, mutate lifecycle/order/exchange state,
-grant browser authority, or grant BFF execution authority.
+These phases add backend-owned remediation work-item rows and a work-queue
+summary over the producer-route contract remediation-dependency rows. Each work
+item is derived from one blocked dependency row so a contextless reader can see
+the next backend-owned handoff/action item, required refs, dependency blockers,
+and disabled authority before any route contract can become available. This
+remains evidence only. It must not perform remediation, register a route, bind
+route inventory, bind a shared command service, register a handler, create a
+store, configure validation/replay gates, create a writer, write or accept
+evidence, construct adapters, call Coinbase, invoke managers, execute
+reconciliation, cancel/replace active placements, mutate
+lifecycle/order/exchange state, grant browser authority, or grant BFF execution
+authority.
 
-### Phase 3921 - Prior Range Completion Evidence
+### Phase 3941 - Prior Range Completion Evidence
 
-- Record completed phases 3901-3920 with backend commit `a15017c5`, frontend commit `0fcf8b5`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3921-3940 with backend commit `9cd3e921`, frontend commit `234368f`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3922 - Advance Active Queue Range
+### Phase 3942 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3901-3920 to active phases 3921-3940 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3921-3940 to active phases 3941-3960 while preserving no-live defaults and cap policy.
 
-### Phase 3923 - Backend Remediation Dependency Model
+### Phase 3943 - Backend Remediation Work-Item Model
 
-- Add typed blocked producer-route contract remediation-dependency item and dependency-summary models to the existing live-adapter construction contract path.
+- Add typed blocked producer-route contract remediation work-item and work-queue summary models to the existing live-adapter construction contract path.
 
-### Phase 3924 - Backend Remediation Dependency Projection
+### Phase 3944 - Backend Work-Item Projection
 
-- Derive dependency rows from every blocked route-contract remediation row and preserve the source remediation id, validation id, route contract id, requirement id, claim id, work-item ref, producer contract id, evidence id, artifact, route contract ref, route inventory ref, shared command-service ref, check key, and remediation action.
+- Derive one work item from every blocked route-contract remediation dependency row and preserve dependency id/order/stage, remediation id, validation id, route contract id, requirement id, claim id, producer contract id, evidence id, artifact, original work-item ref, route contract ref, route inventory ref, shared command-service ref, check key, remediation action, predecessor/successor dependency ids, blockers, and required backend refs.
 
-### Phase 3925 - Dependency Ordering Evidence
+### Phase 3945 - Work Queue Handoff Evidence
 
-- Compute predecessor and successor remediation ids/check keys per route contract using the existing validation-check order without making any dependency ready or action-ready.
+- Add required backend work labels and handoff blockers that make the next backend-owned action explicit without marking any dependency, remediation, route, store, writer, acceptance path, construction, or execution ready.
 
-### Phase 3926 - Backend Dependency Summary
+### Phase 3946 - Backend Work Queue Summary
 
-- Aggregate dependency counts, dependency ids, remediation ids, validation ids, contract ids, requirement ids, claim ids, work-item refs, route refs, check keys, dependency stages, remediation actions, blockers, validation blockers, verification gates, and disabled authority flags.
+- Aggregate work-item counts, work-item ids, dependency ids, remediation ids, validation ids, contract ids, requirement ids, claim ids, route refs, check keys, dependency stages, remediation actions, required backend work labels, required backend refs, blockers, verification gates, and disabled authority flags.
 
-### Phase 3927 - Backend Schema And Coverage
+### Phase 3947 - Backend Schema And Coverage
 
-- Regenerate backend OpenAPI and add focused assertions proving dependency rows and summary are blocked, derived, ordered, no-remediation, no-registration, no-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
+- Regenerate backend OpenAPI and add focused assertions proving work-item rows and summary are blocked, derived, dependency-linked, no-remediation, no-registration, no-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
 
-### Phase 3928 - Frontend Schema And Mock Sync
+### Phase 3948 - Frontend Schema And Mock Sync
 
 - Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
 
-### Phase 3929 - Frontend Display Sync
+### Phase 3949 - Frontend Display Sync
 
-- Render producer-route contract remediation-dependency rows and summary separately from remediation, validation, proposal, requirement, claim-trace, and work-queue rows through the existing adapter evidence display.
+- Render producer-route contract remediation work-item rows and work-queue summary separately from dependency, remediation, validation, proposal, requirement, claim-trace, and clearance work-queue rows through the existing adapter evidence display.
 
-### Phase 3930 - Frontend Focused Coverage
+### Phase 3950 - Frontend Focused Coverage
 
-- Update focused mock, dry-submit, runtime, read-model, and quality tests so dependency readback cannot imply remediation, route registration, route inventory binding, shared-service binding, handler registration, store, validation, replay, writer, acceptance, construction, clearance, or execution authority.
+- Update focused mock, dry-submit, runtime, read-model, and quality tests so work-item readback cannot imply remediation, route registration, route inventory binding, shared-service binding, handler registration, store, validation, replay, writer, acceptance, construction, clearance, or execution authority.
 
-### Phase 3931 - Documentation Sync
+### Phase 3951 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract remediation-dependency readback.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract remediation work-item readback.
 
-### Phase 3932 - Autonomous Validator Sync
+### Phase 3952 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 3921-3940.
+- Update backend/frontend autonomous validators and active-range metadata for phases 3941-3960.
 
-### Phase 3933 - Stale Authority Scan
+### Phase 3953 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale active-range wording or text implying route-contract dependency evidence can perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
+- Search backend/frontend code and docs for stale active-range wording or text implying route-contract remediation work-item evidence can perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
 
-### Phase 3934 - Backend Focused Gates
+### Phase 3954 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 3935 - Frontend Focused Gates
+### Phase 3955 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3936 - Full Backend Regression
+### Phase 3956 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3937 - Full Frontend Release Gate
+### Phase 3957 - Full Frontend Release Gate
 
 - Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 3938 - Blind Contextless Review
+### Phase 3958 - Blind Contextless Review
 
-- Run blind/contextless review proving a fresh agent can explain that dependency rows are planning evidence only and cannot perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, clear, construct, execute, or enable adapters.
+- Run blind/contextless review proving a fresh agent can explain that remediation work-item rows are planning evidence only and cannot perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, clear, construct, execute, or enable adapters.
 
-### Phase 3939 - Live UI Smoke
+### Phase 3959 - Live UI Smoke
 
 - Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
 
-### Phase 3940 - Completion Evidence, Commit, Push, And Pause
+### Phase 3960 - Completion Evidence, Commit, Push, And Continue
 
-- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees; then pause for the requested restart.
+- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees; then continue only to the next milestone-linked gap.
+
+## Completed Phases 3921-3940
+
+Phases 3921-3940 added backend-owned dependency rows and a dependency summary
+over the producer-route contract remediation rows. Each dependency row is
+derived from one blocked remediation row and orders it against sibling
+remediation items for the same route contract so a contextless reader can see
+which backend work must precede another missing backend prerequisite. Backend
+commit `9cd3e921` and frontend commit `234368f` contain the pushed range.
+Backend regression passed with `867 passed, 1 warning`. Frontend
+`npm run release:gate` passed with 260 unit tests and 3 Playwright tests. Live
+UI smoke passed at `http://127.0.0.1:3000`. Blind/contextless reviews passed
+for both repositories. Live Coinbase execution was not run; submitted notional
+`0` USDC and executed notional `0` USDC.
 
 ## Completed Phases 3901-3920
 

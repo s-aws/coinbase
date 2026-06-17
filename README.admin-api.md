@@ -157,9 +157,12 @@ contract validation rows and a summary mapping those proposals to missing
 route contract, route registration, route inventory, shared service, handler,
 store, validation/replay, writer, and acceptance prerequisites. Completed
 phases 3901-3920 add blocked remediation rows and a summary mapping failed
-validation rows to missing backend work without performing that work. Active
+validation rows to missing backend work without performing that work. Completed
 phases 3921-3940 add blocked remediation-dependency rows and a summary that
 order those remediation items by route contract without performing that work.
+Active phases 3941-3960 add blocked remediation work-item rows and a
+work-queue summary that name required backend work, required backend refs, and
+handoff blockers without performing that work.
 These layers
 do not register routes, bind route inventory, bind shared command services,
 register handlers, create stores, configure validation/replay, create writers,

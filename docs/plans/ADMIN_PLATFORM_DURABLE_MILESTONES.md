@@ -2870,12 +2870,16 @@ Current backend evidence:
   preserving no remediation, no route registration, no route inventory binding,
   no shared service binding, no-handler, no-store, no-validation, no-replay,
   no-writer, no-acceptance, no-construction, no-execution, false satisfaction,
-  and no-live authority. Active phases 3921-3940 add remediation-dependency
+  and no-live authority. Completed phases 3921-3940 add remediation-dependency
   rows and a summary that order those blocked remediation items per route
   contract while preserving no remediation, no route registration, no route
   inventory binding, no shared service binding, no-handler, no-store,
   no-validation, no-replay, no-writer, no-acceptance, no-construction,
-  no-execution, false satisfaction, and no-live authority.
+  no-execution, false satisfaction, and no-live authority. Active phases
+  3941-3960 add remediation work-item rows and a work-queue summary that name
+  required backend work, required backend refs, and handoff blockers while
+  preserving the same no-remediation/no-construction/no-execution/no-live
+  authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.
