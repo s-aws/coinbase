@@ -12885,6 +12885,131 @@ components:
       - detail
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessItem
       description: Blocked readiness item for a future acceptance-evidence producer.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_readiness_summary
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_producer_readiness_items_no_write
+        producer_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Producer Contract Count
+          default: 0
+        readiness_item_count:
+          type: integer
+          minimum: 0.0
+          title: Readiness Item Count
+          default: 0
+        missing_readiness_item_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Readiness Item Count
+          default: 0
+        satisfied_readiness_item_count:
+          type: integer
+          minimum: 0.0
+          title: Satisfied Readiness Item Count
+          default: 0
+        required_categories:
+          items:
+            type: string
+          type: array
+          title: Required Categories
+        missing_categories:
+          items:
+            type: string
+          type: array
+          title: Missing Categories
+        satisfied_categories:
+          items:
+            type: string
+          type: array
+          title: Satisfied Categories
+        producer_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Producer Contract Ids
+        next_required_readiness_item_ids:
+          items:
+            type: string
+          type: array
+          title: Next Required Readiness Item Ids
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        first_blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Blocker
+        all_producer_contracts_ready:
+          type: boolean
+          title: All Producer Contracts Ready
+          default: false
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contracts:
+          type: boolean
+          title: Satisfies Producer Contracts
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer readiness is derived from missing route, store, and validation/replay
+            rows. It is a summary only and grants no acceptance-evidence write authority.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary
+      description: Aggregate over blocked acceptance-evidence producer readiness rows.
     AdminLiveAdapterConstructionArtifactAcceptanceEvidence:
       properties:
         artifact:
@@ -13208,6 +13333,8 @@ components:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract'
           type: array
           title: Acceptance Evidence Producer Contracts
+        acceptance_evidence_producer_readiness_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

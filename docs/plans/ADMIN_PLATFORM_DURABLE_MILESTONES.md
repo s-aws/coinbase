@@ -2826,11 +2826,14 @@ Current backend evidence:
   while preserving missing evidence, false satisfaction, and no-live authority.
   Completed phases 3701-3720 add a blocked backend-owned producer contract
   over those missing acceptance evidence ids while preserving no-route,
-  no-writer, no-acceptance, false satisfaction, and no-live authority. Active
-  phases 3721-3740 add blocked producer-readiness rows for the missing route,
+  no-writer, no-acceptance, false satisfaction, and no-live authority.
+  Completed phases 3721-3740 add blocked producer-readiness rows for the missing route,
   append-only store, and validation/replay gate while preserving no-route,
   no-store, no-validation, no-replay, no-writer, no-acceptance, false
-  satisfaction, and no-live authority.
+  satisfaction, and no-live authority. Active phases 3741-3760 add a
+  blocked contract-level aggregate over those producer-readiness rows while
+  preserving missing criteria, disabled route/store/validation/replay/writer/
+  acceptance flags, false satisfaction, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

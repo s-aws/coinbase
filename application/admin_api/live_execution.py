@@ -130,6 +130,12 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SOURCE = (
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_AUTHORITY = (
     "backend_producer_readiness_only_no_write"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_readiness_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SUMMARY_AUTHORITY = (
+    "backend_derived_from_producer_readiness_items_no_write"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_MISSING_REASON = (
     "acceptance_evidence_producer_readiness_item_missing"
 )
@@ -852,6 +858,68 @@ def build_live_adapter_construction_contract(
         contract["blocker"]
         for contract in missing_acceptance_evidence_producer_contracts
     ]
+    producer_readiness_items = [
+        item
+        for contract in acceptance_evidence_producer_contracts
+        for item in contract["readiness_items"]
+    ]
+    missing_producer_readiness_items = [
+        item for item in producer_readiness_items if not item["satisfied"]
+    ]
+    satisfied_producer_readiness_items = [
+        item for item in producer_readiness_items if item["satisfied"]
+    ]
+    producer_readiness_blockers = [
+        item["blocker"] for item in missing_producer_readiness_items
+    ]
+    producer_readiness_summary = {
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SUMMARY_AUTHORITY
+        ),
+        "producer_contract_count": len(acceptance_evidence_producer_contracts),
+        "readiness_item_count": len(producer_readiness_items),
+        "missing_readiness_item_count": len(missing_producer_readiness_items),
+        "satisfied_readiness_item_count": len(satisfied_producer_readiness_items),
+        "required_categories": list(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS
+        ),
+        "missing_categories": list(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS
+        ),
+        "satisfied_categories": [],
+        "producer_contract_ids": [
+            contract["producer_contract_id"]
+            for contract in acceptance_evidence_producer_contracts
+        ],
+        "next_required_readiness_item_ids": [
+            item["readiness_item_id"] for item in missing_producer_readiness_items
+        ],
+        "blockers": producer_readiness_blockers,
+        "first_blocker": (
+            producer_readiness_blockers[0] if producer_readiness_blockers else None
+        ),
+        "all_producer_contracts_ready": False,
+        "producer_route_available": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer readiness is derived from missing route, store, and "
+            "validation/replay rows. It is a summary only and grants no "
+            "acceptance-evidence write authority."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -907,6 +975,9 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_contracts": (
             acceptance_evidence_producer_contracts
+        ),
+        "acceptance_evidence_producer_readiness_summary": (
+            producer_readiness_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),

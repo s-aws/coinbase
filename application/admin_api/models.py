@@ -4290,6 +4290,46 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract(BaseModel):
     detail: str
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary(
+    BaseModel
+):
+    """Aggregate over blocked acceptance-evidence producer readiness rows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = "backend_acceptance_evidence_producer_readiness_summary"
+    authority: str = "backend_derived_from_producer_readiness_items_no_write"
+    producer_contract_count: int = Field(default=0, ge=0)
+    readiness_item_count: int = Field(default=0, ge=0)
+    missing_readiness_item_count: int = Field(default=0, ge=0)
+    satisfied_readiness_item_count: int = Field(default=0, ge=0)
+    required_categories: list[str] = Field(default_factory=list)
+    missing_categories: list[str] = Field(default_factory=list)
+    satisfied_categories: list[str] = Field(default_factory=list)
+    producer_contract_ids: list[str] = Field(default_factory=list)
+    next_required_readiness_item_ids: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    first_blocker: str | None = None
+    all_producer_contracts_ready: bool = False
+    producer_route_available: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contracts: bool = False
+    satisfies_construction: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer readiness is derived from missing route, store, and "
+        "validation/replay rows. It is a summary only and grants no "
+        "acceptance-evidence write authority."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -4382,6 +4422,13 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     acceptance_evidence_producer_contracts: list[
         AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract
     ] = Field(default_factory=list)
+    acceptance_evidence_producer_readiness_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary
+        )
+    )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
         default_factory=list
     )
