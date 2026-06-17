@@ -361,7 +361,11 @@ route-bound projection of the disabled backend live execution service state.
 It is produced through the shared backend live-execution helper, reports
 `present=true` only as disabled service evidence, and keeps `enabled=false`,
 `executable=false`, no live exchange submission, forbidden execution methods,
-and display/forward-only browser/BFF authority. It is not a service
+and display/forward-only browser/BFF authority. It also reports unresolved
+backend-only enablement preconditions: the explicit live-enablement decision,
+configured Admin API live execution service, runtime live-service
+configuration, deployment enablement record, verification gates, and blockers.
+Those fields are blockers, not authority. They are not a service
 implementation, live switch, Coinbase caller, manager path, or BFF execution
 grant.
 Exact stealth command responses may also expose

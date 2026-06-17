@@ -2792,12 +2792,15 @@ Current backend evidence:
   Resolver lookups use the newest exact-command policy proof row, ignore newer
   rows for other guarded command contexts, and block on a newer unsafe
   exact-command row. Completed phases 3381-3400 consume those resolver rows
-  inside `execution_live_readiness` decision artifact evidence. Active phases
-  3401-3420 added backend-owned stealth state-mutation policy proof/readback; 3421-3440 consume it as resolver-only prerequisite
-  evidence for future exact-command resolver work. The proof records are
-  append-only local evidence only; backend decisions remain blocked and live
-  execution, Coinbase, manager, reconciliation, active-placement, state
-  mutation, browser, and BFF authority remain disabled.
+  inside `execution_live_readiness` decision artifact evidence. Completed
+  phases 3401-3420 added backend-owned stealth state-mutation policy
+  proof/readback; completed phases 3421-3440 consume it as resolver-only
+  prerequisite evidence for exact-command resolver work. Active phases
+  3441-3460 add backend-only enablement precondition evidence to the existing
+  disabled `live_execution_service_contract`. The service contract remains
+  disabled, non-executable, and no-live; backend decisions remain blocked and
+  Coinbase, manager, reconciliation, active-placement, state mutation,
+  browser, and BFF authority remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

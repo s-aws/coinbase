@@ -33,6 +33,28 @@ DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS = (
     "submit",
     "coinbase_client",
 )
+LIVE_EXECUTION_SERVICE_ENABLEMENT_AUTHORITY = "backend_runtime_configuration_only"
+LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS = (
+    "explicit_backend_live_enablement_decision",
+    "configured_admin_api_live_execution_service",
+    "runtime_live_service_configuration",
+    "deployment_live_service_enablement_record",
+)
+LIVE_EXECUTION_SERVICE_ENABLEMENT_CONTRACT_REFS = (
+    "application/admin_api/live_execution.py::AdminApiLiveExecutionService",
+    "application/admin_api/live_execution.py::DisabledAdminApiLiveExecutionService",
+    "application/admin_api/stealth_execution_preflight.py::execution_live_readiness",
+)
+LIVE_EXECUTION_SERVICE_ENABLEMENT_VERIFICATION_GATES = (
+    "live_service_configuration_is_backend_owned",
+    "browser_and_bff_do_not_hold_live_switch",
+    "disabled_service_contract_replaced_by_reviewed_live_service",
+    "live_coinbase_execution_requires_explicit_phase_approval",
+)
+LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS = (
+    "explicit_live_enablement_decision_missing",
+    "backend_live_service_configuration_missing",
+)
 M53_PILOT_LIVE_ADAPTER_ROUTE = "/api/v1/orders"
 M53_PILOT_LIVE_ADAPTER_METHOD = "POST"
 M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
@@ -120,12 +142,31 @@ def build_live_execution_service_contract(
         "executable": False,
         "live_exchange_submission_allowed": False,
         "live_exchange_submitted": False,
+        "enablement_precondition_required": True,
+        "enablement_precondition_resolved": False,
+        "enablement_precondition_authority": (
+            LIVE_EXECUTION_SERVICE_ENABLEMENT_AUTHORITY
+        ),
+        "required_enablement_artifacts": list(
+            LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS
+        ),
+        "missing_enablement_artifacts": list(
+            LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS
+        ),
+        "enablement_contract_refs": list(
+            LIVE_EXECUTION_SERVICE_ENABLEMENT_CONTRACT_REFS
+        ),
+        "enablement_verification_gates": list(
+            LIVE_EXECUTION_SERVICE_ENABLEMENT_VERIFICATION_GATES
+        ),
+        "enablement_blockers": list(LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS),
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
         "evidence": [
             "Live execution service state is owned by backend admission.",
             "The current service state is disabled and non-executable.",
+            "Backend live enablement preconditions are unresolved.",
             "Browser and BFF layers may display this boundary but cannot enable it.",
         ],
         "detail": (

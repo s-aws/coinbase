@@ -13376,6 +13376,43 @@ components:
           type: boolean
           title: Live Exchange Submitted
           default: false
+        enablement_precondition_required:
+          type: boolean
+          title: Enablement Precondition Required
+          default: true
+        enablement_precondition_resolved:
+          type: boolean
+          title: Enablement Precondition Resolved
+          default: false
+        enablement_precondition_authority:
+          type: string
+          title: Enablement Precondition Authority
+          default: backend_runtime_configuration_only
+        required_enablement_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Enablement Artifacts
+        missing_enablement_artifacts:
+          items:
+            type: string
+          type: array
+          title: Missing Enablement Artifacts
+        enablement_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Enablement Contract Refs
+        enablement_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Enablement Verification Gates
+        enablement_blockers:
+          items:
+            type: string
+          type: array
+          title: Enablement Blockers
         browser_authority:
           type: string
           title: Browser Authority

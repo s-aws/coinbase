@@ -4041,6 +4041,14 @@ class AdminLiveExecutionServiceContractEvidence(BaseModel):
     executable: bool = False
     live_exchange_submission_allowed: bool = False
     live_exchange_submitted: bool = False
+    enablement_precondition_required: bool = True
+    enablement_precondition_resolved: bool = False
+    enablement_precondition_authority: str = "backend_runtime_configuration_only"
+    required_enablement_artifacts: list[str] = Field(default_factory=list)
+    missing_enablement_artifacts: list[str] = Field(default_factory=list)
+    enablement_contract_refs: list[str] = Field(default_factory=list)
+    enablement_verification_gates: list[str] = Field(default_factory=list)
+    enablement_blockers: list[str] = Field(default_factory=list)
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     forbidden_methods: list[str] = Field(default_factory=list)
