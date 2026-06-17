@@ -22043,6 +22043,53 @@ components:
         next_required_contract:
           type: string
           title: Next Required Contract
+        blocker_authority:
+          type: string
+          title: Blocker Authority
+          description: Diagnostic authority for this blocker trace; does not resolve
+            the blocker or grant execution authority.
+          default: backend_contract_only_no_execution
+        blocker_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Blocker Contract Refs
+          description: Backend contract references that must be reviewed before this
+            blocker can be resolved; display evidence only.
+        blocker_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Blocker Evidence Refs
+          description: Existing response evidence fields that explain this blocker;
+            not proof lookup or execution authority.
+        required_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Resolution Artifacts
+          description: Artifacts required before this blocker can be resolved by a
+            future approved backend phase.
+        missing_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Missing Resolution Artifacts
+          description: Currently missing artifacts for this blocker; diagnostic only.
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+          description: Backend verification gates required before this blocker can
+            be resolved; not browser or BFF authority.
+        blocking_contract_blockers:
+          items:
+            type: string
+          type: array
+          title: Blocking Contract Blockers
+          description: Nested blocker names from the referenced backend contract;
+            diagnostic only and not command enablement.
         backend_owned:
           type: boolean
           title: Backend Owned
@@ -23984,6 +24031,53 @@ components:
         next_required_contract:
           type: string
           title: Next Required Contract
+        blocker_authority:
+          type: string
+          title: Blocker Authority
+          description: Diagnostic authority for this blocker trace; does not resolve
+            the blocker or grant execution authority.
+          default: backend_contract_only_no_execution
+        blocker_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Blocker Contract Refs
+          description: Backend contract references that must be reviewed before this
+            blocker can be resolved; display evidence only.
+        blocker_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Blocker Evidence Refs
+          description: Existing response evidence fields that explain this blocker;
+            not proof lookup or execution authority.
+        required_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Resolution Artifacts
+          description: Artifacts required before this blocker can be resolved by a
+            future approved backend phase.
+        missing_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Missing Resolution Artifacts
+          description: Currently missing artifacts for this blocker; diagnostic only.
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+          description: Backend verification gates required before this blocker can
+            be resolved; not browser or BFF authority.
+        blocking_contract_blockers:
+          items:
+            type: string
+          type: array
+          title: Blocking Contract Blockers
+          description: Nested blocker names from the referenced backend contract;
+            diagnostic only and not command enablement.
         backend_owned:
           type: boolean
           title: Backend Owned

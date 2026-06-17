@@ -29,7 +29,9 @@ from .live_execution import (
     POST_WRITE_RECONCILIATION_METHOD,
     POST_WRITE_RECONCILIATION_ROUTE,
     POST_WRITE_RECONCILIATION_SOURCE,
+    build_live_execution_adapter_blocker_trace,
     build_live_execution_adapter_contract,
+    build_live_execution_service_blocker_trace,
     build_live_execution_service_contract,
 )
 from .stealth_exchange_truth import (
@@ -978,6 +980,7 @@ def _build_remaining_execution_blockers(
         StealthCommandExecutionPrerequisite | None,
         str,
         str,
+        dict[str, object],
     ]] = [
         (
             StealthCommandExecutionBlocker.EXECUTION_CONTRACT_MISSING,
@@ -985,6 +988,7 @@ def _build_remaining_execution_blockers(
             "application/admin_api/stealth_command_execution.py::"
             "build_stealth_command_execution_contract",
             "The exact command response is still contract evidence, not an executable command.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED,
@@ -993,6 +997,7 @@ def _build_remaining_execution_blockers(
                 StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE
             ],
             "The shared live execution service remains disabled for this stealth command.",
+            build_live_execution_service_blocker_trace(),
         ),
         (
             StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED,
@@ -1001,60 +1006,70 @@ def _build_remaining_execution_blockers(
                 StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER
             ],
             "The stealth live execution adapter remains disabled for this command.",
+            build_live_execution_adapter_blocker_trace(),
         ),
         (
             StealthCommandExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED,
             None,
             ", ".join(metadata.manager_methods),
             "No StealthOrderManager method may be invoked from this contract.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED,
             None,
             "core/stealth_order_manager.py active-placement cancel/replace path",
             "Active Coinbase placements cannot be cancelled or replaced by this evidence surface.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.COINBASE_ORDER_SUBMIT_DISABLED,
             None,
             "external/coinbase_api.py order submit path",
             "Coinbase order submission remains disabled.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.COINBASE_ORDER_CANCEL_DISABLED,
             None,
             "external/coinbase_api.py cancel_order(client_order_id)",
             "Coinbase order cancellation remains disabled.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.COINBASE_READ_DISABLED,
             None,
             "external/coinbase_api.py read/reconcile path",
             "Live Coinbase reads remain disabled.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.LIFECYCLE_STATE_MUTATION_DISABLED,
             None,
             "database stealth lifecycle write path",
             "Lifecycle state mutation remains disabled.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.ORDER_STATE_MUTATION_DISABLED,
             None,
             "database/order.py state write path",
             "Order state mutation remains disabled.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.EXCHANGE_STATE_MUTATION_DISABLED,
             None,
             "exchange state reconciliation write path",
             "Exchange-state mutation remains disabled.",
+            {},
         ),
         (
             StealthCommandExecutionBlocker.RECONCILIATION_EXECUTION_DISABLED,
             None,
             "application/admin_api reconciliation executor",
             "Post-write reconciliation execution remains disabled.",
+            {},
         ),
     ]
     if (
@@ -1069,11 +1084,18 @@ def _build_remaining_execution_blockers(
                     StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION
                 ],
                 "The exact proof, accepted journal, and verification chain has not resolved post-write reconciliation evidence.",
+                {},
             )
         )
 
     items: list[StealthCommandExecutionBlockerChainItem] = []
-    for blocker_order, (blocker, prerequisite, next_contract, detail) in enumerate(
+    for blocker_order, (
+        blocker,
+        prerequisite,
+        next_contract,
+        detail,
+        trace,
+    ) in enumerate(
         blockers,
         start=1,
     ):
@@ -1092,6 +1114,7 @@ def _build_remaining_execution_blockers(
                     else blocker.value
                 ),
                 next_required_contract=next_contract,
+                **trace,
                 detail=(
                     f"{detail} Browser authority is display-only, BFF authority "
                     "is forward-only with no execution, and this blocker chain "

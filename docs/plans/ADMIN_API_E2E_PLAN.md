@@ -38,46 +38,62 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Construction Precondition Batch - Phases 3461-3480
+## Active M55 Blocker Traceability Batch - Phases 3481-3500
 
-These phases expand the existing disabled `live_execution_adapter_contract`
-with backend-only construction preconditions. The adapter remains disabled,
-non-executable, and no-live. This batch must not add a second adapter path,
-construct adapters, call Coinbase, invoke managers, execute reconciliation,
-cancel/replace active placements, mutate lifecycle/order/exchange state,
-grant browser authority, or grant BFF execution authority.
+These phases expand the existing create and non-create remaining execution
+blocker chain with backend-owned trace evidence for disabled live-service
+enablement and disabled live-adapter construction. Trace rows identify
+authority, contract refs, evidence refs, required/missing artifacts,
+verification gates, and contract blockers. This batch must not resolve
+blockers, add a second adapter path, construct adapters, call Coinbase, invoke
+managers, execute reconciliation, cancel/replace active placements, mutate
+lifecycle/order/exchange state, grant browser authority, or grant BFF
+execution authority.
 
-### Phase 3461 - Advance Active Queue Range
+### Phase 3481 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3441-3460 to active phases 3461-3480 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3461-3480 to active phases 3481-3500 while preserving no-live defaults and cap policy.
 
-### Phase 3462 - Prior Range Completion Evidence
+### Phase 3482 - Prior Range Completion Evidence
 
-- Record completed phases 3441-3460 as live-service enablement precondition evidence with passing gates, blind/contextless review, backend commit `caaa6358`, frontend commit `b9d9b80`, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3461-3480 as live-adapter construction precondition evidence with passing gates, blind/contextless review, backend commit `73c8b5f5`, frontend commit `ddc52d7`, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3463 - Backend Contract Expansion
+### Phase 3483 - Backend Blocker Trace Contract
 
-- Add live-adapter construction precondition, missing artifact, verification gate, and blocker evidence to `build_live_execution_adapter_contract`.
+- Add shared live-service and live-adapter blocker trace helpers and typed blocker-chain row fields.
 
-### Phase 3464 - Schema And Regression
+### Phase 3484 - Create And Non-Create Wiring
 
-- Update the Pydantic response model, regenerate OpenAPI, and prove the disabled adapter remains disabled, non-executable, and no-Coinbase.
+- Populate trace fields for live-service-disabled and live-adapter-disabled rows in both stealth create lifecycle and non-create command execution contracts.
 
-### Phase 3465 - Frontend Sync
+### Phase 3485 - Schema And Regression
 
-- Regenerate the frontend schema and render the new live-adapter construction evidence as display-only operator evidence.
+- Regenerate OpenAPI and prove trace rows remain blocked, no-live, no-manager, no-Coinbase, and no-mutation.
 
-### Phase 3466 - Validator And Roadmap Sync
+### Phase 3486 - Frontend Sync
 
-- Update backend/frontend autonomous queue validators, quality artifacts, roadmap docs, and maintainer handoffs for approved phases 3461-3480.
+- Regenerate the frontend schema and render blocker trace evidence as display-only operator evidence.
 
-### Phase 3467 - Contextless Review
+### Phase 3487 - Validator And Roadmap Sync
 
-- Run blind/contextless review proving a fresh agent can distinguish disabled live-adapter construction preconditions from adapter construction.
+- Update backend/frontend autonomous queue validators, quality artifacts, roadmap docs, and maintainer handoffs for approved phases 3481-3500.
 
-### Phase 3468 - Full Gates, Commit, Push, And No-Live Report
+### Phase 3488 - Contextless Review
+
+- Run blind/contextless review proving a fresh agent can distinguish blocker traceability from blocker resolution or adapter construction.
+
+### Phase 3489 - Full Gates, Commit, Push, And No-Live Report
 
 - Run full backend regression, frontend `npm run release:gate`, commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and continue to the next approved milestone-linked gap unless a major blocker appears.
+
+## Completed M55 Live-Adapter Construction Precondition Batch - Phases 3461-3480
+
+These phases expanded the existing disabled `live_execution_adapter_contract`
+with backend-only construction preconditions. The adapter remains disabled,
+non-executable, and no-live; it does not add a second adapter path, construct
+adapters, call Coinbase, invoke managers, execute reconciliation,
+cancel/replace active placements, mutate lifecycle/order/exchange state, grant
+browser authority, or grant BFF execution authority.
 
 ## Completed M55 Live-Service Enablement Precondition Batch - Phases 3441-3460
 

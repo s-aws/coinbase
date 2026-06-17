@@ -559,6 +559,14 @@ and clearance order from preflight. All three are backend-owned display
 evidence only; they do not invoke managers, call Coinbase, cancel/replace
 active placements, execute reconciliation, mutate state, or authorize
 browser/BFF execution.
+The `remaining_execution_blockers` rows inside those contracts also carry
+trace fields for live-service and live-adapter blockers. Trace fields identify
+the blocker authority, backend contract refs, evidence refs, required and
+missing artifacts, verification gates, and contract blockers that keep live
+service enablement and adapter construction unresolved. They are diagnostic
+evidence only; they do not resolve live readiness, construct adapters, call
+Coinbase, invoke managers, execute reconciliation, mutate state, or grant
+browser/BFF execution authority.
 For stealth reconciliation, the same contract may resolve
 `reconciliation_proof` from
 `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and

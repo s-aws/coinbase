@@ -6493,6 +6493,54 @@ class StealthCommandExecutionBlockerChainItem(BaseModel):
     resolved_evidence_id: str | None = None
     missing_reason: str | None = None
     next_required_contract: str
+    blocker_authority: str = Field(
+        default="backend_contract_only_no_execution",
+        description=(
+            "Diagnostic authority for this blocker trace; does not resolve "
+            "the blocker or grant execution authority."
+        ),
+    )
+    blocker_contract_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Backend contract references that must be reviewed before this "
+            "blocker can be resolved; display evidence only."
+        ),
+    )
+    blocker_evidence_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Existing response evidence fields that explain this blocker; "
+            "not proof lookup or execution authority."
+        ),
+    )
+    required_resolution_artifacts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Artifacts required before this blocker can be resolved by a "
+            "future approved backend phase."
+        ),
+    )
+    missing_resolution_artifacts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Currently missing artifacts for this blocker; diagnostic only."
+        ),
+    )
+    verification_gates: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Backend verification gates required before this blocker can be "
+            "resolved; not browser or BFF authority."
+        ),
+    )
+    blocking_contract_blockers: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Nested blocker names from the referenced backend contract; "
+            "diagnostic only and not command enablement."
+        ),
+    )
     backend_owned: bool = True
     route_bound: bool = True
     command_context_bound: bool = True
@@ -7463,6 +7511,54 @@ class StealthCreateLifecycleExecutionBlockerChainItem(BaseModel):
     resolved_evidence_id: str | None = None
     missing_reason: str | None = None
     next_required_contract: str
+    blocker_authority: str = Field(
+        default="backend_contract_only_no_execution",
+        description=(
+            "Diagnostic authority for this blocker trace; does not resolve "
+            "the blocker or grant execution authority."
+        ),
+    )
+    blocker_contract_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Backend contract references that must be reviewed before this "
+            "blocker can be resolved; display evidence only."
+        ),
+    )
+    blocker_evidence_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Existing response evidence fields that explain this blocker; "
+            "not proof lookup or execution authority."
+        ),
+    )
+    required_resolution_artifacts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Artifacts required before this blocker can be resolved by a "
+            "future approved backend phase."
+        ),
+    )
+    missing_resolution_artifacts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Currently missing artifacts for this blocker; diagnostic only."
+        ),
+    )
+    verification_gates: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Backend verification gates required before this blocker can be "
+            "resolved; not browser or BFF authority."
+        ),
+    )
+    blocking_contract_blockers: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Nested blocker names from the referenced backend contract; "
+            "diagnostic only and not command enablement."
+        ),
+    )
     backend_owned: bool = True
     route_bound: bool = True
     command_context_bound: bool = True

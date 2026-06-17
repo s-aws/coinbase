@@ -28,7 +28,9 @@ from .live_execution import (
     POST_WRITE_RECONCILIATION_METHOD,
     POST_WRITE_RECONCILIATION_ROUTE,
     POST_WRITE_RECONCILIATION_SOURCE,
+    build_live_execution_adapter_blocker_trace,
     build_live_execution_adapter_contract,
+    build_live_execution_service_blocker_trace,
     build_live_execution_service_contract,
 )
 from .stealth_lifecycle_write import (
@@ -576,6 +578,7 @@ def _build_remaining_execution_blockers(
         StealthCreateLifecycleExecutionPrerequisite | None,
         str,
         str,
+        dict[str, object],
     ]] = [
         (
             StealthCreateLifecycleExecutionBlocker.EXECUTION_CONTRACT_MISSING,
@@ -583,6 +586,7 @@ def _build_remaining_execution_blockers(
             "application/admin_api/stealth_lifecycle_execution.py::"
             "build_stealth_create_lifecycle_write_execution_contract",
             "The create response is still contract evidence, not an executable create command.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.LIVE_EXECUTION_DISABLED,
@@ -591,6 +595,7 @@ def _build_remaining_execution_blockers(
                 StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE
             ],
             "The shared live execution service remains disabled for stealth create.",
+            build_live_execution_service_blocker_trace(),
         ),
         (
             StealthCreateLifecycleExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED,
@@ -599,60 +604,70 @@ def _build_remaining_execution_blockers(
                 StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER
             ],
             "The stealth create live execution adapter remains disabled.",
+            build_live_execution_adapter_blocker_trace(),
         ),
         (
             StealthCreateLifecycleExecutionBlocker.STEALTH_MANAGER_INVOCATION_DISABLED,
             None,
             STEALTH_CREATE_MANAGER_METHOD,
             "The StealthOrderManager create method may not be invoked from this contract.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.ACTIVE_PLACEMENT_CANCEL_REPLACE_DISABLED,
             None,
             "core/stealth_order_manager.py active-placement cancel/replace path",
             "The create contract may not cancel or replace active placements.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.STEALTH_ROW_WRITE_DISABLED,
             None,
             "database stealth_orders write path",
             "The stealth_orders row write path remains disabled.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.ORDER_PARENT_WRITE_DISABLED,
             None,
             "database/order_parent write path",
             "The order_parent write path remains disabled.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.LIFECYCLE_EVENT_DISPATCH_DISABLED,
             None,
             "stealth lifecycle event dispatch path",
             "Lifecycle event dispatch remains disabled.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.COINBASE_ORDER_SUBMIT_DISABLED,
             None,
             "external/coinbase_api.py order submit path",
             "Coinbase order submission remains disabled.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.COINBASE_ORDER_CANCEL_DISABLED,
             None,
             "external/coinbase_api.py cancel_order(client_order_id)",
             "Coinbase order cancellation remains disabled.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.COINBASE_READ_DISABLED,
             None,
             "external/coinbase_api.py read/reconcile path",
             "Live Coinbase reads remain disabled.",
+            {},
         ),
         (
             StealthCreateLifecycleExecutionBlocker.RECONCILIATION_EXECUTION_DISABLED,
             None,
             "application/admin_api reconciliation executor",
             "Post-write reconciliation execution remains disabled.",
+            {},
         ),
     ]
     if (
@@ -667,6 +682,7 @@ def _build_remaining_execution_blockers(
                     StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION
                 ],
                 "The exact proof, accepted journal, and verification chain has not resolved post-write reconciliation evidence.",
+                {},
             )
         )
     if not exact_command_context_present:
@@ -676,11 +692,18 @@ def _build_remaining_execution_blockers(
                 None,
                 "Admin API command envelope",
                 "The exact command envelope is missing required route, actor, idempotency, intent, or payload-hash evidence.",
+                {},
             )
         )
 
     items: list[StealthCreateLifecycleExecutionBlockerChainItem] = []
-    for blocker_order, (blocker, prerequisite, next_contract, detail) in enumerate(
+    for blocker_order, (
+        blocker,
+        prerequisite,
+        next_contract,
+        detail,
+        trace,
+    ) in enumerate(
         blockers,
         start=1,
     ):
@@ -699,6 +722,7 @@ def _build_remaining_execution_blockers(
                     else blocker.value
                 ),
                 next_required_contract=next_contract,
+                **trace,
                 detail=(
                     f"{detail} Browser authority is display-only, BFF authority "
                     "is forward-only with no execution, and this blocker chain "

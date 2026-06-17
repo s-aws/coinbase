@@ -55,6 +55,7 @@ LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS = (
     "explicit_live_enablement_decision_missing",
     "backend_live_service_configuration_missing",
 )
+LIVE_EXECUTION_SERVICE_CONTRACT_EVIDENCE_REF = "live_execution_service_contract"
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY = "backend_route_binding_only_no_execution"
 LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS = (
     "route_bound_stealth_live_execution_adapter",
@@ -76,6 +77,7 @@ LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS = (
     "backend_live_adapter_construction_missing",
     "route_bound_stealth_live_execution_adapter_missing",
 )
+LIVE_EXECUTION_ADAPTER_CONTRACT_EVIDENCE_REF = "live_execution_adapter_contract"
 M53_PILOT_LIVE_ADAPTER_ROUTE = "/api/v1/orders"
 M53_PILOT_LIVE_ADAPTER_METHOD = "POST"
 M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
@@ -125,6 +127,48 @@ def get_disabled_live_execution_service() -> DisabledAdminApiLiveExecutionServic
     """Return the default backend-owned disabled live execution service."""
 
     return DisabledAdminApiLiveExecutionService()
+
+
+def build_live_execution_service_blocker_trace() -> dict[str, Any]:
+    """Return blocker-chain trace evidence for live-service enablement."""
+
+    return {
+        "blocker_authority": LIVE_EXECUTION_SERVICE_ENABLEMENT_AUTHORITY,
+        "blocker_contract_refs": list(LIVE_EXECUTION_SERVICE_ENABLEMENT_CONTRACT_REFS),
+        "blocker_evidence_refs": [LIVE_EXECUTION_SERVICE_CONTRACT_EVIDENCE_REF],
+        "required_resolution_artifacts": list(
+            LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS
+        ),
+        "missing_resolution_artifacts": list(
+            LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS
+        ),
+        "verification_gates": list(
+            LIVE_EXECUTION_SERVICE_ENABLEMENT_VERIFICATION_GATES
+        ),
+        "blocking_contract_blockers": list(LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS),
+    }
+
+
+def build_live_execution_adapter_blocker_trace() -> dict[str, Any]:
+    """Return blocker-chain trace evidence for live-adapter construction."""
+
+    return {
+        "blocker_authority": LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY,
+        "blocker_contract_refs": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS
+        ),
+        "blocker_evidence_refs": [LIVE_EXECUTION_ADAPTER_CONTRACT_EVIDENCE_REF],
+        "required_resolution_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "missing_resolution_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "verification_gates": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
+        ),
+        "blocking_contract_blockers": list(LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS),
+    }
 
 
 def build_live_execution_service_contract(
