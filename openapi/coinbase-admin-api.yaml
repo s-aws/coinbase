@@ -9976,6 +9976,13 @@ components:
       - blocked
       title: AdminApiHealthStatus
       description: Admin API health/readiness state.
+    AdminApiLiveAdapterDecisionResolutionStatus:
+      type: string
+      enum:
+      - not_available
+      - readback_only
+      title: AdminApiLiveAdapterDecisionResolutionStatus
+      description: Resolution posture for live-adapter decision readback evidence.
     AdminApiLiveAdmissionAuditFact:
       type: string
       enum:
@@ -14158,6 +14165,34 @@ components:
             type: string
           type: array
           title: Latest Adapter Decision Unsatisfied Construction Artifacts
+        latest_adapter_decision_resolution_status:
+          $ref: '#/components/schemas/AdminApiLiveAdapterDecisionResolutionStatus'
+          default: not_available
+        latest_adapter_decision_non_resolution_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Adapter Decision Non Resolution Reason
+        latest_adapter_decision_required_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Adapter Decision Required Resolution Artifacts
+        latest_adapter_decision_missing_resolution_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Adapter Decision Missing Resolution Artifacts
+        latest_adapter_decision_forbidden_resolution_claims:
+          items:
+            type: string
+          type: array
+          title: Latest Adapter Decision Forbidden Resolution Claims
+        latest_adapter_decision_next_required_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Adapter Decision Next Required Contract
         latest_adapter_decision_resolver_eligible:
           type: boolean
           title: Latest Adapter Decision Resolver Eligible

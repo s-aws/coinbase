@@ -31,6 +31,7 @@ from core.enums import (
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveCapGuardRequirement,
+    AdminApiLiveAdapterDecisionResolutionStatus,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
@@ -4253,6 +4254,20 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     latest_adapter_decision_unsatisfied_construction_artifacts: list[str] = Field(
         default_factory=list
     )
+    latest_adapter_decision_resolution_status: (
+        AdminApiLiveAdapterDecisionResolutionStatus
+    ) = AdminApiLiveAdapterDecisionResolutionStatus.NOT_AVAILABLE
+    latest_adapter_decision_non_resolution_reason: str | None = None
+    latest_adapter_decision_required_resolution_artifacts: list[str] = Field(
+        default_factory=list
+    )
+    latest_adapter_decision_missing_resolution_artifacts: list[str] = Field(
+        default_factory=list
+    )
+    latest_adapter_decision_forbidden_resolution_claims: list[str] = Field(
+        default_factory=list
+    )
+    latest_adapter_decision_next_required_contract: str | None = None
     latest_adapter_decision_resolver_eligible: bool = False
     latest_adapter_decision_resolves_construction: bool = False
     browser_authority: str = "display_only"

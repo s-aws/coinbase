@@ -106,7 +106,14 @@ browser/BFF execution authority. When projected into the disabled
 readback-only evidence: it keeps
 `latest_adapter_decision_recorded_artifacts_satisfy_construction=false`,
 `latest_adapter_decision_satisfied_construction_artifacts=[]`, and required
-construction artifacts unsatisfied.
+construction artifacts unsatisfied. It also reports
+`latest_adapter_decision_resolution_status`,
+`latest_adapter_decision_non_resolution_reason`,
+`latest_adapter_decision_required_resolution_artifacts`,
+`latest_adapter_decision_missing_resolution_artifacts`,
+`latest_adapter_decision_forbidden_resolution_claims`, and
+`latest_adapter_decision_next_required_contract` so a decision record cannot
+be confused with adapter construction authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

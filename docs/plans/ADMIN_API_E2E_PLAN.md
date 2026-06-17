@@ -38,35 +38,49 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Decision Evidence Batch - Phases 3581-3600
+## Active M55 Live-Adapter Decision Non-Resolution Batch - Phases 3601-3620
 
-These phases add backend-owned append-only live-adapter construction decision
-evidence while keeping adapter construction disabled. A record may document
-that a target route binding was reviewed, but it cannot construct adapters,
+These phases add explicit non-resolution evidence to latest live-adapter
+decision readback while keeping adapter construction disabled. A record may be
+displayed as append-only local-state evidence, but the disabled adapter
+contract must also show that the decision is readback-only, construction
+artifacts remain missing, forbidden resolution claims are rejected, and a
+future backend construction contract is still required. It cannot construct
+adapters, enable adapters, mark construction artifacts satisfied, enable
+service, call Coinbase, invoke managers, execute reconciliation,
+cancel/replace active placements, mutate lifecycle/order/exchange state,
+clear M55 blockers, grant browser authority, or grant BFF execution authority.
+
+### Phase 3601 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3581-3600 to active phases 3601-3620 while preserving no-live defaults and cap policy.
+
+### Phase 3602 - Backend Non-Resolution Contract
+
+- Add enum-backed resolution status and explicit latest-decision non-resolution fields to the disabled live-adapter contract.
+
+### Phase 3603 - Backend Focused Coverage
+
+- Prove absent-record and latest-record readback cases remain resolver-ineligible, construction-unresolved, and no-live.
+
+### Phase 3604 - Frontend Contract Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, quality metadata, and focused tests for the new non-resolution fields.
+
+### Phase 3605 - Validators, Gates, Review, Commit, And No-Live Report
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Decision Evidence Batch - Phases 3581-3600
+
+These phases added backend-owned append-only live-adapter construction
+decision evidence while keeping adapter construction disabled. Decision
+records are durable local-state evidence only; they do not construct adapters,
 enable adapters, mark construction artifacts satisfied, enable service, call
 Coinbase, invoke managers, execute reconciliation, cancel/replace active
 placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
-browser authority, or grant BFF execution authority.
-
-### Phase 3581 - Advance Active Queue Range
-
-- Move the durable autonomous queue from completed phases 3561-3580 to active phases 3581-3600 while preserving no-live defaults and cap policy.
-
-### Phase 3582 - Backend Adapter Decision Contract
-
-- Add durable store, models, service validation, routes, route inventory, functionality inventory, mutation taxonomy, and readback projection for disabled adapter decision evidence.
-
-### Phase 3583 - Backend Fail-Closed Coverage
-
-- Prove successful record/replay/detail/list behavior and reject constructed/enabled/passed/live-approved/nonzero-notional, route-mismatched, read-only-target, or non-`AdminApiCommandService` target decision records.
-
-### Phase 3584 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync canonical wrappers, BFF allowlists, mocks, runtime snapshots, quality metadata, and focused tests.
-
-### Phase 3585 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+browser authority, or grant BFF execution authority. Backend commit
+`9dd8c1f3` and frontend commit `ac5f0ef` contain the pushed range.
 
 ## Completed M55 Adapter Construction Satisfaction Batch - Phases 3561-3580
 

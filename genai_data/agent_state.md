@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3561-3580` is backend `1df080a1`
-  and frontend `89e01b3`; active range is `3581-3600`.
+- Commit (optional): completed range `3581-3600` is backend `9dd8c1f3`
+  and frontend `ac5f0ef`; active range is `3601-3620`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3561-3580`; active range is `3581-3600`.
+- Latest completed autonomous range: `3581-3600`; active range is `3601-3620`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -178,11 +178,20 @@ Keep it short. Keep it factual.
   live service, adapter, manager, Coinbase, reconciliation, active-placement,
   state-mutation, browser, and BFF authority stay disabled. Backend commit
   `1df080a1` and frontend commit `89e01b3` contain the pushed range.
-- Active `3581-3600` work: add append-only disabled live-adapter decision
-  evidence for route-bound adapter-construction review. Decision records must
+- Completed `3581-3600` work: add append-only disabled live-adapter decision
+  evidence for route-bound adapter-construction review. Decision records do
   not construct adapters, satisfy construction artifacts, enable service, call
   Coinbase, invoke managers, execute reconciliation, mutate state, or grant
-  browser/BFF execution authority.
+  browser/BFF execution authority. Backend commit `9dd8c1f3` and frontend
+  commit `ac5f0ef` contain the pushed range.
+- Active `3601-3620` work: add explicit non-resolution readback fields to the
+  disabled live-adapter contract so latest adapter decisions report
+  readback-only status, non-resolution reason, required/missing construction
+  artifacts, forbidden resolution claims, and the next backend construction
+  contract still required. This must not construct adapters, satisfy
+  construction artifacts, enable service, call Coinbase, invoke managers,
+  execute reconciliation, mutate state, or grant browser/BFF execution
+  authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -356,17 +365,19 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3581-3600`.
+- Active autonomous range: `3601-3620`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add backend-owned append-only live-adapter decision evidence
-  in active phases `3581-3600`. Decision records may document disabled
-  adapter-construction review for one route binding, but they must not be
-  treated as adapter construction, construction satisfaction, or live execution
-  authority. Do not enable live service, resolve blockers, construct adapters, create a
-  second adapter path, call Coinbase, invoke managers, execute reconciliation,
-  cancel/replace active placements, mutate lifecycle/order/exchange state,
-  grant browser authority, or grant BFF execution authority unless a future
-  approved phase explicitly authorizes it.
+- Current direction: add explicit non-resolution readback fields in active
+  phases `3601-3620` so latest live-adapter decisions state readback-only
+  status, non-resolution reason, required/missing construction artifacts,
+  forbidden resolution claims, and the next required backend construction
+  contract. Decision records must not be treated as adapter construction,
+  construction satisfaction, or live execution authority. Do not enable live
+  service, resolve blockers, construct adapters, create a second adapter path,
+  call Coinbase, invoke managers, execute reconciliation, cancel/replace
+  active placements, mutate lifecycle/order/exchange state, grant browser
+  authority, or grant BFF execution authority unless a future approved phase
+  explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -961,7 +972,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3581-3600 live-adapter decision
-  evidence implementation, run focused gates, blind/contextless review, full
-  gates, then commit and push both repositories with `$0` live Coinbase
-  execution.
+- Exact next command: continue the active 3601-3620 live-adapter decision
+  non-resolution evidence implementation, run focused gates,
+  blind/contextless review, full gates, then commit and push both
+  repositories with `$0` live Coinbase execution.

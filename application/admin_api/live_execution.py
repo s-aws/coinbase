@@ -21,6 +21,7 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiGateStatus,
     AdminApiLiveAdmissionBlocker,
+    AdminApiLiveAdapterDecisionResolutionStatus,
     AdminApiLiveExecutionStatus,
     AdminApiPermission,
 )
@@ -77,6 +78,20 @@ LIVE_ADAPTER_DECISION_METHOD = "POST"
 LIVE_ADAPTER_DECISION_MODULE_ID = "admin_system_health"
 LIVE_ADAPTER_DECISION_SERVICE_METHOD = "record_live_adapter_decision"
 LIVE_ADAPTER_DECISION_REQUIRED_PERMISSION = AdminApiPermission.CONFIG_UPDATE
+LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON = (
+    "latest_adapter_decision_is_readback_only_and_cannot_satisfy_construction"
+)
+LIVE_ADAPTER_DECISION_NO_RECORD_REASON = "no_live_adapter_decision_record_available"
+LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT = (
+    "backend_live_adapter_construction_contract"
+)
+LIVE_ADAPTER_DECISION_FORBIDDEN_RESOLUTION_CLAIMS = (
+    "decision_record_constructs_adapter",
+    "decision_record_enables_adapter",
+    "decision_record_approves_coinbase_execution",
+    "decision_record_satisfies_construction_artifacts",
+    "decision_record_clears_live_readiness_blocker",
+)
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY = "backend_route_binding_only_no_execution"
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_SATISFACTION_AUTHORITY = (
     "backend_live_adapter_construction_only"
@@ -522,6 +537,36 @@ def build_live_execution_adapter_decision_readback(
             list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS)
             if latest_decision_available
             else []
+        ),
+        "latest_adapter_decision_resolution_status": (
+            AdminApiLiveAdapterDecisionResolutionStatus.READBACK_ONLY
+            if latest_decision_available
+            else AdminApiLiveAdapterDecisionResolutionStatus.NOT_AVAILABLE
+        ),
+        "latest_adapter_decision_non_resolution_reason": (
+            LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON
+            if latest_decision_available
+            else LIVE_ADAPTER_DECISION_NO_RECORD_REASON
+        ),
+        "latest_adapter_decision_required_resolution_artifacts": (
+            list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS)
+            if latest_decision_available
+            else []
+        ),
+        "latest_adapter_decision_missing_resolution_artifacts": (
+            list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS)
+            if latest_decision_available
+            else []
+        ),
+        "latest_adapter_decision_forbidden_resolution_claims": (
+            list(LIVE_ADAPTER_DECISION_FORBIDDEN_RESOLUTION_CLAIMS)
+            if latest_decision_available
+            else []
+        ),
+        "latest_adapter_decision_next_required_contract": (
+            LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT
+            if latest_decision_available
+            else None
         ),
         "latest_adapter_decision_resolver_eligible": False,
         "latest_adapter_decision_resolves_construction": False,

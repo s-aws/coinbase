@@ -664,6 +664,13 @@ class AdminApiGateStatus(str, Enum):
     NOT_APPLICABLE = "not_applicable"
 
 
+class AdminApiLiveAdapterDecisionResolutionStatus(str, Enum):
+    """Resolution posture for live-adapter decision readback evidence."""
+
+    NOT_AVAILABLE = "not_available"
+    READBACK_ONLY = "readback_only"
+
+
 class AdminApiLivePreflightCategory(str, Enum):
     """Controlled-live preflight evidence categories for Admin API routes."""
 

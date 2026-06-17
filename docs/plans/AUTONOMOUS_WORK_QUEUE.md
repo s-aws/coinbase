@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3581-3600**.
+- Approved phase range: **3601-3620**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3561-3580`.
+- Previous completed range: `3581-3600`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,95 +23,120 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3581-3600
+## Active Phases 3601-3620
 
-These phases add backend-owned live-adapter construction decision evidence as
-an append-only local-state contract. The record may document that disabled
-adapter construction was reviewed for one route binding, but it must not
+These phases harden live-adapter decision readback by exposing explicit
+non-resolution evidence on the disabled live-adapter contract. The latest
+decision may be displayed as append-only local evidence, but the contract must
+also name why it is readback-only, which construction artifacts remain
+missing, which claims are forbidden, and which backend construction contract
+is still required. It must not construct adapters, enable service, mark
+construction artifacts satisfied, call Coinbase, invoke managers, execute
+reconciliation, cancel or replace active placements, mutate lifecycle/order/
+exchange state, clear M55 blockers, grant browser authority, or grant BFF
+execution authority.
+
+### Phase 3601 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3581-3600 to active phases 3601-3620 while preserving no-live defaults and cap policy.
+
+### Phase 3602 - Prior Range Completion Evidence
+
+- Record completed phases 3581-3600 as append-only disabled live-adapter decision evidence with passing gates, blind/contextless review, backend commit `9dd8c1f3`, frontend commit `ac5f0ef`, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3603 - Adapter Decision Resolution Enum
+
+- Add enum-backed live-adapter decision resolution status values for unavailable and readback-only contract evidence.
+
+### Phase 3604 - Adapter Decision Non-Resolution Projection
+
+- Add latest-decision resolution status, non-resolution reason, required resolution artifacts, missing resolution artifacts, forbidden resolution claims, and next required backend contract fields to the disabled live-adapter contract.
+
+### Phase 3605 - Backend Model And Schema Sync
+
+- Add typed model fields and regenerate backend OpenAPI so frontend schema consumption remains generated from the backend contract.
+
+### Phase 3606 - Backend Focused Coverage
+
+- Add focused assertions for both no-record and latest-record adapter decision readback so recorded decisions remain resolver-ineligible and construction unresolved.
+
+### Phase 3607 - Frontend Schema Sync
+
+- Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
+
+### Phase 3608 - Frontend Mock Contract Sync
+
+- Add the new non-resolution fields to mock disabled and pilot adapter contract evidence in all readback fixtures.
+
+### Phase 3609 - Frontend Runtime And Quality Sync
+
+- Update runtime fixtures, release/deployment/autonomous checks, and artifact contract metadata for approved phases 3601-3620.
+
+### Phase 3610 - Frontend Focused Coverage
+
+- Update focused mock, runtime, read-model, dry-submit, and quality tests so the new non-resolution fields cannot drift.
+
+### Phase 3611 - Documentation Sync
+
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for adapter decision non-resolution evidence.
+
+### Phase 3612 - Stale Authority Scan
+
+- Search backend/frontend code and docs for stale 3581-3600 active-range wording or text implying adapter decision readback resolves construction.
+
+### Phase 3613 - Backend Focused Gates
+
+- Run focused Admin API/live-adapter decision tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+
+### Phase 3614 - Frontend Focused Gates
+
+- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
+
+### Phase 3615 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short`.
+
+### Phase 3616 - Full Frontend Release Gate
+
+- Run `npm run release:gate` in `C:\coinbase-frontend`.
+
+### Phase 3617 - Live UI Smoke
+
+- Verify the live-updated admin UI remains available and reports no live execution posture drift.
+
+### Phase 3618 - Blind Contextless Review
+
+- Run blind/contextless review proving a fresh agent can explain that adapter decision readback is non-resolution evidence and cannot clear live-adapter blockers.
+
+### Phase 3619 - Commit And Push
+
+- Commit and push backend and frontend repositories after gates and review pass.
+
+### Phase 3620 - No-Live Report
+
+- Report `$0` live Coinbase submitted/executed notional and verify clean worktrees.
+
+## Completed Phases 3581-3600
+
+These phases added backend-owned live-adapter construction decision evidence
+as an append-only local-state contract. The record may document that disabled
+adapter construction was reviewed for one route binding, but it does not
 construct adapters, enable service, mark construction artifacts satisfied,
 call Coinbase, invoke managers, execute reconciliation, cancel or replace
 active placements, mutate lifecycle/order/exchange state, clear M55 blockers,
 grant browser authority, or grant BFF execution authority.
 
-### Phase 3581 - Advance Active Queue Range
+Completion evidence:
 
-- Move the durable autonomous queue from completed phases 3561-3580 to active phases 3581-3600 while preserving no-live defaults and cap policy.
-
-### Phase 3582 - Prior Range Completion Evidence
-
-- Record completed phases 3561-3580 as adapter construction-satisfaction boundary evidence with passing gates, blind/contextless review, backend commit `1df080a1`, frontend commit `89e01b3`, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3583 - Adapter Decision Store Contract
-
-- Add a durable append-only live-adapter decision store that reads and writes backend-owned local evidence only.
-
-### Phase 3584 - Adapter Decision Models
-
-- Add typed Admin API request, item, list, and mutation response models for disabled adapter-construction decision evidence.
-
-### Phase 3585 - Adapter Decision Service Boundary
-
-- Add a service boundary that validates route inventory, target service binding, adapter reference, idempotency identity, and no-live decision posture.
-
-### Phase 3586 - Fail-Closed Decision Validation
-
-- Reject constructed adapters, enabled adapters, passed statuses, live Coinbase approval, nonzero submitted/executed notional, route bindings that do not match inventory, read-only target routes, and targets whose shared method is not on `AdminApiCommandService`.
-
-### Phase 3587 - Adapter Decision Routes
-
-- Expose list/detail/record routes under `/api/v1/admin/live-execution/adapter-decisions` with auth, RBAC, idempotency, and audit evidence.
-
-### Phase 3588 - Route Inventory And Taxonomy
-
-- Register the adapter decision routes in route inventory, functionality inventory, and mutation taxonomy using enum-backed mutation family values.
-
-### Phase 3589 - Contract Readback Projection
-
-- Project latest adapter decision readback into disabled live-adapter contract evidence while keeping construction satisfaction false and unsatisfied artifacts visible.
-
-### Phase 3590 - Backend Focused Coverage
-
-- Add focused regression tests for successful record/replay/detail/list behavior, fail-closed validation, and readback projection.
-
-### Phase 3591 - OpenAPI And Route Inventory Regeneration
-
-- Regenerate backend OpenAPI and route inventory artifacts after the new route and schema additions.
-
-### Phase 3592 - Frontend Schema Sync
-
-- Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
-
-### Phase 3593 - Frontend Canonical Wrappers
-
-- Add canonical frontend list/detail/record wrappers and BFF forward/read allowlist coverage for adapter decisions.
-
-### Phase 3594 - Frontend Mock And Runtime Sync
-
-- Add mock list/detail fixtures, runtime snapshot loading, route coverage metadata, and no-live adapter readback fields.
-
-### Phase 3595 - Frontend Focused Coverage
-
-- Add focused unit coverage for wrappers, mock adapter decisions, mutation contracts, runtime evidence, and quality metadata.
-
-### Phase 3596 - Documentation And Examples Sync
-
-- Update Admin API, frontend API, mock, testing, examples, maintainer handoff, durable milestones, and agent-state docs for adapter decision evidence.
-
-### Phase 3597 - Stale Authority Scan
-
-- Search backend/frontend code and docs for stale phase references or wording that implies adapter decision readback constructs adapters or satisfies construction.
-
-### Phase 3598 - Full Gates
-
-- Run backend full regression and frontend release gate.
-
-### Phase 3599 - Blind Contextless Review
-
-- Run blind/contextless review proving a fresh agent can explain that adapter decision records are append-only no-live evidence and do not clear live-adapter blockers.
-
-### Phase 3600 - Commit, Push, And No-Live Report
-
-- Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
+- Backend commit `9dd8c1f3` and frontend commit `ac5f0ef` were pushed.
+- Backend full regression passed with `867` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `260` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review found no blockers after duplicate decision and
+  target-binding gaps were fixed.
+- Live UI returned HTTP `200` at `http://127.0.0.1:3000`.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 3561-3580
 

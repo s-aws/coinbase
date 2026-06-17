@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3561-3580` under M55.
-- Active autonomous range: `3581-3600` under M55.
+- Latest completed autonomous range: `3581-3600` under M55.
+- Active autonomous range: `3601-3620` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -139,10 +139,14 @@ notional, retained inventory, reconciliation result, and audit ids.
   required enablement artifacts remain unsatisfied. Completed 3561-3580 work
   applies the same clarity to disabled live-adapter construction: route
   mapping and pilot configuration do not satisfy adapter construction
-  artifacts, and construction prerequisites remain unresolved. Active
+  artifacts, and construction prerequisites remain unresolved. Completed
   3581-3600 work adds append-only disabled live-adapter decision evidence
   without constructing adapters, satisfying construction artifacts, enabling
   service, calling Coinbase, or granting browser/BFF execution authority.
+  Active 3601-3620 work adds explicit non-resolution readback fields so the
+  latest adapter decision states why it remains readback-only, which
+  construction artifacts are still missing, which resolution claims are
+  forbidden, and which backend construction contract is still required.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through

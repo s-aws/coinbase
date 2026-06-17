@@ -2811,11 +2811,13 @@ Current backend evidence:
   contextless maintainers cannot treat readback as enablement. Completed
   phases 3561-3580 split route mapping and pilot configuration from satisfied
   adapter construction artifacts so contextless maintainers cannot treat
-  adapter evidence as construction. Active phases 3581-3600 add append-only
-  disabled live-adapter decision evidence while keeping construction
-  artifacts unsatisfied. Contracts and decision evidence remain blocked:
-  Coinbase, manager, reconciliation, active-placement, state mutation,
-  browser, and BFF authority remain disabled.
+  adapter evidence as construction. Completed phases 3581-3600 add
+  append-only disabled live-adapter decision evidence while keeping
+  construction artifacts unsatisfied. Active phases 3601-3620 add explicit
+  non-resolution readback fields so latest adapter decisions cannot be
+  mistaken for construction authority. Contracts and decision evidence remain
+  blocked: Coinbase, manager, reconciliation, active-placement, state
+  mutation, browser, and BFF authority remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 
