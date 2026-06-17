@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3961-3980` under M55.
-- Active autonomous range: `3981-4000` under M55.
+- Latest completed autonomous range: `3981-4000` under M55.
+- Active autonomous range: `4001-4020` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -220,14 +220,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   and a claim-trace summary that map those work items back to unresolved
   producer-route contract availability claims while preserving no-claim-
   resolution, no-remediation, no-construction, no-execution, and no-live
-  authority. Active 3981-4000 work adds producer-route contract clearance
+  authority. Completed 3981-4000 work adds producer-route contract clearance
   plans and a clearance-plan summary that turn those unresolved claim traces
   into backend-owned sequencing evidence for the route contract, route
   inventory, shared command service, route handler, acceptance-evidence store,
   validation/replay gate, writer, and acceptance path required before the
   claim could ever resolve while preserving no-remediation,
   no-claim-resolution, no-route-registration, no-binding, no-writing,
-  no-acceptance, no-construction, no-execution, and no-live authority.
+  no-acceptance, no-construction, no-execution, and no-live authority. Active
+  4001-4020 work expands those clearance plans into ordered blocked
+  clearance-step evidence and a step summary while preserving the same
+  no-remediation/no-claim-resolution/no-construction/no-execution/no-live
+  authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through

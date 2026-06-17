@@ -165,11 +165,13 @@ work-queue summary that name required backend work, required backend refs, and
 handoff blockers without performing that work. Completed phases 3961-3980 add
 blocked remediation work-item claim traces and a claim-trace summary that map
 those work items back to unresolved producer-route contract availability
-claims without resolving those claims. Active phases 3981-4000 add blocked
+claims without resolving those claims. Completed phases 3981-4000 add blocked
 producer-route contract clearance plans and a clearance-plan summary that turn
 those unresolved claim traces into backend-owned sequencing evidence for the
 route, inventory, shared-service, handler, store, validation/replay, writer,
-and acceptance-path work required before the claim could ever resolve.
+and acceptance-path work required before the claim could ever resolve. Active
+phases 4001-4020 expand those clearance plans into blocked ordered clearance
+steps and a step summary without performing any of the named backend work.
 These layers
 do not register routes, bind route inventory, bind shared command services,
 register handlers, create stores, configure validation/replay, create writers,

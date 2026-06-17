@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3981-4000**.
+- Approved phase range: **4001-4020**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3961-3980`.
+- Previous completed range: `3981-4000`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,101 +23,117 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3981-4000
+## Active Phases 4001-4020
 
-These phases add backend-owned producer-route contract clearance-plan rows and
-a clearance-plan summary under the live-adapter construction acceptance
-evidence path. Each plan is derived from one unresolved remediation work-item
-claim trace and lists the backend route, inventory, shared-service, handler,
-store, validation, replay, writer, and acceptance-path work that must happen
-before the `producer_route_contract_available` claim can ever resolve. This
-remains evidence only. It must not perform remediation, resolve claims, clear
-work items, register a route, bind route inventory, bind a shared command
-service, register a handler, create a store, configure validation/replay
-gates, create a writer, write or accept evidence, construct adapters, call
-Coinbase, invoke managers, execute reconciliation, cancel/replace active
-placements, mutate lifecycle/order/exchange state, grant browser authority, or
-grant BFF execution authority.
+These phases add backend-owned producer-route contract clearance-step rows and
+a clearance-step summary under the live-adapter construction acceptance
+evidence path. Each step is derived from one blocked clearance plan and names
+the exact backend-owned route contract, route inventory, shared command
+service, handler, acceptance-evidence store, validation/replay, writer, or
+acceptance-path prerequisite that remains missing before the
+`producer_route_contract_available` claim can ever resolve. This remains
+readback evidence only. It must not resolve claims, clear work items, perform
+remediation, register routes, bind route inventory, bind shared command
+services, register handlers, create stores, configure validation/replay gates,
+create writers, write or accept evidence, construct adapters, call Coinbase,
+invoke managers, execute reconciliation, cancel/replace active placements,
+mutate lifecycle/order/exchange state, grant browser authority, or grant BFF
+execution authority.
 
-### Phase 3981 - Prior Range Completion Evidence
+### Phase 4001 - Prior Range Completion Evidence
 
-- Record completed phases 3961-3980 with backend commit `6bbba256`, frontend commit `dda4e74`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3981-4000 with backend commit `eff81cec`, frontend commit `be13946`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3982 - Advance Active Queue Range
+### Phase 4002 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3961-3980 to active phases 3981-4000 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3981-4000 to active phases 4001-4020 while preserving no-live defaults and cap policy.
 
-### Phase 3983 - Backend Clearance-Plan Model
+### Phase 4003 - Backend Clearance-Step Model
 
-- Add typed blocked producer-route contract clearance-plan and clearance-plan summary models to the existing live-adapter construction contract path.
+- Add typed blocked producer-route contract clearance-step and clearance-step summary models to the existing live-adapter construction contract path.
 
-### Phase 3984 - Backend Clearance-Plan Projection
+### Phase 4004 - Backend Clearance-Step Projection
 
-- Derive one clearance plan from every blocked remediation work-item claim trace and preserve claim trace id, work item id, dependency id, remediation id, validation id, route contract id, requirement id, claim id, producer contract id, evidence id, artifact, source work item ref, route refs, check key, required backend work, required backend refs, handoff blockers, and predecessor/successor dependency ids.
+- Derive ordered clearance steps from every blocked clearance plan and preserve plan id, claim trace id, work item id, dependency id, remediation id, validation id, route contract id, route refs, required backend refs, handoff blockers, sequence order, prior-step ids, next-step ids, and blocker ids.
 
-### Phase 3985 - Clearance Sequence Evidence
+### Phase 4005 - Step Sequence Evidence
 
-- Add the required backend sequence for route contract clearance: define route contract, register route inventory binding, bind shared command service method, register route handler, configure append-only acceptance-evidence store, configure validation/replay gate, enable backend writer, and enable backend acceptance path.
+- Expand each clearance plan into the required ordered backend steps: define route contract, register route inventory binding, bind shared command service method, register route handler, configure append-only acceptance-evidence store, configure validation/replay gate, enable backend writer, and enable backend acceptance path.
 
-### Phase 3986 - Clearance Non-Resolution Evidence
+### Phase 4006 - Step Non-Resolution Evidence
 
-- Keep each plan blocked with `plan_ready=false`, `claim_resolved=false`, `route_contract_clearance_allowed=false`, `route_registered=false`, `route_inventory_bound=false`, `shared_command_service_bound=false`, `writer_allowed=false`, `accepts_evidence=false`, `satisfies_construction=false`, and all execution authority disabled.
+- Keep each step blocked with `step_ready=false`, `step_completed=false`, `step_allowed=false`, `claim_resolved=false`, `route_registered=false`, `route_inventory_bound=false`, `shared_command_service_bound=false`, `writer_allowed=false`, `accepts_evidence=false`, `satisfies_construction=false`, and all execution authority disabled.
 
-### Phase 3987 - Backend Clearance-Plan Summary
+### Phase 4007 - Backend Clearance-Step Summary
 
-- Aggregate plan counts, ids, claim trace ids, work item ids, dependency ids, remediation ids, validation ids, route refs, required backend refs, planned sequence, verification gates, blockers, edge counts, first blocker, and disabled authority flags.
+- Aggregate step counts, plan ids, claim trace ids, claims, step names, required refs, planned sequence, verification gates, blockers, edge counts, first step, first blocker, and disabled authority flags.
 
-### Phase 3988 - Backend Schema And Coverage
+### Phase 4008 - Backend Schema And Coverage
 
-- Regenerate backend OpenAPI and add focused assertions proving clearance plans and summary are blocked, derived, claim-trace-linked, no-remediation, no-claim-resolution, no-registration, no-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
+- Regenerate backend OpenAPI and add focused assertions proving clearance steps and summary are blocked, derived from clearance plans, sequence-linked, no-claim-resolution, no-work-item-clearance, no-registration, no-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
 
-### Phase 3989 - Frontend Schema And Mock Sync
+### Phase 4009 - Frontend Schema And Mock Sync
 
-- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
+- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures for clearance-step rows and summary without hand-editing generated files.
 
-### Phase 3990 - Frontend Display Sync
+### Phase 4010 - Frontend Display Sync
 
-- Render producer-route contract clearance plans and clearance-plan summary separately from claim traces, work items, dependency rows, remediation rows, validation rows, proposals, route requirements, and clearance claim traces through the existing adapter evidence display.
+- Render producer-route contract clearance steps and clearance-step summary separately from clearance plans through the existing adapter evidence display.
 
-### Phase 3991 - Frontend Focused Coverage
+### Phase 4011 - Frontend Focused Coverage
 
-- Update focused mock, dry-submit, runtime, read-model, and quality tests so clearance-plan readback cannot imply remediation, claim resolution, work-item clearance, route registration, route inventory binding, shared-service binding, handler registration, store, validation, replay, writer, acceptance, construction, or execution authority.
+- Update focused mock and dry-submit tests so clearance-step readback cannot imply step completion, claim resolution, work-item clearance, route registration, route inventory binding, shared-service binding, handler registration, store, validation, replay, writer, acceptance, construction, or execution authority.
 
-### Phase 3992 - Documentation Sync
+### Phase 4012 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract clearance-plan readback.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract clearance-step readback.
 
-### Phase 3993 - Autonomous Validator Sync
+### Phase 4013 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 3981-4000.
+- Update backend/frontend autonomous validators and active-range metadata for phases 4001-4020.
 
-### Phase 3994 - Stale Authority Scan
+### Phase 4014 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale active-range wording or text implying route-contract clearance plans can resolve claims, perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
+- Search backend/frontend code and docs for stale active-range wording or text implying route-contract clearance steps can resolve claims, perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
 
-### Phase 3995 - Backend Focused Gates
+### Phase 4015 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 3996 - Frontend Focused Gates
+### Phase 4016 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3997 - Full Backend Regression
+### Phase 4017 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3998 - Full Frontend Release Gate
+### Phase 4018 - Full Frontend Release Gate
 
 - Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 3999 - Blind Contextless Review And Live UI Smoke
+### Phase 4019 - Blind Contextless Review And Live UI Smoke
 
-- Run blind/contextless review proving a fresh agent can explain that clearance plans are sequencing evidence only, then verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
+- Run blind/contextless review proving a fresh agent can explain that clearance steps are sequencing evidence only, then verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
 
-### Phase 4000 - Completion Evidence, Commit, Push, And Continue
+### Phase 4020 - Completion Evidence, Commit, Push, And Pause
 
-- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees; then continue only to the next milestone-linked gap.
+- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees; then pause for the requested restart.
+
+## Completed Phases 3981-4000
+
+Phases 3981-4000 added backend-owned producer-route contract clearance-plan
+rows and a clearance-plan summary under the live-adapter construction
+acceptance evidence path. Each plan is derived from one unresolved remediation
+work-item claim trace and lists the route, inventory, shared-service, handler,
+store, validation/replay, writer, and acceptance-path work required before the
+`producer_route_contract_available` claim can ever resolve. Backend commit
+`eff81cec` and frontend commit `be13946` contain the pushed range. Backend
+regression passed with `867 passed, 1 warning`. Frontend `npm run
+release:gate` passed with 260 unit tests and 3 Playwright tests. Live UI smoke
+passed at `http://127.0.0.1:3000`. Blind/contextless reviews passed for both
+repositories. Live Coinbase execution was not run; submitted notional `0`
+USDC and executed notional `0` USDC.
 
 ## Completed Phases 3961-3980
 
