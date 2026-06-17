@@ -12637,6 +12637,114 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract:
+      properties:
+        evidence_id:
+          type: string
+          title: Evidence Id
+        artifact:
+          $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        configured:
+          type: boolean
+          title: Configured
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        source:
+          type: string
+          title: Source
+        authority:
+          type: string
+          title: Authority
+        producer_contract_id:
+          type: string
+          title: Producer Contract Id
+        producer_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Producer Route
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        recording_method:
+          type: string
+          title: Recording Method
+          default: not_configured
+        required_owner:
+          type: string
+          title: Required Owner
+        required_source_refs:
+          items:
+            type: string
+          type: array
+          title: Required Source Refs
+        required_checks:
+          items:
+            type: string
+          type: array
+          title: Required Checks
+        missing_reason:
+          type: string
+          title: Missing Reason
+        blocker:
+          type: string
+          title: Blocker
+        writer_configured:
+          type: boolean
+          title: Writer Configured
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - evidence_id
+      - artifact
+      - source
+      - authority
+      - producer_contract_id
+      - required_owner
+      - missing_reason
+      - blocker
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract
+      description: Blocked contract describing who may later produce acceptance evidence.
     AdminLiveAdapterConstructionArtifactAcceptanceEvidence:
       properties:
         artifact:
@@ -12924,6 +13032,42 @@ components:
             type: string
           type: array
           title: Next Required Acceptance Evidence Ids
+        acceptance_evidence_producer_contract_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        acceptance_evidence_producer_contract_source:
+          type: string
+          title: Acceptance Evidence Producer Contract Source
+          default: backend_live_adapter_acceptance_evidence_producer_contract
+        acceptance_evidence_producer_contract_authority:
+          type: string
+          title: Acceptance Evidence Producer Contract Authority
+          default: backend_acceptance_evidence_producer_contract_only_no_write
+        acceptance_evidence_producer_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Acceptance Evidence Producer Contract Count
+          default: 0
+        missing_acceptance_evidence_producer_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Acceptance Evidence Producer Contract Count
+          default: 0
+        configured_acceptance_evidence_producer_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Configured Acceptance Evidence Producer Contract Count
+          default: 0
+        acceptance_evidence_producer_contract_blockers:
+          items:
+            type: string
+          type: array
+          title: Acceptance Evidence Producer Contract Blockers
+        acceptance_evidence_producer_contracts:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract'
+          type: array
+          title: Acceptance Evidence Producer Contracts
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

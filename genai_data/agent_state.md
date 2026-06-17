@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3661-3680` is backend `bd293c19`
-  and frontend `eef6264`; active range is `3681-3700`.
+- Commit (optional): completed range `3681-3700` is backend `4b37415a`
+  and frontend `8fc6c22`; active range is `3701-3720`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3661-3680`; active range is `3681-3700`.
+- Latest completed autonomous range: `3681-3700`; active range is `3701-3720`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -212,11 +212,17 @@ Keep it short. Keep it factual.
   source, owner, expected source refs, observed source refs, missing reason,
   blocker, accepted false, and satisfies false, but all artifacts remain
   unsatisfied and no live execution authority is created.
-- Active `3681-3700` work: add a contract-level aggregate over those
+- Completed `3681-3700` work: add a contract-level aggregate over those
   acceptance evidence rows. The aggregate may list status, source, authority,
   total/missing/accepted counts, blocker ids, next required evidence ids, and
   false construction satisfaction, but all artifacts remain unsatisfied and no
   live execution authority is created.
+- Active `3701-3720` work: add a blocked producer contract over the missing
+  acceptance evidence ids. The producer contract may list required evidence
+  id, source, authority, missing producer route, disabled writer flags,
+  disabled acceptance flags, blocker ids, and false construction satisfaction,
+  but it must not write or accept evidence, satisfy artifacts, construct
+  adapters, or create live execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -390,19 +396,20 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3681-3700`.
+- Active autonomous range: `3701-3720`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add a blocked contract-level aggregate over the
-  per-artifact acceptance evidence readback rows in active phases `3681-3700`
-  so missing evidence is visible both per artifact and at contract level
-  without construction authority. The aggregate may list status, source,
-  authority, total/missing/accepted counts, blocker ids, next required evidence
-  ids, and false construction satisfaction. It must not enable live service,
-  resolve blockers, construct adapters, satisfy construction artifacts, create
-  a second adapter path, call Coinbase, invoke managers, execute
-  reconciliation, cancel/replace active placements, mutate lifecycle/order/
-  exchange state, grant browser authority, or grant BFF execution authority
-  unless a future approved phase explicitly authorizes it.
+- Current direction: add a blocked producer contract over the missing
+  acceptance evidence ids in active phases `3701-3720` so future backend work
+  has an explicit contract target for creating or recording acceptance
+  evidence without construction authority. The producer contract may list
+  status, source, authority, required evidence id, missing producer route,
+  disabled writer flags, disabled acceptance flags, blocker ids, and false
+  construction satisfaction. It must not enable live service, resolve
+  blockers, construct adapters, satisfy construction artifacts, write or
+  accept evidence, create a second adapter path, call Coinbase, invoke
+  managers, execute reconciliation, cancel/replace active placements, mutate
+  lifecycle/order/exchange state, grant browser authority, or grant BFF
+  execution authority unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -997,8 +1004,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3681-3700 backend live-adapter
-  artifact-acceptance evidence aggregate implementation, sync frontend
+- Exact next command: continue the active 3701-3720 backend live-adapter
+  acceptance-evidence producer contract implementation, sync frontend
   generated schema/display, run focused gates, blind/contextless review, full
   gates, then commit and push both repositories with `$0` live Coinbase
   execution.

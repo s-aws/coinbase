@@ -115,6 +115,15 @@ LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_READBACK_SOURCE = (
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_AUTHORITY = (
     "backend_acceptance_evidence_readback_only_no_construction"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_SOURCE = (
+    "backend_live_adapter_acceptance_evidence_producer_contract"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_AUTHORITY = (
+    "backend_acceptance_evidence_producer_contract_only_no_write"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_MISSING_REASON = (
+    "backend_acceptance_evidence_producer_contract_missing"
+)
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_MISSING_REASON = (
     "required_backend_acceptance_evidence_missing"
 )
@@ -676,6 +685,64 @@ def build_live_adapter_construction_contract(
     next_required_acceptance_evidence_ids = [
         evidence["evidence_id"] for evidence in missing_acceptance_evidence
     ]
+    acceptance_evidence_producer_contracts = [
+        {
+            "evidence_id": evidence["evidence_id"],
+            "artifact": evidence["artifact"],
+            "status": AdminApiGateStatus.BLOCKED,
+            "required": True,
+            "configured": False,
+            "backend_owned": True,
+            "route_bound": True,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_SOURCE
+            ),
+            "authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_AUTHORITY
+            ),
+            "producer_contract_id": f"{evidence['evidence_id']}_producer_contract",
+            "producer_route": None,
+            "producer_route_available": False,
+            "recording_method": "not_configured",
+            "required_owner": evidence["evidence_owner"],
+            "required_source_refs": evidence["expected_source_refs"],
+            "required_checks": artifact_acceptance[evidence["artifact"]][
+                "acceptance_checks"
+            ],
+            "missing_reason": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_MISSING_REASON
+            ),
+            "blocker": (
+                f"{evidence['artifact'].value}_acceptance_evidence_producer_contract_missing"
+            ),
+            "writer_configured": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_construction": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "No backend-owned producer route or recording method exists "
+                "for this acceptance evidence id; the construction contract "
+                "remains read-only and cannot accept or write evidence."
+            ),
+        }
+        for evidence in missing_acceptance_evidence
+    ]
+    missing_acceptance_evidence_producer_contracts = [
+        contract
+        for contract in acceptance_evidence_producer_contracts
+        if not contract["configured"]
+    ]
+    configured_acceptance_evidence_producer_contracts = [
+        contract
+        for contract in acceptance_evidence_producer_contracts
+        if contract["configured"]
+    ]
+    acceptance_evidence_producer_contract_blockers = [
+        contract["blocker"]
+        for contract in missing_acceptance_evidence_producer_contracts
+    ]
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -710,6 +777,28 @@ def build_live_adapter_construction_contract(
         "next_required_acceptance_evidence_ids": (
             next_required_acceptance_evidence_ids
         ),
+        "acceptance_evidence_producer_contract_status": AdminApiGateStatus.BLOCKED,
+        "acceptance_evidence_producer_contract_source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_SOURCE
+        ),
+        "acceptance_evidence_producer_contract_authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_AUTHORITY
+        ),
+        "acceptance_evidence_producer_contract_count": len(
+            acceptance_evidence_producer_contracts
+        ),
+        "missing_acceptance_evidence_producer_contract_count": len(
+            missing_acceptance_evidence_producer_contracts
+        ),
+        "configured_acceptance_evidence_producer_contract_count": len(
+            configured_acceptance_evidence_producer_contracts
+        ),
+        "acceptance_evidence_producer_contract_blockers": (
+            acceptance_evidence_producer_contract_blockers
+        ),
+        "acceptance_evidence_producer_contracts": (
+            acceptance_evidence_producer_contracts
+        ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
         "satisfied_artifacts": [],
@@ -731,6 +820,7 @@ def build_live_adapter_construction_contract(
             "The backend construction contract is present as read-only evidence.",
             "No route-bound executable adapter has been constructed.",
             "Adapter construction remains blocked until every artifact is satisfied by backend-owned code and gates.",
+            "No backend-owned acceptance-evidence producer contract is configured.",
             "Browser and BFF layers may display this contract but cannot satisfy it.",
         ],
         "detail": (

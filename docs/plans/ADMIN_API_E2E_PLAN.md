@@ -38,37 +38,51 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Aggregate Batch - Phases 3681-3700
+## Active M55 Live-Adapter Acceptance Evidence Producer Contract Batch - Phases 3701-3720
 
-These phases add a blocked backend-owned contract-level aggregate over the
+These phases add a blocked backend-owned producer contract over the typed
+live-adapter construction artifact acceptance evidence readback rows while
+keeping adapter construction disabled. The producer contract names which
+backend contract must later create or record each required acceptance evidence
+id, but remains unconfigured, no-route, no-writer, no-acceptance, and no-live.
+It cannot construct adapters, record or accept evidence, mark artifacts
+satisfied, enable adapters, enable service, call Coinbase, invoke managers,
+execute reconciliation, cancel/replace active placements, mutate
+lifecycle/order/exchange state, clear M55 blockers, grant browser authority,
+or grant BFF execution authority.
+
+### Phase 3701 - Prior Range Completion Evidence
+
+- Record completed phases 3681-3700 with backend commit `4b37415a`, frontend commit `8fc6c22`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3702 - Backend Producer Contract Evidence
+
+- Add typed blocked acceptance-evidence producer contract fields and populate them from missing per-artifact acceptance evidence rows.
+
+### Phase 3703 - Backend Focused Coverage
+
+- Prove producer contract rows remain route-bound, backend-owned, unconfigured, no-route, no-writer, no-acceptance, no-live, and unable to clear adapter blockers.
+
+### Phase 3704 - Frontend Contract Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for producer contract readback.
+
+### Phase 3705 - Validators, Gates, Review, Commit, And No-Live Report
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Acceptance Evidence Aggregate Batch - Phases 3681-3700
+
+These phases added a blocked backend-owned contract-level aggregate over the
 typed live-adapter construction artifact acceptance evidence readback rows
-while keeping adapter construction disabled. The aggregate may name status,
+while keeping adapter construction disabled. The aggregate names status,
 source, authority, total/missing/accepted counts, false construction
 satisfaction, blocker ids, and next required evidence ids. It cannot construct
 adapters, mark artifacts satisfied, enable adapters, enable service, call
 Coinbase, invoke managers, execute reconciliation, cancel/replace active
 placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
-browser authority, or grant BFF execution authority.
-
-### Phase 3681 - Prior Range Completion Evidence
-
-- Record completed phases 3661-3680 with backend commit `bd293c19`, frontend commit `eef6264`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3682 - Backend Aggregate Evidence
-
-- Add typed contract-level blocked acceptance evidence aggregate fields and populate them from per-artifact acceptance evidence rows.
-
-### Phase 3683 - Backend Focused Coverage
-
-- Prove aggregate counts, blockers, and next evidence ids match artifact rows and remain route-bound, backend-owned, unsatisfied, non-executable, no-live, and unable to clear adapter blockers.
-
-### Phase 3684 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for aggregate acceptance evidence readback.
-
-### Phase 3685 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+browser authority, or grant BFF execution authority. Backend commit
+`4b37415a` and frontend commit `8fc6c22` contain the pushed range.
 
 ## Completed M55 Live-Adapter Artifact Acceptance Evidence Batch - Phases 3661-3680
 

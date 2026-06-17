@@ -4217,6 +4217,38 @@ class AdminLiveAdapterConstructionArtifactAcceptanceEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract(BaseModel):
+    """Blocked contract describing who may later produce acceptance evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_id: str
+    artifact: AdminApiLiveAdapterConstructionArtifact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    configured: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    source: str
+    authority: str
+    producer_contract_id: str
+    producer_route: str | None = None
+    producer_route_available: bool = False
+    recording_method: str = "not_configured"
+    required_owner: str
+    required_source_refs: list[str] = Field(default_factory=list)
+    required_checks: list[str] = Field(default_factory=list)
+    missing_reason: str
+    blocker: str
+    writer_configured: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_construction: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -4287,6 +4319,28 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     acceptance_evidence_satisfies_construction: bool = False
     acceptance_evidence_blockers: list[str] = Field(default_factory=list)
     next_required_acceptance_evidence_ids: list[str] = Field(default_factory=list)
+    acceptance_evidence_producer_contract_status: AdminApiGateStatus = (
+        AdminApiGateStatus.BLOCKED
+    )
+    acceptance_evidence_producer_contract_source: str = (
+        "backend_live_adapter_acceptance_evidence_producer_contract"
+    )
+    acceptance_evidence_producer_contract_authority: str = (
+        "backend_acceptance_evidence_producer_contract_only_no_write"
+    )
+    acceptance_evidence_producer_contract_count: int = Field(default=0, ge=0)
+    missing_acceptance_evidence_producer_contract_count: int = Field(
+        default=0, ge=0
+    )
+    configured_acceptance_evidence_producer_contract_count: int = Field(
+        default=0, ge=0
+    )
+    acceptance_evidence_producer_contract_blockers: list[str] = Field(
+        default_factory=list
+    )
+    acceptance_evidence_producer_contracts: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract
+    ] = Field(default_factory=list)
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
         default_factory=list
     )

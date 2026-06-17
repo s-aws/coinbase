@@ -2821,9 +2821,12 @@ Current backend evidence:
   Completed phases 3641-3660 add per-artifact acceptance requirements to that
   contract while keeping every artifact unsatisfied. Completed phases
   3661-3680 add blocked acceptance evidence readback rows for those
-  requirements while keeping every artifact unsatisfied. Active phases
+  requirements while keeping every artifact unsatisfied. Completed phases
   3681-3700 add a contract-level aggregate over those acceptance evidence rows
   while preserving missing evidence, false satisfaction, and no-live authority.
+  Active phases 3701-3720 add a blocked backend-owned producer contract over
+  those missing acceptance evidence ids while preserving no-route, no-writer,
+  no-acceptance, false satisfaction, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

@@ -124,12 +124,15 @@ adapters, satisfy construction artifacts, enable live service, call Coinbase,
 invoke managers, execute reconciliation, mutate state, or grant browser/BFF
 authority.
 M55 phases 3661-3680 add blocked per-artifact acceptance evidence readback rows
-for those requirements. Active phases 3681-3700 add a blocked contract-level
+for those requirements. M55 phases 3681-3700 add a blocked contract-level
 aggregate over those rows with total, missing, and accepted counts, blockers,
 next evidence ids, false construction satisfaction, and no-live authority.
-Neither layer constructs adapters, satisfies construction artifacts, enables
-live service, calls Coinbase, invokes managers, executes reconciliation,
-mutates state, or grants browser/BFF authority.
+Active phases 3701-3720 add a blocked producer contract over those missing
+acceptance evidence ids so future backend work knows which contract must
+create or record each evidence id. These layers do not construct adapters,
+write or accept evidence, satisfy construction artifacts, enable live service,
+call Coinbase, invoke managers, execute reconciliation, mutate state, or grant
+browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
