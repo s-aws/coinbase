@@ -4115,6 +4115,13 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     construction_contract_refs: list[str] = Field(default_factory=list)
     construction_verification_gates: list[str] = Field(default_factory=list)
     construction_blockers: list[str] = Field(default_factory=list)
+    route_mapping_satisfies_construction: bool = False
+    adapter_configuration_satisfies_construction: bool = False
+    construction_satisfaction_authority: str = (
+        "backend_live_adapter_construction_only"
+    )
+    satisfied_construction_artifacts: list[str] = Field(default_factory=list)
+    unsatisfied_construction_artifacts: list[str] = Field(default_factory=list)
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     forbidden_methods: list[str] = Field(default_factory=list)

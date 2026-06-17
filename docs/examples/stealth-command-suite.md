@@ -215,6 +215,15 @@ handoff.
       "adapter_reference": "AdminApiCommandService.cancel_stealth_order_by_stealth_order_id",
       "action_class": "live_exchange_cancel",
       "executable": false,
+      "route_mapping_satisfies_construction": false,
+      "adapter_configuration_satisfies_construction": false,
+      "construction_satisfaction_authority": "backend_live_adapter_construction_only",
+      "satisfied_construction_artifacts": [],
+      "unsatisfied_construction_artifacts": [
+        "route_bound_stealth_live_execution_adapter",
+        "shared_command_service_adapter",
+        "route_inventory_execution_binding"
+      ],
       "browser_authority": "display_only",
       "bff_authority": "forward_only_no_execution",
       "forbidden_methods": ["create_order", "cancel_order", "execute", "submit", "coinbase_client"]
@@ -1059,6 +1068,15 @@ live-disabled create workflow:
       "adapter_reference": "AdminApiCommandService.create_stealth_order",
       "action_class": "local_state_mutation",
       "executable": false,
+      "route_mapping_satisfies_construction": false,
+      "adapter_configuration_satisfies_construction": false,
+      "construction_satisfaction_authority": "backend_live_adapter_construction_only",
+      "satisfied_construction_artifacts": [],
+      "unsatisfied_construction_artifacts": [
+        "route_bound_stealth_live_execution_adapter",
+        "shared_command_service_adapter",
+        "route_inventory_execution_binding"
+      ],
       "browser_authority": "display_only",
       "bff_authority": "forward_only_no_execution",
       "forbidden_methods": ["create_order", "cancel_order", "execute", "submit", "coinbase_client"]

@@ -38,38 +38,52 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Service Decision Satisfaction Batch - Phases 3541-3560
+## Active M55 Adapter Construction Satisfaction Batch - Phases 3561-3580
 
-These phases clarify that latest disabled live-service decision readback is
+These phases clarify that disabled live-adapter route mapping and M53 pilot
+configuration are not satisfied construction evidence. The existing disabled
+`live_execution_adapter_contract` must expose route-mapping satisfaction
+false, adapter-configuration satisfaction false, explicit satisfaction
+authority, empty satisfied construction artifacts, and unsatisfied required
+construction artifacts. It must not resolve the construction precondition,
+remove missing construction artifacts, construct adapters, enable service,
+call Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
+browser authority, or grant BFF execution authority.
+
+### Phase 3561 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3541-3560 to active phases 3561-3580 while preserving no-live defaults and cap policy.
+
+### Phase 3562 - Backend Adapter Contract Satisfaction Fields
+
+- Add construction-satisfaction fields to `AdminLiveExecutionAdapterContractEvidence` and populate them through the shared `build_live_execution_adapter_contract` path.
+
+### Phase 3563 - Backend Fail-Closed Coverage
+
+- Prove route mapping and pilot configuration do not satisfy adapter construction artifacts while `construction_precondition_resolved=false` and live Coinbase/adapter authority remain disabled.
+
+### Phase 3564 - Frontend Contract Sync
+
+- Regenerate frontend schema and sync mocks, command evidence rows, quality metadata, and tests.
+
+### Phase 3565 - Validators, Gates, Review, Commit, And No-Live Report
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Service Decision Satisfaction Batch - Phases 3541-3560
+
+These phases clarified that latest disabled live-service decision readback is
 not satisfied enablement evidence. The existing disabled
-`live_execution_service_contract` must expose recorded decision artifacts,
+`live_execution_service_contract` exposes recorded decision artifacts,
 explicit satisfaction authority, empty satisfied artifacts, unsatisfied
-required artifacts, and `resolves=false`. It must not resolve the enablement
+required artifacts, and `resolves=false`. It does not resolve the enablement
 precondition, remove missing enablement artifacts, enable service, construct
 adapters, call Coinbase, invoke managers, execute reconciliation,
 cancel/replace active placements, mutate lifecycle/order/exchange state,
 clear M55 blockers, grant browser authority, or grant BFF execution
-authority.
-
-### Phase 3541 - Advance Active Queue Range
-
-- Move the durable autonomous queue from completed phases 3521-3540 to active phases 3541-3560 while preserving no-live defaults and cap policy.
-
-### Phase 3542 - Backend Service Contract Satisfaction Fields
-
-- Add latest decision satisfaction-boundary fields to `AdminLiveExecutionServiceContractEvidence` and populate them through the shared `build_live_execution_service_contract` path.
-
-### Phase 3543 - Backend Fail-Closed Coverage
-
-- Prove recorded artifacts do not satisfy enablement artifacts while `enablement_precondition_resolved=false`, `latest_service_decision_resolves_enablement=false`, and live Coinbase/service authority remain disabled.
-
-### Phase 3544 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync mocks, command evidence rows, quality metadata, and tests.
-
-### Phase 3545 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+authority. Backend commit `131267e1` and frontend commit `a38fcfe` contain
+the pushed range.
 
 ## Completed M55 Live-Service Decision Readback Batch - Phases 3521-3540
 

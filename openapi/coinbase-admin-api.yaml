@@ -13445,6 +13445,28 @@ components:
             type: string
           type: array
           title: Construction Blockers
+        route_mapping_satisfies_construction:
+          type: boolean
+          title: Route Mapping Satisfies Construction
+          default: false
+        adapter_configuration_satisfies_construction:
+          type: boolean
+          title: Adapter Configuration Satisfies Construction
+          default: false
+        construction_satisfaction_authority:
+          type: string
+          title: Construction Satisfaction Authority
+          default: backend_live_adapter_construction_only
+        satisfied_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Satisfied Construction Artifacts
+        unsatisfied_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Unsatisfied Construction Artifacts
         browser_authority:
           type: string
           title: Browser Authority

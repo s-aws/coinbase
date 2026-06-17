@@ -530,7 +530,12 @@ disabled and non-executable. It also reports backend-only construction
 preconditions, required/missing construction artifacts, verification gates, and
 blockers while keeping `construction_precondition_resolved` false until a
 future approved backend phase binds the adapter through the shared command
-service. It is not an adapter implementation, live switch, Coinbase caller,
+service. It also separates route-mapping/configuration evidence from satisfied
+construction artifacts: `route_mapping_satisfies_construction=false`,
+`adapter_configuration_satisfies_construction=false`,
+`satisfied_construction_artifacts=[]`, and
+`unsatisfied_construction_artifacts` still names the required construction
+artifacts. It is not an adapter implementation, live switch, Coinbase caller,
 manager invocation path, or BFF execution grant.
 For commands that require active-placement exchange truth, the contract may
 resolve that single prerequisite from the existing append-only backend proof

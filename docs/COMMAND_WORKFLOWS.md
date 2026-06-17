@@ -336,7 +336,12 @@ the shared live-execution adapter evidence builder. Workflows may display its
 route, `AdminApiCommandService.*` reference, forbidden methods, disabled
 status, and browser/BFF authority only. It does not construct an adapter,
 invoke managers, call Coinbase, cancel/replace active placements, execute
-reconciliation, mutate state, or make the command executable.
+reconciliation, mutate state, or make the command executable. Route mapping
+and M53 pilot configuration remain separate from construction satisfaction:
+`route_mapping_satisfies_construction=false`,
+`adapter_configuration_satisfies_construction=false`, and satisfied
+construction artifacts stay empty while required construction artifacts remain
+unsatisfied.
 Exact command responses that require active-placement exchange truth also
 include a nested `active_placement_exchange_truth_contract`. It is the same
 backend-owned evidence shape used by command-suite `exchange_truth_checks`.

@@ -2806,12 +2806,14 @@ Current backend evidence:
   backend-owned live-service decision evidence while deliberately keeping the
   service disabled, non-executable, and no-live. Completed phases 3521-3540
   add latest disabled-decision readback to the existing service contract while
-  keeping service enablement unresolved. Active phases 3541-3560 split
+  keeping service enablement unresolved. Completed phases 3541-3560 split
   recorded decision artifacts from satisfied enablement artifacts so
-  contextless maintainers cannot treat readback as enablement. Both contracts
-  and decision evidence remain blocked: Coinbase, manager, reconciliation,
-  active-placement, state mutation, browser, and BFF authority remain
-  disabled.
+  contextless maintainers cannot treat readback as enablement. Active phases
+  3561-3580 split route mapping and pilot configuration from satisfied
+  adapter construction artifacts so contextless maintainers cannot treat
+  adapter evidence as construction. Both contracts and decision evidence
+  remain blocked: Coinbase, manager, reconciliation, active-placement, state
+  mutation, browser, and BFF authority remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

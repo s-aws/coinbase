@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3521-3540` is backend `f9e9dd8d`
-  and frontend `8f341d3`; active range is `3541-3560`.
+- Commit (optional): completed range `3541-3560` is backend `131267e1`
+  and frontend `a38fcfe`; active range is `3561-3580`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3521-3540`; active range is `3541-3560`.
+- Latest completed autonomous range: `3541-3560`; active range is `3561-3580`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -162,13 +162,21 @@ Keep it short. Keep it factual.
   Coinbase, reconciliation, active-placement, state-mutation, browser, and BFF
   authority disabled. Backend commit `f9e9dd8d` and frontend commit
   `8f341d3` contain the pushed range.
-- Active `3541-3560` work: make latest decision readback satisfaction explicit
+- Completed `3541-3560` work: make latest decision readback satisfaction explicit
   on the existing disabled `live_execution_service_contract`. Recorded
   decision artifacts must not satisfy enablement artifacts; satisfied
   enablement artifacts stay empty; unsatisfied enablement artifacts stay equal
   to the required enablement artifacts; live service, adapter, manager,
   Coinbase, reconciliation, active-placement, state-mutation, browser, and BFF
-  authority stay disabled.
+  authority stay disabled. Backend commit `131267e1` and frontend commit
+  `a38fcfe` contain the pushed range.
+- Active `3561-3580` work: make disabled live-adapter construction
+  satisfaction explicit on the existing `live_execution_adapter_contract`.
+  Route mapping and M53 pilot configuration must not satisfy construction
+  artifacts; satisfied construction artifacts stay empty; unsatisfied
+  construction artifacts stay equal to the required construction artifacts;
+  live service, adapter, manager, Coinbase, reconciliation, active-placement,
+  state-mutation, browser, and BFF authority stay disabled.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -342,17 +350,17 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3541-3560`.
+- Active autonomous range: `3561-3580`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add explicit satisfaction-boundary fields to latest
-  disabled live-service decision readback on the existing disabled
-  `live_execution_service_contract` in active phases `3541-3560`. Recorded
-  decision artifacts must not be treated as satisfied enablement artifacts.
-  Do not enable live service, resolve blockers, construct adapters, create a
-  second adapter path, call Coinbase, invoke managers, execute reconciliation,
-  cancel/replace active placements, mutate lifecycle/order/exchange state,
-  grant browser authority, or grant BFF execution authority unless a future
-  approved phase explicitly authorizes it.
+- Current direction: add explicit construction-satisfaction fields to disabled
+  live-adapter evidence on the existing `live_execution_adapter_contract` in
+  active phases `3561-3580`. Route mapping and M53 pilot configuration must
+  not be treated as satisfied adapter construction artifacts. Do not enable
+  live service, resolve blockers, construct adapters, create a second adapter
+  path, call Coinbase, invoke managers, execute reconciliation, cancel/replace
+  active placements, mutate lifecycle/order/exchange state, grant browser
+  authority, or grant BFF execution authority unless a future approved phase
+  explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -947,7 +955,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3541-3560 live-service decision
+- Exact next command: continue the active 3561-3580 live-adapter construction
   satisfaction-boundary implementation, run focused gates, blind/contextless
   review, full gates, then commit and push both repositories with `$0` live
   Coinbase execution.

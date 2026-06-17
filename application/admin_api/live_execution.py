@@ -71,6 +71,9 @@ LIVE_SERVICE_DECISION_MODULE_ID = "admin_system_health"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
 LIVE_SERVICE_DECISION_REQUIRED_PERMISSION = AdminApiPermission.CONFIG_UPDATE
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY = "backend_route_binding_only_no_execution"
+LIVE_EXECUTION_ADAPTER_CONSTRUCTION_SATISFACTION_AUTHORITY = (
+    "backend_live_adapter_construction_only"
+)
 LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS = (
     "route_bound_stealth_live_execution_adapter",
     "shared_command_service_adapter",
@@ -270,6 +273,22 @@ def build_live_execution_adapter_blocker_trace() -> dict[str, Any]:
     }
 
 
+def build_live_execution_adapter_construction_satisfaction() -> dict[str, Any]:
+    """Return fail-closed satisfaction evidence for adapter construction."""
+
+    return {
+        "route_mapping_satisfies_construction": False,
+        "adapter_configuration_satisfies_construction": False,
+        "construction_satisfaction_authority": (
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_SATISFACTION_AUTHORITY
+        ),
+        "satisfied_construction_artifacts": [],
+        "unsatisfied_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+    }
+
+
 def build_live_execution_service_contract(
     *,
     method: str,
@@ -445,6 +464,7 @@ def build_disabled_live_execution_adapter_contract(
         "construction_blockers": list(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
         ),
+        **build_live_execution_adapter_construction_satisfaction(),
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
@@ -514,6 +534,7 @@ def build_m53_pilot_live_execution_adapter_contract(
         "construction_blockers": list(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
         ),
+        **build_live_execution_adapter_construction_satisfaction(),
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
