@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3901-3920**.
+- Approved phase range: **3921-3940**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3881-3900`.
+- Previous completed range: `3901-3920`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,102 +23,115 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3901-3920
+## Active Phases 3921-3940
 
-These phases add backend-owned producer-route contract remediation rows and a
-summary under the live-adapter construction acceptance-evidence producer path.
-Each remediation row is derived from a failed producer-route contract
-validation row and names the missing backend work that would be required
-before the `producer_route_contract_available` claim could ever resolve:
-route contract availability, route registration, route inventory binding,
-shared command-service binding, handler presence, append-only store readiness,
-validation/replay readiness, writer readiness, or acceptance readiness. This
-remains evidence only. It must not perform remediation, register a route, bind
-route inventory, bind a shared command service, register a handler, create a
-store, configure validation/replay gates, create a writer, accept evidence,
+These phases add backend-owned dependency rows and a dependency summary over
+the producer-route contract remediation rows. Each dependency row is derived
+from one blocked remediation row and orders it against sibling remediation
+items for the same route contract so a contextless reader can see which
+backend work must precede another missing backend prerequisite. This remains
+evidence only. It must not perform remediation, register a route, bind route
+inventory, bind a shared command service, register a handler, create a store,
+configure validation/replay gates, create a writer, write or accept evidence,
 construct adapters, call Coinbase, invoke managers, execute reconciliation,
 cancel/replace active placements, mutate lifecycle/order/exchange state,
 grant browser authority, or grant BFF execution authority.
 
-### Phase 3901 - Prior Range Completion Evidence
+### Phase 3921 - Prior Range Completion Evidence
 
-- Record completed phases 3881-3900 with backend commit `3559a710`, frontend commit `4acfbd0`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3901-3920 with backend commit `a15017c5`, frontend commit `0fcf8b5`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3902 - Advance Active Queue Range
+### Phase 3922 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3881-3900 to active phases 3901-3920 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3901-3920 to active phases 3921-3940 while preserving no-live defaults and cap policy.
 
-### Phase 3903 - Backend Route Contract Remediation Model
+### Phase 3923 - Backend Remediation Dependency Model
 
-- Add typed blocked producer-route contract remediation item and remediation-summary models to the existing live-adapter construction contract path.
+- Add typed blocked producer-route contract remediation-dependency item and dependency-summary models to the existing live-adapter construction contract path.
 
-### Phase 3904 - Backend Route Contract Remediation Projection
+### Phase 3924 - Backend Remediation Dependency Projection
 
-- Derive blocked remediation rows from every failed producer-route contract validation row and preserve the original validation id, check key, blocker, route contract id, requirement id, claim id, work-item ref, producer contract id, evidence id, artifact, route inventory ref, and shared command-service ref.
+- Derive dependency rows from every blocked route-contract remediation row and preserve the source remediation id, validation id, route contract id, requirement id, claim id, work-item ref, producer contract id, evidence id, artifact, route contract ref, route inventory ref, shared command-service ref, check key, and remediation action.
 
-### Phase 3905 - Backend Route Contract Remediation Summary
+### Phase 3925 - Dependency Ordering Evidence
 
-- Aggregate remediation counts, remediation ids, validation ids, check keys, remediation actions, validation blockers, route contract ids, requirement ids, claim ids, work-item refs, producer contract ids, evidence ids, artifacts, gates, and disabled authority flags.
+- Compute predecessor and successor remediation ids/check keys per route contract using the existing validation-check order without making any dependency ready or action-ready.
 
-### Phase 3906 - Backend Schema And Coverage
+### Phase 3926 - Backend Dependency Summary
 
-- Regenerate backend OpenAPI and add focused assertions proving remediation rows and summary are blocked, derived, no-remediation, no-route-registration, no-route-inventory-binding, no-shared-service-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
+- Aggregate dependency counts, dependency ids, remediation ids, validation ids, contract ids, requirement ids, claim ids, work-item refs, route refs, check keys, dependency stages, remediation actions, blockers, validation blockers, verification gates, and disabled authority flags.
 
-### Phase 3907 - Frontend Schema And Mock Sync
+### Phase 3927 - Backend Schema And Coverage
+
+- Regenerate backend OpenAPI and add focused assertions proving dependency rows and summary are blocked, derived, ordered, no-remediation, no-registration, no-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
+
+### Phase 3928 - Frontend Schema And Mock Sync
 
 - Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
 
-### Phase 3908 - Frontend Display Sync
+### Phase 3929 - Frontend Display Sync
 
-- Render producer-route contract remediation rows and summary separately from validation rows, proposals, requirements, claim traces, and work queue through existing adapter evidence rows.
+- Render producer-route contract remediation-dependency rows and summary separately from remediation, validation, proposal, requirement, claim-trace, and work-queue rows through the existing adapter evidence display.
 
-### Phase 3909 - Frontend Focused Coverage
+### Phase 3930 - Frontend Focused Coverage
 
-- Update focused mock, dry-submit, runtime, read-model, and quality tests so remediation readback cannot imply route registration, route inventory binding, shared service binding, handler registration, store, validation, replay, writer, acceptance, construction, clearance, or execution authority.
+- Update focused mock, dry-submit, runtime, read-model, and quality tests so dependency readback cannot imply remediation, route registration, route inventory binding, shared-service binding, handler registration, store, validation, replay, writer, acceptance, construction, clearance, or execution authority.
 
-### Phase 3910 - Documentation Sync
+### Phase 3931 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract remediation readback.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract remediation-dependency readback.
 
-### Phase 3911 - Autonomous Validator Sync
+### Phase 3932 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 3901-3920.
+- Update backend/frontend autonomous validators and active-range metadata for phases 3921-3940.
 
-### Phase 3912 - Stale Authority Scan
+### Phase 3933 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale active-range wording or text implying route contract remediation can perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
+- Search backend/frontend code and docs for stale active-range wording or text implying route-contract dependency evidence can perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
 
-### Phase 3913 - Backend Focused Gates
+### Phase 3934 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 3914 - Frontend Focused Gates
+### Phase 3935 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3915 - Full Backend Regression
+### Phase 3936 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3916 - Full Frontend Release Gate
+### Phase 3937 - Full Frontend Release Gate
 
 - Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 3917 - Blind Contextless Review
+### Phase 3938 - Blind Contextless Review
 
-- Run blind/contextless review proving a fresh agent can explain that route contract remediation rows are planning evidence only and cannot perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, clear, construct, execute, or enable adapters.
+- Run blind/contextless review proving a fresh agent can explain that dependency rows are planning evidence only and cannot perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, clear, construct, execute, or enable adapters.
 
-### Phase 3918 - Live UI Smoke
+### Phase 3939 - Live UI Smoke
 
 - Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
 
-### Phase 3919 - Completion Evidence And No-Live Ledger
+### Phase 3940 - Completion Evidence, Commit, Push, And Pause
 
-- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional.
+- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees; then pause for the requested restart.
 
-### Phase 3920 - Commit, Push, And Continue Summary
+## Completed Phases 3901-3920
 
-- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, verify clean worktrees, and continue only to the next milestone-linked gap.
+These phases added backend-owned producer-route contract remediation rows and
+a summary under the live-adapter construction acceptance-evidence producer
+path. Each remediation row is derived from a failed producer-route contract
+validation row and names the missing backend work that would be required
+before the `producer_route_contract_available` claim could ever resolve.
+This remains evidence only. It did not perform remediation, register a route,
+bind route inventory, bind a shared command service, register a handler,
+create a store, configure validation/replay gates, create a writer, accept
+evidence, construct adapters, call Coinbase, invoke managers, execute
+reconciliation, cancel/replace active placements, mutate lifecycle/order/
+exchange state, grant browser authority, or grant BFF execution authority.
+Backend commit `a15017c5` and frontend commit `0fcf8b5` contain the pushed
+range.
 
 ## Completed Phases 3881-3900
 

@@ -155,10 +155,12 @@ requirements to missing route contract, route inventory, and shared
 command-service evidence. Completed phases 3881-3900 add blocked producer-route
 contract validation rows and a summary mapping those proposals to missing
 route contract, route registration, route inventory, shared service, handler,
-store, validation/replay, writer, and acceptance prerequisites. These layers
-are now followed by active phases 3901-3920, which add blocked remediation
-rows and a summary mapping failed validation rows to missing backend work
-without performing that work. These layers
+store, validation/replay, writer, and acceptance prerequisites. Completed
+phases 3901-3920 add blocked remediation rows and a summary mapping failed
+validation rows to missing backend work without performing that work. Active
+phases 3921-3940 add blocked remediation-dependency rows and a summary that
+order those remediation items by route contract without performing that work.
+These layers
 do not register routes, bind route inventory, bind shared command services,
 register handlers, create stores, configure validation/replay, create writers,
 construct adapters, write or accept evidence, satisfy construction artifacts,

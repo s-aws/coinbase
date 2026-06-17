@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3881-3900` is backend `3559a710`
-  and frontend `4acfbd0`; active range is `3901-3920`.
+- Commit (optional): completed range `3901-3920` is backend `a15017c5`
+  and frontend `0fcf8b5`; active range is `3921-3940`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3881-3900`; active range is `3901-3920`.
+- Latest completed autonomous range: `3901-3920`; active range is `3921-3940`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -311,7 +311,7 @@ Keep it short. Keep it factual.
   authority.
   Backend commit `3559a710` and frontend commit `4acfbd0` contain the pushed
   range.
-- Active `3901-3920` work: add blocked producer-route contract remediation rows
+- Completed `3901-3920` work: add blocked producer-route contract remediation rows
   and a remediation summary derived from failed producer-route contract
   validation rows. The remediation rows and summary may map failed validation
   ids to missing backend work, remediation actions, validation blockers, route
@@ -322,6 +322,17 @@ Keep it short. Keep it factual.
   inventory, bind shared command services, register handlers, write or accept
   evidence, satisfy artifacts, clear readiness, construct adapters, or create
   live execution authority.
+- Active `3921-3940` work: add blocked producer-route contract remediation
+  dependency rows and a dependency summary derived from those remediation
+  rows. The dependency rows and summary may order missing backend work per
+  route contract and list predecessor/successor remediation ids, blockers,
+  route refs, check keys, stages, remediation actions, and disabled
+  route-registration/route-inventory/shared-service/handler/store/validation/
+  replay/writer/acceptance/construction/execution flags, but they must not
+  perform remediation, register routes, bind route inventory, bind shared
+  command services, register handlers, write or accept evidence, satisfy
+  artifacts, clear readiness, construct adapters, or create live execution
+  authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -495,23 +506,24 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3901-3920`.
+- Active autonomous range: `3921-3940`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add blocked producer-route contract remediation rows and a
-  remediation summary under the existing live-adapter construction contract in
-  active phases `3901-3920` so future backend work can see which missing
-  backend work items correspond to each failed route-contract validation row.
-  The remediation rows and summary may list false remediation readiness,
-  route-registration, route-inventory, shared-service, handler, store,
-  validation/replay, writer, acceptance, construction, clearance, and execution
-  flags and false producer satisfaction. They must not enable live service,
-  resolve blockers, perform remediation, register routes, bind route
-  inventory, bind shared command services, register handlers, construct
-  adapters, satisfy construction artifacts, write or accept evidence, create a
-  second adapter path, call Coinbase, invoke managers, execute reconciliation,
-  cancel/replace active placements, mutate lifecycle/order/exchange state,
-  grant browser authority, or grant BFF execution authority unless a future
-  approved phase explicitly authorizes it.
+- Current direction: add blocked producer-route contract remediation
+  dependency rows and a dependency summary under the existing live-adapter
+  construction contract in active phases `3921-3940` so future backend work
+  can see the ordering between missing backend work items for each failed
+  route-contract remediation row. The dependency rows and summary may list
+  false dependency/remediation/action readiness, predecessor and successor
+  remediation ids, route-registration, route-inventory, shared-service,
+  handler, store, validation/replay, writer, acceptance, construction,
+  clearance, and execution flags and false producer satisfaction. They must
+  not enable live service, resolve blockers, perform remediation, register
+  routes, bind route inventory, bind shared command services, register
+  handlers, construct adapters, satisfy construction artifacts, write or
+  accept evidence, create a second adapter path, call Coinbase, invoke
+  managers, execute reconciliation, cancel/replace active placements, mutate
+  lifecycle/order/exchange state, grant browser authority, or grant BFF
+  execution authority unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -1106,8 +1118,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3901-3920 backend live-adapter
-  acceptance-evidence producer-route contract remediation implementation, sync
-  frontend generated schema/display, run focused gates, blind/contextless
-  review, full gates, then commit and push both repositories with `$0` live
-  Coinbase execution.
+- Exact next command: continue the active 3921-3940 backend live-adapter
+  acceptance-evidence producer-route contract remediation-dependency
+  implementation, sync frontend generated schema/display, run focused gates,
+  blind/contextless review, full gates, then commit and push both repositories
+  with `$0` live Coinbase execution and pause for restart.
