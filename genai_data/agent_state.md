@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3601-3620` is backend `0827ef82`
-  and frontend `69b6bd6`; active range is `3621-3640`.
+- Commit (optional): completed range `3621-3640` is backend `72dc6e6d`
+  and frontend `59b95ae`; active range is `3641-3660`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3601-3620`; active range is `3621-3640`.
+- Latest completed autonomous range: `3621-3640`; active range is `3641-3660`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -193,13 +193,20 @@ Keep it short. Keep it factual.
   execute reconciliation, mutate state, or grant browser/BFF execution
   authority. Backend commit `0827ef82` and frontend commit `69b6bd6` contain
   the pushed range.
-- Active `3621-3640` work: add the backend live-adapter construction contract
-  as typed read-only evidence under the existing adapter contract. The
-  contract may list route binding, shared command service binding,
+- Completed `3621-3640` work: add the backend live-adapter construction
+  contract as typed read-only evidence under the existing adapter contract.
+  The contract may list route binding, shared command service binding,
   required/missing artifacts, verification gates, blockers, and forbidden
   execution methods, but it must not construct adapters, satisfy construction
   artifacts, enable service, call Coinbase, invoke managers, execute
   reconciliation, mutate state, or grant browser/BFF execution authority.
+  Backend commit `72dc6e6d` and frontend commit `59b95ae` contain the pushed
+  range.
+- Active `3641-3660` work: add per-artifact acceptance requirements to the
+  backend live-adapter construction contract. Each artifact may list required
+  evidence id, source refs, owner, acceptance checks, negative checks,
+  evidence-present state, and satisfaction blockers, but all artifacts remain
+  unsatisfied and no live execution authority is created.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -373,17 +380,18 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3621-3640`.
+- Active autonomous range: `3641-3660`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add the typed backend live-adapter construction contract
-  in active phases `3621-3640` so the next required construction contract is
-  inspectable without construction authority. The contract may list route
-  binding, shared command service binding, required/missing artifacts,
-  verification gates, blockers, and forbidden execution methods. It must not
-  enable live service, resolve blockers, construct adapters, satisfy
-  construction artifacts, create a second adapter path, call Coinbase, invoke
-  managers, execute reconciliation, cancel/replace active placements, mutate
-  lifecycle/order/exchange state, grant browser authority, or grant BFF
+- Current direction: add per-artifact acceptance requirements to the typed
+  backend live-adapter construction contract in active phases `3641-3660` so
+  the evidence required for each construction artifact is explicit without
+  construction authority. The contract may list required evidence ids, source
+  refs, owners, acceptance checks, negative checks, evidence state, and
+  satisfaction blockers. It must not enable live service, resolve blockers,
+  construct adapters, satisfy construction artifacts, create a second adapter
+  path, call Coinbase, invoke managers, execute reconciliation,
+  cancel/replace active placements, mutate lifecycle/order/exchange state,
+  grant browser authority, or grant BFF
   execution authority unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
@@ -979,7 +987,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3621-3640 backend live-adapter
-  construction-contract evidence implementation, sync frontend generated
+- Exact next command: continue the active 3641-3660 backend live-adapter
+  artifact-acceptance requirement implementation, sync frontend generated
   schema/display, run focused gates, blind/contextless review, full gates,
   then commit and push both repositories with `$0` live Coinbase execution.

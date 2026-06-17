@@ -2815,9 +2815,11 @@ Current backend evidence:
   append-only disabled live-adapter decision evidence while keeping
   construction artifacts unsatisfied. Completed phases 3601-3620 add explicit
   non-resolution readback fields so latest adapter decisions cannot be
-  mistaken for construction authority. Active phases 3621-3640 add the typed
-  backend live-adapter construction contract as read-only evidence so the
-  next required contract is inspectable without constructing adapters.
+  mistaken for construction authority. Completed phases 3621-3640 add the
+  typed backend live-adapter construction contract as read-only evidence so
+  the next required contract is inspectable without constructing adapters.
+  Active phases 3641-3660 add per-artifact acceptance requirements to that
+  contract while keeping every artifact unsatisfied.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

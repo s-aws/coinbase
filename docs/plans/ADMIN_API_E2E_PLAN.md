@@ -38,37 +38,51 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Construction Contract Batch - Phases 3621-3640
+## Active M55 Live-Adapter Artifact Acceptance Requirements Batch - Phases 3641-3660
 
-These phases make the backend construction contract named by
+These phases add per-artifact acceptance requirements to the typed backend
+live-adapter construction contract while keeping adapter construction
+disabled. Each artifact may name required evidence ids, source refs, owners,
+acceptance checks, negative checks, current evidence state, and satisfaction
+blockers. These requirements cannot construct adapters, mark artifacts
+satisfied, enable adapters, enable service, call Coinbase, invoke managers,
+execute reconciliation, cancel/replace active placements, mutate
+lifecycle/order/exchange state, clear M55 blockers, grant browser authority,
+or grant BFF execution authority.
+
+### Phase 3641 - Prior Range Completion Evidence
+
+- Record completed phases 3621-3640 with backend commit `72dc6e6d`, frontend commit `59b95ae`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3642 - Backend Acceptance Contract
+
+- Add typed per-artifact acceptance requirement fields and populate the construction contract with evidence ids, checks, negative checks, source refs, and unsatisfied blockers.
+
+### Phase 3643 - Backend Focused Coverage
+
+- Prove every construction artifact carries acceptance requirements, remains route-bound, backend-owned, unsatisfied, non-executable, no-live, and unable to clear adapter blockers.
+
+### Phase 3644 - Frontend Contract Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for artifact acceptance requirements.
+
+### Phase 3645 - Validators, Gates, Review, Commit, And No-Live Report
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Construction Contract Batch - Phases 3621-3640
+
+These phases made the backend construction contract named by
 `latest_adapter_decision_next_required_contract` typed and inspectable while
-keeping adapter construction disabled. The contract may list required
-artifacts, missing artifacts, route binding, shared command service binding,
+keeping adapter construction disabled. The contract lists required artifacts,
+missing artifacts, route binding, shared command service binding,
 verification gates, blockers, and forbidden methods. It cannot construct
 adapters, enable adapters, mark construction artifacts satisfied, enable
 service, call Coinbase, invoke managers, execute reconciliation,
 cancel/replace active placements, mutate lifecycle/order/exchange state,
-clear M55 blockers, grant browser authority, or grant BFF execution authority.
-
-### Phase 3621 - Prior Range Completion Evidence
-
-- Record completed phases 3601-3620 with backend commit `0827ef82`, frontend commit `69b6bd6`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3622 - Backend Construction Contract
-
-- Add enum-backed construction artifacts, a typed read-only construction-contract builder, and nested adapter-contract projection with construction satisfaction false.
-
-### Phase 3623 - Backend Focused Coverage
-
-- Prove the construction contract is present, route-bound, backend-owned, unsatisfied, non-executable, no-live, and unable to clear adapter blockers.
-
-### Phase 3624 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for construction-contract evidence.
-
-### Phase 3625 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+clear M55 blockers, grant browser authority, or grant BFF execution
+authority. Backend commit `72dc6e6d` and frontend commit `59b95ae` contain
+the pushed range.
 
 ## Completed M55 Live-Adapter Decision Non-Resolution Batch - Phases 3601-3620
 

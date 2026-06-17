@@ -4208,6 +4208,19 @@ class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     expected_evidence_ref: str
     missing_reason: str
     verification_gate: str
+    acceptance_authority: str = (
+        "backend_artifact_acceptance_requirements_only_no_execution"
+    )
+    required_evidence_id: str
+    evidence_owner: str
+    required_source_refs: list[str] = Field(default_factory=list)
+    acceptance_checks: list[str] = Field(default_factory=list)
+    negative_checks: list[str] = Field(default_factory=list)
+    current_evidence_present: bool = False
+    evidence_ids: list[str] = Field(default_factory=list)
+    evidence_source_refs: list[str] = Field(default_factory=list)
+    satisfies_artifact: bool = False
+    satisfaction_blockers: list[str] = Field(default_factory=list)
     detail: str
 
 

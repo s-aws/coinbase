@@ -12664,6 +12664,54 @@ components:
         verification_gate:
           type: string
           title: Verification Gate
+        acceptance_authority:
+          type: string
+          title: Acceptance Authority
+          default: backend_artifact_acceptance_requirements_only_no_execution
+        required_evidence_id:
+          type: string
+          title: Required Evidence Id
+        evidence_owner:
+          type: string
+          title: Evidence Owner
+        required_source_refs:
+          items:
+            type: string
+          type: array
+          title: Required Source Refs
+        acceptance_checks:
+          items:
+            type: string
+          type: array
+          title: Acceptance Checks
+        negative_checks:
+          items:
+            type: string
+          type: array
+          title: Negative Checks
+        current_evidence_present:
+          type: boolean
+          title: Current Evidence Present
+          default: false
+        evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Evidence Ids
+        evidence_source_refs:
+          items:
+            type: string
+          type: array
+          title: Evidence Source Refs
+        satisfies_artifact:
+          type: boolean
+          title: Satisfies Artifact
+          default: false
+        satisfaction_blockers:
+          items:
+            type: string
+          type: array
+          title: Satisfaction Blockers
         detail:
           type: string
           title: Detail
@@ -12675,6 +12723,8 @@ components:
       - expected_evidence_ref
       - missing_reason
       - verification_gate
+      - required_evidence_id
+      - evidence_owner
       - detail
       title: AdminLiveAdapterConstructionArtifactItem
       description: One backend artifact required for live-adapter construction.

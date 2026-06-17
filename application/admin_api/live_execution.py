@@ -106,6 +106,9 @@ LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE = (
     "backend_live_adapter_construction_contract"
 )
 LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY = "backend_contract_only_no_execution"
+LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY = (
+    "backend_artifact_acceptance_requirements_only_no_execution"
+)
 LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF = (
     "application/admin_api/live_execution.py::build_live_adapter_construction_contract"
 )
@@ -495,6 +498,11 @@ def build_live_adapter_construction_contract(
     """Return typed no-live evidence for the required adapter construction contract."""
 
     adapter_reference = f"AdminApiCommandService.{service_method}"
+    command_service_ref = (
+        f"application/admin_api/command_service.py::"
+        f"AdminApiCommandService.{service_method}"
+    )
+    route_inventory_ref = f"application/admin_api/route_inventory.py::{module_id}"
     artifact_details = {
         AdminApiLiveAdapterConstructionArtifact.ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER: (
             "A reviewed backend adapter object must bind exactly one route, "
@@ -510,6 +518,68 @@ def build_live_adapter_construction_contract(
             "route, module id, permission, action class, and shared method."
         ),
     }
+    artifact_acceptance = {
+        AdminApiLiveAdapterConstructionArtifact.ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER: {
+            "required_evidence_id": "route_bound_stealth_live_execution_adapter_evidence",
+            "evidence_owner": "admin_api_contract",
+            "required_source_refs": [
+                LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF,
+                route_inventory_ref,
+                command_service_ref,
+            ],
+            "acceptance_checks": [
+                f"method_matches:{method}",
+                f"route_matches:{route}",
+                f"module_id_matches:{module_id}",
+                f"service_method_matches:{service_method}",
+                f"action_class_matches:{action_class.value}",
+            ],
+            "negative_checks": [
+                "adapter_does_not_call_coinbase_client_directly",
+                "adapter_does_not_call_stealth_manager_directly",
+                "adapter_does_not_execute_reconciliation",
+                "adapter_does_not_mutate_lifecycle_or_exchange_state",
+            ],
+        },
+        AdminApiLiveAdapterConstructionArtifact.SHARED_COMMAND_SERVICE_ADAPTER: {
+            "required_evidence_id": "shared_command_service_adapter_evidence",
+            "evidence_owner": "admin_api_contract",
+            "required_source_refs": [
+                command_service_ref,
+                "application/admin_api/command_service.py::AdminApiCommandService",
+            ],
+            "acceptance_checks": [
+                f"adapter_reference_matches:{adapter_reference}",
+                f"shared_service_method_exists:{service_method}",
+                "command_identity_comes_from_backend_route_context",
+            ],
+            "negative_checks": [
+                "no_route_local_executor",
+                "no_dashboard_websocket_shortcut",
+                "no_browser_supplied_execution_authority",
+            ],
+        },
+        AdminApiLiveAdapterConstructionArtifact.ROUTE_INVENTORY_EXECUTION_BINDING: {
+            "required_evidence_id": "route_inventory_execution_binding_evidence",
+            "evidence_owner": "admin_api_contract",
+            "required_source_refs": [
+                route_inventory_ref,
+                "application/admin_api/route_inventory.py",
+            ],
+            "acceptance_checks": [
+                f"inventory_method_matches:{method}",
+                f"inventory_route_matches:{route}",
+                f"inventory_module_matches:{module_id}",
+                f"inventory_service_method_matches:{service_method}",
+                f"inventory_action_class_matches:{action_class.value}",
+            ],
+            "negative_checks": [
+                "no_unregistered_command_route",
+                "no_missing_required_permission",
+                "no_secondary_execution_path",
+            ],
+        },
+    }
     artifacts = [
         {
             "artifact": artifact,
@@ -522,6 +592,18 @@ def build_live_adapter_construction_contract(
             "verification_gate": (
                 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES[index]
             ),
+            "acceptance_authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY
+            ),
+            "current_evidence_present": False,
+            "evidence_ids": [],
+            "evidence_source_refs": [],
+            "satisfies_artifact": False,
+            "satisfaction_blockers": [
+                f"{artifact.value}_evidence_missing",
+                f"{artifact.value}_acceptance_not_run",
+            ],
+            **artifact_acceptance[artifact],
             "detail": artifact_details[artifact],
         }
         for index, artifact in enumerate(
