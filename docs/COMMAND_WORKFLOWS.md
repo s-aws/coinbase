@@ -233,7 +233,10 @@ live service implementation. Workflows may display its disabled status,
 service reference, forbidden methods, enabled false, executable false, and
 browser/BFF authority only. It does not enable the service, construct
 adapters, call Coinbase, invoke managers, execute reconciliation, mutate
-state, or make the command executable.
+state, or make the command executable. If it includes
+`latest_service_decision_id`, that is local disabled-decision readback only;
+`latest_service_decision_resolves_enablement` remains false and missing
+enablement artifacts remain blockers.
 Exact create and non-create command responses may include
 `live_execution_intent_contract`. It is the existing backend admission
 decision's disabled intent envelope and is bound to route, identity, actor,

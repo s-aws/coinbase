@@ -13711,6 +13711,54 @@ components:
             type: string
           type: array
           title: Enablement Blockers
+        latest_service_decision_available:
+          type: boolean
+          title: Latest Service Decision Available
+          default: false
+        latest_service_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Service Decision Id
+        latest_service_decision_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Service Decision Recorded At
+        latest_service_decision_status:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - type: 'null'
+        latest_service_decision_requested_status:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          - type: 'null'
+        latest_service_decision_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Service Decision Source
+        latest_service_decision_service_enabled:
+          type: boolean
+          title: Latest Service Decision Service Enabled
+          default: false
+        latest_service_decision_live_coinbase_execution_approved:
+          type: boolean
+          title: Latest Service Decision Live Coinbase Execution Approved
+          default: false
+        latest_service_decision_recorded_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Service Decision Recorded Artifacts
+        latest_service_decision_resolver_eligible:
+          type: boolean
+          title: Latest Service Decision Resolver Eligible
+          default: false
+        latest_service_decision_resolves_enablement:
+          type: boolean
+          title: Latest Service Decision Resolves Enablement
+          default: false
         browser_authority:
           type: string
           title: Browser Authority

@@ -5,12 +5,11 @@ Keep it short. Keep it factual.
 
 ## Metadata
 
-- Last updated (ET): 2026-06-16
+- Last updated (ET): 2026-06-17
 - Updated by: Codex
-- Branch: main
-- Commit (optional): completed range `3041-3060` is captured by the
-  synchronized backend/frontend commits for this handoff; previous completed
-  range `3021-3040` is backend `dc120798` and frontend `b8f3727`.
+- Branch: codex/stealth-live-service-decision-3501
+- Commit (optional): completed range `3501-3520` is backend `49193a4c`
+  and frontend `ed35110`; active range is `3521-3540`.
 
 ## Current Objective
 
@@ -38,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3481-3500`; active range is `3501-3520`.
+- Latest completed autonomous range: `3501-3520`; active range is `3521-3540`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -148,11 +147,20 @@ Keep it short. Keep it factual.
   cancel/replace active placements, mutate lifecycle/order/exchange state,
   grant browser authority, or grant BFF execution authority. Backend commit
   `f4d756ee` and frontend commit `e0b59b8` contain the pushed range.
-- Active `3501-3520` work: add append-only backend-owned live-service decision
-  evidence while keeping service enabled false, live Coinbase approval false,
-  status blocked, submitted/executed notional zero, and all live service,
-  adapter, manager, Coinbase, reconciliation, active-placement, state-mutation,
-  browser, and BFF authority disabled.
+- Completed `3501-3520` work: added append-only backend-owned live-service
+  decision evidence while keeping service enabled false, live Coinbase
+  approval false, status blocked, submitted/executed notional zero, and all
+  live service, adapter, manager, Coinbase, reconciliation, active-placement,
+  state-mutation, browser, and BFF authority disabled. Backend commit
+  `49193a4c` and frontend commit `ed35110` contain the pushed range.
+- Active `3521-3540` work: consume the latest disabled live-service decision
+  record as readback on the existing disabled
+  `live_execution_service_contract` only. Keep
+  `enablement_precondition_resolved=false`,
+  `latest_service_decision_resolves_enablement=false`, all required
+  enablement artifacts missing, and all live service, adapter, manager,
+  Coinbase, reconciliation, active-placement, state-mutation, browser, and BFF
+  authority disabled.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -326,12 +334,13 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3501-3520`.
+- Active autonomous range: `3521-3540`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add backend-owned live-service decision evidence in
-  active phases `3501-3520`. Do not enable live service, resolve blockers,
-  construct adapters, create a second adapter path, call Coinbase, invoke
-  managers, execute reconciliation, cancel/replace active placements, mutate
+- Current direction: add latest disabled live-service decision readback to the
+  existing disabled `live_execution_service_contract` in active phases
+  `3521-3540`. Do not enable live service, resolve blockers, construct
+  adapters, create a second adapter path, call Coinbase, invoke managers,
+  execute reconciliation, cancel/replace active placements, mutate
   lifecycle/order/exchange state, grant browser authority, or grant BFF
   execution authority unless a future approved phase explicitly authorizes it.
 
@@ -928,7 +937,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3501-3520 live-service decision
-  evidence implementation, run focused gates, blind/contextless review, full
+- Exact next command: continue the active 3521-3540 live-service decision
+  readback implementation, run focused gates, blind/contextless review, full
   gates, then commit and push both repositories with `$0` live Coinbase
   execution and pause for restart.

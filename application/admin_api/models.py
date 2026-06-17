@@ -4153,6 +4153,21 @@ class AdminLiveExecutionServiceContractEvidence(BaseModel):
     enablement_contract_refs: list[str] = Field(default_factory=list)
     enablement_verification_gates: list[str] = Field(default_factory=list)
     enablement_blockers: list[str] = Field(default_factory=list)
+    latest_service_decision_available: bool = False
+    latest_service_decision_id: str | None = None
+    latest_service_decision_recorded_at: str | None = None
+    latest_service_decision_status: AdminApiGateStatus | None = None
+    latest_service_decision_requested_status: (
+        AdminApiLiveExecutionStatus | None
+    ) = None
+    latest_service_decision_source: str | None = None
+    latest_service_decision_service_enabled: bool = False
+    latest_service_decision_live_coinbase_execution_approved: bool = False
+    latest_service_decision_recorded_artifacts: list[str] = Field(
+        default_factory=list
+    )
+    latest_service_decision_resolver_eligible: bool = False
+    latest_service_decision_resolves_enablement: bool = False
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     forbidden_methods: list[str] = Field(default_factory=list)

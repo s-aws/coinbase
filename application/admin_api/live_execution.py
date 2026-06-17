@@ -215,6 +215,19 @@ def get_disabled_live_execution_service() -> DisabledAdminApiLiveExecutionServic
     return DisabledAdminApiLiveExecutionService()
 
 
+def read_latest_live_service_decision(
+    store: FileAdminApiLiveServiceDecisionStore | None = None,
+) -> LiveServiceDecisionRecord | None:
+    """Return the newest local live-service decision evidence, if present."""
+
+    decision_store = store or FileAdminApiLiveServiceDecisionStore()
+    try:
+        records = decision_store.read_recent(limit=1)
+    except OSError:
+        return None
+    return records[0] if records else None
+
+
 def build_live_execution_service_blocker_trace() -> dict[str, Any]:
     """Return blocker-chain trace evidence for live-service enablement."""
 
@@ -265,6 +278,7 @@ def build_live_execution_service_contract(
     service_method: str,
     action_class: AdminApiActionClass,
     live_execution_service: AdminApiLiveExecutionService | None = None,
+    live_service_decision_store: FileAdminApiLiveServiceDecisionStore | None = None,
 ) -> dict[str, Any]:
     """Return read-only route-to-live-service boundary evidence.
 
@@ -274,6 +288,13 @@ def build_live_execution_service_contract(
 
     service = live_execution_service or get_disabled_live_execution_service()
     state = service.admission_state()
+    latest_decision = read_latest_live_service_decision(live_service_decision_store)
+    latest_decision_available = latest_decision is not None
+    latest_decision_recorded_artifacts = (
+        ["explicit_backend_live_enablement_decision"]
+        if latest_decision_available
+        else []
+    )
     return {
         "required": state.required,
         "present": state.present,
@@ -311,6 +332,37 @@ def build_live_execution_service_contract(
             LIVE_EXECUTION_SERVICE_ENABLEMENT_VERIFICATION_GATES
         ),
         "enablement_blockers": list(LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS),
+        "latest_service_decision_available": latest_decision_available,
+        "latest_service_decision_id": (
+            latest_decision.decision_id if latest_decision is not None else None
+        ),
+        "latest_service_decision_recorded_at": (
+            latest_decision.recorded_at if latest_decision is not None else None
+        ),
+        "latest_service_decision_status": (
+            latest_decision.status if latest_decision is not None else None
+        ),
+        "latest_service_decision_requested_status": (
+            latest_decision.requested_service_status
+            if latest_decision is not None
+            else None
+        ),
+        "latest_service_decision_source": (
+            latest_decision.source if latest_decision is not None else None
+        ),
+        "latest_service_decision_service_enabled": (
+            latest_decision.service_enabled if latest_decision is not None else False
+        ),
+        "latest_service_decision_live_coinbase_execution_approved": (
+            latest_decision.live_coinbase_execution_approved
+            if latest_decision is not None
+            else False
+        ),
+        "latest_service_decision_recorded_artifacts": (
+            latest_decision_recorded_artifacts
+        ),
+        "latest_service_decision_resolver_eligible": False,
+        "latest_service_decision_resolves_enablement": False,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
@@ -318,6 +370,10 @@ def build_live_execution_service_contract(
             "Live execution service state is owned by backend admission.",
             "The current service state is disabled and non-executable.",
             "Backend live enablement preconditions are unresolved.",
+            (
+                "Latest live-service decision readback is local evidence only "
+                "and does not resolve enablement."
+            ),
             "Browser and BFF layers may display this boundary but cannot enable it.",
         ],
         "detail": (

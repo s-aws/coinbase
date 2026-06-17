@@ -38,37 +38,48 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Service Decision Evidence Batch - Phases 3501-3520
+## Active M55 Live-Service Decision Readback Batch - Phases 3521-3540
 
-These phases add a backend-owned append-only live-service decision evidence
-contract while keeping live service disabled. The contract records local-state
-evidence that the remaining enablement decision was reviewed, but it must
-reject any request that would enable service, approve live Coinbase execution,
-mark the decision passed, or allow nonzero submitted/executed notional. This
-batch must not construct adapters, call Coinbase, invoke managers, execute
-reconciliation, cancel/replace active placements, mutate lifecycle/order/
-exchange state, clear M55 blockers, grant browser authority, or grant BFF
-execution authority.
+These phases consume the latest append-only live-service decision record as
+readback inside the existing disabled `live_execution_service_contract`. The
+record is local evidence only. It must not resolve the enablement precondition,
+remove missing enablement artifacts, enable service, construct adapters, call
+Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
+browser authority, or grant BFF execution authority.
 
-### Phase 3501 - Advance Active Queue Range
+### Phase 3521 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3481-3500 to active phases 3501-3520 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3501-3520 to active phases 3521-3540 while preserving no-live defaults and cap policy.
 
-### Phase 3502 - Prior Range Completion Evidence
+### Phase 3522 - Backend Service Contract Readback
 
-- Record completed phases 3481-3500 as blocker-traceability evidence with passing gates, blind/contextless review, backend commit `f4d756ee`, frontend commit `e0b59b8`, and `$0` live Coinbase submitted/executed notional.
+- Add latest decision readback fields to `AdminLiveExecutionServiceContractEvidence` and populate them through the shared `build_live_execution_service_contract` path.
 
-### Phase 3503 - Backend Decision Evidence Contract
+### Phase 3523 - Backend Fail-Closed Coverage
 
-- Add the disabled live-service decision record/store, fail-closed service boundary, Admin API routes, route inventory rows, and OpenAPI artifacts.
+- Prove latest decision readback appears while `enablement_precondition_resolved=false`, `latest_service_decision_resolves_enablement=false`, and live Coinbase/service authority remain disabled.
 
-### Phase 3504 - Frontend Contract Sync
+### Phase 3524 - Frontend Contract Sync
 
-- Regenerate the frontend schema and sync wrappers, BFF allowlists, mutation contracts, mocks, runtime snapshots, and docs.
+- Regenerate frontend schema and sync mocks, command evidence rows, quality metadata, and tests.
 
-### Phase 3505 - Validators, Gates, Review, Commit, And Pause
+### Phase 3525 - Validators, Gates, Review, Commit, And Pause
 
 - Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, report `$0` live Coinbase submitted/executed notional, and pause for restart.
+
+## Completed M55 Live-Service Decision Evidence Batch - Phases 3501-3520
+
+These phases added a backend-owned append-only live-service decision evidence
+contract while keeping live service disabled. The contract records local-state
+evidence that the remaining enablement decision was reviewed, but it rejects
+any request that would enable service, approve live Coinbase execution, mark
+the decision passed, or allow nonzero submitted/executed notional. This batch
+does not construct adapters, call Coinbase, invoke managers, execute
+reconciliation, cancel/replace active placements, mutate lifecycle/order/
+exchange state, clear M55 blockers, grant browser authority, or grant BFF
+execution authority. Backend commit `49193a4c` and frontend commit `ed35110`
+contain the pushed range.
 
 ## Completed M55 Blocker Traceability Batch - Phases 3481-3500
 

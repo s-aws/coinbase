@@ -2802,12 +2802,13 @@ Current backend evidence:
   `live_execution_adapter_contract`. Completed phases 3481-3500 add
   backend-owned blocker-chain traceability that points remaining live-service
   and live-adapter blockers back to those disabled contracts and their
-  required/missing artifacts. Active phases 3501-3520 add append-only
+  required/missing artifacts. Completed phases 3501-3520 add append-only
   backend-owned live-service decision evidence while deliberately keeping the
-  service disabled, non-executable, and no-live. Both contracts and decision
-  evidence remain blocked: Coinbase, manager, reconciliation,
-  active-placement, state mutation, browser, and BFF authority remain
-  disabled.
+  service disabled, non-executable, and no-live. Active phases 3521-3540 add
+  latest disabled-decision readback to the existing service contract while
+  keeping service enablement unresolved. Both contracts and decision evidence
+  remain blocked: Coinbase, manager, reconciliation, active-placement, state
+  mutation, browser, and BFF authority remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

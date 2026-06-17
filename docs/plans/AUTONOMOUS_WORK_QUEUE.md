@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3501-3520**.
+- Approved phase range: **3521-3540**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3481-3500`.
+- Previous completed range: `3501-3520`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,97 +23,119 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3501-3520
+## Active Phases 3521-3540
 
-These phases add backend-owned live-service enablement decision evidence as an
-append-only local-state contract while keeping the service disabled. The
+These phases consume the latest append-only live-service decision record as
+readback inside the existing disabled `live_execution_service_contract`. The
+record may appear as local evidence that a disabled-service decision exists,
+but it must not mark the enablement precondition resolved, remove missing
+enablement artifacts, enable the service, construct adapters, call Coinbase,
+invoke managers, execute reconciliation, cancel or replace active placements,
+mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
+authority, or grant BFF execution authority.
+
+### Phase 3521 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3501-3520 to active phases 3521-3540 while preserving no-live defaults and cap policy.
+
+### Phase 3522 - Prior Range Completion Evidence
+
+- Record completed phases 3501-3520 as disabled live-service decision evidence with passing gates, blind/contextless review, backend commit `49193a4c`, frontend commit `ed35110`, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3523 - Contract Schema Readback Fields
+
+- Add typed latest live-service decision readback fields to the existing `AdminLiveExecutionServiceContractEvidence` schema.
+
+### Phase 3524 - Local Decision Reader
+
+- Add a local JSONL readback helper that reads the newest decision record without Coinbase, manager, adapter, reconciliation, or lifecycle dependencies.
+
+### Phase 3525 - Shared Service Contract Binding
+
+- Populate the new fields from the shared `build_live_execution_service_contract` path so create and non-create stealth contracts keep one code path.
+
+### Phase 3526 - Fail-Closed Semantics
+
+- Keep `enablement_precondition_resolved=false`, `latest_service_decision_resolves_enablement=false`, and all required enablement artifacts still missing.
+
+### Phase 3527 - Backend Regression Coverage
+
+- Add focused coverage proving latest disabled decision readback appears while execution, resolver, live Coinbase, and service enablement remain false.
+
+### Phase 3528 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI and route inventory artifacts after the schema change.
+
+### Phase 3529 - Frontend Schema Sync
+
+- Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
+
+### Phase 3530 - Frontend Mock And Runtime Sync
+
+- Update frontend mock fixtures so disabled service contracts expose latest decision readback without command authority.
+
+### Phase 3531 - Frontend Evidence Rendering
+
+- Render latest decision id, status, artifacts, and `resolves=false` through existing command evidence rows only.
+
+### Phase 3532 - Frontend Focused Coverage
+
+- Add focused unit coverage for the mock contract and command evidence rows.
+
+### Phase 3533 - Roadmap And Validator Sync
+
+- Update backend/frontend autonomous validators, roadmap docs, maintainer handoffs, examples, and agent state for approved phases 3521-3540.
+
+### Phase 3534 - Stale Range And Authority Scan
+
+- Search for stale active-range references and wording that implies latest decision readback enables service, adapter, Coinbase, manager, reconciliation, state mutation, browser, or BFF authority.
+
+### Phase 3535 - Backend Focused Gates
+
+- Run focused Admin API contract and autonomous queue checks.
+
+### Phase 3536 - Frontend Focused Gates
+
+- Run generated API checks, autonomous checks, typecheck, and focused frontend tests for the new readback fields.
+
+### Phase 3537 - Backend Full Regression
+
+- Run the full backend regression gate.
+
+### Phase 3538 - Frontend Release Gate
+
+- Run `npm run release:gate`.
+
+### Phase 3539 - Blind Contextless Review
+
+- Run blind/contextless review proving a fresh agent can explain that latest decision readback is display evidence only and does not clear live-service blockers.
+
+### Phase 3540 - Commit, Push, No-Live Report, And Requested Pause
+
+- Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, verify clean worktrees, then pause so the session can be restarted as requested.
+
+## Completed Phases 3501-3520
+
+These phases added backend-owned live-service enablement decision evidence as
+an append-only local-state contract while keeping the service disabled. The
 recorded decision is evidence that a backend decision was made; it is not
-evidence that live execution is permitted. This batch must reject enabled
-service decisions, live Coinbase approval, passed status, and nonzero
-submitted or executed notional. It must not enable live service, construct
-adapters, call Coinbase, invoke managers, execute reconciliation, cancel or
-replace active placements, mutate lifecycle/order/exchange state, clear M55
-blockers, grant browser authority, or grant BFF execution authority.
+evidence that live execution is permitted. The route rejects enabled service
+decisions, live Coinbase approval, passed status, and nonzero submitted or
+executed notional. It does not enable live service, construct adapters, call
+Coinbase, invoke managers, execute reconciliation, cancel or replace active
+placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
+browser authority, or grant BFF execution authority.
 
-### Phase 3501 - Advance Active Queue Range
+Completion evidence:
 
-- Move the durable autonomous queue from completed phases 3481-3500 to active phases 3501-3520 while preserving no-live defaults and cap policy.
-
-### Phase 3502 - Prior Range Completion Evidence
-
-- Record completed phases 3481-3500 as blocker-traceability evidence with passing gates, blind/contextless review, backend commit `f4d756ee`, frontend commit `e0b59b8`, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3503 - Decision Evidence Store
-
-- Add a backend append-only live-service decision evidence record and durable JSONL store with no Coinbase, manager, adapter, or lifecycle dependencies.
-
-### Phase 3504 - Fail-Closed Decision Service
-
-- Add a backend service boundary that only accepts disabled, blocked, zero-notional live-service decision evidence and rejects all enablement-like requests.
-
-### Phase 3505 - Admin API Routes
-
-- Add list, detail, and record Admin API routes for live-service decision evidence with auth/RBAC, idempotency, operator intent, and audit evidence.
-
-### Phase 3506 - Route Inventory And OpenAPI
-
-- Bind the new routes into the route inventory, regenerate OpenAPI, and prove path inventory stays in sync.
-
-### Phase 3507 - Backend Focused Coverage
-
-- Add regression coverage proving record/replay/list/detail behavior, RBAC failures, idempotency conflict, audit records, and fail-closed rejection paths.
-
-### Phase 3508 - Frontend Schema And Wrappers
-
-- Regenerate the frontend schema and add canonical client wrappers for list/detail/record live-service decision evidence.
-
-### Phase 3509 - Frontend BFF, Mutation, And Mock Contracts
-
-- Sync BFF allowlists, mutation contracts, route coverage evidence, and mock fixtures without adding browser execution authority.
-
-### Phase 3510 - Runtime Snapshot Coverage
-
-- Load live-service decision list/detail evidence through the canonical admin runtime snapshot.
-
-### Phase 3511 - Frontend Contract Documentation
-
-- Update API and mock documentation so contextless agents can distinguish decision evidence from live-service enablement.
-
-### Phase 3512 - Roadmap And Validator Sync
-
-- Update backend/frontend autonomous queue validators, roadmap docs, maintainer handoffs, and agent state for approved phases 3501-3520.
-
-### Phase 3513 - Stale Range And Authority Scan
-
-- Search for stale active-range references and wording that implies the decision evidence resolves live-service, adapter, Coinbase, manager, reconciliation, state-mutation, browser, or BFF blockers.
-
-### Phase 3514 - Frontend Focused Gates
-
-- Run generated API checks and focused frontend tests for client wrappers, mocks, BFF proxy, mutation contracts, runtime snapshot, and quality gates.
-
-### Phase 3515 - Backend Full Regression
-
-- Run focused Admin API contract tests and full backend regression.
-
-### Phase 3516 - Frontend Release Gate
-
-- Run the full frontend release gate.
-
-### Phase 3517 - Contextless Review
-
-- Run blind/contextless review proving a fresh agent can explain that the route records disabled service decision evidence only.
-
-### Phase 3518 - Commit, Push, And No-Live Report
-
-- Commit and push both repositories and report `$0` live Coinbase submitted/executed notional.
-
-### Phase 3519 - Post-Push Cleanliness Check
-
-- Verify both worktrees are clean and tracking the pushed branch.
-
-### Phase 3520 - Requested Pause
-
-- Pause after this phase so the session can be restarted as requested.
+- Backend commit `49193a4c` and frontend commit `ed35110` were pushed.
+- Backend full regression passed with `863` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `259` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review found no blockers after stale docs and runtime
+  evidence omissions were remediated.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 3481-3500
 
