@@ -413,6 +413,21 @@ route inventory, bind shared command services, register handlers, resolve
 requirements or claims, clear work items, write or accept evidence, satisfy
 producer contracts, construct adapters, invoke managers, call Coinbase, mutate
 state, or grant browser/BFF execution authority.
+The same nested construction contract may also expose
+`acceptance_evidence_producer_route_contract_remediation_items` and
+`acceptance_evidence_producer_route_contract_remediation_summary`, backend-
+derived remediation evidence over failed route-contract validation rows.
+Workflows may display remediation ids, validation ids, route contract ids,
+route requirement ids, check keys, required/observed state, remediation
+actions, validation blockers, false readiness, false route registration,
+false route-inventory binding, false shared-service binding, false handler/
+store/validation/replay/writer/evidence-acceptance state, false requirement
+and claim resolution, and display/forward-only authority only. These rows do
+not perform remediation, register routes, bind route inventory, bind shared
+command services, register handlers, resolve requirements or claims, clear
+work items, write or accept evidence, satisfy producer contracts, construct
+adapters, invoke managers, call Coinbase, execute reconciliation, mutate state,
+or grant browser/BFF execution authority.
 Exact command responses that require active-placement exchange truth also
 include a nested `active_placement_exchange_truth_contract`. It is the same
 backend-owned evidence shape used by command-suite `exchange_truth_checks`.

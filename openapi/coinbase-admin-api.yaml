@@ -14537,6 +14537,540 @@ components:
       type: object
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposalSummary
       description: Aggregate over blocked producer-route contract proposals.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationItem:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_route_contract_validation_items
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_contract_remediation_items
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_route_contract_validation_items_no_execution
+        remediation_index:
+          type: integer
+          minimum: 1.0
+          title: Remediation Index
+        remediation_id:
+          type: string
+          title: Remediation Id
+        validation_id:
+          type: string
+          title: Validation Id
+        route_contract_id:
+          type: string
+          title: Route Contract Id
+        route_requirement_id:
+          type: string
+          title: Route Requirement Id
+        claim_id:
+          type: string
+          title: Claim Id
+        claim:
+          type: string
+          title: Claim
+          default: producer_route_contract_available
+        producer_contract_id:
+          type: string
+          title: Producer Contract Id
+        evidence_id:
+          type: string
+          title: Evidence Id
+        artifact:
+          $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+        work_item_ref:
+          type: string
+          title: Work Item Ref
+        route_contract_ref:
+          type: string
+          title: Route Contract Ref
+        route_inventory_ref:
+          type: string
+          title: Route Inventory Ref
+        shared_command_service_ref:
+          type: string
+          title: Shared Command Service Ref
+        check_key:
+          type: string
+          title: Check Key
+        check_description:
+          type: string
+          title: Check Description
+        required_state:
+          type: boolean
+          title: Required State
+          default: true
+        observed_state:
+          type: boolean
+          title: Observed State
+          default: false
+        validation_passed:
+          type: boolean
+          title: Validation Passed
+          default: false
+        remediation_action:
+          type: string
+          title: Remediation Action
+        required_before_claim_resolved:
+          type: boolean
+          title: Required Before Claim Resolved
+          default: true
+        verification_gate:
+          type: string
+          title: Verification Gate
+        blocker:
+          type: string
+          title: Blocker
+        validation_blocker:
+          type: string
+          title: Validation Blocker
+        remediation_ready:
+          type: boolean
+          title: Remediation Ready
+          default: false
+        work_item_ready:
+          type: boolean
+          title: Work Item Ready
+          default: false
+        route_contract_available:
+          type: boolean
+          title: Route Contract Available
+          default: false
+        route_registered:
+          type: boolean
+          title: Route Registered
+          default: false
+        route_inventory_entry_present:
+          type: boolean
+          title: Route Inventory Entry Present
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: false
+        shared_command_service_method_present:
+          type: boolean
+          title: Shared Command Service Method Present
+          default: false
+        shared_command_service_bound:
+          type: boolean
+          title: Shared Command Service Bound
+          default: false
+        route_handler_present:
+          type: boolean
+          title: Route Handler Present
+          default: false
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        requirement_resolved:
+          type: boolean
+          title: Requirement Resolved
+          default: false
+        claim_allowed:
+          type: boolean
+          title: Claim Allowed
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        clears_route_requirement:
+          type: boolean
+          title: Clears Route Requirement
+          default: false
+        clears_claim_trace:
+          type: boolean
+          title: Clears Claim Trace
+          default: false
+        clears_work_item:
+          type: boolean
+          title: Clears Work Item
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contract:
+          type: boolean
+          title: Satisfies Producer Contract
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - remediation_index
+      - remediation_id
+      - validation_id
+      - route_contract_id
+      - route_requirement_id
+      - claim_id
+      - producer_contract_id
+      - evidence_id
+      - artifact
+      - work_item_ref
+      - route_contract_ref
+      - route_inventory_ref
+      - shared_command_service_ref
+      - check_key
+      - check_description
+      - remediation_action
+      - verification_gate
+      - blocker
+      - validation_blocker
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationItem
+      description: Blocked remediation row derived from a failed route-contract validation
+        row.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_route_contract_remediation_items
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_contract_remediation_summary
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_route_contract_remediation_items
+        total_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Total Remediation Count
+          default: 0
+        blocked_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Remediation Count
+          default: 0
+        ready_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Remediation Count
+          default: 0
+        remediation_ids:
+          items:
+            type: string
+          type: array
+          title: Remediation Ids
+        validation_ids:
+          items:
+            type: string
+          type: array
+          title: Validation Ids
+        route_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Route Contract Ids
+        route_requirement_ids:
+          items:
+            type: string
+          type: array
+          title: Route Requirement Ids
+        claim_ids:
+          items:
+            type: string
+          type: array
+          title: Claim Ids
+        work_item_refs:
+          items:
+            type: string
+          type: array
+          title: Work Item Refs
+        producer_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Producer Contract Ids
+        evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Evidence Ids
+        artifacts:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+          type: array
+          title: Artifacts
+        check_keys:
+          items:
+            type: string
+          type: array
+          title: Check Keys
+        remediation_actions:
+          items:
+            type: string
+          type: array
+          title: Remediation Actions
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        validation_blockers:
+          items:
+            type: string
+          type: array
+          title: Validation Blockers
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+        first_remediation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Remediation Id
+        first_blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Blocker
+        remediation_queue_ready:
+          type: boolean
+          title: Remediation Queue Ready
+          default: false
+        all_remediations_ready:
+          type: boolean
+          title: All Remediations Ready
+          default: false
+        route_contract_validation_ready:
+          type: boolean
+          title: Route Contract Validation Ready
+          default: false
+        all_checks_passed:
+          type: boolean
+          title: All Checks Passed
+          default: false
+        all_route_contracts_available:
+          type: boolean
+          title: All Route Contracts Available
+          default: false
+        all_routes_registered:
+          type: boolean
+          title: All Routes Registered
+          default: false
+        route_inventory_entry_present:
+          type: boolean
+          title: Route Inventory Entry Present
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: false
+        shared_command_service_method_present:
+          type: boolean
+          title: Shared Command Service Method Present
+          default: false
+        shared_command_service_bound:
+          type: boolean
+          title: Shared Command Service Bound
+          default: false
+        route_handler_present:
+          type: boolean
+          title: Route Handler Present
+          default: false
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        all_requirements_resolved:
+          type: boolean
+          title: All Requirements Resolved
+          default: false
+        all_claims_resolved:
+          type: boolean
+          title: All Claims Resolved
+          default: false
+        work_queue_ready:
+          type: boolean
+          title: Work Queue Ready
+          default: false
+        producer_clearance_ready:
+          type: boolean
+          title: Producer Clearance Ready
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contracts:
+          type: boolean
+          title: Satisfies Producer Contracts
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer-route contract remediation summary is backend-derived
+            evidence over failed validation rows. It names missing backend work but
+            cannot register routes, bind route inventory, bind shared command services,
+            write or accept evidence, construct adapters, or enable live execution.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationSummary
+      description: Aggregate over blocked producer-route contract remediation rows.
     AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractValidationItem:
       properties:
         source_ref:
@@ -15852,6 +16386,13 @@ components:
           title: Acceptance Evidence Producer Route Contract Validation Items
         acceptance_evidence_producer_route_contract_validation_summary:
           $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractValidationSummary'
+        acceptance_evidence_producer_route_contract_remediation_items:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationItem'
+          type: array
+          title: Acceptance Evidence Producer Route Contract Remediation Items
+        acceptance_evidence_producer_route_contract_remediation_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationSummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

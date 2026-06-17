@@ -166,6 +166,18 @@ Current behavior:
   resolve requirements or claims, clear work items, write or accept evidence,
   satisfy producer contracts, construct adapters, invoke managers, call
   Coinbase, mutate state, or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_remediation_items` and
+  `acceptance_evidence_producer_route_contract_remediation_summary` as
+  backend-derived remediation evidence over failed validation rows. These
+  fields name remediation ids, validation ids, remediation actions, validation
+  blockers, check keys, route contract ids, false readiness, and disabled
+  route/store/validation/replay/writer/acceptance/construction/execution
+  authority. They do not perform remediation, register routes, bind route
+  inventory, bind shared command services, register handlers, resolve
+  requirements or claims, clear work items, write or accept evidence, satisfy
+  producer contracts, construct adapters, invoke managers, call Coinbase,
+  mutate state, or grant browser/BFF execution authority.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   exposes read-only persisted active-placement exchange-truth evidence keyed
   by `stealth_order_id`; it does not read Coinbase, verify exchange truth,

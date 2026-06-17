@@ -2858,13 +2858,19 @@ Current backend evidence:
   contract, route inventory, and shared command-service evidence while
   preserving no route registration, no route inventory binding, no shared
   service binding, no-writer, no-acceptance, no-construction, no-execution,
-  false satisfaction, and no-live authority. Active phases 3881-3900 add
+  false satisfaction, and no-live authority. Completed phases 3881-3900 add
   producer-route contract validation rows and a summary mapping those proposals
   to missing route contract, registration, route inventory, shared command
   service, handler, store, validation/replay, writer, and acceptance
   prerequisites while preserving no route registration, no route inventory
   binding, no shared service binding, no-handler, no-writer, no-acceptance,
   no-construction, no-execution, false satisfaction, and no-live authority.
+  Active phases 3901-3920 add producer-route contract remediation rows and a
+  summary mapping those failed validation rows to missing backend work while
+  preserving no remediation, no route registration, no route inventory binding,
+  no shared service binding, no-handler, no-store, no-validation, no-replay,
+  no-writer, no-acceptance, no-construction, no-execution, false satisfaction,
+  and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

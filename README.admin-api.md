@@ -152,14 +152,18 @@ blocked producer-route requirements and a summary mapping those claim traces
 to the missing backend route contract evidence. M55 phases 3861-3880 add
 blocked producer-route contract proposals and a summary mapping those
 requirements to missing route contract, route inventory, and shared
-command-service evidence. Active phases 3881-3900 add blocked producer-route
+command-service evidence. Completed phases 3881-3900 add blocked producer-route
 contract validation rows and a summary mapping those proposals to missing
 route contract, route registration, route inventory, shared service, handler,
 store, validation/replay, writer, and acceptance prerequisites. These layers
+are now followed by active phases 3901-3920, which add blocked remediation
+rows and a summary mapping failed validation rows to missing backend work
+without performing that work. These layers
 do not register routes, bind route inventory, bind shared command services,
-register handlers, construct adapters, write or accept evidence, satisfy
-construction artifacts, enable live service, call Coinbase, invoke managers,
-execute reconciliation, mutate state, or grant browser/BFF authority.
+register handlers, create stores, configure validation/replay, create writers,
+construct adapters, write or accept evidence, satisfy construction artifacts,
+enable live service, call Coinbase, invoke managers, execute reconciliation,
+mutate state, or grant browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

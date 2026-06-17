@@ -214,6 +214,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_SUMMARY_AUTHORITY = (
     "backend_derived_from_route_contract_validation_items"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_remediation_items"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_AUTHORITY = (
+    "backend_derived_from_route_contract_validation_items_no_execution"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_remediation_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_SUMMARY_AUTHORITY = (
+    "backend_derived_from_route_contract_remediation_items"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_CHECKS = (
     ("route_contract_available", "producer route contract exists"),
     ("route_registered", "producer route is registered"),
@@ -2127,6 +2139,247 @@ def build_live_adapter_construction_contract(
             "execution."
         ),
     }
+    producer_route_contract_remediation_items = [
+        {
+            "source_ref": (
+                "acceptance_evidence_producer_route_contract_validation_items"
+            ),
+            "status": AdminApiGateStatus.BLOCKED,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_SOURCE
+            ),
+            "authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_AUTHORITY
+            ),
+            "remediation_index": remediation_index,
+            "remediation_id": f"{item['validation_id']}_remediation",
+            "validation_id": item["validation_id"],
+            "route_contract_id": item["route_contract_id"],
+            "route_requirement_id": item["route_requirement_id"],
+            "claim_id": item["claim_id"],
+            "claim": item["claim"],
+            "producer_contract_id": item["producer_contract_id"],
+            "evidence_id": item["evidence_id"],
+            "artifact": item["artifact"],
+            "work_item_ref": item["work_item_ref"],
+            "route_contract_ref": item["route_contract_ref"],
+            "route_inventory_ref": item["route_inventory_ref"],
+            "shared_command_service_ref": item["shared_command_service_ref"],
+            "check_key": item["check_key"],
+            "check_description": item["check_description"],
+            "required_state": item["expected_state"],
+            "observed_state": item["observed_state"],
+            "validation_passed": item["passed"],
+            "remediation_action": f"resolve_{item['check_key']}",
+            "required_before_claim_resolved": True,
+            "verification_gate": (
+                "producer_route_contract_remediation_queue_remains_fail_closed"
+            ),
+            "blocker": f"{item['validation_id']}_remediation_missing",
+            "validation_blocker": item["blocker"],
+            "remediation_ready": False,
+            "work_item_ready": False,
+            "route_contract_available": False,
+            "route_registered": False,
+            "route_inventory_entry_present": False,
+            "route_inventory_bound": False,
+            "shared_command_service_method_present": False,
+            "shared_command_service_bound": False,
+            "route_handler_present": False,
+            "producer_route_available": False,
+            "requirement_resolved": False,
+            "claim_allowed": False,
+            "claim_resolved": False,
+            "clears_route_requirement": False,
+            "clears_claim_trace": False,
+            "clears_work_item": False,
+            "store_available": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "writer_allowed": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_producer_contract": False,
+            "satisfies_construction": False,
+            "construction_allowed": False,
+            "adapter_constructed": False,
+            "live_execution_allowed": False,
+            "execution_allowed": False,
+            "executed": False,
+            "no_live_execution": True,
+            "backend_owned": True,
+            "route_bound": True,
+            "command_context_bound": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This remediation item is derived from a failed producer-route "
+                "contract validation row. It names the missing backend work "
+                "needed before the route-contract claim could ever resolve, "
+                "but it does not perform that work, write evidence, construct "
+                "adapters, or enable live execution."
+            ),
+        }
+        for remediation_index, item in enumerate(
+            blocked_producer_route_contract_validation_items,
+            start=1,
+        )
+    ]
+    ready_producer_route_contract_remediation_items = [
+        item
+        for item in producer_route_contract_remediation_items
+        if item["remediation_ready"]
+    ]
+    producer_route_contract_remediation_summary = {
+        "source_ref": (
+            "acceptance_evidence_producer_route_contract_remediation_items"
+        ),
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_SUMMARY_AUTHORITY
+        ),
+        "total_remediation_count": len(producer_route_contract_remediation_items),
+        "blocked_remediation_count": (
+            len(producer_route_contract_remediation_items)
+            - len(ready_producer_route_contract_remediation_items)
+        ),
+        "ready_remediation_count": len(
+            ready_producer_route_contract_remediation_items
+        ),
+        "remediation_ids": [
+            item["remediation_id"]
+            for item in producer_route_contract_remediation_items
+        ],
+        "validation_ids": [
+            item["validation_id"]
+            for item in producer_route_contract_remediation_items
+        ],
+        "route_contract_ids": list(
+            dict.fromkeys(
+                item["route_contract_id"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "route_requirement_ids": list(
+            dict.fromkeys(
+                item["route_requirement_id"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "claim_ids": list(
+            dict.fromkeys(
+                item["claim_id"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "work_item_refs": list(
+            dict.fromkeys(
+                item["work_item_ref"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "producer_contract_ids": list(
+            dict.fromkeys(
+                item["producer_contract_id"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "evidence_ids": list(
+            dict.fromkeys(
+                item["evidence_id"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "artifacts": list(
+            dict.fromkeys(
+                item["artifact"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "check_keys": list(
+            dict.fromkeys(
+                item["check_key"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "remediation_actions": list(
+            dict.fromkeys(
+                item["remediation_action"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "blockers": [
+            item["blocker"]
+            for item in producer_route_contract_remediation_items
+        ],
+        "validation_blockers": [
+            item["validation_blocker"]
+            for item in producer_route_contract_remediation_items
+        ],
+        "verification_gates": list(
+            dict.fromkeys(
+                item["verification_gate"]
+                for item in producer_route_contract_remediation_items
+            )
+        ),
+        "first_remediation_id": (
+            producer_route_contract_remediation_items[0]["remediation_id"]
+            if producer_route_contract_remediation_items
+            else None
+        ),
+        "first_blocker": (
+            producer_route_contract_remediation_items[0]["blocker"]
+            if producer_route_contract_remediation_items
+            else None
+        ),
+        "remediation_queue_ready": False,
+        "all_remediations_ready": False,
+        "route_contract_validation_ready": False,
+        "all_checks_passed": False,
+        "all_route_contracts_available": False,
+        "all_routes_registered": False,
+        "route_inventory_entry_present": False,
+        "route_inventory_bound": False,
+        "shared_command_service_method_present": False,
+        "shared_command_service_bound": False,
+        "route_handler_present": False,
+        "producer_route_available": False,
+        "all_requirements_resolved": False,
+        "all_claims_resolved": False,
+        "work_queue_ready": False,
+        "producer_clearance_ready": False,
+        "m55_completion_claim_allowed": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-route contract remediation summary is backend-derived "
+            "evidence over failed validation rows. It names missing backend "
+            "work but cannot register routes, bind route inventory, bind "
+            "shared command services, write or accept evidence, construct "
+            "adapters, or enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -2243,6 +2496,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_route_contract_validation_summary": (
             producer_route_contract_validation_summary
+        ),
+        "acceptance_evidence_producer_route_contract_remediation_items": (
+            producer_route_contract_remediation_items
+        ),
+        "acceptance_evidence_producer_route_contract_remediation_summary": (
+            producer_route_contract_remediation_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
