@@ -190,6 +190,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_SOURCE = (
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_AUTHORITY = (
     "backend_derived_from_producer_route_requirements"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_proposals"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_AUTHORITY = (
+    "backend_derived_from_producer_route_requirements_no_route_registration"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_proposal_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_AUTHORITY = (
+    "backend_derived_from_producer_route_contract_proposals"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS = (
     "producer_route_contract",
     "append_only_acceptance_evidence_store",
@@ -1637,6 +1649,223 @@ def build_live_adapter_construction_contract(
             "contracts, construct adapters, or enable live execution."
         ),
     }
+    producer_route_contract_proposals = [
+        {
+            "source_ref": "acceptance_evidence_producer_route_requirements",
+            "status": AdminApiGateStatus.BLOCKED,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_SOURCE
+            ),
+            "route_contract_index": index,
+            "route_contract_id": (
+                f"{requirement['route_requirement_id']}_contract_proposal"
+            ),
+            "route_requirement_id": requirement["route_requirement_id"],
+            "claim_id": requirement["claim_id"],
+            "claim": requirement["claim"],
+            "producer_contract_id": requirement["producer_contract_id"],
+            "evidence_id": requirement["evidence_id"],
+            "artifact": requirement["artifact"],
+            "category": requirement["category"],
+            "work_item_ref": requirement["work_item_ref"],
+            "readiness_item_id": requirement["readiness_item_id"],
+            "required_ref": requirement["required_ref"],
+            "required_route": requirement["required_route"],
+            "required_method": requirement["required_method"],
+            "route_contract_ref": requirement["route_contract_ref"],
+            "proposed_route": None,
+            "proposed_method": requirement["required_method"],
+            "route_inventory_ref": "application/admin_api/route_inventory.py",
+            "shared_command_service_ref": (
+                "application/admin_api/command_service.py::AdminApiCommandService"
+            ),
+            "verification_gate": requirement["verification_gate"],
+            "blocker": requirement["blocker"],
+            "route_contract_authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_AUTHORITY
+            ),
+            "route_contract_available": False,
+            "route_registered": False,
+            "route_inventory_entry_present": False,
+            "route_inventory_bound": False,
+            "shared_command_service_method_present": False,
+            "shared_command_service_bound": False,
+            "route_handler_present": False,
+            "producer_route_available": False,
+            "requirement_resolved": False,
+            "claim_allowed": False,
+            "claim_resolved": False,
+            "clears_route_requirement": False,
+            "clears_claim_trace": False,
+            "clears_work_item": False,
+            "store_available": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "writer_allowed": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_producer_contract": False,
+            "satisfies_construction": False,
+            "construction_allowed": False,
+            "adapter_constructed": False,
+            "live_execution_allowed": False,
+            "execution_allowed": False,
+            "executed": False,
+            "no_live_execution": True,
+            "backend_owned": True,
+            "route_bound": True,
+            "command_context_bound": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This route contract proposal is backend-derived evidence for "
+                "the missing producer route contract. It names the route "
+                "inventory and shared command-service surfaces that must be "
+                "implemented later, but it does not register a route, bind "
+                "route inventory, construct an adapter, or enable live "
+                "execution."
+            ),
+        }
+        for index, requirement in enumerate(
+            producer_route_requirements, start=1
+        )
+    ]
+    blocked_producer_route_contract_proposals = [
+        proposal
+        for proposal in producer_route_contract_proposals
+        if not proposal["route_contract_available"]
+    ]
+    available_producer_route_contract_proposals = [
+        proposal
+        for proposal in producer_route_contract_proposals
+        if proposal["route_contract_available"]
+    ]
+    producer_route_contract_proposal_summary = {
+        "source_ref": "acceptance_evidence_producer_route_contract_proposals",
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_AUTHORITY
+        ),
+        "total_route_contract_proposal_count": len(
+            producer_route_contract_proposals
+        ),
+        "blocked_route_contract_proposal_count": len(
+            blocked_producer_route_contract_proposals
+        ),
+        "available_route_contract_proposal_count": len(
+            available_producer_route_contract_proposals
+        ),
+        "route_contract_ids": [
+            proposal["route_contract_id"]
+            for proposal in producer_route_contract_proposals
+        ],
+        "route_requirement_ids": [
+            proposal["route_requirement_id"]
+            for proposal in producer_route_contract_proposals
+        ],
+        "claim_ids": [
+            proposal["claim_id"] for proposal in producer_route_contract_proposals
+        ],
+        "work_item_refs": [
+            proposal["work_item_ref"]
+            for proposal in producer_route_contract_proposals
+        ],
+        "producer_contract_ids": [
+            proposal["producer_contract_id"]
+            for proposal in producer_route_contract_proposals
+        ],
+        "evidence_ids": [
+            proposal["evidence_id"]
+            for proposal in producer_route_contract_proposals
+        ],
+        "artifacts": [
+            proposal["artifact"] for proposal in producer_route_contract_proposals
+        ],
+        "route_contract_refs": list(
+            dict.fromkeys(
+                proposal["route_contract_ref"]
+                for proposal in producer_route_contract_proposals
+            )
+        ),
+        "route_inventory_refs": list(
+            dict.fromkeys(
+                proposal["route_inventory_ref"]
+                for proposal in producer_route_contract_proposals
+            )
+        ),
+        "shared_command_service_refs": list(
+            dict.fromkeys(
+                proposal["shared_command_service_ref"]
+                for proposal in producer_route_contract_proposals
+            )
+        ),
+        "required_refs": list(
+            dict.fromkeys(
+                proposal["required_ref"]
+                for proposal in producer_route_contract_proposals
+            )
+        ),
+        "verification_gates": list(
+            dict.fromkeys(
+                proposal["verification_gate"]
+                for proposal in producer_route_contract_proposals
+            )
+        ),
+        "first_route_contract_id": (
+            producer_route_contract_proposals[0]["route_contract_id"]
+            if producer_route_contract_proposals
+            else None
+        ),
+        "first_route_requirement_id": (
+            producer_route_contract_proposals[0]["route_requirement_id"]
+            if producer_route_contract_proposals
+            else None
+        ),
+        "route_contract_proposals_ready": False,
+        "all_route_contracts_available": False,
+        "all_routes_registered": False,
+        "route_inventory_entry_present": False,
+        "route_inventory_bound": False,
+        "shared_command_service_method_present": False,
+        "shared_command_service_bound": False,
+        "route_handler_present": False,
+        "producer_route_available": False,
+        "all_requirements_resolved": False,
+        "all_claims_resolved": False,
+        "work_queue_ready": False,
+        "producer_clearance_ready": False,
+        "m55_completion_claim_allowed": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-route contract proposal summary is backend-derived "
+            "evidence over missing route contract proposals. It cannot "
+            "register routes, bind route inventory, bind shared command "
+            "services, satisfy producer contracts, construct adapters, or "
+            "enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -1741,6 +1970,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_route_requirement_summary": (
             producer_route_requirement_summary
+        ),
+        "acceptance_evidence_producer_route_contract_proposals": (
+            producer_route_contract_proposals
+        ),
+        "acceptance_evidence_producer_route_contract_proposal_summary": (
+            producer_route_contract_proposal_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),

@@ -151,6 +151,10 @@ from application.admin_api.live_execution import (
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_TRACE_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_REQUIREMENT_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_REQUIREMENT_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_ITEM_AUTHORITY,
@@ -3307,6 +3311,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "acceptance_evidence_producer_route_requirement_summary" in (
         construction_contract_schema["properties"]
     )
+    assert "acceptance_evidence_producer_route_contract_proposals" in (
+        construction_contract_schema["properties"]
+    )
+    assert "acceptance_evidence_producer_route_contract_proposal_summary" in (
+        construction_contract_schema["properties"]
+    )
     assert (
         "AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkItem"
         in written["components"]["schemas"]
@@ -3539,6 +3549,108 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "executed",
     ):
         assert property_name in producer_route_requirement_summary_schema[
+            "properties"
+        ]
+    assert (
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposal"
+        in written["components"]["schemas"]
+    )
+    producer_route_contract_proposal_schema = written["components"][
+        "schemas"
+    ][
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposal"
+    ]
+    for property_name in (
+        "source_ref",
+        "source",
+        "route_contract_index",
+        "route_contract_id",
+        "route_requirement_id",
+        "claim_id",
+        "claim",
+        "producer_contract_id",
+        "evidence_id",
+        "artifact",
+        "work_item_ref",
+        "readiness_item_id",
+        "required_ref",
+        "route_contract_ref",
+        "route_inventory_ref",
+        "shared_command_service_ref",
+        "verification_gate",
+        "blocker",
+        "route_contract_authority",
+        "route_contract_available",
+        "route_registered",
+        "route_inventory_entry_present",
+        "route_inventory_bound",
+        "shared_command_service_method_present",
+        "shared_command_service_bound",
+        "route_handler_present",
+        "producer_route_available",
+        "requirement_resolved",
+        "claim_resolved",
+        "clears_route_requirement",
+        "clears_claim_trace",
+        "clears_work_item",
+        "construction_allowed",
+        "adapter_constructed",
+        "live_execution_allowed",
+        "execution_allowed",
+        "executed",
+    ):
+        assert property_name in producer_route_contract_proposal_schema[
+            "properties"
+        ]
+    assert (
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposalSummary"
+        in written["components"]["schemas"]
+    )
+    producer_route_contract_proposal_summary_schema = written["components"][
+        "schemas"
+    ][
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposalSummary"
+    ]
+    for property_name in (
+        "source_ref",
+        "source",
+        "authority",
+        "total_route_contract_proposal_count",
+        "blocked_route_contract_proposal_count",
+        "available_route_contract_proposal_count",
+        "route_contract_ids",
+        "route_requirement_ids",
+        "claim_ids",
+        "work_item_refs",
+        "producer_contract_ids",
+        "evidence_ids",
+        "artifacts",
+        "route_contract_refs",
+        "route_inventory_refs",
+        "shared_command_service_refs",
+        "required_refs",
+        "verification_gates",
+        "first_route_contract_id",
+        "first_route_requirement_id",
+        "route_contract_proposals_ready",
+        "all_route_contracts_available",
+        "all_routes_registered",
+        "route_inventory_entry_present",
+        "route_inventory_bound",
+        "shared_command_service_method_present",
+        "shared_command_service_bound",
+        "route_handler_present",
+        "producer_route_available",
+        "all_requirements_resolved",
+        "all_claims_resolved",
+        "construction_allowed",
+        "adapter_constructed",
+        "live_execution_allowed",
+        "executable",
+        "execution_allowed",
+        "executed",
+    ):
+        assert property_name in producer_route_contract_proposal_summary_schema[
             "properties"
         ]
     assert (
@@ -6398,6 +6510,223 @@ def _assert_live_adapter_construction_contract(
     assert route_requirement_summary["command_context_bound"] is True
     assert route_requirement_summary["browser_authority"] == "display_only"
     assert route_requirement_summary["bff_authority"] == (
+        "forward_only_no_execution"
+    )
+    producer_route_contract_proposals = contract[
+        "acceptance_evidence_producer_route_contract_proposals"
+    ]
+    expected_route_contract_ids = [
+        f"{requirement['route_requirement_id']}_contract_proposal"
+        for requirement in producer_route_requirements
+    ]
+    assert [
+        proposal["route_contract_id"]
+        for proposal in producer_route_contract_proposals
+    ] == expected_route_contract_ids
+    assert len(producer_route_contract_proposals) == len(
+        producer_route_requirements
+    )
+    for index, proposal in enumerate(
+        producer_route_contract_proposals, start=1
+    ):
+        source_requirement = producer_route_requirements[index - 1]
+        assert proposal["source_ref"] == (
+            "acceptance_evidence_producer_route_requirements"
+        )
+        assert proposal["status"] == AdminApiGateStatus.BLOCKED
+        assert proposal["source"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_SOURCE
+        )
+        assert proposal["route_contract_index"] == index
+        assert proposal["route_contract_id"] == (
+            f"{source_requirement['route_requirement_id']}_contract_proposal"
+        )
+        assert proposal["route_requirement_id"] == (
+            source_requirement["route_requirement_id"]
+        )
+        assert proposal["claim_id"] == source_requirement["claim_id"]
+        assert proposal["claim"] == "producer_route_contract_available"
+        assert proposal["producer_contract_id"] == (
+            source_requirement["producer_contract_id"]
+        )
+        assert proposal["evidence_id"] == source_requirement["evidence_id"]
+        assert proposal["artifact"] == source_requirement["artifact"]
+        assert proposal["category"] == "producer_route_contract"
+        assert proposal["work_item_ref"] == source_requirement["work_item_ref"]
+        assert proposal["readiness_item_id"] == (
+            source_requirement["readiness_item_id"]
+        )
+        assert proposal["required_ref"] == source_requirement["required_ref"]
+        assert proposal["required_route"] is None
+        assert proposal["required_method"] == "POST"
+        assert proposal["route_contract_ref"] == (
+            source_requirement["route_contract_ref"]
+        )
+        assert proposal["route_inventory_ref"] == (
+            "application/admin_api/route_inventory.py"
+        )
+        assert proposal["shared_command_service_ref"] == (
+            "application/admin_api/command_service.py::AdminApiCommandService"
+        )
+        assert proposal["verification_gate"] == (
+            source_requirement["verification_gate"]
+        )
+        assert proposal["blocker"] == source_requirement["blocker"]
+        assert proposal["route_contract_authority"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_PROPOSAL_AUTHORITY
+        )
+        assert proposal["route_contract_available"] is False
+        assert proposal["route_registered"] is False
+        assert proposal["route_inventory_entry_present"] is False
+        assert proposal["route_inventory_bound"] is False
+        assert proposal["shared_command_service_method_present"] is False
+        assert proposal["shared_command_service_bound"] is False
+        assert proposal["route_handler_present"] is False
+        assert proposal["producer_route_available"] is False
+        assert proposal["requirement_resolved"] is False
+        assert proposal["claim_allowed"] is False
+        assert proposal["claim_resolved"] is False
+        assert proposal["clears_route_requirement"] is False
+        assert proposal["clears_claim_trace"] is False
+        assert proposal["clears_work_item"] is False
+        assert proposal["store_available"] is False
+        assert proposal["validation_configured"] is False
+        assert proposal["replay_protection_configured"] is False
+        assert proposal["writer_allowed"] is False
+        assert proposal["writes_acceptance_evidence"] is False
+        assert proposal["accepts_evidence"] is False
+        assert proposal["satisfies_producer_contract"] is False
+        assert proposal["satisfies_construction"] is False
+        assert proposal["construction_allowed"] is False
+        assert proposal["adapter_constructed"] is False
+        assert proposal["live_execution_allowed"] is False
+        assert proposal["execution_allowed"] is False
+        assert proposal["executed"] is False
+        assert proposal["no_live_execution"] is True
+        assert proposal["backend_owned"] is True
+        assert proposal["route_bound"] is True
+        assert proposal["command_context_bound"] is True
+        assert proposal["browser_authority"] == "display_only"
+        assert proposal["bff_authority"] == "forward_only_no_execution"
+    route_contract_proposal_summary = contract[
+        "acceptance_evidence_producer_route_contract_proposal_summary"
+    ]
+    assert route_contract_proposal_summary["source_ref"] == (
+        "acceptance_evidence_producer_route_contract_proposals"
+    )
+    assert route_contract_proposal_summary["status"] == AdminApiGateStatus.BLOCKED
+    assert route_contract_proposal_summary["source"] == (
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_SOURCE
+    )
+    assert route_contract_proposal_summary["authority"] == (
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_AUTHORITY
+    )
+    assert route_contract_proposal_summary[
+        "total_route_contract_proposal_count"
+    ] == len(producer_route_contract_proposals)
+    assert route_contract_proposal_summary[
+        "blocked_route_contract_proposal_count"
+    ] == len(producer_route_contract_proposals)
+    assert route_contract_proposal_summary[
+        "available_route_contract_proposal_count"
+    ] == 0
+    assert route_contract_proposal_summary["route_contract_ids"] == (
+        expected_route_contract_ids
+    )
+    assert route_contract_proposal_summary["route_requirement_ids"] == (
+        expected_route_requirement_ids
+    )
+    assert route_contract_proposal_summary["claim_ids"] == expected_claim_ids
+    assert route_contract_proposal_summary["work_item_refs"] == [
+        requirement["work_item_ref"] for requirement in producer_route_requirements
+    ]
+    assert route_contract_proposal_summary["producer_contract_ids"] == [
+        requirement["producer_contract_id"]
+        for requirement in producer_route_requirements
+    ]
+    assert route_contract_proposal_summary["evidence_ids"] == [
+        requirement["evidence_id"] for requirement in producer_route_requirements
+    ]
+    assert route_contract_proposal_summary["artifacts"] == [
+        requirement["artifact"] for requirement in producer_route_requirements
+    ]
+    assert route_contract_proposal_summary["route_contract_refs"] == [
+        "application/admin_api/live_execution.py::"
+        "acceptance_evidence_producer_route_contract"
+    ]
+    assert route_contract_proposal_summary["route_inventory_refs"] == [
+        "application/admin_api/route_inventory.py"
+    ]
+    assert route_contract_proposal_summary["shared_command_service_refs"] == [
+        "application/admin_api/command_service.py::AdminApiCommandService"
+    ]
+    assert route_contract_proposal_summary["required_refs"] == [
+        "application/admin_api/live_execution.py::"
+        "acceptance_evidence_producer_route_contract"
+    ]
+    assert route_contract_proposal_summary["verification_gates"] == [
+        "producer_route_is_backend_owned_and_route_inventory_bound"
+    ]
+    assert route_contract_proposal_summary["first_route_contract_id"] == (
+        expected_route_contract_ids[0]
+    )
+    assert route_contract_proposal_summary["first_route_requirement_id"] == (
+        expected_route_requirement_ids[0]
+    )
+    assert route_contract_proposal_summary[
+        "route_contract_proposals_ready"
+    ] is False
+    assert route_contract_proposal_summary[
+        "all_route_contracts_available"
+    ] is False
+    assert route_contract_proposal_summary["all_routes_registered"] is False
+    assert route_contract_proposal_summary[
+        "route_inventory_entry_present"
+    ] is False
+    assert route_contract_proposal_summary["route_inventory_bound"] is False
+    assert route_contract_proposal_summary[
+        "shared_command_service_method_present"
+    ] is False
+    assert route_contract_proposal_summary[
+        "shared_command_service_bound"
+    ] is False
+    assert route_contract_proposal_summary["route_handler_present"] is False
+    assert route_contract_proposal_summary["producer_route_available"] is False
+    assert route_contract_proposal_summary[
+        "all_requirements_resolved"
+    ] is False
+    assert route_contract_proposal_summary["all_claims_resolved"] is False
+    assert route_contract_proposal_summary["work_queue_ready"] is False
+    assert route_contract_proposal_summary["producer_clearance_ready"] is False
+    assert route_contract_proposal_summary[
+        "m55_completion_claim_allowed"
+    ] is False
+    assert route_contract_proposal_summary["construction_allowed"] is False
+    assert route_contract_proposal_summary["adapter_constructed"] is False
+    assert route_contract_proposal_summary["live_execution_allowed"] is False
+    assert route_contract_proposal_summary["executable"] is False
+    assert route_contract_proposal_summary["store_available"] is False
+    assert route_contract_proposal_summary["validation_configured"] is False
+    assert route_contract_proposal_summary[
+        "replay_protection_configured"
+    ] is False
+    assert route_contract_proposal_summary["writer_allowed"] is False
+    assert route_contract_proposal_summary[
+        "writes_acceptance_evidence"
+    ] is False
+    assert route_contract_proposal_summary["accepts_evidence"] is False
+    assert route_contract_proposal_summary[
+        "satisfies_producer_contracts"
+    ] is False
+    assert route_contract_proposal_summary["satisfies_construction"] is False
+    assert route_contract_proposal_summary["execution_allowed"] is False
+    assert route_contract_proposal_summary["executed"] is False
+    assert route_contract_proposal_summary["no_live_execution"] is True
+    assert route_contract_proposal_summary["backend_owned"] is True
+    assert route_contract_proposal_summary["route_bound"] is True
+    assert route_contract_proposal_summary["command_context_bound"] is True
+    assert route_contract_proposal_summary["browser_authority"] == "display_only"
+    assert route_contract_proposal_summary["bff_authority"] == (
         "forward_only_no_execution"
     )
     assert contract["required_artifacts"] == list(
@@ -11092,7 +11421,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11319,7 +11648,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11559,7 +11888,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11818,7 +12147,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -12043,7 +12372,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12948,7 +13277,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -16138,7 +16467,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -16353,7 +16682,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3841-3860"
+    assert readback_payload["approved_phase_range"] == "3861-3880"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -19432,7 +19761,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3841-3860"
+    assert payload["approved_phase_range"] == "3861-3880"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -21260,7 +21589,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3841-3860"
+    assert live_payload["approved_phase_range"] == "3861-3880"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -21823,7 +22152,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3841-3860"
+    assert enterprise_payload["approved_phase_range"] == "3861-3880"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -22598,7 +22927,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3841-3860"
+    assert recovery_preview_payload["approved_phase_range"] == "3861-3880"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

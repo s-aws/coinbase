@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3841-3860**.
+- Approved phase range: **3861-3880**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3821-3840`.
+- Previous completed range: `3841-3860`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,98 +23,113 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3841-3860
+## Active Phases 3861-3880
 
-These phases add backend-owned producer-route requirement rows and a summary
+These phases add backend-owned producer-route contract proposal rows and a
+summary under the live-adapter construction acceptance-evidence producer
+path. Each proposal is derived from a blocked producer-route requirement and
+names the route contract, route inventory, and shared command-service evidence
+that would be required before the `producer_route_contract_available` claim
+could ever resolve. This remains evidence only. It must not register a route,
+bind route inventory, bind a shared command service, add a store, configure
+validation/replay gates, create a writer, accept evidence, construct adapters,
+call Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, grant browser authority, or
+grant BFF execution authority.
+
+### Phase 3861 - Prior Range Completion Evidence
+
+- Record completed phases 3841-3860 with backend commit `b471e0b4`, frontend commit `a7f81a7`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3862 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3841-3860 to active phases 3861-3880 while preserving no-live defaults and cap policy.
+
+### Phase 3863 - Backend Route Contract Proposal Model
+
+- Add typed blocked producer-route contract proposal and proposal-summary models to the existing live-adapter construction contract path.
+
+### Phase 3864 - Backend Route Contract Proposal Projection
+
+- Derive one blocked route contract proposal per producer-route requirement for the unresolved producer-route contract availability claim.
+
+### Phase 3865 - Backend Route Contract Proposal Summary
+
+- Aggregate proposal counts, route contract ids, requirement ids, claim ids, work-item refs, producer contract ids, evidence ids, route contract refs, route inventory refs, shared command-service refs, gates, and disabled authority flags.
+
+### Phase 3866 - Backend Schema And Coverage
+
+- Regenerate backend OpenAPI and add focused assertions proving proposals and summary are blocked, derived, no-route-registration, no-route-inventory-binding, no-shared-service-binding, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
+
+### Phase 3867 - Frontend Schema And Mock Sync
+
+- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
+
+### Phase 3868 - Frontend Display Sync
+
+- Render producer-route contract proposals and summary separately from route requirements, claim traces, and work queue through existing adapter evidence rows.
+
+### Phase 3869 - Frontend Focused Coverage
+
+- Update focused mock, dry-submit, runtime, read-model, and quality tests so proposal readback cannot imply route registration, route inventory binding, shared service binding, writer, acceptance, construction, clearance, or execution authority.
+
+### Phase 3870 - Documentation Sync
+
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract proposal readback.
+
+### Phase 3871 - Autonomous Validator Sync
+
+- Update backend/frontend autonomous validators and active-range metadata for phases 3861-3880.
+
+### Phase 3872 - Stale Authority Scan
+
+- Search backend/frontend code and docs for stale active-range wording or text implying route contract proposals can register routes, bind route inventory, bind shared command services, write, accept, satisfy, clear, construct, execute, or enable adapters.
+
+### Phase 3873 - Backend Focused Gates
+
+- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+
+### Phase 3874 - Frontend Focused Gates
+
+- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
+
+### Phase 3875 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short`.
+
+### Phase 3876 - Full Frontend Release Gate
+
+- Run `npm run release:gate` in `C:\coinbase-frontend`.
+
+### Phase 3877 - Blind Contextless Review
+
+- Run blind/contextless review proving a fresh agent can explain that route contract proposals are planning evidence only and cannot register routes, bind route inventory, bind shared command services, write, accept, clear, construct, execute, or enable adapters.
+
+### Phase 3878 - Live UI Smoke
+
+- Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
+
+### Phase 3879 - Completion Evidence And No-Live Ledger
+
+- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3880 - Commit, Push, And Continue Summary
+
+- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, verify clean worktrees, and continue only to the next milestone-linked gap.
+
+## Completed Phases 3841-3860
+
+These phases added backend-owned producer-route requirement rows and a summary
 under the live-adapter construction acceptance-evidence producer path. Each
 requirement is derived from a blocked producer-clearance claim trace and
 names the missing backend route contract evidence that would be required
 before the `producer_route_contract_available` claim could ever resolve. This
-remains evidence only. It must not register a route, bind route inventory,
-add a store, configure validation/replay gates, create a writer, accept
-evidence, construct adapters, call Coinbase, invoke managers, execute
-reconciliation, cancel/replace active placements, mutate lifecycle/order/
-exchange state, grant browser authority, or grant BFF execution authority.
-
-### Phase 3841 - Prior Range Completion Evidence
-
-- Record completed phases 3821-3840 with backend commit `2a3e5e9c`, frontend commit `d40a6dc`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3842 - Advance Active Queue Range
-
-- Move the durable autonomous queue from completed phases 3821-3840 to active phases 3841-3860 while preserving no-live defaults and cap policy.
-
-### Phase 3843 - Backend Route Requirement Model
-
-- Add typed blocked producer-route requirement and route-requirement summary models to the existing live-adapter construction contract path.
-
-### Phase 3844 - Backend Route Requirement Projection
-
-- Derive one blocked route requirement per producer-clearance claim trace for the unresolved producer-route contract availability claim.
-
-### Phase 3845 - Backend Route Requirement Summary
-
-- Aggregate route requirement counts, requirement ids, claim ids, work-item refs, producer contract ids, evidence ids, route contract refs, gates, and disabled authority flags.
-
-### Phase 3846 - Backend Schema And Coverage
-
-- Regenerate backend OpenAPI and add focused assertions proving route requirements and summary are blocked, derived, no-route-registration, no-route-inventory-binding, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
-
-### Phase 3847 - Frontend Schema And Mock Sync
-
-- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
-
-### Phase 3848 - Frontend Display Sync
-
-- Render producer-route requirements and summary separately from claim traces and work queue through existing adapter evidence rows.
-
-### Phase 3849 - Frontend Focused Coverage
-
-- Update focused mock, dry-submit, runtime, read-model, and quality tests so route-requirement readback cannot imply route registration, writer, acceptance, construction, clearance, or execution authority.
-
-### Phase 3850 - Documentation Sync
-
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-requirement readback.
-
-### Phase 3851 - Autonomous Validator Sync
-
-- Update backend/frontend autonomous validators and active-range metadata for phases 3841-3860.
-
-### Phase 3852 - Stale Authority Scan
-
-- Search backend/frontend code and docs for stale active-range wording or text implying route requirements can register routes, bind route inventory, write, accept, satisfy, clear, construct, execute, or enable adapters.
-
-### Phase 3853 - Backend Focused Gates
-
-- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
-
-### Phase 3854 - Frontend Focused Gates
-
-- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
-
-### Phase 3855 - Full Backend Regression
-
-- Run `pytest tests\regression\ -v --tb=short`.
-
-### Phase 3856 - Full Frontend Release Gate
-
-- Run `npm run release:gate` in `C:\coinbase-frontend`.
-
-### Phase 3857 - Blind Contextless Review
-
-- Run blind/contextless review proving a fresh agent can explain that route requirements are planning evidence only and cannot register routes, bind route inventory, write, accept, clear, construct, execute, or enable adapters.
-
-### Phase 3858 - Live UI Smoke
-
-- Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
-
-### Phase 3859 - Completion Evidence And No-Live Ledger
-
-- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3860 - Commit, Push, And Continue Summary
-
-- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, verify clean worktrees, and continue only to the next milestone-linked gap.
+remains evidence only. It did not register a route, bind route inventory, add
+a store, configure validation/replay gates, create a writer, accept evidence,
+construct adapters, call Coinbase, invoke managers, execute reconciliation,
+cancel/replace active placements, mutate lifecycle/order/exchange state,
+grant browser authority, or grant BFF execution authority. Backend commit
+`b471e0b4` and frontend commit `a7f81a7` contain the pushed range.
 
 ## Completed Phases 3821-3840
 

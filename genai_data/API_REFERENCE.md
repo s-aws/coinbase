@@ -143,6 +143,17 @@ Current behavior:
   claims, clear work items, write or accept evidence, satisfy producer
   contracts, construct adapters, invoke managers, call Coinbase, mutate state,
   or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_proposals` and
+  `acceptance_evidence_producer_route_contract_proposal_summary` as backend-
+  derived proposal evidence over those unresolved route requirements. These
+  fields name the missing route contract refs, route inventory refs, shared
+  command-service refs, proposal ids, requirement ids, claim ids, gates,
+  blockers, and disabled authority flags. They do not register routes, bind
+  route inventory, bind shared command services, resolve requirements or
+  claims, clear work items, write or accept evidence, satisfy producer
+  contracts, construct adapters, invoke managers, call Coinbase, mutate state,
+  or grant browser/BFF execution authority.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   exposes read-only persisted active-placement exchange-truth evidence keyed
   by `stealth_order_id`; it does not read Coinbase, verify exchange truth,
