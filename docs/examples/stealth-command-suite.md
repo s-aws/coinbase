@@ -99,6 +99,18 @@ handoff.
       "executable": false,
       "live_exchange_submission_allowed": false,
       "live_exchange_submitted": false,
+      "latest_service_decision_available": true,
+      "latest_service_decision_id": "live-service-decision-readback-001",
+      "latest_service_decision_recorded_artifacts": ["explicit_backend_live_enablement_decision"],
+      "latest_service_decision_recorded_artifacts_satisfy_enablement": false,
+      "latest_service_decision_satisfied_enablement_artifacts": [],
+      "latest_service_decision_unsatisfied_enablement_artifacts": [
+        "explicit_backend_live_enablement_decision",
+        "configured_admin_api_live_execution_service",
+        "runtime_live_service_configuration",
+        "deployment_live_service_enablement_record"
+      ],
+      "latest_service_decision_resolves_enablement": false,
       "browser_authority": "display_only",
       "bff_authority": "forward_only_no_execution",
       "forbidden_methods": ["create_order", "cancel_order", "execute", "submit", "coinbase_client"]
@@ -1012,6 +1024,18 @@ live-disabled create workflow:
       "executable": false,
       "live_exchange_submission_allowed": false,
       "live_exchange_submitted": false,
+      "latest_service_decision_available": true,
+      "latest_service_decision_id": "live-service-decision-readback-001",
+      "latest_service_decision_recorded_artifacts": ["explicit_backend_live_enablement_decision"],
+      "latest_service_decision_recorded_artifacts_satisfy_enablement": false,
+      "latest_service_decision_satisfied_enablement_artifacts": [],
+      "latest_service_decision_unsatisfied_enablement_artifacts": [
+        "explicit_backend_live_enablement_decision",
+        "configured_admin_api_live_execution_service",
+        "runtime_live_service_configuration",
+        "deployment_live_service_enablement_record"
+      ],
+      "latest_service_decision_resolves_enablement": false,
       "browser_authority": "display_only",
       "bff_authority": "forward_only_no_execution",
       "forbidden_methods": ["create_order", "cancel_order", "execute", "submit", "coinbase_client"]

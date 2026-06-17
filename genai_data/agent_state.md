@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3501-3520` is backend `49193a4c`
-  and frontend `ed35110`; active range is `3521-3540`.
+- Commit (optional): completed range `3521-3540` is backend `f9e9dd8d`
+  and frontend `8f341d3`; active range is `3541-3560`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3501-3520`; active range is `3521-3540`.
+- Latest completed autonomous range: `3521-3540`; active range is `3541-3560`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -153,14 +153,22 @@ Keep it short. Keep it factual.
   live service, adapter, manager, Coinbase, reconciliation, active-placement,
   state-mutation, browser, and BFF authority disabled. Backend commit
   `49193a4c` and frontend commit `ed35110` contain the pushed range.
-- Active `3521-3540` work: consume the latest disabled live-service decision
+- Completed `3521-3540` work: consume the latest disabled live-service decision
   record as readback on the existing disabled
   `live_execution_service_contract` only. Keep
   `enablement_precondition_resolved=false`,
   `latest_service_decision_resolves_enablement=false`, all required
   enablement artifacts missing, and all live service, adapter, manager,
   Coinbase, reconciliation, active-placement, state-mutation, browser, and BFF
-  authority disabled.
+  authority disabled. Backend commit `f9e9dd8d` and frontend commit
+  `8f341d3` contain the pushed range.
+- Active `3541-3560` work: make latest decision readback satisfaction explicit
+  on the existing disabled `live_execution_service_contract`. Recorded
+  decision artifacts must not satisfy enablement artifacts; satisfied
+  enablement artifacts stay empty; unsatisfied enablement artifacts stay equal
+  to the required enablement artifacts; live service, adapter, manager,
+  Coinbase, reconciliation, active-placement, state-mutation, browser, and BFF
+  authority stay disabled.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -334,15 +342,17 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3521-3540`.
+- Active autonomous range: `3541-3560`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add latest disabled live-service decision readback to the
-  existing disabled `live_execution_service_contract` in active phases
-  `3521-3540`. Do not enable live service, resolve blockers, construct
-  adapters, create a second adapter path, call Coinbase, invoke managers,
-  execute reconciliation, cancel/replace active placements, mutate
-  lifecycle/order/exchange state, grant browser authority, or grant BFF
-  execution authority unless a future approved phase explicitly authorizes it.
+- Current direction: add explicit satisfaction-boundary fields to latest
+  disabled live-service decision readback on the existing disabled
+  `live_execution_service_contract` in active phases `3541-3560`. Recorded
+  decision artifacts must not be treated as satisfied enablement artifacts.
+  Do not enable live service, resolve blockers, construct adapters, create a
+  second adapter path, call Coinbase, invoke managers, execute reconciliation,
+  cancel/replace active placements, mutate lifecycle/order/exchange state,
+  grant browser authority, or grant BFF execution authority unless a future
+  approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -937,7 +947,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3521-3540 live-service decision
-  readback implementation, run focused gates, blind/contextless review, full
-  gates, then commit and push both repositories with `$0` live Coinbase
-  execution and pause for restart.
+- Exact next command: continue the active 3541-3560 live-service decision
+  satisfaction-boundary implementation, run focused gates, blind/contextless
+  review, full gates, then commit and push both repositories with `$0` live
+  Coinbase execution.

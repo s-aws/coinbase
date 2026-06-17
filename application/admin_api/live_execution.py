@@ -361,6 +361,16 @@ def build_live_execution_service_contract(
         "latest_service_decision_recorded_artifacts": (
             latest_decision_recorded_artifacts
         ),
+        "latest_service_decision_recorded_artifacts_satisfy_enablement": False,
+        "latest_service_decision_satisfaction_authority": (
+            "readback_only_no_enablement_satisfaction"
+        ),
+        "latest_service_decision_satisfied_enablement_artifacts": [],
+        "latest_service_decision_unsatisfied_enablement_artifacts": (
+            list(LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS)
+            if latest_decision_available
+            else []
+        ),
         "latest_service_decision_resolver_eligible": False,
         "latest_service_decision_resolves_enablement": False,
         "browser_authority": "display_only",

@@ -236,7 +236,11 @@ adapters, call Coinbase, invoke managers, execute reconciliation, mutate
 state, or make the command executable. If it includes
 `latest_service_decision_id`, that is local disabled-decision readback only;
 `latest_service_decision_resolves_enablement` remains false and missing
-enablement artifacts remain blockers.
+enablement artifacts remain blockers. The contract also exposes
+`latest_service_decision_recorded_artifacts_satisfy_enablement=false`,
+empty `latest_service_decision_satisfied_enablement_artifacts`, and
+unsatisfied enablement artifact names so recorded readback cannot be confused
+with satisfied live-service enablement.
 Exact create and non-create command responses may include
 `live_execution_intent_contract`. It is the existing backend admission
 decision's disabled intent envelope and is bound to route, identity, actor,

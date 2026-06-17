@@ -4166,6 +4166,16 @@ class AdminLiveExecutionServiceContractEvidence(BaseModel):
     latest_service_decision_recorded_artifacts: list[str] = Field(
         default_factory=list
     )
+    latest_service_decision_recorded_artifacts_satisfy_enablement: bool = False
+    latest_service_decision_satisfaction_authority: str = (
+        "readback_only_no_enablement_satisfaction"
+    )
+    latest_service_decision_satisfied_enablement_artifacts: list[str] = Field(
+        default_factory=list
+    )
+    latest_service_decision_unsatisfied_enablement_artifacts: list[str] = Field(
+        default_factory=list
+    )
     latest_service_decision_resolver_eligible: bool = False
     latest_service_decision_resolves_enablement: bool = False
     browser_authority: str = "display_only"

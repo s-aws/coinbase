@@ -13751,6 +13751,24 @@ components:
             type: string
           type: array
           title: Latest Service Decision Recorded Artifacts
+        latest_service_decision_recorded_artifacts_satisfy_enablement:
+          type: boolean
+          title: Latest Service Decision Recorded Artifacts Satisfy Enablement
+          default: false
+        latest_service_decision_satisfaction_authority:
+          type: string
+          title: Latest Service Decision Satisfaction Authority
+          default: readback_only_no_enablement_satisfaction
+        latest_service_decision_satisfied_enablement_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Service Decision Satisfied Enablement Artifacts
+        latest_service_decision_unsatisfied_enablement_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Service Decision Unsatisfied Enablement Artifacts
         latest_service_decision_resolver_eligible:
           type: boolean
           title: Latest Service Decision Resolver Eligible

@@ -38,35 +38,50 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Service Decision Readback Batch - Phases 3521-3540
+## Active M55 Live-Service Decision Satisfaction Batch - Phases 3541-3560
 
-These phases consume the latest append-only live-service decision record as
-readback inside the existing disabled `live_execution_service_contract`. The
-record is local evidence only. It must not resolve the enablement precondition,
-remove missing enablement artifacts, enable service, construct adapters, call
-Coinbase, invoke managers, execute reconciliation, cancel/replace active
-placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
-browser authority, or grant BFF execution authority.
+These phases clarify that latest disabled live-service decision readback is
+not satisfied enablement evidence. The existing disabled
+`live_execution_service_contract` must expose recorded decision artifacts,
+explicit satisfaction authority, empty satisfied artifacts, unsatisfied
+required artifacts, and `resolves=false`. It must not resolve the enablement
+precondition, remove missing enablement artifacts, enable service, construct
+adapters, call Coinbase, invoke managers, execute reconciliation,
+cancel/replace active placements, mutate lifecycle/order/exchange state,
+clear M55 blockers, grant browser authority, or grant BFF execution
+authority.
 
-### Phase 3521 - Advance Active Queue Range
+### Phase 3541 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3501-3520 to active phases 3521-3540 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3521-3540 to active phases 3541-3560 while preserving no-live defaults and cap policy.
 
-### Phase 3522 - Backend Service Contract Readback
+### Phase 3542 - Backend Service Contract Satisfaction Fields
 
-- Add latest decision readback fields to `AdminLiveExecutionServiceContractEvidence` and populate them through the shared `build_live_execution_service_contract` path.
+- Add latest decision satisfaction-boundary fields to `AdminLiveExecutionServiceContractEvidence` and populate them through the shared `build_live_execution_service_contract` path.
 
-### Phase 3523 - Backend Fail-Closed Coverage
+### Phase 3543 - Backend Fail-Closed Coverage
 
-- Prove latest decision readback appears while `enablement_precondition_resolved=false`, `latest_service_decision_resolves_enablement=false`, and live Coinbase/service authority remain disabled.
+- Prove recorded artifacts do not satisfy enablement artifacts while `enablement_precondition_resolved=false`, `latest_service_decision_resolves_enablement=false`, and live Coinbase/service authority remain disabled.
 
-### Phase 3524 - Frontend Contract Sync
+### Phase 3544 - Frontend Contract Sync
 
 - Regenerate frontend schema and sync mocks, command evidence rows, quality metadata, and tests.
 
-### Phase 3525 - Validators, Gates, Review, Commit, And Pause
+### Phase 3545 - Validators, Gates, Review, Commit, And No-Live Report
 
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, report `$0` live Coinbase submitted/executed notional, and pause for restart.
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Service Decision Readback Batch - Phases 3521-3540
+
+These phases consumed the latest append-only live-service decision record as
+readback inside the existing disabled `live_execution_service_contract`. The
+record is local evidence only. It does not resolve the enablement
+precondition, remove missing enablement artifacts, enable service, construct
+adapters, call Coinbase, invoke managers, execute reconciliation,
+cancel/replace active placements, mutate lifecycle/order/exchange state,
+clear M55 blockers, grant browser authority, or grant BFF execution
+authority. Backend commit `f9e9dd8d` and frontend commit `8f341d3` contain
+the pushed range.
 
 ## Completed M55 Live-Service Decision Evidence Batch - Phases 3501-3520
 

@@ -84,7 +84,12 @@ The existing disabled `live_execution_service_contract` may also show the
 latest disabled live-service decision record as local readback evidence. That
 readback keeps `enablement_precondition_resolved=false`,
 `latest_service_decision_resolves_enablement=false`, all enablement artifacts
-missing, and all live execution authority disabled.
+missing, and all live execution authority disabled. The readback also
+separates recorded decision artifacts from satisfied enablement artifacts:
+`latest_service_decision_recorded_artifacts_satisfy_enablement=false`,
+`latest_service_decision_satisfied_enablement_artifacts=[]`, and
+`latest_service_decision_unsatisfied_enablement_artifacts` still names the
+required enablement artifacts when a disabled decision is present.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
@@ -381,7 +386,10 @@ configured Admin API live execution service, runtime live-service
 configuration, deployment enablement record, verification gates, and blockers.
 If an append-only disabled live-service decision has been recorded, the
 contract may show it as latest decision readback with `resolves=false`; this
-does not remove any missing artifact or clear the live-service blocker.
+does not remove any missing artifact or clear the live-service blocker. The
+contract must show recorded decision artifacts separately from satisfied
+enablement artifacts so a reader cannot treat readback as service
+enablement.
 Those fields are blockers, not authority. They are not a service
 implementation, live switch, Coinbase caller, manager path, or BFF execution
 grant.
