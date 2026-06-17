@@ -2896,10 +2896,11 @@ Current backend evidence:
   prerequisites while preserving no-step-completion, no-claim-resolution,
   no-work-item-clearance, no-route-registration, no-binding, no-writing,
   no-acceptance, no-construction, no-execution, and no-live authority. Active
-  phases 4021-4040 add clearance-step review rows and a review summary that
-  list backend-owned review inputs and gates required before any step could
-  become ready while preserving no-review-completion, no-step-readiness,
-  no-claim-resolution, no-construction, no-execution, and no-live authority.
+  phases 4041-4060 add clearance-step review-input rows and a review-input
+  summary derived from the completed 4021-4040 review rows while preserving
+  no-input-creation, no-input-acceptance, no-input-validation,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

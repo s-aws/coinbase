@@ -6443,6 +6443,198 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearan
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInput(
+    BaseModel
+):
+    """Missing input evidence for one blocked clearance-step review."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_reviews"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_inputs"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_reviews_no_input_acceptance"
+    )
+    input_index: int = Field(ge=1)
+    review_index: int = Field(ge=1)
+    step_index: int = Field(ge=1)
+    plan_index: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    input_order: int = Field(ge=1)
+    input_id: str
+    review_id: str
+    step_id: str
+    plan_id: str
+    claim_trace_id: str
+    claim_id: str
+    claim: str = "producer_route_contract_available"
+    clearance_target: str = "producer_route_contract_available"
+    step_name: str
+    step_label: str
+    input_name: str
+    required_review_input: str
+    required_ref_kind: str
+    required_ref: str
+    required_backend_refs: list[str] = Field(default_factory=list)
+    required_review_gates: list[str] = Field(default_factory=list)
+    review_gate: str
+    input_gate: str
+    blocker: str
+    review_blocker: str
+    step_blocker: str
+    plan_blocker: str
+    claim_trace_blocker: str
+    work_item_blocker: str
+    dependency_blocker: str
+    remediation_blocker: str
+    validation_blocker: str
+    required_before_review_ready: bool = True
+    required_before_review_completed: bool = True
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_completed: bool = False
+    review_allowed: bool = False
+    review_inputs_present: bool = False
+    review_gates_passed: bool = False
+    step_ready: bool = False
+    step_completed: bool = False
+    step_allowed: bool = False
+    prior_steps_completed: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    clears_claim_trace: bool = False
+    clears_work_item: bool = False
+    clears_route_requirement: bool = False
+    route_contract_clearance_allowed: bool = False
+    route_contract_available: bool = False
+    route_registered: bool = False
+    route_inventory_entry_present: bool = False
+    route_inventory_bound: bool = False
+    shared_command_service_method_present: bool = False
+    shared_command_service_bound: bool = False
+    route_handler_present: bool = False
+    producer_route_available: bool = False
+    requirement_resolved: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contract: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputSummary(
+    BaseModel
+):
+    """Aggregate over missing clearance-step review inputs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_inputs"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_summary"
+    )
+    authority: str = "backend_derived_from_route_contract_clearance_step_review_inputs"
+    total_input_count: int = Field(default=0, ge=0)
+    missing_input_count: int = Field(default=0, ge=0)
+    accepted_input_count: int = Field(default=0, ge=0)
+    review_count: int = Field(default=0, ge=0)
+    step_count: int = Field(default=0, ge=0)
+    plan_count: int = Field(default=0, ge=0)
+    input_ids: list[str] = Field(default_factory=list)
+    review_ids: list[str] = Field(default_factory=list)
+    step_ids: list[str] = Field(default_factory=list)
+    plan_ids: list[str] = Field(default_factory=list)
+    claim_trace_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    claims: list[str] = Field(default_factory=list)
+    clearance_targets: list[str] = Field(default_factory=list)
+    step_names: list[str] = Field(default_factory=list)
+    input_names: list[str] = Field(default_factory=list)
+    required_review_inputs: list[str] = Field(default_factory=list)
+    required_review_gates: list[str] = Field(default_factory=list)
+    required_ref_kinds: list[str] = Field(default_factory=list)
+    required_refs: list[str] = Field(default_factory=list)
+    required_backend_refs: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    review_blockers: list[str] = Field(default_factory=list)
+    step_blockers: list[str] = Field(default_factory=list)
+    plan_blockers: list[str] = Field(default_factory=list)
+    input_gates: list[str] = Field(default_factory=list)
+    first_input_id: str | None = None
+    first_review_id: str | None = None
+    first_step_id: str | None = None
+    first_plan_id: str | None = None
+    first_blocker: str | None = None
+    all_inputs_present: bool = False
+    all_inputs_accepted: bool = False
+    all_inputs_validated: bool = False
+    all_reviews_ready: bool = False
+    all_reviews_completed: bool = False
+    any_review_allowed: bool = False
+    review_inputs_present: bool = False
+    review_gates_passed: bool = False
+    all_steps_ready: bool = False
+    all_steps_completed: bool = False
+    all_claims_resolved: bool = False
+    all_routes_registered: bool = False
+    route_inventory_bound: bool = False
+    shared_command_service_bound: bool = False
+    route_handler_present: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contracts: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-route contract clearance-step review input summary is "
+        "backend-derived missing-input evidence over blocked review rows. "
+        "It aggregates the required review inputs that would be needed before "
+        "reviews could become ready, but cannot create, accept, validate, or "
+        "complete inputs, complete reviews, resolve claims, write acceptance "
+        "evidence, construct adapters, or enable live execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -6691,6 +6883,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewSummary
+        )
+    )
+    acceptance_evidence_producer_route_contract_clearance_step_review_inputs: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInput
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(

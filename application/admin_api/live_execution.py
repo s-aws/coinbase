@@ -298,6 +298,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_SUMMARY_AUTHORITY = (
     "backend_derived_from_route_contract_clearance_step_reviews"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_clearance_step_review_inputs"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_AUTHORITY = (
+    "backend_derived_from_route_contract_clearance_step_reviews_no_input_acceptance"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_AUTHORITY = (
+    "backend_derived_from_route_contract_clearance_step_review_inputs"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_PLAN_SEQUENCE = (
     "define_backend_route_contract",
     "register_route_inventory_binding",
@@ -4654,6 +4666,338 @@ def build_live_adapter_construction_contract(
             "evidence, construct adapters, or enable live execution."
         ),
     }
+    producer_route_contract_clearance_step_review_inputs = []
+    for review in producer_route_contract_clearance_step_reviews:
+        for input_order, input_name in enumerate(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS,
+            start=1,
+        ):
+            required_review_input = f"{review['step_name']}_{input_name}"
+            input_id = f"{review['review_id']}_{input_name}"
+            producer_route_contract_clearance_step_review_inputs.append(
+                {
+                    "source_ref": (
+                        "acceptance_evidence_producer_route_contract_clearance_step_reviews"
+                    ),
+                    "status": AdminApiGateStatus.BLOCKED,
+                    "source": (
+                        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SOURCE
+                    ),
+                    "authority": (
+                        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_AUTHORITY
+                    ),
+                    "input_index": (
+                        len(producer_route_contract_clearance_step_review_inputs)
+                        + 1
+                    ),
+                    "review_index": review["review_index"],
+                    "step_index": review["step_index"],
+                    "plan_index": review["plan_index"],
+                    "step_order": review["step_order"],
+                    "input_order": input_order,
+                    "input_id": input_id,
+                    "review_id": review["review_id"],
+                    "step_id": review["step_id"],
+                    "plan_id": review["plan_id"],
+                    "claim_trace_id": review["claim_trace_id"],
+                    "claim_id": review["claim_id"],
+                    "claim": review["claim"],
+                    "clearance_target": review["clearance_target"],
+                    "step_name": review["step_name"],
+                    "step_label": review["step_label"],
+                    "input_name": input_name,
+                    "required_review_input": required_review_input,
+                    "required_ref_kind": review["required_ref_kind"],
+                    "required_ref": review["required_ref"],
+                    "required_backend_refs": review["required_backend_refs"],
+                    "required_review_gates": review["required_review_gates"],
+                    "review_gate": review["review_gate"],
+                    "input_gate": (
+                        f"producer_route_contract_clearance_step_review_input_{review['step_name']}_{input_name}_remains_missing"
+                    ),
+                    "blocker": f"{input_id}_missing",
+                    "review_blocker": review["blocker"],
+                    "step_blocker": review["step_blocker"],
+                    "plan_blocker": review["plan_blocker"],
+                    "claim_trace_blocker": review["claim_trace_blocker"],
+                    "work_item_blocker": review["work_item_blocker"],
+                    "dependency_blocker": review["dependency_blocker"],
+                    "remediation_blocker": review["remediation_blocker"],
+                    "validation_blocker": review["validation_blocker"],
+                    "required_before_review_ready": True,
+                    "required_before_review_completed": True,
+                    "input_present": False,
+                    "input_accepted": False,
+                    "input_validated": False,
+                    "review_ready": False,
+                    "review_completed": False,
+                    "review_allowed": False,
+                    "review_inputs_present": False,
+                    "review_gates_passed": False,
+                    "step_ready": False,
+                    "step_completed": False,
+                    "step_allowed": False,
+                    "prior_steps_completed": False,
+                    "claim_allowed": False,
+                    "claim_resolved": False,
+                    "clears_claim_trace": False,
+                    "clears_work_item": False,
+                    "clears_route_requirement": False,
+                    "route_contract_clearance_allowed": False,
+                    "route_contract_available": False,
+                    "route_registered": False,
+                    "route_inventory_entry_present": False,
+                    "route_inventory_bound": False,
+                    "shared_command_service_method_present": False,
+                    "shared_command_service_bound": False,
+                    "route_handler_present": False,
+                    "producer_route_available": False,
+                    "requirement_resolved": False,
+                    "store_available": False,
+                    "validation_configured": False,
+                    "replay_protection_configured": False,
+                    "writer_allowed": False,
+                    "writes_acceptance_evidence": False,
+                    "accepts_evidence": False,
+                    "satisfies_producer_contract": False,
+                    "satisfies_construction": False,
+                    "construction_allowed": False,
+                    "adapter_constructed": False,
+                    "live_execution_allowed": False,
+                    "execution_allowed": False,
+                    "executed": False,
+                    "no_live_execution": True,
+                    "backend_owned": True,
+                    "route_bound": True,
+                    "command_context_bound": True,
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "detail": (
+                        "This producer-route contract clearance-step review "
+                        "input row is backend-derived missing-input evidence "
+                        "from one blocked clearance-step review. It names "
+                        "the input required before that review could become "
+                        "ready, but cannot create, accept, validate, or "
+                        "complete the input, complete the review, resolve "
+                        "claims, write acceptance evidence, construct "
+                        "adapters, or enable live execution."
+                    ),
+                }
+            )
+    missing_producer_route_contract_clearance_step_review_inputs = [
+        review_input
+        for review_input in producer_route_contract_clearance_step_review_inputs
+        if not review_input["input_present"]
+    ]
+    accepted_producer_route_contract_clearance_step_review_inputs = [
+        review_input
+        for review_input in producer_route_contract_clearance_step_review_inputs
+        if review_input["input_accepted"]
+    ]
+    producer_route_contract_clearance_step_review_input_summary = {
+        "source_ref": (
+            "acceptance_evidence_producer_route_contract_clearance_step_review_inputs"
+        ),
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_AUTHORITY
+        ),
+        "total_input_count": len(
+            producer_route_contract_clearance_step_review_inputs
+        ),
+        "missing_input_count": len(
+            missing_producer_route_contract_clearance_step_review_inputs
+        ),
+        "accepted_input_count": len(
+            accepted_producer_route_contract_clearance_step_review_inputs
+        ),
+        "review_count": len(producer_route_contract_clearance_step_reviews),
+        "step_count": len(producer_route_contract_clearance_steps),
+        "plan_count": len(producer_route_contract_clearance_plans),
+        "input_ids": [
+            review_input["input_id"]
+            for review_input in producer_route_contract_clearance_step_review_inputs
+        ],
+        "review_ids": list(
+            dict.fromkeys(
+                review_input["review_id"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "step_ids": list(
+            dict.fromkeys(
+                review_input["step_id"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "plan_ids": list(
+            dict.fromkeys(
+                review_input["plan_id"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "claim_trace_ids": list(
+            dict.fromkeys(
+                review_input["claim_trace_id"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "claim_ids": list(
+            dict.fromkeys(
+                review_input["claim_id"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "claims": list(
+            dict.fromkeys(
+                review_input["claim"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "clearance_targets": list(
+            dict.fromkeys(
+                review_input["clearance_target"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "step_names": list(
+            dict.fromkeys(
+                review_input["step_name"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "input_names": list(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS
+        ),
+        "required_review_inputs": list(
+            dict.fromkeys(
+                review_input["required_review_input"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "required_review_gates": list(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_GATES
+        ),
+        "required_ref_kinds": list(
+            dict.fromkeys(
+                review_input["required_ref_kind"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "required_refs": list(
+            dict.fromkeys(
+                review_input["required_ref"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "required_backend_refs": list(
+            dict.fromkeys(
+                ref
+                for review_input in producer_route_contract_clearance_step_review_inputs
+                for ref in review_input["required_backend_refs"]
+            )
+        ),
+        "blockers": [
+            review_input["blocker"]
+            for review_input in producer_route_contract_clearance_step_review_inputs
+        ],
+        "review_blockers": list(
+            dict.fromkeys(
+                review_input["review_blocker"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "step_blockers": list(
+            dict.fromkeys(
+                review_input["step_blocker"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "plan_blockers": list(
+            dict.fromkeys(
+                review_input["plan_blocker"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "input_gates": list(
+            dict.fromkeys(
+                review_input["input_gate"]
+                for review_input in producer_route_contract_clearance_step_review_inputs
+            )
+        ),
+        "first_input_id": (
+            producer_route_contract_clearance_step_review_inputs[0]["input_id"]
+            if producer_route_contract_clearance_step_review_inputs
+            else None
+        ),
+        "first_review_id": (
+            producer_route_contract_clearance_step_review_inputs[0]["review_id"]
+            if producer_route_contract_clearance_step_review_inputs
+            else None
+        ),
+        "first_step_id": (
+            producer_route_contract_clearance_step_review_inputs[0]["step_id"]
+            if producer_route_contract_clearance_step_review_inputs
+            else None
+        ),
+        "first_plan_id": (
+            producer_route_contract_clearance_step_review_inputs[0]["plan_id"]
+            if producer_route_contract_clearance_step_review_inputs
+            else None
+        ),
+        "first_blocker": (
+            producer_route_contract_clearance_step_review_inputs[0]["blocker"]
+            if producer_route_contract_clearance_step_review_inputs
+            else None
+        ),
+        "all_inputs_present": False,
+        "all_inputs_accepted": False,
+        "all_inputs_validated": False,
+        "all_reviews_ready": False,
+        "all_reviews_completed": False,
+        "any_review_allowed": False,
+        "review_inputs_present": False,
+        "review_gates_passed": False,
+        "all_steps_ready": False,
+        "all_steps_completed": False,
+        "all_claims_resolved": False,
+        "all_routes_registered": False,
+        "route_inventory_bound": False,
+        "shared_command_service_bound": False,
+        "route_handler_present": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-route contract clearance-step review input summary is "
+            "backend-derived missing-input evidence over blocked review "
+            "rows. It aggregates the required review inputs that would be "
+            "needed before reviews could become ready, but cannot create, "
+            "accept, validate, or complete inputs, complete reviews, resolve "
+            "claims, write acceptance evidence, construct adapters, or "
+            "enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -4812,6 +5156,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_route_contract_clearance_step_review_summary": (
             producer_route_contract_clearance_step_review_summary
+        ),
+        "acceptance_evidence_producer_route_contract_clearance_step_review_inputs": (
+            producer_route_contract_clearance_step_review_inputs
+        ),
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_summary": (
+            producer_route_contract_clearance_step_review_input_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),

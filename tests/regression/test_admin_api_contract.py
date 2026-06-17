@@ -191,6 +191,10 @@ from application.admin_api.live_execution import (
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_SUMMARY_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_SUMMARY_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_QUEUE_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_REMEDIATION_WORK_QUEUE_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_AUTHORITY,
@@ -10159,6 +10163,301 @@ def _assert_live_adapter_construction_contract(
     assert route_contract_clearance_step_review_summary["bff_authority"] == (
         "forward_only_no_execution"
     )
+    route_contract_clearance_step_review_inputs = contract[
+        "acceptance_evidence_producer_route_contract_clearance_step_review_inputs"
+    ]
+    expected_route_contract_clearance_step_review_input_ids = [
+        f"{review_id}_{input_name}"
+        for review_id in expected_route_contract_clearance_step_review_ids
+        for input_name in (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS
+        )
+    ]
+    assert [
+        review_input["input_id"]
+        for review_input in route_contract_clearance_step_review_inputs
+    ] == expected_route_contract_clearance_step_review_input_ids
+    assert len(route_contract_clearance_step_review_inputs) == len(
+        route_contract_clearance_step_reviews
+    ) * len(
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS
+    )
+    for input_index, review_input in enumerate(
+        route_contract_clearance_step_review_inputs, start=1
+    ):
+        review = route_contract_clearance_step_reviews[
+            (input_index - 1)
+            // len(
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS
+            )
+        ]
+        input_order = (
+            (input_index - 1)
+            % len(
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS
+            )
+        ) + 1
+        input_name = (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS[
+                input_order - 1
+            ]
+        )
+        assert review_input["source_ref"] == (
+            "acceptance_evidence_producer_route_contract_clearance_step_reviews"
+        )
+        assert review_input["status"] == AdminApiGateStatus.BLOCKED
+        assert review_input["source"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SOURCE
+        )
+        assert review_input["authority"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_AUTHORITY
+        )
+        assert review_input["input_index"] == input_index
+        assert review_input["review_index"] == review["review_index"]
+        assert review_input["step_index"] == review["step_index"]
+        assert review_input["plan_index"] == review["plan_index"]
+        assert review_input["step_order"] == review["step_order"]
+        assert review_input["input_order"] == input_order
+        assert review_input["review_id"] == review["review_id"]
+        assert review_input["step_id"] == review["step_id"]
+        assert review_input["plan_id"] == review["plan_id"]
+        assert review_input["claim_trace_id"] == review["claim_trace_id"]
+        assert review_input["claim_id"] == review["claim_id"]
+        assert review_input["claim"] == review["claim"]
+        assert review_input["clearance_target"] == review["clearance_target"]
+        assert review_input["step_name"] == review["step_name"]
+        assert review_input["step_label"] == review["step_label"]
+        assert review_input["input_name"] == input_name
+        assert review_input["required_review_input"] == (
+            f"{review['step_name']}_{input_name}"
+        )
+        assert review_input["required_ref_kind"] == review["required_ref_kind"]
+        assert review_input["required_ref"] == review["required_ref"]
+        assert review_input["required_backend_refs"] == (
+            review["required_backend_refs"]
+        )
+        assert review_input["required_review_gates"] == (
+            review["required_review_gates"]
+        )
+        assert review_input["review_gate"] == review["review_gate"]
+        assert review_input["input_gate"] == (
+            f"producer_route_contract_clearance_step_review_input_{review['step_name']}_{input_name}_remains_missing"
+        )
+        assert review_input["blocker"] == f"{review_input['input_id']}_missing"
+        assert review_input["review_blocker"] == review["blocker"]
+        assert review_input["step_blocker"] == review["step_blocker"]
+        assert review_input["plan_blocker"] == review["plan_blocker"]
+        assert review_input["claim_trace_blocker"] == review["claim_trace_blocker"]
+        assert review_input["work_item_blocker"] == review["work_item_blocker"]
+        assert review_input["dependency_blocker"] == review["dependency_blocker"]
+        assert review_input["remediation_blocker"] == review["remediation_blocker"]
+        assert review_input["validation_blocker"] == review["validation_blocker"]
+        assert review_input["required_before_review_ready"] is True
+        assert review_input["required_before_review_completed"] is True
+        for false_flag in (
+            "input_present",
+            "input_accepted",
+            "input_validated",
+            "review_ready",
+            "review_completed",
+            "review_allowed",
+            "review_inputs_present",
+            "review_gates_passed",
+            "step_ready",
+            "step_completed",
+            "step_allowed",
+            "prior_steps_completed",
+            "claim_allowed",
+            "claim_resolved",
+            "clears_claim_trace",
+            "clears_work_item",
+            "clears_route_requirement",
+            "route_contract_clearance_allowed",
+            "route_contract_available",
+            "route_registered",
+            "route_inventory_entry_present",
+            "route_inventory_bound",
+            "shared_command_service_method_present",
+            "shared_command_service_bound",
+            "route_handler_present",
+            "producer_route_available",
+            "requirement_resolved",
+            "store_available",
+            "validation_configured",
+            "replay_protection_configured",
+            "writer_allowed",
+            "writes_acceptance_evidence",
+            "accepts_evidence",
+            "satisfies_producer_contract",
+            "satisfies_construction",
+            "construction_allowed",
+            "adapter_constructed",
+            "live_execution_allowed",
+            "execution_allowed",
+            "executed",
+        ):
+            assert review_input[false_flag] is False
+        assert review_input["no_live_execution"] is True
+        assert review_input["backend_owned"] is True
+        assert review_input["route_bound"] is True
+        assert review_input["command_context_bound"] is True
+        assert review_input["browser_authority"] == "display_only"
+        assert review_input["bff_authority"] == "forward_only_no_execution"
+    route_contract_clearance_step_review_input_summary = contract[
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_summary"
+    ]
+    assert route_contract_clearance_step_review_input_summary["source_ref"] == (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_inputs"
+    )
+    assert route_contract_clearance_step_review_input_summary["status"] == (
+        AdminApiGateStatus.BLOCKED
+    )
+    assert route_contract_clearance_step_review_input_summary["source"] == (
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_SOURCE
+    )
+    assert route_contract_clearance_step_review_input_summary["authority"] == (
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_SUMMARY_AUTHORITY
+    )
+    assert route_contract_clearance_step_review_input_summary[
+        "total_input_count"
+    ] == len(route_contract_clearance_step_review_inputs)
+    assert route_contract_clearance_step_review_input_summary[
+        "missing_input_count"
+    ] == len(route_contract_clearance_step_review_inputs)
+    assert route_contract_clearance_step_review_input_summary[
+        "accepted_input_count"
+    ] == 0
+    assert route_contract_clearance_step_review_input_summary[
+        "review_count"
+    ] == len(route_contract_clearance_step_reviews)
+    assert route_contract_clearance_step_review_input_summary["step_count"] == len(
+        route_contract_clearance_steps
+    )
+    assert route_contract_clearance_step_review_input_summary["plan_count"] == len(
+        route_contract_clearance_plans
+    )
+    assert route_contract_clearance_step_review_input_summary["input_ids"] == (
+        expected_route_contract_clearance_step_review_input_ids
+    )
+    assert route_contract_clearance_step_review_input_summary["review_ids"] == (
+        expected_route_contract_clearance_step_review_ids
+    )
+    assert route_contract_clearance_step_review_input_summary["step_ids"] == (
+        expected_route_contract_clearance_step_ids
+    )
+    assert route_contract_clearance_step_review_input_summary["plan_ids"] == (
+        expected_route_contract_clearance_plan_ids
+    )
+    assert route_contract_clearance_step_review_input_summary[
+        "claim_trace_ids"
+    ] == expected_route_contract_remediation_work_item_claim_trace_ids
+    assert route_contract_clearance_step_review_input_summary["claim_ids"] == (
+        expected_claim_ids
+    )
+    assert route_contract_clearance_step_review_input_summary["claims"] == [
+        "producer_route_contract_available"
+    ]
+    assert route_contract_clearance_step_review_input_summary[
+        "clearance_targets"
+    ] == ["producer_route_contract_available"]
+    assert route_contract_clearance_step_review_input_summary["step_names"] == (
+        expected_route_contract_clearance_step_names
+    )
+    assert route_contract_clearance_step_review_input_summary["input_names"] == list(
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_INPUTS
+    )
+    assert route_contract_clearance_step_review_input_summary[
+        "required_review_inputs"
+    ] == route_contract_clearance_step_review_summary["required_review_inputs"]
+    assert route_contract_clearance_step_review_input_summary[
+        "required_review_gates"
+    ] == list(
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_REQUIRED_GATES
+    )
+    assert route_contract_clearance_step_review_input_summary[
+        "required_ref_kinds"
+    ] == route_contract_clearance_step_review_summary["required_ref_kinds"]
+    assert LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF in (
+        route_contract_clearance_step_review_input_summary["required_refs"]
+    )
+    assert route_contract_clearance_step_review_input_summary["blockers"] == [
+        f"{input_id}_missing"
+        for input_id in expected_route_contract_clearance_step_review_input_ids
+    ]
+    assert route_contract_clearance_step_review_input_summary[
+        "review_blockers"
+    ] == route_contract_clearance_step_review_summary["blockers"]
+    assert route_contract_clearance_step_review_input_summary[
+        "step_blockers"
+    ] == route_contract_clearance_step_review_summary["step_blockers"]
+    assert route_contract_clearance_step_review_input_summary[
+        "plan_blockers"
+    ] == route_contract_clearance_step_review_summary["plan_blockers"]
+    assert route_contract_clearance_step_review_input_summary["first_input_id"] == (
+        expected_route_contract_clearance_step_review_input_ids[0]
+    )
+    assert route_contract_clearance_step_review_input_summary["first_review_id"] == (
+        expected_route_contract_clearance_step_review_ids[0]
+    )
+    assert route_contract_clearance_step_review_input_summary["first_step_id"] == (
+        expected_route_contract_clearance_step_ids[0]
+    )
+    assert route_contract_clearance_step_review_input_summary["first_plan_id"] == (
+        expected_route_contract_clearance_plan_ids[0]
+    )
+    assert route_contract_clearance_step_review_input_summary["first_blocker"] == (
+        f"{expected_route_contract_clearance_step_review_input_ids[0]}_missing"
+    )
+    for false_flag in (
+        "all_inputs_present",
+        "all_inputs_accepted",
+        "all_inputs_validated",
+        "all_reviews_ready",
+        "all_reviews_completed",
+        "any_review_allowed",
+        "review_inputs_present",
+        "review_gates_passed",
+        "all_steps_ready",
+        "all_steps_completed",
+        "all_claims_resolved",
+        "all_routes_registered",
+        "route_inventory_bound",
+        "shared_command_service_bound",
+        "route_handler_present",
+        "store_available",
+        "validation_configured",
+        "replay_protection_configured",
+        "writer_allowed",
+        "writes_acceptance_evidence",
+        "accepts_evidence",
+        "satisfies_producer_contracts",
+        "satisfies_construction",
+        "construction_allowed",
+        "adapter_constructed",
+        "live_execution_allowed",
+        "executable",
+        "execution_allowed",
+        "executed",
+    ):
+        assert route_contract_clearance_step_review_input_summary[
+            false_flag
+        ] is False
+    assert route_contract_clearance_step_review_input_summary[
+        "no_live_execution"
+    ] is True
+    assert route_contract_clearance_step_review_input_summary[
+        "backend_owned"
+    ] is True
+    assert route_contract_clearance_step_review_input_summary["route_bound"] is True
+    assert route_contract_clearance_step_review_input_summary[
+        "command_context_bound"
+    ] is True
+    assert route_contract_clearance_step_review_input_summary[
+        "browser_authority"
+    ] == "display_only"
+    assert route_contract_clearance_step_review_input_summary["bff_authority"] == (
+        "forward_only_no_execution"
+    )
     assert contract["required_artifacts"] == list(
         LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
     )
@@ -14851,7 +15150,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15078,7 +15377,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15318,7 +15617,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15577,7 +15876,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -15802,7 +16101,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -16707,7 +17006,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -19897,7 +20196,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -20112,7 +20411,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4021-4040"
+    assert readback_payload["approved_phase_range"] == "4041-4060"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -23191,7 +23490,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "4021-4040"
+    assert payload["approved_phase_range"] == "4041-4060"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -25019,7 +25318,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "4021-4040"
+    assert live_payload["approved_phase_range"] == "4041-4060"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -25582,7 +25881,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "4021-4040"
+    assert enterprise_payload["approved_phase_range"] == "4041-4060"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -26357,7 +26656,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "4021-4040"
+    assert recovery_preview_payload["approved_phase_range"] == "4041-4060"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

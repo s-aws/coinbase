@@ -172,11 +172,14 @@ route, inventory, shared-service, handler, store, validation/replay, writer,
 and acceptance-path work required before the claim could ever resolve. Completed
 phases 4001-4020 expand those clearance plans into blocked ordered clearance
 steps and a step summary without performing any of the named backend work.
-Active phases 4021-4040 add blocked clearance-step review rows and a review
-summary that list the backend-owned review inputs and gates required before
-those steps could ever become ready.
+Completed phases 4021-4040 add blocked clearance-step review rows and a
+review summary that list the backend-owned review inputs and gates required
+before those steps could ever become ready. Active phases 4041-4060 add
+blocked clearance-step review-input rows and a review-input summary derived
+from those review rows without creating, accepting, validating, or completing
+any input.
 These layers
-do not complete reviews, make steps ready, register routes, bind route
+do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,
 configure validation/replay, create writers, construct adapters, write or
 accept evidence, satisfy construction artifacts, enable live service, call
