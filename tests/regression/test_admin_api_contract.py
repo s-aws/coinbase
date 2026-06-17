@@ -135,6 +135,7 @@ from application.admin_api.idempotency import (
 from application.admin_api.live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+    FileAdminApiLiveAdapterDecisionStore,
     LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY,
     LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS,
     LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS,
@@ -151,6 +152,7 @@ from application.admin_api.live_execution import (
     POST_WRITE_RECONCILIATION_SOURCE,
     DisabledAdminApiLiveExecutionService,
     FileAdminApiLiveServiceDecisionStore,
+    LiveAdapterDecisionRecord,
     LiveServiceDecisionRecord,
     build_disabled_live_execution_adapter_contract,
     build_disabled_live_execution_intent,
@@ -304,6 +306,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     cap_guard_store = FileAdminApiCapGuardStore(store_dir / "cap_guard.jsonl")
     live_service_decision_store = FileAdminApiLiveServiceDecisionStore(
         store_dir / "live_service_decisions.jsonl"
+    )
+    live_adapter_decision_store = FileAdminApiLiveAdapterDecisionStore(
+        store_dir / "live_adapter_decisions.jsonl"
     )
     reconciliation_store = FileAdminApiReconciliationStore(
         store_dir / "reconciliation.jsonl"
@@ -489,6 +494,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         live_execution_routes.get_live_service_decision_store
     ] = lambda: live_service_decision_store
+    app.dependency_overrides[
+        live_execution_routes.get_live_adapter_decision_store
+    ] = lambda: live_adapter_decision_store
     app.dependency_overrides[reconciliation_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -554,6 +562,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_approval_store = approval_store
     client.admin_api_test_cap_guard_store = cap_guard_store
     client.admin_api_test_live_service_decision_store = live_service_decision_store
+    client.admin_api_test_live_adapter_decision_store = live_adapter_decision_store
     client.admin_api_test_reconciliation_store = reconciliation_store
     client.admin_api_test_pnl_checkpoint_store = pnl_checkpoint_store
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
@@ -5189,6 +5198,32 @@ def _assert_stealth_live_execution_adapter_contract(
     assert adapter["unsatisfied_construction_artifacts"] == list(
         LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
     )
+    assert adapter["latest_adapter_decision_available"] is False
+    assert adapter["latest_adapter_decision_id"] is None
+    assert adapter["latest_adapter_decision_recorded_at"] is None
+    assert adapter["latest_adapter_decision_status"] is None
+    assert adapter["latest_adapter_decision_requested_status"] is None
+    assert adapter["latest_adapter_decision_source"] is None
+    assert adapter["latest_adapter_decision_adapter_constructed"] is False
+    assert adapter["latest_adapter_decision_adapter_enabled"] is False
+    assert (
+        adapter["latest_adapter_decision_live_coinbase_execution_approved"]
+        is False
+    )
+    assert adapter["latest_adapter_decision_recorded_artifacts"] == []
+    assert (
+        adapter[
+            "latest_adapter_decision_recorded_artifacts_satisfy_construction"
+        ]
+        is False
+    )
+    assert adapter["latest_adapter_decision_satisfaction_authority"] == (
+        "readback_only_no_adapter_construction_satisfaction"
+    )
+    assert adapter["latest_adapter_decision_satisfied_construction_artifacts"] == []
+    assert adapter["latest_adapter_decision_unsatisfied_construction_artifacts"] == []
+    assert adapter["latest_adapter_decision_resolver_eligible"] is False
+    assert adapter["latest_adapter_decision_resolves_construction"] is False
     assert adapter["browser_authority"] == "display_only"
     assert adapter["bff_authority"] == "forward_only_no_execution"
     assert adapter["forbidden_methods"] == [
@@ -9799,7 +9834,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10026,7 +10061,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10266,7 +10301,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10525,7 +10560,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -10750,7 +10785,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11655,7 +11690,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -14845,7 +14880,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15060,7 +15095,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3561-3580"
+    assert readback_payload["approved_phase_range"] == "3581-3600"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -16804,6 +16839,420 @@ def test_admin_api_live_service_decision_routes_fail_closed(monkeypatch):
     assert client.admin_api_test_live_service_decision_store.read_recent() == []
 
 
+def _live_adapter_decision_payload(
+    *,
+    decision_id: str = "live-adapter-decision-001",
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED,
+    requested_adapter_status: str = AdminApiLiveExecutionStatus.LIVE_DISABLED.value,
+    target_route: str = "/api/v1/orders",
+    target_method: str = "POST",
+    target_module_id: str = "spot_operations",
+    target_service_method: str = "place_manual_order",
+    adapter_reference: str = "AdminApiCommandService.place_manual_order",
+    adapter_constructed: bool = False,
+    adapter_enabled: bool = False,
+    live_coinbase_execution_approved: bool = False,
+    max_submitted_notional_usdc: str = "0",
+    max_executed_notional_usdc: str = "0",
+) -> dict:
+    return {
+        "decision_id": decision_id,
+        "status": status.value,
+        "requested_adapter_status": requested_adapter_status,
+        "target_route": target_route,
+        "target_method": target_method,
+        "target_module_id": target_module_id,
+        "target_service_method": target_service_method,
+        "adapter_reference": adapter_reference,
+        "adapter_constructed": adapter_constructed,
+        "adapter_enabled": adapter_enabled,
+        "construction_review_ref": "adapter-construction-review-disabled",
+        "decision_reason": (
+            "Record explicit backend live-adapter construction decision evidence "
+            "while keeping adapter construction disabled."
+        ),
+        "live_coinbase_execution_approved": live_coinbase_execution_approved,
+        "max_submitted_notional_usdc": max_submitted_notional_usdc,
+        "max_executed_notional_usdc": max_executed_notional_usdc,
+    }
+
+
+@pytest.mark.regression
+def test_admin_api_live_adapter_decision_routes_record_and_replay(monkeypatch):
+    client = _client(monkeypatch)
+    body = _live_adapter_decision_payload()
+    headers = _headers(
+        idempotency_key="live-adapter-decision-idem",
+        operator_intent="record_backend_live_adapter_decision",
+        roles=AdminApiRole.ADMIN.value,
+    )
+
+    created = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=headers,
+        json=body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "accepted"
+    assert created_payload["required_permission"] == "config:update"
+    assert created_payload["service_method"] == "record_live_adapter_decision"
+    assert created_payload["live_exchange_submitted"] is False
+    assert created_payload["live_coinbase_orders_ran"] is False
+    decision = created_payload["decision"]
+    assert decision["decision_id"] == "live-adapter-decision-001"
+    assert decision["route"] == "/api/v1/admin/live-execution/adapter-decisions"
+    assert decision["method"] == "POST"
+    assert decision["module_id"] == "admin_system_health"
+    assert decision["target_route"] == "/api/v1/orders"
+    assert decision["target_method"] == "POST"
+    assert decision["target_module_id"] == "spot_operations"
+    assert decision["target_service_method"] == "place_manual_order"
+    assert decision["status"] == "blocked"
+    assert decision["requested_adapter_status"] == "live_disabled"
+    assert decision["live_execution_adapter_status"] == "live_disabled"
+    assert decision["adapter_constructed"] is False
+    assert decision["adapter_enabled"] is False
+    assert decision["live_coinbase_execution_approved"] is False
+    assert decision["max_submitted_notional_usdc"] == "0"
+    assert decision["max_executed_notional_usdc"] == "0"
+    assert decision["construction_precondition_resolved"] is False
+    assert decision["route_mapping_satisfies_construction"] is False
+    assert decision["adapter_configuration_satisfies_construction"] is False
+    assert decision["resolver_eligible"] is False
+    assert decision["browser_authority"] == "display_only"
+    assert decision["bff_authority"] == "forward_only_no_execution"
+    assert decision["live_exchange_submitted"] is False
+    assert decision["live_coinbase_orders_ran"] is False
+    assert "explicit_backend_live_adapter_construction_decision" in (
+        decision["recorded_construction_artifacts"]
+    )
+    assert "route_bound_stealth_live_execution_adapter" in (
+        decision["missing_construction_artifacts"]
+    )
+
+    listed = client.get(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed.status_code == 200
+    list_payload = listed.json()
+    assert list_payload["returned_count"] == 1
+    assert list_payload["total_count"] == 1
+    assert list_payload["passed_count"] == 0
+    assert list_payload["blocked_count"] == 1
+    assert list_payload["warning_count"] == 0
+    assert list_payload["resolver_eligible_count"] == 0
+    assert list_payload["constructed_count"] == 0
+    assert list_payload["live_coinbase_orders_ran"] is False
+
+    detail = client.get(
+        "/api/v1/admin/live-execution/adapter-decisions/live-adapter-decision-001",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+    assert detail.status_code == 200
+    assert detail.json()["decision"]["decision_id"] == "live-adapter-decision-001"
+
+    replayed = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=headers,
+        json=body,
+    )
+    assert replayed.status_code == 200
+    assert replayed.headers["X-Idempotency-Replayed"] == "true"
+    assert replayed.json()["decision"]["decision_id"] == "live-adapter-decision-001"
+
+    conflict_body = dict(body)
+    conflict_body["decision_reason"] = "changed reason"
+    conflict = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=headers,
+        json=conflict_body,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == "conflict"
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=20)
+    assert any(row.permission == AdminApiPermission.CONFIG_UPDATE for row in audit_rows)
+
+
+@pytest.mark.regression
+def test_admin_api_live_adapter_decision_rejects_duplicate_ids_beyond_recent_window(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    store = client.admin_api_test_live_adapter_decision_store
+    store.append(
+        LiveAdapterDecisionRecord(
+            decision_id="live-adapter-old-duplicate",
+            target_route="/api/v1/orders",
+            target_method="POST",
+            target_module_id="spot_operations",
+            target_service_method="place_manual_order",
+            adapter_reference="AdminApiCommandService.place_manual_order",
+            construction_review_ref="adapter-construction-review-disabled",
+            decision_reason="Old duplicate decision that must remain unique.",
+        )
+    )
+    for index in range(501):
+        store.append(
+            LiveAdapterDecisionRecord(
+                decision_id=f"live-adapter-filler-{index}",
+                target_route="/api/v1/orders",
+                target_method="POST",
+                target_module_id="spot_operations",
+                target_service_method="place_manual_order",
+                adapter_reference="AdminApiCommandService.place_manual_order",
+                construction_review_ref="adapter-construction-review-disabled",
+                decision_reason="Filler decision to push duplicate outside recent window.",
+            )
+        )
+
+    body = _live_adapter_decision_payload(
+        decision_id="live-adapter-old-duplicate",
+    )
+    rejected = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-old-duplicate-idem",
+            operator_intent="record_duplicate_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=body,
+    )
+
+    assert rejected.status_code == 400
+    assert "already exists" in rejected.json()["message"]
+    assert store.find_by_decision_id("live-adapter-old-duplicate") is not None
+
+
+@pytest.mark.regression
+def test_admin_api_live_adapter_decision_store_rejects_concurrent_duplicate_ids(
+    tmp_path,
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from application.admin_api.live_adapter_decision_service import (
+        AdminApiLiveAdapterDecisionService,
+        LiveAdapterDecisionError,
+    )
+    from application.admin_api.models import AdminLiveAdapterDecisionCreateRequest
+
+    store_path = tmp_path / "live_adapter_decisions.jsonl"
+    service = AdminApiLiveAdapterDecisionService()
+    body = AdminLiveAdapterDecisionCreateRequest.model_validate(
+        _live_adapter_decision_payload(
+            decision_id="live-adapter-concurrent-duplicate"
+        )
+    )
+    barrier = Barrier(8)
+
+    def record_once() -> str:
+        barrier.wait()
+        store = FileAdminApiLiveAdapterDecisionStore(store_path)
+        try:
+            service.record_decision(store=store, body=body)
+        except LiveAdapterDecisionError as exc:
+            assert "already exists" in str(exc)
+            return "rejected"
+        return "accepted"
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(lambda _: record_once(), range(8)))
+
+    assert results.count("accepted") == 1
+    assert results.count("rejected") == 7
+    records = FileAdminApiLiveAdapterDecisionStore(store_path).read_recent(limit=20)
+    assert len(records) == 1
+    assert records[0].decision_id == "live-adapter-concurrent-duplicate"
+
+
+@pytest.mark.regression
+def test_admin_api_live_adapter_decision_routes_fail_closed(monkeypatch):
+    client = _client(monkeypatch)
+    body = _live_adapter_decision_payload(decision_id="live-adapter-denied")
+
+    denied = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-denied-idem",
+            operator_intent="unauthorized_live_adapter_decision",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=body,
+    )
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "permission_denied"
+
+    constructed = _live_adapter_decision_payload(
+        decision_id="live-adapter-constructed",
+        adapter_constructed=True,
+    )
+    rejected_constructed = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-constructed-idem",
+            operator_intent="record_constructed_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=constructed,
+    )
+    assert rejected_constructed.status_code == 400
+    assert "cannot record constructed" in rejected_constructed.json()["message"]
+
+    enabled = _live_adapter_decision_payload(
+        decision_id="live-adapter-enabled",
+        adapter_enabled=True,
+    )
+    rejected_enabled = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-enabled-idem",
+            operator_intent="record_enabled_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=enabled,
+    )
+    assert rejected_enabled.status_code == 400
+    assert "cannot record enabled" in rejected_enabled.json()["message"]
+
+    passed = _live_adapter_decision_payload(
+        decision_id="live-adapter-passed",
+        status=AdminApiGateStatus.PASSED,
+    )
+    rejected_passed = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-passed-idem",
+            operator_intent="record_passed_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=passed,
+    )
+    assert rejected_passed.status_code == 400
+    assert "cannot record passed" in rejected_passed.json()["message"]
+
+    approved = _live_adapter_decision_payload(
+        decision_id="live-adapter-coinbase-approved",
+        live_coinbase_execution_approved=True,
+    )
+    rejected_approved = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-coinbase-approved-idem",
+            operator_intent="record_coinbase_approved_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=approved,
+    )
+    assert rejected_approved.status_code == 400
+    assert "cannot approve live Coinbase execution" in (
+        rejected_approved.json()["message"]
+    )
+
+    wrong_target = _live_adapter_decision_payload(
+        decision_id="live-adapter-wrong-target",
+        target_service_method="cancel_order",
+    )
+    wrong_target["adapter_reference"] = "AdminApiCommandService.cancel_order"
+    rejected_target = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-target-idem",
+            operator_intent="record_wrong_target_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=wrong_target,
+    )
+    assert rejected_target.status_code == 400
+    assert "target service_method does not match" in (
+        rejected_target.json()["message"]
+    )
+
+    read_only_target = _live_adapter_decision_payload(
+        decision_id="live-adapter-read-only-target",
+        target_route="/api/v1/admin/health",
+        target_method="GET",
+        target_module_id="admin_system_health",
+        target_service_method="build_admin_health",
+        adapter_reference="AdminApiCommandService.build_admin_health",
+    )
+    rejected_read_only_target = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-read-only-target-idem",
+            operator_intent="record_read_only_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=read_only_target,
+    )
+    assert rejected_read_only_target.status_code == 400
+    assert "target must be a POST command surface" in (
+        rejected_read_only_target.json()["message"]
+    )
+
+    non_command_target = _live_adapter_decision_payload(
+        decision_id="live-adapter-non-command-target",
+        target_route="/api/v1/admin/live-execution/service-decisions",
+        target_method="POST",
+        target_module_id="admin_system_health",
+        target_service_method="record_live_service_decision",
+        adapter_reference="AdminApiCommandService.record_live_service_decision",
+    )
+    rejected_non_command_target = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-non-command-target-idem",
+            operator_intent="record_non_command_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=non_command_target,
+    )
+    assert rejected_non_command_target.status_code == 400
+    assert "not on AdminApiCommandService" in (
+        rejected_non_command_target.json()["message"]
+    )
+
+    nonzero = _live_adapter_decision_payload(
+        decision_id="live-adapter-nonzero",
+        max_submitted_notional_usdc="1",
+    )
+    rejected_nonzero = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-nonzero-idem",
+            operator_intent="record_nonzero_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=nonzero,
+    )
+    assert rejected_nonzero.status_code == 400
+    assert "cannot record submitted live Coinbase notional" in (
+        rejected_nonzero.json()["message"]
+    )
+
+    nonzero_executed = _live_adapter_decision_payload(
+        decision_id="live-adapter-nonzero-executed",
+        max_executed_notional_usdc="1",
+    )
+    rejected_nonzero_executed = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="live-adapter-decision-nonzero-executed-idem",
+            operator_intent="record_nonzero_executed_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=nonzero_executed,
+    )
+    assert rejected_nonzero_executed.status_code == 400
+    assert "cannot record executed live Coinbase notional" in (
+        rejected_nonzero_executed.json()["message"]
+    )
+    assert client.admin_api_test_live_adapter_decision_store.read_recent() == []
+
+
 @pytest.mark.regression
 def test_admin_api_reconciliation_plan_routes_record_replay_and_resolve(monkeypatch):
     client = _client(monkeypatch)
@@ -17265,6 +17714,9 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only(tmp_path):
     decision_store = FileAdminApiLiveServiceDecisionStore(
         tmp_path / "live_service_decisions.jsonl"
     )
+    adapter_decision_store = FileAdminApiLiveAdapterDecisionStore(
+        tmp_path / "live_adapter_decisions.jsonl"
+    )
     decision_store.append(
         LiveServiceDecisionRecord(
             decision_id="live-service-decision-readback-001",
@@ -17280,12 +17732,33 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only(tmp_path):
             max_executed_notional_usdc="0",
         )
     )
+    adapter_decision_store.append(
+        LiveAdapterDecisionRecord(
+            decision_id="live-adapter-decision-readback-001",
+            recorded_at="2026-06-17T00:00:00+00:00",
+            status=AdminApiGateStatus.BLOCKED,
+            requested_adapter_status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+            target_route="/api/v1/orders",
+            target_method="POST",
+            target_module_id="spot_operations",
+            target_service_method="place_manual_order",
+            adapter_reference="AdminApiCommandService.place_manual_order",
+            adapter_constructed=False,
+            adapter_enabled=False,
+            construction_review_ref="adapter-readback-review",
+            decision_reason="Document disabled live-adapter posture only.",
+            live_coinbase_execution_approved=False,
+            max_submitted_notional_usdc="0",
+            max_executed_notional_usdc="0",
+        )
+    )
     adapter = build_disabled_live_execution_adapter_contract(
         method="POST",
         route="/api/v1/orders",
         module_id="spot_operations",
         service_method="place_manual_order",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        live_adapter_decision_store=adapter_decision_store,
     )
     service_contract = build_live_execution_service_contract(
         method="POST",
@@ -17363,6 +17836,44 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only(tmp_path):
     assert adapter["unsatisfied_construction_artifacts"] == list(
         LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
     )
+    assert adapter["latest_adapter_decision_available"] is True
+    assert adapter["latest_adapter_decision_id"] == (
+        "live-adapter-decision-readback-001"
+    )
+    assert adapter["latest_adapter_decision_recorded_at"] == (
+        "2026-06-17T00:00:00+00:00"
+    )
+    assert adapter["latest_adapter_decision_status"].value == "blocked"
+    assert adapter["latest_adapter_decision_requested_status"].value == (
+        "live_disabled"
+    )
+    assert adapter["latest_adapter_decision_source"] == (
+        "admin_api_live_adapter_decision_log"
+    )
+    assert adapter["latest_adapter_decision_adapter_constructed"] is False
+    assert adapter["latest_adapter_decision_adapter_enabled"] is False
+    assert (
+        adapter["latest_adapter_decision_live_coinbase_execution_approved"]
+        is False
+    )
+    assert adapter["latest_adapter_decision_recorded_artifacts"] == [
+        "explicit_backend_live_adapter_construction_decision"
+    ]
+    assert (
+        adapter[
+            "latest_adapter_decision_recorded_artifacts_satisfy_construction"
+        ]
+        is False
+    )
+    assert adapter["latest_adapter_decision_satisfaction_authority"] == (
+        "readback_only_no_adapter_construction_satisfaction"
+    )
+    assert adapter["latest_adapter_decision_satisfied_construction_artifacts"] == []
+    assert adapter["latest_adapter_decision_unsatisfied_construction_artifacts"] == (
+        list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS)
+    )
+    assert adapter["latest_adapter_decision_resolver_eligible"] is False
+    assert adapter["latest_adapter_decision_resolves_construction"] is False
     assert adapter["browser_authority"] == "display_only"
     assert adapter["bff_authority"] == "forward_only_no_execution"
     assert adapter["forbidden_methods"] == [
@@ -17509,6 +18020,9 @@ def test_admin_api_m53_pilot_adapter_is_single_route_dry_run_only():
     assert pilot["unsatisfied_construction_artifacts"] == list(
         LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
     )
+    assert pilot["latest_adapter_decision_available"] is False
+    assert pilot["latest_adapter_decision_recorded_artifacts"] == []
+    assert pilot["latest_adapter_decision_resolves_construction"] is False
     assert pilot["browser_authority"] == "display_only"
     assert pilot["bff_authority"] == "forward_only_no_execution"
     assert pilot["forbidden_methods"] == [
@@ -17618,7 +18132,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3561-3580"
+    assert payload["approved_phase_range"] == "3581-3600"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -19446,7 +19960,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3561-3580"
+    assert live_payload["approved_phase_range"] == "3581-3600"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -20009,7 +20523,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3561-3580"
+    assert enterprise_payload["approved_phase_range"] == "3581-3600"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -20053,6 +20567,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.cap_guard_decisions",
         "admin.reconciliation_plans",
         "admin.live_service_decisions",
+        "admin.live_adapter_decisions",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.campaign_execution",
@@ -20090,6 +20605,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.cap_guard_decisions",
         "admin.reconciliation_plans",
         "admin.live_service_decisions",
+        "admin.live_adapter_decisions",
         "spot.read_models",
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
@@ -20343,6 +20859,24 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "must not enable service" in (
         live_service_decision_inventory["frontend_boundary"]
     )
+    live_adapter_decision_inventory = inventory_by_id[
+        "admin.live_adapter_decisions"
+    ]
+    assert live_adapter_decision_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert live_adapter_decision_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert live_adapter_decision_inventory["command_capable"] is True
+    assert live_adapter_decision_inventory["live_designated"] is False
+    assert "POST /api/v1/admin/live-execution/adapter-decisions" in (
+        live_adapter_decision_inventory["command_routes"]
+    )
+    assert "decision_id" in live_adapter_decision_inventory["identity_keys"]
+    assert "must not construct adapters" in (
+        live_adapter_decision_inventory["frontend_boundary"]
+    )
     futures_command_inventory = inventory_by_id["futures.commands_not_modeled"]
     assert futures_command_inventory["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -20493,6 +21027,39 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "must not enable service" in live_service_decision_taxonomy[
         "bff_boundary"
     ]
+    live_adapter_decision_taxonomy = taxonomy_by_id[
+        "admin.live_adapter_decisions"
+    ]
+    assert live_adapter_decision_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_LIVE_ADAPTER_DECISION.value
+    )
+    assert live_adapter_decision_taxonomy["workflow_id"] == (
+        "admin.live_adapter_decisions"
+    )
+    assert live_adapter_decision_taxonomy["command_surfaces"] == [
+        "POST /api/v1/admin/live-execution/adapter-decisions",
+    ]
+    assert live_adapter_decision_taxonomy["action_classes"] == [
+        "local_state_mutation"
+    ]
+    assert live_adapter_decision_taxonomy["required_permissions"] == [
+        AdminApiPermission.CONFIG_UPDATE.value
+    ]
+    assert live_adapter_decision_taxonomy["identity_keys"] == [
+        "decision_id",
+        "target_route",
+        "target_method",
+        "target_service_method",
+        "construction_review_ref",
+    ]
+    assert live_adapter_decision_taxonomy["live_adapter_required"] is False
+    assert live_adapter_decision_taxonomy["route_local_execution_allowed"] is False
+    assert "must not construct adapters" in (
+        live_adapter_decision_taxonomy["frontend_boundary"]
+    )
+    assert "must not construct adapters" in live_adapter_decision_taxonomy[
+        "bff_boundary"
+    ]
     futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
     assert futures_taxonomy["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -20627,8 +21194,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 22
-    assert admin_module["action_posture"]["command_route_count"] == 7
+    assert admin_module["action_posture"]["read_route_count"] == 24
+    assert admin_module["action_posture"]["command_route_count"] == 8
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]
@@ -20731,7 +21298,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3561-3580"
+    assert recovery_preview_payload["approved_phase_range"] == "3581-3600"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -25055,6 +25622,21 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "POST /api/v1/admin/live-execution/service-decisions"
     ].permission == AdminApiPermission.CONFIG_UPDATE
+    assert rows[
+        "GET /api/v1/admin/live-execution/adapter-decisions"
+    ].shared_method == "list_live_adapter_decisions"
+    assert rows[
+        "GET /api/v1/admin/live-execution/adapter-decisions"
+    ].permission == AdminApiPermission.ANALYTICS_READ
+    assert rows[
+        "GET /api/v1/admin/live-execution/adapter-decisions/{decision_id}"
+    ].shared_method == "get_live_adapter_decision"
+    assert rows[
+        "POST /api/v1/admin/live-execution/adapter-decisions"
+    ].shared_method == "record_live_adapter_decision"
+    assert rows[
+        "POST /api/v1/admin/live-execution/adapter-decisions"
+    ].permission == AdminApiPermission.CONFIG_UPDATE
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -25078,6 +25660,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "record_cap_guard_decision" in doc
     assert "list_live_service_decisions" in doc
     assert "record_live_service_decision" in doc
+    assert "list_live_adapter_decisions" in doc
+    assert "record_live_adapter_decision" in doc
     assert "structured command-gap" in doc
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc

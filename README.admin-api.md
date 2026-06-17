@@ -90,6 +90,23 @@ separates recorded decision artifacts from satisfied enablement artifacts:
 `latest_service_decision_satisfied_enablement_artifacts=[]`, and
 `latest_service_decision_unsatisfied_enablement_artifacts` still names the
 required enablement artifacts when a disabled decision is present.
+M55 also adds backend-owned live-adapter decision evidence routes at
+`/api/v1/admin/live-execution/adapter-decisions`. The `POST` route records an
+append-only disabled adapter-construction decision only: it rejects
+constructed adapters, enabled adapters, live Coinbase approval, `passed`
+status, nonzero submitted or executed notional, and route bindings that do
+not match the route inventory. The reviewed target must be a `POST`
+non-read-only command surface whose `shared_method` exists on
+`AdminApiCommandService`; read-only routes and unrelated local-state services
+are rejected. List/detail routes are read-only evidence. These routes do not
+construct adapters, enable live service, call Coinbase, invoke managers,
+execute reconciliation, mutate state, clear execution blockers, or create
+browser/BFF execution authority. When projected into the disabled
+`live_execution_adapter_contract`, the latest adapter decision is
+readback-only evidence: it keeps
+`latest_adapter_decision_recorded_artifacts_satisfy_construction=false`,
+`latest_adapter_decision_satisfied_construction_artifacts=[]`, and required
+construction artifacts unsatisfied.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

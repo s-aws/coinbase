@@ -263,6 +263,7 @@ class AdminApiMutationFamilyType(str, Enum):
     ADMIN_CAP_GUARD_DECISION = "admin_cap_guard_decision"
     ADMIN_RECONCILIATION_PLAN = "admin_reconciliation_plan"
     ADMIN_LIVE_SERVICE_DECISION = "admin_live_service_decision"
+    ADMIN_LIVE_ADAPTER_DECISION = "admin_live_adapter_decision"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"

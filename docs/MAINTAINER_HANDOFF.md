@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3541-3560` under M55.
-- Active autonomous range: `3561-3580` under M55.
+- Latest completed autonomous range: `3561-3580` under M55.
+- Active autonomous range: `3581-3600` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -136,10 +136,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   disabled. Completed 3541-3560 work makes that boundary harder to misread by
   exposing explicit satisfaction fields: recorded decision artifacts do not
   satisfy enablement artifacts, satisfied enablement artifacts are empty, and
-  required enablement artifacts remain unsatisfied. Active 3561-3580 work
+  required enablement artifacts remain unsatisfied. Completed 3561-3580 work
   applies the same clarity to disabled live-adapter construction: route
   mapping and pilot configuration do not satisfy adapter construction
-  artifacts, and construction prerequisites remain unresolved.
+  artifacts, and construction prerequisites remain unresolved. Active
+  3581-3600 work adds append-only disabled live-adapter decision evidence
+  without constructing adapters, satisfying construction artifacts, enabling
+  service, calling Coinbase, or granting browser/BFF execution authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -499,7 +502,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   live-service decision evidence only. Completed phases 3521-3540 add latest
   disabled-decision readback to the existing service contract. Completed phases
   3541-3560 separate recorded artifacts from satisfied enablement artifacts.
-  Active phases 3561-3580 separate route mapping and pilot configuration from
+  Completed phases 3561-3580 separate route mapping and pilot configuration from
   satisfied adapter construction artifacts while keeping backend decisions
   blocked and live execution, Coinbase, manager, reconciliation, state
   mutation, browser, and BFF authority disabled.

@@ -1872,6 +1872,113 @@ class AdminLiveServiceDecisionResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminLiveAdapterDecisionCreateRequest(BaseModel):
+    """Append one backend-owned live-adapter construction decision record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str = Field(min_length=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    requested_adapter_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    target_route: str = Field(min_length=1)
+    target_method: str = Field(min_length=1)
+    target_module_id: str = Field(min_length=1)
+    target_service_method: str = Field(min_length=1)
+    adapter_reference: str = Field(min_length=1)
+    adapter_constructed: bool = False
+    adapter_enabled: bool = False
+    construction_review_ref: str = Field(min_length=1)
+    decision_reason: str = Field(min_length=1)
+    live_coinbase_execution_approved: bool = False
+    max_submitted_notional_usdc: DecimalString = "0"
+    max_executed_notional_usdc: DecimalString = "0"
+
+
+class AdminLiveAdapterDecisionItem(BaseModel):
+    """Operator-visible backend live-adapter construction decision evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str
+    recorded_at: str
+    route: str
+    method: str
+    module_id: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    status: AdminApiGateStatus
+    requested_adapter_status: AdminApiLiveExecutionStatus
+    live_execution_adapter_status: AdminApiLiveExecutionStatus
+    target_route: str
+    target_method: str
+    target_module_id: str
+    target_service_method: str
+    adapter_reference: str
+    adapter_constructed: bool = False
+    adapter_enabled: bool = False
+    source: str = "admin_api_live_adapter_decision_log"
+    construction_review_ref: str
+    decision_reason: str
+    live_coinbase_execution_approved: bool = False
+    max_submitted_notional_usdc: DecimalString = "0"
+    max_executed_notional_usdc: DecimalString = "0"
+    construction_precondition_required: bool = True
+    construction_precondition_resolved: bool = False
+    construction_precondition_authority: str
+    required_construction_artifacts: list[str] = Field(default_factory=list)
+    recorded_construction_artifacts: list[str] = Field(default_factory=list)
+    missing_construction_artifacts: list[str] = Field(default_factory=list)
+    route_mapping_satisfies_construction: bool = False
+    adapter_configuration_satisfies_construction: bool = False
+    resolver_eligible: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    detail: str
+
+
+class AdminLiveAdapterDecisionListResponse(BaseModel):
+    """List backend-owned live-adapter construction decision records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_live_adapter_decision_list"
+    decisions: list[AdminLiveAdapterDecisionItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    warning_count: int = Field(ge=0)
+    resolver_eligible_count: int = Field(ge=0)
+    constructed_count: int = Field(ge=0)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminLiveAdapterDecisionResponse(BaseModel):
+    """Response for live-adapter decision mutations and detail reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_live_adapter_decision"
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    decision: AdminLiveAdapterDecisionItem | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class SpotPnlCheckpointCreateRequest(BaseModel):
     """Append one backend-owned Spot P/L review checkpoint."""
 
@@ -4122,6 +4229,32 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     )
     satisfied_construction_artifacts: list[str] = Field(default_factory=list)
     unsatisfied_construction_artifacts: list[str] = Field(default_factory=list)
+    latest_adapter_decision_available: bool = False
+    latest_adapter_decision_id: str | None = None
+    latest_adapter_decision_recorded_at: str | None = None
+    latest_adapter_decision_status: AdminApiGateStatus | None = None
+    latest_adapter_decision_requested_status: (
+        AdminApiLiveExecutionStatus | None
+    ) = None
+    latest_adapter_decision_source: str | None = None
+    latest_adapter_decision_adapter_constructed: bool = False
+    latest_adapter_decision_adapter_enabled: bool = False
+    latest_adapter_decision_live_coinbase_execution_approved: bool = False
+    latest_adapter_decision_recorded_artifacts: list[str] = Field(
+        default_factory=list
+    )
+    latest_adapter_decision_recorded_artifacts_satisfy_construction: bool = False
+    latest_adapter_decision_satisfaction_authority: str = (
+        "readback_only_no_adapter_construction_satisfaction"
+    )
+    latest_adapter_decision_satisfied_construction_artifacts: list[str] = Field(
+        default_factory=list
+    )
+    latest_adapter_decision_unsatisfied_construction_artifacts: list[str] = Field(
+        default_factory=list
+    )
+    latest_adapter_decision_resolver_eligible: bool = False
+    latest_adapter_decision_resolves_construction: bool = False
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     forbidden_methods: list[str] = Field(default_factory=list)

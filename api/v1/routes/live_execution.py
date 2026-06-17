@@ -14,7 +14,14 @@ from application.admin_api.idempotency import (
     IdempotencyRecord,
     make_payload_hash,
 )
-from application.admin_api.live_execution import FileAdminApiLiveServiceDecisionStore
+from application.admin_api.live_adapter_decision_service import (
+    AdminApiLiveAdapterDecisionService,
+    LiveAdapterDecisionError,
+)
+from application.admin_api.live_execution import (
+    FileAdminApiLiveAdapterDecisionStore,
+    FileAdminApiLiveServiceDecisionStore,
+)
 from application.admin_api.live_service_decision_service import (
     AdminApiLiveServiceDecisionService,
     LiveServiceDecisionError,
@@ -22,6 +29,10 @@ from application.admin_api.live_service_decision_service import (
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
+    AdminLiveAdapterDecisionCreateRequest,
+    AdminLiveAdapterDecisionItem,
+    AdminLiveAdapterDecisionListResponse,
+    AdminLiveAdapterDecisionResponse,
     AdminLiveServiceDecisionCreateRequest,
     AdminLiveServiceDecisionItem,
     AdminLiveServiceDecisionListResponse,
@@ -52,6 +63,14 @@ READ_ROUTE_RESPONSES = {
     },
 }
 
+ADAPTER_READ_ROUTE_RESPONSES = {
+    **READ_ROUTE_RESPONSES,
+    404: {
+        "model": AdminApiErrorResponse,
+        "description": "Live-adapter decision was not found.",
+    },
+}
+
 DECISION_ROUTE_RESPONSES = {
     200: {
         "model": AdminLiveServiceDecisionResponse,
@@ -69,11 +88,34 @@ DECISION_ROUTE_RESPONSES = {
     },
 }
 
+ADAPTER_DECISION_ROUTE_RESPONSES = {
+    200: {
+        "model": AdminLiveAdapterDecisionResponse,
+        "description": "Live-adapter decision mutation accepted or replayed.",
+    },
+    400: {
+        "model": AdminLiveAdapterDecisionResponse,
+        "description": "Live-adapter decision mutation rejected.",
+    },
+    401: READ_ROUTE_RESPONSES[401],
+    403: READ_ROUTE_RESPONSES[403],
+    409: {
+        "model": AdminLiveAdapterDecisionResponse,
+        "description": "Idempotency key conflict.",
+    },
+}
+
 
 def get_live_service_decision_store() -> FileAdminApiLiveServiceDecisionStore:
     """Return durable live-service decision storage."""
 
     return FileAdminApiLiveServiceDecisionStore()
+
+
+def get_live_adapter_decision_store() -> FileAdminApiLiveAdapterDecisionStore:
+    """Return durable live-adapter decision storage."""
+
+    return FileAdminApiLiveAdapterDecisionStore()
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
@@ -94,7 +136,15 @@ def get_live_service_decision_service() -> AdminApiLiveServiceDecisionService:
     return AdminApiLiveServiceDecisionService()
 
 
-def _http_status_for(response: AdminLiveServiceDecisionResponse) -> int:
+def get_live_adapter_decision_service() -> AdminApiLiveAdapterDecisionService:
+    """Return the backend-owned live-adapter decision service."""
+
+    return AdminApiLiveAdapterDecisionService()
+
+
+def _http_status_for(
+    response: AdminLiveServiceDecisionResponse | AdminLiveAdapterDecisionResponse,
+) -> int:
     if response.status == AdminApiCommandStatus.CONFLICT:
         return status.HTTP_409_CONFLICT
     if response.status == AdminApiCommandStatus.REJECTED:
@@ -104,6 +154,21 @@ def _http_status_for(response: AdminLiveServiceDecisionResponse) -> int:
 
 def _decision_response(
     response: AdminLiveServiceDecisionResponse,
+    *,
+    replayed: bool = False,
+) -> JSONResponse:
+    headers = {"X-Correlation-Id": response.correlation_id or ""}
+    if replayed:
+        headers["X-Idempotency-Replayed"] = "true"
+    return JSONResponse(
+        status_code=_http_status_for(response),
+        content=response.model_dump(mode="json"),
+        headers=headers,
+    )
+
+
+def _adapter_decision_response(
+    response: AdminLiveAdapterDecisionResponse,
     *,
     replayed: bool = False,
 ) -> JSONResponse:
@@ -160,6 +225,40 @@ def _record_live_service_decision_audit(
                 if response.status == AdminApiCommandStatus.CONFLICT
                 else (
                     "live_service_decision"
+                    if response.status == AdminApiCommandStatus.REJECTED
+                    else None
+                )
+            ),
+            message=response.message,
+        )
+    )
+
+
+def _record_live_adapter_decision_audit(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    response: AdminLiveAdapterDecisionResponse,
+) -> str:
+    return audit_store.append(
+        AdminApiAuditEvent(
+            actor_id=actor.actor_id,
+            action_class=response.action_class,
+            permission=response.required_permission,
+            endpoint=endpoint,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            idempotency_key=response.idempotency_key,
+            approval_id=None,
+            status=response.status,
+            failure_stage=(
+                "idempotency"
+                if response.status == AdminApiCommandStatus.CONFLICT
+                else (
+                    "live_adapter_decision"
                     if response.status == AdminApiCommandStatus.REJECTED
                     else None
                 )
@@ -253,6 +352,92 @@ def _execute_idempotent_live_service_decision(
             )
         )
     return _decision_response(response)
+
+
+def _execute_idempotent_live_adapter_decision(
+    *,
+    idempotency_key: str,
+    payload_hash: str,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    required_permission: AdminApiPermission,
+    service_method: str,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    operation: Callable[[], AdminLiveAdapterDecisionItem],
+) -> JSONResponse:
+    require_permission(actor, required_permission)
+    check = idempotency_store.evaluate(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        payload = dict(check.record.response)
+        return _adapter_decision_response(
+            AdminLiveAdapterDecisionResponse.model_validate(payload),
+            replayed=True,
+        )
+    if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+        response = AdminLiveAdapterDecisionResponse(
+            status=AdminApiCommandStatus.CONFLICT,
+            required_permission=required_permission,
+            service_method=service_method,
+            message="Idempotency-Key was already used with a different payload.",
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+        )
+        response.audit_id = _record_live_adapter_decision_audit(
+            audit_store=audit_store,
+            actor=actor,
+            endpoint=endpoint,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            response=response,
+        )
+        return _adapter_decision_response(response)
+
+    try:
+        decision = operation()
+        response = AdminLiveAdapterDecisionResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            required_permission=required_permission,
+            service_method=service_method,
+            message=f"Live-adapter decision {service_method} accepted.",
+            decision=decision,
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+        )
+    except LiveAdapterDecisionError as exc:
+        response = AdminLiveAdapterDecisionResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            required_permission=required_permission,
+            service_method=service_method,
+            message=str(exc),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+        )
+    response.audit_id = _record_live_adapter_decision_audit(
+        audit_store=audit_store,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=request_id,
+        operator_intent=operator_intent,
+        response=response,
+    )
+    if response.status == AdminApiCommandStatus.ACCEPTED:
+        idempotency_store.put_record(
+            IdempotencyRecord(
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                status=response.status,
+                response=response.model_dump(mode="json"),
+                actor_id=actor.actor_id,
+                endpoint=endpoint,
+            )
+        )
+    return _adapter_decision_response(response)
 
 
 @router.get(
@@ -382,3 +567,133 @@ def record_admin_live_service_decision(
         ),
     )
 
+
+@router.get(
+    "/admin/live-execution/adapter-decisions",
+    response_model=AdminLiveAdapterDecisionListResponse,
+    responses=ADAPTER_READ_ROUTE_RESPONSES,
+    summary="List backend-owned live-adapter decision records",
+)
+def list_admin_live_adapter_decisions(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        AdminApiLiveAdapterDecisionService,
+        Depends(get_live_adapter_decision_service),
+    ],
+    decision_store: Annotated[
+        FileAdminApiLiveAdapterDecisionStore,
+        Depends(get_live_adapter_decision_store),
+    ],
+    decision_status: AdminApiGateStatus | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    decisions = service.list_decisions(
+        store=decision_store,
+        status_filter=decision_status,
+        limit=limit,
+    )
+    all_decisions = service.list_decisions(store=decision_store, limit=500)
+    counts = {status_value: 0 for status_value in AdminApiGateStatus}
+    for item in all_decisions:
+        counts[item.status] += 1
+    payload = AdminLiveAdapterDecisionListResponse(
+        decisions=decisions,
+        returned_count=len(decisions),
+        total_count=len(all_decisions),
+        passed_count=counts[AdminApiGateStatus.PASSED],
+        blocked_count=counts[AdminApiGateStatus.BLOCKED],
+        warning_count=counts[AdminApiGateStatus.WARNING],
+        resolver_eligible_count=sum(
+            1 for decision in all_decisions if decision.resolver_eligible
+        ),
+        constructed_count=sum(
+            1 for decision in all_decisions if decision.adapter_constructed
+        ),
+    )
+    return JSONResponse(content=payload.model_dump(mode="json"))
+
+
+@router.get(
+    "/admin/live-execution/adapter-decisions/{decision_id}",
+    response_model=AdminLiveAdapterDecisionResponse,
+    responses=ADAPTER_READ_ROUTE_RESPONSES,
+    summary="Read one backend-owned live-adapter decision record",
+)
+def get_admin_live_adapter_decision(
+    decision_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        AdminApiLiveAdapterDecisionService,
+        Depends(get_live_adapter_decision_service),
+    ],
+    decision_store: Annotated[
+        FileAdminApiLiveAdapterDecisionStore,
+        Depends(get_live_adapter_decision_store),
+    ],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    try:
+        decision = service.get_decision(
+            store=decision_store,
+            decision_id=decision_id,
+        )
+    except LiveAdapterDecisionError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    payload = AdminLiveAdapterDecisionResponse(
+        status=AdminApiCommandStatus.ACCEPTED,
+        required_permission=AdminApiPermission.ANALYTICS_READ,
+        service_method="get_live_adapter_decision",
+        message="Live-adapter decision detail loaded.",
+        decision=decision,
+    )
+    return JSONResponse(content=payload.model_dump(mode="json"))
+
+
+@router.post(
+    "/admin/live-execution/adapter-decisions",
+    response_model=AdminLiveAdapterDecisionResponse,
+    responses=ADAPTER_DECISION_ROUTE_RESPONSES,
+    summary="Record a backend-owned live-adapter decision",
+)
+def record_admin_live_adapter_decision(
+    request: Request,
+    body: AdminLiveAdapterDecisionCreateRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        AdminApiLiveAdapterDecisionService,
+        Depends(get_live_adapter_decision_service),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    decision_store: Annotated[
+        FileAdminApiLiveAdapterDecisionStore,
+        Depends(get_live_adapter_decision_store),
+    ],
+) -> JSONResponse:
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _live_service_decision_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+    return _execute_idempotent_live_adapter_decision(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        required_permission=AdminApiPermission.CONFIG_UPDATE,
+        service_method="record_live_adapter_decision",
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=lambda: service.record_decision(
+            store=decision_store,
+            body=body,
+        ),
+    )

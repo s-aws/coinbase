@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "3561-3580",
+  "approved_phase_range": "3581-3600",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,24 +860,24 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "3561-3580",
+  "approved_phase_range": "3581-3600",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
-  "functionality_inventory_count": 24,
-  "backend_supported_workflow_count": 23,
-  "admin_exposed_workflow_count": 21,
-  "command_workflow_count": 16,
+  "functionality_inventory_count": 25,
+  "backend_supported_workflow_count": 24,
+  "admin_exposed_workflow_count": 22,
+  "command_workflow_count": 17,
   "live_designated_workflow_count": 7,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 43,
-  "route_bound_mutation_taxonomy_count": 41,
-  "live_disabled_mutation_count": 32,
+  "mutation_taxonomy_count": 44,
+  "route_bound_mutation_taxonomy_count": 42,
+  "live_disabled_mutation_count": 33,
   "backend_contract_required_mutation_count": 2,
   "compatibility_mutation_count": 3,
   "functionality_inventory": [
@@ -2832,6 +2832,70 @@ The writer rejects enabled service decisions, live Coinbase approval,
 `passed` status, any requested service status other than `live_disabled`, and
 nonzero submitted or executed notional. Recorded rows remain
 `resolver_eligible=false`.
+
+## Live-Adapter Decision Evidence
+
+Live-adapter decision routes persist backend-owned disabled adapter
+construction evidence only. They do not construct adapters, enable live
+service, call Coinbase, invoke managers, execute reconciliation, mutate state,
+clear M55 blockers, or let the browser/BFF create execution authority.
+
+List recorded decisions:
+
+```http
+GET /api/v1/admin/live-execution/adapter-decisions?decision_status=blocked&limit=10
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Read one decision:
+
+```http
+GET /api/v1/admin/live-execution/adapter-decisions/live-adapter-decision-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Record one disabled backend live-adapter decision:
+
+```http
+POST /api/v1/admin/live-execution/adapter-decisions
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: live-adapter-decision-record-001
+X-Correlation-Id: corr-live-adapter-decision-001
+X-Operator-Intent: record_disabled_live_adapter_decision
+Content-Type: application/json
+
+{
+  "decision_id": "live-adapter-decision-001",
+  "status": "blocked",
+  "requested_adapter_status": "live_disabled",
+  "target_route": "/api/v1/orders",
+  "target_method": "POST",
+  "target_module_id": "spot_operations",
+  "target_service_method": "place_manual_order",
+  "adapter_reference": "AdminApiCommandService.place_manual_order",
+  "adapter_constructed": false,
+  "adapter_enabled": false,
+  "construction_review_ref": "construction-review-001",
+  "decision_reason": "Record explicit disabled adapter decision evidence.",
+  "live_coinbase_execution_approved": false,
+  "max_submitted_notional_usdc": "0",
+  "max_executed_notional_usdc": "0"
+}
+```
+
+The writer rejects constructed or enabled adapter decisions, live Coinbase
+approval, `passed` status, requested adapter status other than
+`live_disabled`, nonzero submitted or executed notional, and target route
+bindings that do not match route inventory. The target route must also be a
+`POST` non-read-only command surface whose `shared_method` exists on
+`AdminApiCommandService`; read-only routes and unrelated local-state services
+are rejected. Recorded rows remain `resolver_eligible=false`.
 
 ## Structured Errors
 

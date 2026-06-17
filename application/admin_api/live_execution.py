@@ -6,12 +6,13 @@ place, cancel, move, reconcile, or submit Coinbase orders.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import os
 from pathlib import Path
 from threading import RLock
-from typing import Any, Protocol, Sequence
+from typing import Any, Iterator, Protocol, Sequence
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -70,6 +71,12 @@ LIVE_SERVICE_DECISION_METHOD = "POST"
 LIVE_SERVICE_DECISION_MODULE_ID = "admin_system_health"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
 LIVE_SERVICE_DECISION_REQUIRED_PERMISSION = AdminApiPermission.CONFIG_UPDATE
+LIVE_ADAPTER_DECISION_SOURCE = "admin_api_live_adapter_decision_log"
+LIVE_ADAPTER_DECISION_ROUTE = "/api/v1/admin/live-execution/adapter-decisions"
+LIVE_ADAPTER_DECISION_METHOD = "POST"
+LIVE_ADAPTER_DECISION_MODULE_ID = "admin_system_health"
+LIVE_ADAPTER_DECISION_SERVICE_METHOD = "record_live_adapter_decision"
+LIVE_ADAPTER_DECISION_REQUIRED_PERMISSION = AdminApiPermission.CONFIG_UPDATE
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY = "backend_route_binding_only_no_execution"
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_SATISFACTION_AUTHORITY = (
     "backend_live_adapter_construction_only"
@@ -103,6 +110,33 @@ M53_PILOT_LIVE_ADAPTER_SOURCE = "m53_backend_pilot_dry_run"
 M53_PILOT_LIVE_ADAPTER_MISSING_REASON = "pilot_dry_run_only"
 
 
+@contextmanager
+def _append_only_store_lock(path: Path) -> Iterator[None]:
+    """Serialize append-only uniqueness checks across store instances."""
+
+    lock_path = Path(f"{path}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 @dataclass(frozen=True, slots=True)
 class AdminApiLiveExecutionServiceState:
     """Backend-owned live execution service posture."""
@@ -131,6 +165,34 @@ class LiveServiceDecisionRecord(BaseModel):
     source: str = LIVE_SERVICE_DECISION_SOURCE
     deployment_ref: str = Field(min_length=1)
     runtime_configuration_ref: str = Field(min_length=1)
+    decision_reason: str = Field(min_length=1)
+    live_coinbase_execution_approved: bool = False
+    max_submitted_notional_usdc: str = "0"
+    max_executed_notional_usdc: str = "0"
+
+
+class LiveAdapterDecisionRecord(BaseModel):
+    """Append-only backend live-adapter construction decision evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
+    recorded_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    requested_adapter_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    target_route: str = Field(min_length=1)
+    target_method: str = Field(min_length=1)
+    target_module_id: str = Field(min_length=1)
+    target_service_method: str = Field(min_length=1)
+    adapter_reference: str = Field(min_length=1)
+    adapter_constructed: bool = False
+    adapter_enabled: bool = False
+    source: str = LIVE_ADAPTER_DECISION_SOURCE
+    construction_review_ref: str = Field(min_length=1)
     decision_reason: str = Field(min_length=1)
     live_coinbase_execution_approved: bool = False
     max_submitted_notional_usdc: str = "0"
@@ -186,6 +248,89 @@ class FileAdminApiLiveServiceDecisionStore:
         return None
 
 
+class FileAdminApiLiveAdapterDecisionStore:
+    """Append-only JSONL live-adapter decision evidence store."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get("COINBASE_ADMIN_API_LIVE_ADAPTER_DECISION_LOG_PATH")
+            or Path("runtime_state") / "admin_api_live_adapter_decisions.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(self, record: LiveAdapterDecisionRecord) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.decision_id
+
+    def append_if_decision_id_absent(
+        self,
+        record: LiveAdapterDecisionRecord,
+    ) -> bool:
+        """Append only when the decision id is absent from the full log."""
+
+        with self._lock, _append_only_store_lock(self.path):
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            if self.path.exists():
+                for line in self.path.read_text(encoding="utf-8").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        existing = LiveAdapterDecisionRecord.model_validate_json(
+                            line
+                        )
+                    except ValueError:
+                        continue
+                    if existing.decision_id == record.decision_id:
+                        return False
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return True
+
+    def read_recent(self, *, limit: int = 100) -> list[LiveAdapterDecisionRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[LiveAdapterDecisionRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(LiveAdapterDecisionRecord.model_validate_json(line))
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def find_by_decision_id(
+        self,
+        decision_id: str,
+    ) -> LiveAdapterDecisionRecord | None:
+        """Return the latest record with the given decision id, if present."""
+
+        with self._lock:
+            if not self.path.exists():
+                return None
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                record = LiveAdapterDecisionRecord.model_validate_json(line)
+            except ValueError:
+                continue
+            if record.decision_id == decision_id:
+                return record
+        return None
+
+
 class AdminApiLiveExecutionService(Protocol):
     """Protocol for service-state providers used by admission evidence."""
 
@@ -229,6 +374,32 @@ def read_latest_live_service_decision(
     except OSError:
         return None
     return records[0] if records else None
+
+
+def read_latest_live_adapter_decision(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    store: FileAdminApiLiveAdapterDecisionStore | None = None,
+) -> LiveAdapterDecisionRecord | None:
+    """Return newest local adapter decision evidence for one route binding."""
+
+    decision_store = store or FileAdminApiLiveAdapterDecisionStore()
+    try:
+        records = decision_store.read_recent(limit=500)
+    except OSError:
+        return None
+    for record in records:
+        if (
+            record.target_method == method
+            and record.target_route == route
+            and record.target_module_id == module_id
+            and record.target_service_method == service_method
+        ):
+            return record
+    return None
 
 
 def build_live_execution_service_blocker_trace() -> dict[str, Any]:
@@ -286,6 +457,74 @@ def build_live_execution_adapter_construction_satisfaction() -> dict[str, Any]:
         "unsatisfied_construction_artifacts": list(
             LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
         ),
+    }
+
+
+def build_live_execution_adapter_decision_readback(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
+) -> dict[str, Any]:
+    """Return fail-closed latest adapter decision readback evidence."""
+
+    latest_decision = read_latest_live_adapter_decision(
+        method=method,
+        route=route,
+        module_id=module_id,
+        service_method=service_method,
+        store=live_adapter_decision_store,
+    )
+    latest_decision_available = latest_decision is not None
+    return {
+        "latest_adapter_decision_available": latest_decision_available,
+        "latest_adapter_decision_id": (
+            latest_decision.decision_id if latest_decision is not None else None
+        ),
+        "latest_adapter_decision_recorded_at": (
+            latest_decision.recorded_at if latest_decision is not None else None
+        ),
+        "latest_adapter_decision_status": (
+            latest_decision.status if latest_decision is not None else None
+        ),
+        "latest_adapter_decision_requested_status": (
+            latest_decision.requested_adapter_status
+            if latest_decision is not None
+            else None
+        ),
+        "latest_adapter_decision_source": (
+            latest_decision.source if latest_decision is not None else None
+        ),
+        "latest_adapter_decision_adapter_constructed": (
+            latest_decision.adapter_constructed if latest_decision is not None else False
+        ),
+        "latest_adapter_decision_adapter_enabled": (
+            latest_decision.adapter_enabled if latest_decision is not None else False
+        ),
+        "latest_adapter_decision_live_coinbase_execution_approved": (
+            latest_decision.live_coinbase_execution_approved
+            if latest_decision is not None
+            else False
+        ),
+        "latest_adapter_decision_recorded_artifacts": (
+            ["explicit_backend_live_adapter_construction_decision"]
+            if latest_decision_available
+            else []
+        ),
+        "latest_adapter_decision_recorded_artifacts_satisfy_construction": False,
+        "latest_adapter_decision_satisfaction_authority": (
+            "readback_only_no_adapter_construction_satisfaction"
+        ),
+        "latest_adapter_decision_satisfied_construction_artifacts": [],
+        "latest_adapter_decision_unsatisfied_construction_artifacts": (
+            list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS)
+            if latest_decision_available
+            else []
+        ),
+        "latest_adapter_decision_resolver_eligible": False,
+        "latest_adapter_decision_resolves_construction": False,
     }
 
 
@@ -420,6 +659,7 @@ def build_disabled_live_execution_adapter_contract(
     module_id: str,
     service_method: str,
     action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
 ) -> dict[str, Any]:
     """Return read-only route-to-service adapter evidence.
 
@@ -465,6 +705,13 @@ def build_disabled_live_execution_adapter_contract(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
         ),
         **build_live_execution_adapter_construction_satisfaction(),
+        **build_live_execution_adapter_decision_readback(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            live_adapter_decision_store=live_adapter_decision_store,
+        ),
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
@@ -489,6 +736,7 @@ def build_m53_pilot_live_execution_adapter_contract(
     module_id: str,
     service_method: str,
     action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
 ) -> dict[str, Any]:
     """Return the M53 route-bound pilot adapter evidence.
 
@@ -535,6 +783,13 @@ def build_m53_pilot_live_execution_adapter_contract(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
         ),
         **build_live_execution_adapter_construction_satisfaction(),
+        **build_live_execution_adapter_decision_readback(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            live_adapter_decision_store=live_adapter_decision_store,
+        ),
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
@@ -561,6 +816,7 @@ def build_live_execution_adapter_contract(
     module_id: str,
     service_method: str,
     action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
 ) -> dict[str, Any]:
     """Return route-specific live adapter evidence for Admin API readiness."""
 
@@ -576,6 +832,7 @@ def build_live_execution_adapter_contract(
             module_id=module_id,
             service_method=service_method,
             action_class=action_class,
+            live_adapter_decision_store=live_adapter_decision_store,
         )
     return build_disabled_live_execution_adapter_contract(
         method=method,
@@ -583,6 +840,7 @@ def build_live_execution_adapter_contract(
         module_id=module_id,
         service_method=service_method,
         action_class=action_class,
+        live_adapter_decision_store=live_adapter_decision_store,
     )
 
 

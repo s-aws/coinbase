@@ -284,7 +284,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "3561-3580"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "3581-3600"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -5919,6 +5919,72 @@ class AdminApiReadService:
                 ),
             ),
             functionality_item(
+                workflow_id="admin.live_adapter_decisions",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned live-adapter decision evidence records that "
+                    "document disabled adapter construction posture without "
+                    "constructing adapters."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                read_routes=[
+                    "GET /api/v1/admin/live-execution/adapter-decisions",
+                    "GET /api/v1/admin/live-execution/adapter-decisions/{decision_id}",
+                ],
+                command_routes=[
+                    "POST /api/v1/admin/live-execution/adapter-decisions",
+                ],
+                identity_keys=[
+                    "decision_id",
+                    "target_route",
+                    "target_method",
+                    "target_service_method",
+                    "construction_review_ref",
+                ],
+                backend_contract_refs=[
+                    "application/admin_api/live_execution.py",
+                    "application/admin_api/live_adapter_decision_service.py",
+                    "api/v1/routes/live_execution.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/shared/api/contracts/mutationContracts.ts",
+                    "src/shared/api/contracts/adminBffProxy.ts",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "A future approved live adapter construction phase must "
+                    "provide constructed adapter, verification, service, and "
+                    "execution authority evidence before live commands can run."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "live_adapter_construction_missing",
+                    "live_service_enablement_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may display and forward disabled live-adapter "
+                    "decision evidence only; it must not construct adapters, "
+                    "approve Coinbase execution, or clear live-readiness blockers."
+                ),
+                spot_rule_boundary=(
+                    "Live-adapter decision evidence is platform evidence. Spot "
+                    "wallet, USDC, cost-basis, and no-shorting rules remain "
+                    "route-specific guard inputs."
+                ),
+            ),
+            functionality_item(
                 workflow_id="spot.read_models",
                 module_id="spot_operations",
                 module="Spot Operations",
@@ -7301,6 +7367,77 @@ class AdminApiReadService:
                 ),
                 route_local_boundary=(
                     "Live-service decision routes append disabled decision "
+                    "evidence only; they must not construct adapters, call "
+                    "Coinbase, invoke managers, run reconciliation, or mutate "
+                    "order state."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/admin/live-execution/adapter-decisions",
+                mutation_id="admin.live_adapter_decisions",
+                mutation_family=AdminApiMutationFamilyType.ADMIN_LIVE_ADAPTER_DECISION,
+                workflow_id="admin.live_adapter_decisions",
+                module="Admin / System Health",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Live-adapter decision records are backend-owned append-only "
+                    "local-state evidence for disabled adapter construction. "
+                    "They do not construct adapters or enable Coinbase execution."
+                ),
+                identity_keys=[
+                    "decision_id",
+                    "target_route",
+                    "target_method",
+                    "target_service_method",
+                    "construction_review_ref",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/live_adapter_decision_service.py"
+                ),
+                frontend_boundary=(
+                    "The frontend may record and display disabled live-adapter "
+                    "decision evidence through generated contracts only; it must "
+                    "not construct adapters, approve Coinbase execution, or clear "
+                    "live-readiness blockers."
+                ),
+                spot_rule_boundary=(
+                    "Live-adapter decision evidence is platform evidence. Spot "
+                    "wallet, USDC, cost-basis, and no-shorting rules stay in "
+                    "route-specific guard inputs."
+                ),
+                backend_contract_refs=[
+                    "application/admin_api/live_execution.py",
+                    "application/admin_api/live_adapter_decision_service.py",
+                    "api/v1/routes/live_execution.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/shared/api/contracts/mutationContracts.ts",
+                    "src/shared/api/contracts/adminBffProxy.ts",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Constructed route-specific adapter, service, verification, "
+                    "and execution authority evidence must be approved before "
+                    "live commands can run."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "live_adapter_construction_missing",
+                    "live_service_enablement_missing",
+                ],
+                bff_boundary=(
+                    "BFF may forward only to backend live-adapter decision routes "
+                    "with required mutation evidence; it must not construct "
+                    "adapters or execute commands."
+                ),
+                route_local_boundary=(
+                    "Live-adapter decision routes append disabled decision "
                     "evidence only; they must not construct adapters, call "
                     "Coinbase, invoke managers, run reconciliation, or mutate "
                     "order state."

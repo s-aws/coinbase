@@ -2446,6 +2446,266 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/live-execution/adapter-decisions:
+    get:
+      tags:
+      - live-execution
+      summary: List backend-owned live-adapter decision records
+      operationId: list_admin_live_adapter_decisions_api_v1_admin_live_execution_adapter_decisions_get
+      parameters:
+      - name: decision_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - type: 'null'
+          title: Decision Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveAdapterDecisionListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Live-adapter decision was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - live-execution
+      summary: Record a backend-owned live-adapter decision
+      operationId: record_admin_live_adapter_decision_api_v1_admin_live_execution_adapter_decisions_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLiveAdapterDecisionCreateRequest'
+      responses:
+        '200':
+          description: Live-adapter decision mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveAdapterDecisionResponse'
+        '400':
+          description: Live-adapter decision mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveAdapterDecisionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveAdapterDecisionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/live-execution/adapter-decisions/{decision_id}:
+    get:
+      tags:
+      - live-execution
+      summary: Read one backend-owned live-adapter decision record
+      operationId: get_admin_live_adapter_decision_api_v1_admin_live_execution_adapter_decisions__decision_id__get
+      parameters:
+      - name: decision_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Decision Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveAdapterDecisionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Live-adapter decision was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/account:
     get:
       tags:
@@ -9866,6 +10126,7 @@ components:
       - admin_cap_guard_decision
       - admin_reconciliation_plan
       - admin_live_service_decision
+      - admin_live_adapter_decision
       - spot_manual_order
       - spot_order_cancel
       - spot_campaign_execution
@@ -12361,6 +12622,374 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminLiveAdapterDecisionCreateRequest:
+      properties:
+        decision_id:
+          type: string
+          minLength: 1
+          title: Decision Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        requested_adapter_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        target_route:
+          type: string
+          minLength: 1
+          title: Target Route
+        target_method:
+          type: string
+          minLength: 1
+          title: Target Method
+        target_module_id:
+          type: string
+          minLength: 1
+          title: Target Module Id
+        target_service_method:
+          type: string
+          minLength: 1
+          title: Target Service Method
+        adapter_reference:
+          type: string
+          minLength: 1
+          title: Adapter Reference
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        adapter_enabled:
+          type: boolean
+          title: Adapter Enabled
+          default: false
+        construction_review_ref:
+          type: string
+          minLength: 1
+          title: Construction Review Ref
+        decision_reason:
+          type: string
+          minLength: 1
+          title: Decision Reason
+        live_coinbase_execution_approved:
+          type: boolean
+          title: Live Coinbase Execution Approved
+          default: false
+        max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        max_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - decision_id
+      - target_route
+      - target_method
+      - target_module_id
+      - target_service_method
+      - adapter_reference
+      - construction_review_ref
+      - decision_reason
+      title: AdminLiveAdapterDecisionCreateRequest
+      description: Append one backend-owned live-adapter construction decision record.
+    AdminLiveAdapterDecisionItem:
+      properties:
+        decision_id:
+          type: string
+          title: Decision Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        requested_adapter_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        live_execution_adapter_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        target_route:
+          type: string
+          title: Target Route
+        target_method:
+          type: string
+          title: Target Method
+        target_module_id:
+          type: string
+          title: Target Module Id
+        target_service_method:
+          type: string
+          title: Target Service Method
+        adapter_reference:
+          type: string
+          title: Adapter Reference
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        adapter_enabled:
+          type: boolean
+          title: Adapter Enabled
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_live_adapter_decision_log
+        construction_review_ref:
+          type: string
+          title: Construction Review Ref
+        decision_reason:
+          type: string
+          title: Decision Reason
+        live_coinbase_execution_approved:
+          type: boolean
+          title: Live Coinbase Execution Approved
+          default: false
+        max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        max_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        construction_precondition_required:
+          type: boolean
+          title: Construction Precondition Required
+          default: true
+        construction_precondition_resolved:
+          type: boolean
+          title: Construction Precondition Resolved
+          default: false
+        construction_precondition_authority:
+          type: string
+          title: Construction Precondition Authority
+        required_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Construction Artifacts
+        recorded_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Recorded Construction Artifacts
+        missing_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Missing Construction Artifacts
+        route_mapping_satisfies_construction:
+          type: boolean
+          title: Route Mapping Satisfies Construction
+          default: false
+        adapter_configuration_satisfies_construction:
+          type: boolean
+          title: Adapter Configuration Satisfies Construction
+          default: false
+        resolver_eligible:
+          type: boolean
+          title: Resolver Eligible
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - decision_id
+      - recorded_at
+      - route
+      - method
+      - module_id
+      - action_class
+      - required_permission
+      - service_method
+      - status
+      - requested_adapter_status
+      - live_execution_adapter_status
+      - target_route
+      - target_method
+      - target_module_id
+      - target_service_method
+      - adapter_reference
+      - construction_review_ref
+      - decision_reason
+      - construction_precondition_authority
+      - detail
+      title: AdminLiveAdapterDecisionItem
+      description: Operator-visible backend live-adapter construction decision evidence.
+    AdminLiveAdapterDecisionListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_live_adapter_decision_list
+        decisions:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterDecisionItem'
+          type: array
+          title: Decisions
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        passed_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Count
+        blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Count
+        warning_count:
+          type: integer
+          minimum: 0.0
+          title: Warning Count
+        resolver_eligible_count:
+          type: integer
+          minimum: 0.0
+          title: Resolver Eligible Count
+        constructed_count:
+          type: integer
+          minimum: 0.0
+          title: Constructed Count
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - passed_count
+      - blocked_count
+      - warning_count
+      - resolver_eligible_count
+      - constructed_count
+      title: AdminLiveAdapterDecisionListResponse
+      description: List backend-owned live-adapter construction decision records.
+    AdminLiveAdapterDecisionResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_live_adapter_decision
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: local_state_mutation
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        decision:
+          anyOf:
+          - $ref: '#/components/schemas/AdminLiveAdapterDecisionItem'
+          - type: 'null'
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: AdminLiveAdapterDecisionResponse
+      description: Response for live-adapter decision mutations and detail reads.
     AdminLiveAdmissionAuditFactItem:
       properties:
         fact:
@@ -13467,6 +14096,76 @@ components:
             type: string
           type: array
           title: Unsatisfied Construction Artifacts
+        latest_adapter_decision_available:
+          type: boolean
+          title: Latest Adapter Decision Available
+          default: false
+        latest_adapter_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Adapter Decision Id
+        latest_adapter_decision_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Adapter Decision Recorded At
+        latest_adapter_decision_status:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - type: 'null'
+        latest_adapter_decision_requested_status:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          - type: 'null'
+        latest_adapter_decision_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Adapter Decision Source
+        latest_adapter_decision_adapter_constructed:
+          type: boolean
+          title: Latest Adapter Decision Adapter Constructed
+          default: false
+        latest_adapter_decision_adapter_enabled:
+          type: boolean
+          title: Latest Adapter Decision Adapter Enabled
+          default: false
+        latest_adapter_decision_live_coinbase_execution_approved:
+          type: boolean
+          title: Latest Adapter Decision Live Coinbase Execution Approved
+          default: false
+        latest_adapter_decision_recorded_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Adapter Decision Recorded Artifacts
+        latest_adapter_decision_recorded_artifacts_satisfy_construction:
+          type: boolean
+          title: Latest Adapter Decision Recorded Artifacts Satisfy Construction
+          default: false
+        latest_adapter_decision_satisfaction_authority:
+          type: string
+          title: Latest Adapter Decision Satisfaction Authority
+          default: readback_only_no_adapter_construction_satisfaction
+        latest_adapter_decision_satisfied_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Adapter Decision Satisfied Construction Artifacts
+        latest_adapter_decision_unsatisfied_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Latest Adapter Decision Unsatisfied Construction Artifacts
+        latest_adapter_decision_resolver_eligible:
+          type: boolean
+          title: Latest Adapter Decision Resolver Eligible
+          default: false
+        latest_adapter_decision_resolves_construction:
+          type: boolean
+          title: Latest Adapter Decision Resolves Construction
+          default: false
         browser_authority:
           type: string
           title: Browser Authority

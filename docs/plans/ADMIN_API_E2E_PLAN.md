@@ -38,38 +38,49 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Adapter Construction Satisfaction Batch - Phases 3561-3580
+## Active M55 Live-Adapter Decision Evidence Batch - Phases 3581-3600
 
-These phases clarify that disabled live-adapter route mapping and M53 pilot
-configuration are not satisfied construction evidence. The existing disabled
-`live_execution_adapter_contract` must expose route-mapping satisfaction
-false, adapter-configuration satisfaction false, explicit satisfaction
-authority, empty satisfied construction artifacts, and unsatisfied required
-construction artifacts. It must not resolve the construction precondition,
-remove missing construction artifacts, construct adapters, enable service,
-call Coinbase, invoke managers, execute reconciliation, cancel/replace active
+These phases add backend-owned append-only live-adapter construction decision
+evidence while keeping adapter construction disabled. A record may document
+that a target route binding was reviewed, but it cannot construct adapters,
+enable adapters, mark construction artifacts satisfied, enable service, call
+Coinbase, invoke managers, execute reconciliation, cancel/replace active
 placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
 browser authority, or grant BFF execution authority.
 
-### Phase 3561 - Advance Active Queue Range
+### Phase 3581 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3541-3560 to active phases 3561-3580 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3561-3580 to active phases 3581-3600 while preserving no-live defaults and cap policy.
 
-### Phase 3562 - Backend Adapter Contract Satisfaction Fields
+### Phase 3582 - Backend Adapter Decision Contract
 
-- Add construction-satisfaction fields to `AdminLiveExecutionAdapterContractEvidence` and populate them through the shared `build_live_execution_adapter_contract` path.
+- Add durable store, models, service validation, routes, route inventory, functionality inventory, mutation taxonomy, and readback projection for disabled adapter decision evidence.
 
-### Phase 3563 - Backend Fail-Closed Coverage
+### Phase 3583 - Backend Fail-Closed Coverage
 
-- Prove route mapping and pilot configuration do not satisfy adapter construction artifacts while `construction_precondition_resolved=false` and live Coinbase/adapter authority remain disabled.
+- Prove successful record/replay/detail/list behavior and reject constructed/enabled/passed/live-approved/nonzero-notional, route-mismatched, read-only-target, or non-`AdminApiCommandService` target decision records.
 
-### Phase 3564 - Frontend Contract Sync
+### Phase 3584 - Frontend Contract Sync
 
-- Regenerate frontend schema and sync mocks, command evidence rows, quality metadata, and tests.
+- Regenerate frontend schema and sync canonical wrappers, BFF allowlists, mocks, runtime snapshots, quality metadata, and focused tests.
 
-### Phase 3565 - Validators, Gates, Review, Commit, And No-Live Report
+### Phase 3585 - Validators, Gates, Review, Commit, And No-Live Report
 
 - Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Adapter Construction Satisfaction Batch - Phases 3561-3580
+
+These phases clarified that disabled live-adapter route mapping and M53 pilot
+configuration are not satisfied construction evidence. The existing disabled
+`live_execution_adapter_contract` exposes route-mapping satisfaction false,
+adapter-configuration satisfaction false, explicit satisfaction authority,
+empty satisfied construction artifacts, and unsatisfied required construction
+artifacts. It does not resolve the construction precondition, remove missing
+construction artifacts, construct adapters, enable service, call Coinbase,
+invoke managers, execute reconciliation, cancel/replace active placements,
+mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
+authority, or grant BFF execution authority. Backend commit `1df080a1` and
+frontend commit `89e01b3` contain the pushed range.
 
 ## Completed M55 Live-Service Decision Satisfaction Batch - Phases 3541-3560
 

@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3561-3580**.
+- Approved phase range: **3581-3600**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3541-3560`.
+- Previous completed range: `3561-3580`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,97 +23,117 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3561-3580
+## Active Phases 3581-3600
 
-These phases clarify the disabled `live_execution_adapter_contract`
-construction boundary. The contract may show route-to-command-service mapping,
-and the M53 pilot may show `configured=true`, but neither fact satisfies live
-adapter construction artifacts. The work must not mark the construction
-precondition resolved, remove missing construction artifacts, construct
-adapters, enable service, call Coinbase, invoke managers, execute
-reconciliation, cancel or replace active placements, mutate lifecycle/order/
-exchange state, clear M55 blockers, grant browser authority, or grant BFF
-execution authority.
+These phases add backend-owned live-adapter construction decision evidence as
+an append-only local-state contract. The record may document that disabled
+adapter construction was reviewed for one route binding, but it must not
+construct adapters, enable service, mark construction artifacts satisfied,
+call Coinbase, invoke managers, execute reconciliation, cancel or replace
+active placements, mutate lifecycle/order/exchange state, clear M55 blockers,
+grant browser authority, or grant BFF execution authority.
 
-### Phase 3561 - Advance Active Queue Range
+### Phase 3581 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3541-3560 to active phases 3561-3580 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3561-3580 to active phases 3581-3600 while preserving no-live defaults and cap policy.
 
-### Phase 3562 - Prior Range Completion Evidence
+### Phase 3582 - Prior Range Completion Evidence
 
-- Record completed phases 3541-3560 as live-service decision satisfaction-boundary evidence with passing gates, blind/contextless review, backend commit `131267e1`, frontend commit `a38fcfe`, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3561-3580 as adapter construction-satisfaction boundary evidence with passing gates, blind/contextless review, backend commit `1df080a1`, frontend commit `89e01b3`, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3563 - Adapter Satisfaction Boundary Tests
+### Phase 3583 - Adapter Decision Store Contract
 
-- Add backend/frontend focused coverage that fails unless route mapping and pilot configuration are separately classified from satisfied adapter construction artifacts.
+- Add a durable append-only live-adapter decision store that reads and writes backend-owned local evidence only.
 
-### Phase 3564 - Adapter Contract Schema Fields
+### Phase 3584 - Adapter Decision Models
 
-- Add typed fields to `AdminLiveExecutionAdapterContractEvidence` for route-mapping satisfaction, configuration satisfaction, satisfaction authority, satisfied construction artifacts, and unsatisfied construction artifacts.
+- Add typed Admin API request, item, list, and mutation response models for disabled adapter-construction decision evidence.
 
-### Phase 3565 - Shared Adapter Contract Binding
+### Phase 3585 - Adapter Decision Service Boundary
 
-- Populate the new fields from the shared `build_live_execution_adapter_contract` path for disabled and M53 pilot adapter evidence.
+- Add a service boundary that validates route inventory, target service binding, adapter reference, idempotency identity, and no-live decision posture.
 
-### Phase 3566 - Fail-Closed Construction Semantics
+### Phase 3586 - Fail-Closed Decision Validation
 
-- Keep route-mapping satisfaction false, adapter-configuration satisfaction false, satisfied construction artifacts empty, unsatisfied artifacts equal to required construction artifacts, and `construction_precondition_resolved=false`.
+- Reject constructed adapters, enabled adapters, passed statuses, live Coinbase approval, nonzero submitted/executed notional, route bindings that do not match inventory, read-only target routes, and targets whose shared method is not on `AdminApiCommandService`.
 
-### Phase 3567 - Backend Regression Coverage
+### Phase 3587 - Adapter Decision Routes
 
-- Prove disabled and pilot adapter contracts report construction satisfaction false while execution, live Coinbase, and adapter construction remain disabled.
+- Expose list/detail/record routes under `/api/v1/admin/live-execution/adapter-decisions` with auth, RBAC, idempotency, and audit evidence.
 
-### Phase 3568 - OpenAPI Regeneration
+### Phase 3588 - Route Inventory And Taxonomy
 
-- Regenerate backend OpenAPI and route inventory artifacts after the schema change.
+- Register the adapter decision routes in route inventory, functionality inventory, and mutation taxonomy using enum-backed mutation family values.
 
-### Phase 3569 - Frontend Schema Sync
+### Phase 3589 - Contract Readback Projection
+
+- Project latest adapter decision readback into disabled live-adapter contract evidence while keeping construction satisfaction false and unsatisfied artifacts visible.
+
+### Phase 3590 - Backend Focused Coverage
+
+- Add focused regression tests for successful record/replay/detail/list behavior, fail-closed validation, and readback projection.
+
+### Phase 3591 - OpenAPI And Route Inventory Regeneration
+
+- Regenerate backend OpenAPI and route inventory artifacts after the new route and schema additions.
+
+### Phase 3592 - Frontend Schema Sync
 
 - Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
 
-### Phase 3570 - Frontend Mock And Runtime Sync
+### Phase 3593 - Frontend Canonical Wrappers
 
-- Update frontend mock fixtures so disabled adapter contracts expose construction-satisfaction fields without command authority.
+- Add canonical frontend list/detail/record wrappers and BFF forward/read allowlist coverage for adapter decisions.
 
-### Phase 3571 - Frontend Evidence Rendering
+### Phase 3594 - Frontend Mock And Runtime Sync
 
-- Render adapter construction satisfaction as a separate evidence row beside missing construction artifacts.
+- Add mock list/detail fixtures, runtime snapshot loading, route coverage metadata, and no-live adapter readback fields.
 
-### Phase 3572 - Frontend Focused Coverage
+### Phase 3595 - Frontend Focused Coverage
 
-- Add focused unit coverage for the mock contract and command evidence row.
+- Add focused unit coverage for wrappers, mock adapter decisions, mutation contracts, runtime evidence, and quality metadata.
 
-### Phase 3573 - Roadmap And Validator Sync
+### Phase 3596 - Documentation And Examples Sync
 
-- Update backend/frontend autonomous validators, roadmap docs, maintainer handoffs, examples, and agent state for approved phases 3561-3580.
+- Update Admin API, frontend API, mock, testing, examples, maintainer handoff, durable milestones, and agent-state docs for adapter decision evidence.
 
-### Phase 3574 - Stale Ambiguity Scan
+### Phase 3597 - Stale Authority Scan
 
-- Search for stale active-range references and wording that could imply route mapping or pilot configuration satisfies adapter construction.
+- Search backend/frontend code and docs for stale phase references or wording that implies adapter decision readback constructs adapters or satisfies construction.
 
-### Phase 3575 - Backend Focused Gates
+### Phase 3598 - Full Gates
 
-- Run focused Admin API contract and autonomous queue checks.
+- Run backend full regression and frontend release gate.
 
-### Phase 3576 - Frontend Focused Gates
+### Phase 3599 - Blind Contextless Review
 
-- Run generated API checks, autonomous checks, typecheck, and focused frontend tests for the adapter satisfaction fields.
+- Run blind/contextless review proving a fresh agent can explain that adapter decision records are append-only no-live evidence and do not clear live-adapter blockers.
 
-### Phase 3577 - Backend Full Regression
-
-- Run the full backend regression gate.
-
-### Phase 3578 - Frontend Release Gate
-
-- Run `npm run release:gate`.
-
-### Phase 3579 - Blind Contextless Review
-
-- Run blind/contextless review proving a fresh agent can explain that route mapping and pilot configuration are not satisfied adapter construction artifacts and do not clear live-adapter blockers.
-
-### Phase 3580 - Commit, Push, And No-Live Report
+### Phase 3600 - Commit, Push, And No-Live Report
 
 - Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
+
+## Completed Phases 3561-3580
+
+These phases clarified the disabled `live_execution_adapter_contract`
+construction boundary. The contract may show route-to-command-service mapping,
+and the M53 pilot may show `configured=true`, but neither fact satisfies live
+adapter construction artifacts. It does not mark the construction precondition
+resolved, remove missing construction artifacts, construct adapters, enable
+service, call Coinbase, invoke managers, execute reconciliation, cancel or
+replace active placements, mutate lifecycle/order/exchange state, clear M55
+blockers, grant browser authority, or grant BFF execution authority.
+
+Completion evidence:
+
+- Backend commit `1df080a1` and frontend commit `89e01b3` were pushed.
+- Backend full regression passed with `863` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `259` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review found no blockers.
+- Live UI returned HTTP `200` at `http://127.0.0.1:3000`.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 3541-3560
 
