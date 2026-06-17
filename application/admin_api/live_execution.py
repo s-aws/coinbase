@@ -124,6 +124,20 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_AUTHORITY = (
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CONTRACT_MISSING_REASON = (
     "backend_acceptance_evidence_producer_contract_missing"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SOURCE = (
+    "backend_acceptance_evidence_producer_readiness_contract"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_AUTHORITY = (
+    "backend_producer_readiness_only_no_write"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_MISSING_REASON = (
+    "acceptance_evidence_producer_readiness_item_missing"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS = (
+    "producer_route_contract",
+    "append_only_acceptance_evidence_store",
+    "validation_replay_gate",
+)
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_MISSING_REASON = (
     "required_backend_acceptance_evidence_missing"
 )
@@ -685,6 +699,44 @@ def build_live_adapter_construction_contract(
     next_required_acceptance_evidence_ids = [
         evidence["evidence_id"] for evidence in missing_acceptance_evidence
     ]
+    producer_readiness_templates = (
+        {
+            "category": "producer_route_contract",
+            "required_ref": (
+                "application/admin_api/live_execution.py::"
+                "acceptance_evidence_producer_route_contract"
+            ),
+            "required_route": None,
+            "required_method": "POST",
+            "verification_gate": (
+                "producer_route_is_backend_owned_and_route_inventory_bound"
+            ),
+        },
+        {
+            "category": "append_only_acceptance_evidence_store",
+            "required_ref": (
+                "application/admin_api/live_execution.py::"
+                "acceptance_evidence_append_only_store"
+            ),
+            "required_route": None,
+            "required_method": None,
+            "verification_gate": (
+                "acceptance_evidence_store_is_append_only_and_replay_safe"
+            ),
+        },
+        {
+            "category": "validation_replay_gate",
+            "required_ref": (
+                "application/admin_api/live_execution.py::"
+                "acceptance_evidence_validation_replay_gate"
+            ),
+            "required_route": None,
+            "required_method": None,
+            "verification_gate": (
+                "acceptance_evidence_payload_validation_and_replay_are_configured"
+            ),
+        },
+    )
     acceptance_evidence_producer_contracts = [
         {
             "evidence_id": evidence["evidence_id"],
@@ -719,6 +771,63 @@ def build_live_adapter_construction_contract(
             "writes_acceptance_evidence": False,
             "accepts_evidence": False,
             "satisfies_construction": False,
+            "readiness_status": AdminApiGateStatus.BLOCKED,
+            "readiness_source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SOURCE
+            ),
+            "readiness_authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_AUTHORITY
+            ),
+            "readiness_item_count": len(producer_readiness_templates),
+            "missing_readiness_item_count": len(producer_readiness_templates),
+            "satisfied_readiness_item_count": 0,
+            "readiness_blockers": [
+                f"{evidence['artifact'].value}_{template['category']}_missing"
+                for template in producer_readiness_templates
+            ],
+            "readiness_items": [
+                {
+                    "readiness_item_id": (
+                        f"{evidence['evidence_id']}_{template['category']}"
+                    ),
+                    "category": template["category"],
+                    "status": AdminApiGateStatus.BLOCKED,
+                    "required": True,
+                    "satisfied": False,
+                    "source": (
+                        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_SOURCE
+                    ),
+                    "authority": (
+                        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_AUTHORITY
+                    ),
+                    "required_ref": template["required_ref"],
+                    "required_route": template["required_route"],
+                    "required_method": template["required_method"],
+                    "verification_gate": template["verification_gate"],
+                    "missing_reason": (
+                        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_MISSING_REASON
+                    ),
+                    "blocker": (
+                        f"{evidence['artifact'].value}_{template['category']}_missing"
+                    ),
+                    "route_available": False,
+                    "store_available": False,
+                    "validation_configured": False,
+                    "replay_protection_configured": False,
+                    "writer_allowed": False,
+                    "writes_acceptance_evidence": False,
+                    "accepts_evidence": False,
+                    "satisfies_producer_contract": False,
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "detail": (
+                        "This readiness item identifies a required backend "
+                        "contract for future acceptance-evidence production; "
+                        "it is not configured and grants no write authority."
+                    ),
+                }
+                for template in producer_readiness_templates
+            ],
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
             "detail": (

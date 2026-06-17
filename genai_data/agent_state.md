@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3681-3700` is backend `4b37415a`
-  and frontend `8fc6c22`; active range is `3701-3720`.
+- Commit (optional): completed range `3701-3720` is backend `0bc6b256`
+  and frontend `053af4e`; active range is `3721-3740`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3681-3700`; active range is `3701-3720`.
+- Latest completed autonomous range: `3701-3720`; active range is `3721-3740`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -217,12 +217,18 @@ Keep it short. Keep it factual.
   total/missing/accepted counts, blocker ids, next required evidence ids, and
   false construction satisfaction, but all artifacts remain unsatisfied and no
   live execution authority is created.
-- Active `3701-3720` work: add a blocked producer contract over the missing
+- Completed `3701-3720` work: add a blocked producer contract over the missing
   acceptance evidence ids. The producer contract may list required evidence
   id, source, authority, missing producer route, disabled writer flags,
   disabled acceptance flags, blocker ids, and false construction satisfaction,
   but it must not write or accept evidence, satisfy artifacts, construct
   adapters, or create live execution authority.
+- Active `3721-3740` work: add blocked producer-readiness rows for each
+  missing acceptance evidence id. The readiness rows may list required route,
+  append-only store, validation/replay gate, missing blockers, and disabled
+  route/store/validation/replay/writer flags, but they must not write or
+  accept evidence, satisfy artifacts, construct adapters, or create live
+  execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -396,20 +402,20 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3701-3720`.
+- Active autonomous range: `3721-3740`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add a blocked producer contract over the missing
-  acceptance evidence ids in active phases `3701-3720` so future backend work
-  has an explicit contract target for creating or recording acceptance
-  evidence without construction authority. The producer contract may list
-  status, source, authority, required evidence id, missing producer route,
+- Current direction: add blocked producer-readiness rows under each missing
+  acceptance-evidence producer contract in active phases `3721-3740` so future
+  backend work has explicit route, store, validation, and replay prerequisites
+  before any writer can be considered. The readiness rows may list status,
+  source, authority, missing route/store/validation/replay requirements,
   disabled writer flags, disabled acceptance flags, blocker ids, and false
-  construction satisfaction. It must not enable live service, resolve
-  blockers, construct adapters, satisfy construction artifacts, write or
-  accept evidence, create a second adapter path, call Coinbase, invoke
-  managers, execute reconciliation, cancel/replace active placements, mutate
-  lifecycle/order/exchange state, grant browser authority, or grant BFF
-  execution authority unless a future approved phase explicitly authorizes it.
+  producer satisfaction. They must not enable live service, resolve blockers,
+  construct adapters, satisfy construction artifacts, write or accept evidence,
+  create a second adapter path, call Coinbase, invoke managers, execute
+  reconciliation, cancel/replace active placements, mutate lifecycle/order/
+  exchange state, grant browser authority, or grant BFF execution authority
+  unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -1004,8 +1010,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3701-3720 backend live-adapter
-  acceptance-evidence producer contract implementation, sync frontend
+- Exact next command: continue the active 3721-3740 backend live-adapter
+  acceptance-evidence producer-readiness implementation, sync frontend
   generated schema/display, run focused gates, blind/contextless review, full
   gates, then commit and push both repositories with `$0` live Coinbase
   execution.

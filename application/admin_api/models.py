@@ -4217,6 +4217,37 @@ class AdminLiveAdapterConstructionArtifactAcceptanceEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessItem(BaseModel):
+    """Blocked readiness item for a future acceptance-evidence producer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    readiness_item_id: str
+    category: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    satisfied: bool = False
+    source: str
+    authority: str
+    required_ref: str
+    required_route: str | None = None
+    required_method: str | None = None
+    verification_gate: str
+    missing_reason: str
+    blocker: str
+    route_available: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contract: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract(BaseModel):
     """Blocked contract describing who may later produce acceptance evidence."""
 
@@ -4244,6 +4275,16 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract(BaseModel):
     writes_acceptance_evidence: bool = False
     accepts_evidence: bool = False
     satisfies_construction: bool = False
+    readiness_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    readiness_source: str = "backend_acceptance_evidence_producer_readiness_contract"
+    readiness_authority: str = "backend_producer_readiness_only_no_write"
+    readiness_item_count: int = Field(default=0, ge=0)
+    missing_readiness_item_count: int = Field(default=0, ge=0)
+    satisfied_readiness_item_count: int = Field(default=0, ge=0)
+    readiness_blockers: list[str] = Field(default_factory=list)
+    readiness_items: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessItem
+    ] = Field(default_factory=list)
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     detail: str

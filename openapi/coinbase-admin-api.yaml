@@ -12720,6 +12720,42 @@ components:
           type: boolean
           title: Satisfies Construction
           default: false
+        readiness_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        readiness_source:
+          type: string
+          title: Readiness Source
+          default: backend_acceptance_evidence_producer_readiness_contract
+        readiness_authority:
+          type: string
+          title: Readiness Authority
+          default: backend_producer_readiness_only_no_write
+        readiness_item_count:
+          type: integer
+          minimum: 0.0
+          title: Readiness Item Count
+          default: 0
+        missing_readiness_item_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Readiness Item Count
+          default: 0
+        satisfied_readiness_item_count:
+          type: integer
+          minimum: 0.0
+          title: Satisfied Readiness Item Count
+          default: 0
+        readiness_blockers:
+          items:
+            type: string
+          type: array
+          title: Readiness Blockers
+        readiness_items:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessItem'
+          type: array
+          title: Readiness Items
         browser_authority:
           type: string
           title: Browser Authority
@@ -12745,6 +12781,110 @@ components:
       - detail
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract
       description: Blocked contract describing who may later produce acceptance evidence.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessItem:
+      properties:
+        readiness_item_id:
+          type: string
+          title: Readiness Item Id
+        category:
+          type: string
+          title: Category
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        satisfied:
+          type: boolean
+          title: Satisfied
+          default: false
+        source:
+          type: string
+          title: Source
+        authority:
+          type: string
+          title: Authority
+        required_ref:
+          type: string
+          title: Required Ref
+        required_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Route
+        required_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Method
+        verification_gate:
+          type: string
+          title: Verification Gate
+        missing_reason:
+          type: string
+          title: Missing Reason
+        blocker:
+          type: string
+          title: Blocker
+        route_available:
+          type: boolean
+          title: Route Available
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contract:
+          type: boolean
+          title: Satisfies Producer Contract
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - readiness_item_id
+      - category
+      - source
+      - authority
+      - required_ref
+      - verification_gate
+      - missing_reason
+      - blocker
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessItem
+      description: Blocked readiness item for a future acceptance-evidence producer.
     AdminLiveAdapterConstructionArtifactAcceptanceEvidence:
       properties:
         artifact:

@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3701-3720**.
+- Approved phase range: **3721-3740**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3681-3700`.
+- Previous completed range: `3701-3720`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,97 +23,111 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3701-3720
+## Active Phases 3721-3740
 
-These phases add a backend-owned acceptance-evidence producer contract to the
-existing live-adapter construction contract. The producer contract names the
-missing contract that would later create or record each required acceptance
-evidence id, but it remains blocked, unconfigured, no-route, no-writer, and
-no-acceptance authority. It must not construct adapters, record or accept
-evidence, mark artifacts satisfied, enable service, call Coinbase, invoke
-managers, execute reconciliation, cancel or replace active placements, mutate
-lifecycle/order/exchange state, clear M55 blockers, grant browser authority, or
-grant BFF execution authority.
+These phases add blocked producer-readiness criteria to each acceptance-
+evidence producer contract. The readiness rows name the missing backend route,
+append-only store, and validation/replay gate that must exist before any
+acceptance-evidence writer can be considered. They remain unconfigured,
+unsatisfied, no-route, no-store, no-validation, no-replay, no-writer, and
+no-acceptance evidence only. They must not construct adapters, record or
+accept evidence, mark artifacts satisfied, enable service, call Coinbase,
+invoke managers, execute reconciliation, cancel or replace active placements,
+mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
+authority, or grant BFF execution authority.
 
-### Phase 3701 - Prior Range Completion Evidence
+### Phase 3721 - Prior Range Completion Evidence
 
-- Record completed phases 3681-3700 with backend commit `4b37415a`, frontend commit `8fc6c22`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3701-3720 with backend commit `0bc6b256`, frontend commit `053af4e`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3702 - Advance Active Queue Range
+### Phase 3722 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3681-3700 to active phases 3701-3720 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3701-3720 to active phases 3721-3740 while preserving no-live defaults and cap policy.
 
-### Phase 3703 - Backend Producer Contract Model
+### Phase 3723 - Backend Readiness Model
 
-- Add typed blocked acceptance-evidence producer contract rows to the live-adapter construction contract while reusing the existing construction contract path.
+- Add typed blocked producer-readiness rows to each acceptance-evidence producer contract while reusing the existing construction contract path.
 
-### Phase 3704 - Backend Producer Contract Projection
+### Phase 3724 - Backend Readiness Projection
 
-- Derive producer contract rows from missing acceptance evidence ids while keeping producer route unavailable, writer disabled, acceptance disabled, and construction satisfaction false.
+- Derive route, store, and validation/replay readiness rows for each missing acceptance evidence id while keeping every writer and acceptance flag false.
 
-### Phase 3705 - Backend Model And Schema Sync
+### Phase 3725 - Backend Model And Schema Sync
 
-- Regenerate backend OpenAPI so the frontend consumes producer contract readback from generated schema.
+- Regenerate backend OpenAPI so the frontend consumes producer-readiness readback from generated schema.
 
-### Phase 3706 - Backend Focused Coverage
+### Phase 3726 - Backend Focused Coverage
 
-- Add focused assertions proving the producer contract is missing, no-route, no-writer, no-acceptance, no-live, and cannot clear adapter blockers.
+- Add focused assertions proving readiness rows are missing, no-route, no-store, no-validation, no-replay, no-writer, no-acceptance, no-live, and cannot clear adapter blockers.
 
-### Phase 3707 - Frontend Schema Sync
+### Phase 3727 - Frontend Schema Sync
 
 - Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
 
-### Phase 3708 - Frontend Mock And Runtime Sync
+### Phase 3728 - Frontend Mock And Runtime Sync
 
-- Add producer contract readback fields to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
+- Add producer-readiness readback fields to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
 
-### Phase 3709 - Frontend Display Sync
+### Phase 3729 - Frontend Display Sync
 
-- Render producer contract status separately from acceptance evidence rows through existing adapter evidence rows.
+- Render producer-readiness status separately from producer-contract status through existing adapter evidence rows.
 
-### Phase 3710 - Frontend Focused Coverage
+### Phase 3730 - Frontend Focused Coverage
 
-- Update focused mock, runtime, read-model, dry-submit, and quality tests so producer contract evidence cannot drift or imply write authority.
+- Update focused mock, runtime, read-model, dry-submit, and quality tests so producer-readiness evidence cannot drift or imply write authority.
 
-### Phase 3711 - Documentation Sync
+### Phase 3731 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for producer contract readback.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for producer-readiness readback.
 
-### Phase 3712 - Autonomous Validator Sync
+### Phase 3732 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 3701-3720.
+- Update backend/frontend autonomous validators and active-range metadata for phases 3721-3740.
 
-### Phase 3713 - Stale Authority Scan
+### Phase 3733 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale active-range wording or text implying producer contract readback can write, accept, satisfy, construct, or enable adapters.
+- Search backend/frontend code and docs for stale active-range wording or text implying readiness rows can write, accept, satisfy, construct, or enable adapters.
 
-### Phase 3714 - Backend Focused Gates
+### Phase 3734 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 3715 - Frontend Focused Gates
+### Phase 3735 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3716 - Full Backend Regression
+### Phase 3736 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3717 - Full Frontend Release Gate And UI Smoke
+### Phase 3737 - Full Frontend Release Gate And UI Smoke
 
 - Run `npm run release:gate` in `C:\coinbase-frontend` and verify the live-updated admin UI remains available with no-live posture.
 
-### Phase 3718 - Blind Contextless Review
+### Phase 3738 - Blind Contextless Review
 
-- Run blind/contextless review proving a fresh agent can explain that producer contract readback is missing contract evidence only and cannot build, satisfy, write, accept, or enable adapters.
+- Run blind/contextless review proving a fresh agent can explain that producer-readiness readback is missing criteria only and cannot build, satisfy, write, accept, or enable adapters.
 
-### Phase 3719 - Final Clean Tree Check
+### Phase 3739 - Final Clean Tree Check
 
 - Verify backend/frontend status, diff checks, and no-live notional evidence before staging.
 
-### Phase 3720 - Commit, Push, And No-Live Report
+### Phase 3740 - Commit, Push, And No-Live Report
 
 - Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
+
+## Completed Phases 3701-3720
+
+These phases added a backend-owned acceptance-evidence producer contract to
+the existing live-adapter construction contract. The producer contract names
+the missing contract that would later create or record each required
+acceptance evidence id, but it remains blocked, unconfigured, no-route,
+no-writer, and no-acceptance authority. It does not construct adapters, record
+or accept evidence, mark artifacts satisfied, enable service, call Coinbase,
+invoke managers, execute reconciliation, cancel or replace active placements,
+mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
+authority, or grant BFF execution authority. Backend commit `0bc6b256` and
+frontend commit `053af4e` contain the pushed range.
 
 ## Completed Phases 3681-3700
 
