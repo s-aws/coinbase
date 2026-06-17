@@ -150,6 +150,7 @@ from application.admin_api.live_execution import (
     POST_WRITE_RECONCILIATION_ROUTE,
     POST_WRITE_RECONCILIATION_SOURCE,
     DisabledAdminApiLiveExecutionService,
+    FileAdminApiLiveServiceDecisionStore,
     build_disabled_live_execution_adapter_contract,
     build_disabled_live_execution_intent,
     build_live_execution_adapter_contract,
@@ -287,6 +288,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import admission_audit as admission_audit_routes
     from api.v1.routes import approvals as approval_routes
     from api.v1.routes import cap_guard as cap_guard_routes
+    from api.v1.routes import live_execution as live_execution_routes
     from api.v1.routes import orders as order_routes
     from api.v1.routes import reconciliation as reconciliation_routes
     from api.v1.routes import spot as spot_routes
@@ -299,6 +301,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     audit_store = FileAdminApiAuditStore(store_dir / "audit.jsonl")
     approval_store = FileAdminApiApprovalStore(store_dir / "approvals.jsonl")
     cap_guard_store = FileAdminApiCapGuardStore(store_dir / "cap_guard.jsonl")
+    live_service_decision_store = FileAdminApiLiveServiceDecisionStore(
+        store_dir / "live_service_decisions.jsonl"
+    )
     reconciliation_store = FileAdminApiReconciliationStore(
         store_dir / "reconciliation.jsonl"
     )
@@ -474,6 +479,15 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[cap_guard_routes.get_cap_guard_store] = (
         lambda: cap_guard_store
     )
+    app.dependency_overrides[live_execution_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[live_execution_routes.get_audit_store] = (
+        lambda: audit_store
+    )
+    app.dependency_overrides[
+        live_execution_routes.get_live_service_decision_store
+    ] = lambda: live_service_decision_store
     app.dependency_overrides[reconciliation_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -538,6 +552,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_audit_store = audit_store
     client.admin_api_test_approval_store = approval_store
     client.admin_api_test_cap_guard_store = cap_guard_store
+    client.admin_api_test_live_service_decision_store = live_service_decision_store
     client.admin_api_test_reconciliation_store = reconciliation_store
     client.admin_api_test_pnl_checkpoint_store = pnl_checkpoint_store
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
@@ -9774,7 +9789,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10001,7 +10016,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10241,7 +10256,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10500,7 +10515,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -10725,7 +10740,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11630,7 +11645,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -14820,7 +14835,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15035,7 +15050,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3481-3500"
+    assert readback_payload["approved_phase_range"] == "3501-3520"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -16571,6 +16586,214 @@ def test_admin_api_cap_guard_decision_routes_fail_closed(monkeypatch):
     assert "module_id does not match" in rejected_mismatch.json()["message"]
 
 
+def _live_service_decision_payload(
+    *,
+    decision_id: str = "live-service-decision-001",
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED,
+    requested_service_status: str = AdminApiLiveExecutionStatus.LIVE_DISABLED.value,
+    service_enabled: bool = False,
+    live_coinbase_execution_approved: bool = False,
+    max_submitted_notional_usdc: str = "0",
+    max_executed_notional_usdc: str = "0",
+) -> dict:
+    return {
+        "decision_id": decision_id,
+        "status": status.value,
+        "requested_service_status": requested_service_status,
+        "service_enabled": service_enabled,
+        "deployment_ref": "deployment-live-disabled-review",
+        "runtime_configuration_ref": "runtime-live-service-disabled",
+        "decision_reason": (
+            "Record explicit backend live-service decision evidence while "
+            "keeping execution disabled."
+        ),
+        "live_coinbase_execution_approved": live_coinbase_execution_approved,
+        "max_submitted_notional_usdc": max_submitted_notional_usdc,
+        "max_executed_notional_usdc": max_executed_notional_usdc,
+    }
+
+
+@pytest.mark.regression
+def test_admin_api_live_service_decision_routes_record_and_replay(monkeypatch):
+    client = _client(monkeypatch)
+    body = _live_service_decision_payload()
+    headers = _headers(
+        idempotency_key="live-service-decision-idem",
+        operator_intent="record_backend_live_service_decision",
+        roles=AdminApiRole.ADMIN.value,
+    )
+
+    created = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=headers,
+        json=body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "accepted"
+    assert created_payload["required_permission"] == "config:update"
+    assert created_payload["service_method"] == "record_live_service_decision"
+    assert created_payload["live_exchange_submitted"] is False
+    assert created_payload["live_coinbase_orders_ran"] is False
+    decision = created_payload["decision"]
+    assert decision["decision_id"] == "live-service-decision-001"
+    assert decision["route"] == "/api/v1/admin/live-execution/service-decisions"
+    assert decision["method"] == "POST"
+    assert decision["module_id"] == "admin_system_health"
+    assert decision["status"] == "blocked"
+    assert decision["requested_service_status"] == "live_disabled"
+    assert decision["live_execution_service_status"] == "live_disabled"
+    assert decision["service_enabled"] is False
+    assert decision["live_coinbase_execution_approved"] is False
+    assert decision["max_submitted_notional_usdc"] == "0"
+    assert decision["max_executed_notional_usdc"] == "0"
+    assert decision["enablement_precondition_resolved"] is False
+    assert decision["resolver_eligible"] is False
+    assert decision["browser_authority"] == "display_only"
+    assert decision["bff_authority"] == "forward_only_no_execution"
+    assert decision["live_exchange_submitted"] is False
+    assert decision["live_coinbase_orders_ran"] is False
+    assert "explicit_backend_live_enablement_decision" in (
+        decision["recorded_enablement_artifacts"]
+    )
+    assert "configured_admin_api_live_execution_service" in (
+        decision["missing_enablement_artifacts"]
+    )
+
+    listed = client.get(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed.status_code == 200
+    list_payload = listed.json()
+    assert list_payload["returned_count"] == 1
+    assert list_payload["total_count"] == 1
+    assert list_payload["passed_count"] == 0
+    assert list_payload["blocked_count"] == 1
+    assert list_payload["warning_count"] == 0
+    assert list_payload["resolver_eligible_count"] == 0
+    assert list_payload["live_coinbase_orders_ran"] is False
+
+    detail = client.get(
+        "/api/v1/admin/live-execution/service-decisions/live-service-decision-001",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+    assert detail.status_code == 200
+    assert detail.json()["decision"]["decision_id"] == "live-service-decision-001"
+
+    replayed = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=headers,
+        json=body,
+    )
+    assert replayed.status_code == 200
+    assert replayed.headers["X-Idempotency-Replayed"] == "true"
+    assert replayed.json()["decision"]["decision_id"] == "live-service-decision-001"
+
+    conflict_body = dict(body)
+    conflict_body["decision_reason"] = "changed reason"
+    conflict = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=headers,
+        json=conflict_body,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == "conflict"
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=20)
+    assert any(row.permission == AdminApiPermission.CONFIG_UPDATE for row in audit_rows)
+
+
+@pytest.mark.regression
+def test_admin_api_live_service_decision_routes_fail_closed(monkeypatch):
+    client = _client(monkeypatch)
+    body = _live_service_decision_payload(decision_id="live-service-denied")
+
+    denied = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-denied-idem",
+            operator_intent="unauthorized_live_service_decision",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=body,
+    )
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "permission_denied"
+
+    enabled = _live_service_decision_payload(
+        decision_id="live-service-enabled",
+        service_enabled=True,
+    )
+    rejected_enabled = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-enabled-idem",
+            operator_intent="record_enabled_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=enabled,
+    )
+    assert rejected_enabled.status_code == 400
+    assert rejected_enabled.json()["status"] == "rejected"
+    assert "cannot record enabled" in rejected_enabled.json()["message"]
+
+    passed = _live_service_decision_payload(
+        decision_id="live-service-passed",
+        status=AdminApiGateStatus.PASSED,
+    )
+    rejected_passed = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-passed-idem",
+            operator_intent="record_passed_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=passed,
+    )
+    assert rejected_passed.status_code == 400
+    assert rejected_passed.json()["status"] == "rejected"
+    assert "cannot record passed" in rejected_passed.json()["message"]
+
+    approved = _live_service_decision_payload(
+        decision_id="live-service-coinbase-approved",
+        live_coinbase_execution_approved=True,
+    )
+    rejected_approved = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-coinbase-approved-idem",
+            operator_intent="record_coinbase_approved_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=approved,
+    )
+    assert rejected_approved.status_code == 400
+    assert "cannot approve live Coinbase execution" in (
+        rejected_approved.json()["message"]
+    )
+
+    nonzero = _live_service_decision_payload(
+        decision_id="live-service-nonzero",
+        max_submitted_notional_usdc="1",
+    )
+    rejected_nonzero = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-nonzero-idem",
+            operator_intent="record_nonzero_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=nonzero,
+    )
+    assert rejected_nonzero.status_code == 400
+    assert "cannot record submitted live Coinbase notional" in (
+        rejected_nonzero.json()["message"]
+    )
+    assert client.admin_api_test_live_service_decision_store.read_recent() == []
+
+
 @pytest.mark.regression
 def test_admin_api_reconciliation_plan_routes_record_replay_and_resolve(monkeypatch):
     client = _client(monkeypatch)
@@ -17306,7 +17529,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3481-3500"
+    assert payload["approved_phase_range"] == "3501-3520"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -19134,7 +19357,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3481-3500"
+    assert live_payload["approved_phase_range"] == "3501-3520"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -19697,7 +19920,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3481-3500"
+    assert enterprise_payload["approved_phase_range"] == "3501-3520"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -19740,6 +19963,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.admission_audits",
         "admin.cap_guard_decisions",
         "admin.reconciliation_plans",
+        "admin.live_service_decisions",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.campaign_execution",
@@ -19776,6 +20000,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.admission_audits",
         "admin.cap_guard_decisions",
         "admin.reconciliation_plans",
+        "admin.live_service_decisions",
         "spot.read_models",
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
@@ -20011,6 +20236,24 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "must not execute reconciliation" in (
         reconciliation_inventory["frontend_boundary"]
     )
+    live_service_decision_inventory = inventory_by_id[
+        "admin.live_service_decisions"
+    ]
+    assert live_service_decision_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert live_service_decision_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert live_service_decision_inventory["command_capable"] is True
+    assert live_service_decision_inventory["live_designated"] is False
+    assert "POST /api/v1/admin/live-execution/service-decisions" in (
+        live_service_decision_inventory["command_routes"]
+    )
+    assert "decision_id" in live_service_decision_inventory["identity_keys"]
+    assert "must not enable service" in (
+        live_service_decision_inventory["frontend_boundary"]
+    )
     futures_command_inventory = inventory_by_id["futures.commands_not_modeled"]
     assert futures_command_inventory["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -20130,6 +20373,37 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         reconciliation_taxonomy["bff_boundary"]
     )
     assert "Spot fill-ledger" in reconciliation_taxonomy["spot_rule_boundary"]
+    live_service_decision_taxonomy = taxonomy_by_id[
+        "admin.live_service_decisions"
+    ]
+    assert live_service_decision_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_LIVE_SERVICE_DECISION.value
+    )
+    assert live_service_decision_taxonomy["workflow_id"] == (
+        "admin.live_service_decisions"
+    )
+    assert live_service_decision_taxonomy["command_surfaces"] == [
+        "POST /api/v1/admin/live-execution/service-decisions",
+    ]
+    assert live_service_decision_taxonomy["action_classes"] == [
+        "local_state_mutation"
+    ]
+    assert live_service_decision_taxonomy["required_permissions"] == [
+        AdminApiPermission.CONFIG_UPDATE.value
+    ]
+    assert live_service_decision_taxonomy["identity_keys"] == [
+        "decision_id",
+        "deployment_ref",
+        "runtime_configuration_ref",
+    ]
+    assert live_service_decision_taxonomy["live_adapter_required"] is False
+    assert live_service_decision_taxonomy["route_local_execution_allowed"] is False
+    assert "must not enable service" in (
+        live_service_decision_taxonomy["frontend_boundary"]
+    )
+    assert "must not enable service" in live_service_decision_taxonomy[
+        "bff_boundary"
+    ]
     futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
     assert futures_taxonomy["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -20264,8 +20538,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 20
-    assert admin_module["action_posture"]["command_route_count"] == 6
+    assert admin_module["action_posture"]["read_route_count"] == 22
+    assert admin_module["action_posture"]["command_route_count"] == 7
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]
@@ -20368,7 +20642,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3481-3500"
+    assert recovery_preview_payload["approved_phase_range"] == "3501-3520"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -24677,6 +24951,21 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["POST /api/v1/admin/cap-guard/decisions"].permission == (
         AdminApiPermission.CAP_GUARD_RECORD
     )
+    assert rows[
+        "GET /api/v1/admin/live-execution/service-decisions"
+    ].shared_method == "list_live_service_decisions"
+    assert rows[
+        "GET /api/v1/admin/live-execution/service-decisions"
+    ].permission == AdminApiPermission.ANALYTICS_READ
+    assert rows[
+        "GET /api/v1/admin/live-execution/service-decisions/{decision_id}"
+    ].shared_method == "get_live_service_decision"
+    assert rows[
+        "POST /api/v1/admin/live-execution/service-decisions"
+    ].shared_method == "record_live_service_decision"
+    assert rows[
+        "POST /api/v1/admin/live-execution/service-decisions"
+    ].permission == AdminApiPermission.CONFIG_UPDATE
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -24698,6 +24987,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "record_admission_audit" in doc
     assert "list_cap_guard_decisions" in doc
     assert "record_cap_guard_decision" in doc
+    assert "list_live_service_decisions" in doc
+    assert "record_live_service_decision" in doc
     assert "structured command-gap" in doc
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc
@@ -24779,4 +25070,28 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     )
     assert "POST /api/v1/admin/cap-guard/decisions" in inventory_http_surfaces
     assert "POST /api/v1/admin/cap-guard/decisions" in schema_http_surfaces
+    assert (
+        "GET /api/v1/admin/live-execution/service-decisions"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/admin/live-execution/service-decisions"
+        in schema_http_surfaces
+    )
+    assert (
+        "GET /api/v1/admin/live-execution/service-decisions/{decision_id}"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/admin/live-execution/service-decisions/{decision_id}"
+        in schema_http_surfaces
+    )
+    assert (
+        "POST /api/v1/admin/live-execution/service-decisions"
+        in inventory_http_surfaces
+    )
+    assert (
+        "POST /api/v1/admin/live-execution/service-decisions"
+        in schema_http_surfaces
+    )
     assert schema_http_surfaces == inventory_http_surfaces

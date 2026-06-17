@@ -38,7 +38,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3461-3480`; active range is `3481-3500`.
+- Latest completed autonomous range: `3481-3500`; active range is `3501-3520`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -139,14 +139,20 @@ Keep it short. Keep it factual.
   second adapter path, call Coinbase, invoke managers, execute reconciliation,
   cancel/replace active placements, mutate lifecycle/order/exchange state,
   grant browser authority, or grant BFF execution authority.
-- Active `3481-3500` work: add blocker-chain traceability from remaining
+- Completed `3481-3500` work: added blocker-chain traceability from remaining
   execution blocker rows to the disabled live-service and live-adapter
   contracts. Trace fields identify blocker authority, contract refs, evidence
   refs, required and missing artifacts, verification gates, and contract
   blockers. They remain evidence-only and must not resolve blockers, construct
   adapters, call Coinbase, invoke managers, execute reconciliation,
   cancel/replace active placements, mutate lifecycle/order/exchange state,
-  grant browser authority, or grant BFF execution authority.
+  grant browser authority, or grant BFF execution authority. Backend commit
+  `f4d756ee` and frontend commit `e0b59b8` contain the pushed range.
+- Active `3501-3520` work: add append-only backend-owned live-service decision
+  evidence while keeping service enabled false, live Coinbase approval false,
+  status blocked, submitted/executed notional zero, and all live service,
+  adapter, manager, Coinbase, reconciliation, active-placement, state-mutation,
+  browser, and BFF authority disabled.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -320,15 +326,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3481-3500`.
+- Active autonomous range: `3501-3520`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add backend-owned blocker-chain traceability for disabled
-  live-service and live-adapter blockers in active phases `3481-3500`. Do not
-  resolve blockers, construct adapters, create a second adapter path, enable
-  live service construction, call Coinbase, invoke managers, execute
-  reconciliation, cancel/replace active placements, mutate lifecycle/order/
-  exchange state, grant browser authority, or grant BFF execution authority
-  unless a future approved phase explicitly authorizes it.
+- Current direction: add backend-owned live-service decision evidence in
+  active phases `3501-3520`. Do not enable live service, resolve blockers,
+  construct adapters, create a second adapter path, call Coinbase, invoke
+  managers, execute reconciliation, cancel/replace active placements, mutate
+  lifecycle/order/exchange state, grant browser authority, or grant BFF
+  execution authority unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -923,6 +928,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3481-3500 blocker-traceability
-  implementation, run focused gates, blind/contextless review, full gates,
-  then commit and push both repositories with `$0` live Coinbase execution.
+- Exact next command: continue the active 3501-3520 live-service decision
+  evidence implementation, run focused gates, blind/contextless review, full
+  gates, then commit and push both repositories with `$0` live Coinbase
+  execution and pause for restart.

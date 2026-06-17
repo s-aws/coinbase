@@ -2186,6 +2186,266 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/live-execution/service-decisions:
+    get:
+      tags:
+      - live-execution
+      summary: List backend-owned live-service decision records
+      operationId: list_admin_live_service_decisions_api_v1_admin_live_execution_service_decisions_get
+      parameters:
+      - name: decision_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - type: 'null'
+          title: Decision Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveServiceDecisionListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Live-service decision was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - live-execution
+      summary: Record a backend-owned live-service decision
+      operationId: record_admin_live_service_decision_api_v1_admin_live_execution_service_decisions_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLiveServiceDecisionCreateRequest'
+      responses:
+        '200':
+          description: Live-service decision mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveServiceDecisionResponse'
+        '400':
+          description: Live-service decision mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveServiceDecisionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveServiceDecisionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/live-execution/service-decisions/{decision_id}:
+    get:
+      tags:
+      - live-execution
+      summary: Read one backend-owned live-service decision record
+      operationId: get_admin_live_service_decision_api_v1_admin_live_execution_service_decisions__decision_id__get
+      parameters:
+      - name: decision_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Decision Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveServiceDecisionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Live-service decision was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/account:
     get:
       tags:
@@ -9605,6 +9865,7 @@ components:
       - admin_admission_audit
       - admin_cap_guard_decision
       - admin_reconciliation_plan
+      - admin_live_service_decision
       - spot_manual_order
       - spot_order_cancel
       - spot_campaign_execution
@@ -13582,6 +13843,317 @@ components:
       - detail
       title: AdminLiveReadinessPreconditionItem
       description: One normalized backend-owned live-readiness precondition.
+    AdminLiveServiceDecisionCreateRequest:
+      properties:
+        decision_id:
+          type: string
+          minLength: 1
+          title: Decision Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        requested_service_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        service_enabled:
+          type: boolean
+          title: Service Enabled
+          default: false
+        deployment_ref:
+          type: string
+          minLength: 1
+          title: Deployment Ref
+        runtime_configuration_ref:
+          type: string
+          minLength: 1
+          title: Runtime Configuration Ref
+        decision_reason:
+          type: string
+          minLength: 1
+          title: Decision Reason
+        live_coinbase_execution_approved:
+          type: boolean
+          title: Live Coinbase Execution Approved
+          default: false
+        max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        max_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - decision_id
+      - deployment_ref
+      - runtime_configuration_ref
+      - decision_reason
+      title: AdminLiveServiceDecisionCreateRequest
+      description: Append one backend-owned live-service decision evidence record.
+    AdminLiveServiceDecisionItem:
+      properties:
+        decision_id:
+          type: string
+          title: Decision Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        requested_service_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        live_execution_service_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        service_enabled:
+          type: boolean
+          title: Service Enabled
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_live_service_decision_log
+        deployment_ref:
+          type: string
+          title: Deployment Ref
+        runtime_configuration_ref:
+          type: string
+          title: Runtime Configuration Ref
+        decision_reason:
+          type: string
+          title: Decision Reason
+        live_coinbase_execution_approved:
+          type: boolean
+          title: Live Coinbase Execution Approved
+          default: false
+        max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        max_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        enablement_precondition_required:
+          type: boolean
+          title: Enablement Precondition Required
+          default: true
+        enablement_precondition_resolved:
+          type: boolean
+          title: Enablement Precondition Resolved
+          default: false
+        enablement_precondition_authority:
+          type: string
+          title: Enablement Precondition Authority
+        required_enablement_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Enablement Artifacts
+        recorded_enablement_artifacts:
+          items:
+            type: string
+          type: array
+          title: Recorded Enablement Artifacts
+        missing_enablement_artifacts:
+          items:
+            type: string
+          type: array
+          title: Missing Enablement Artifacts
+        resolver_eligible:
+          type: boolean
+          title: Resolver Eligible
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - decision_id
+      - recorded_at
+      - route
+      - method
+      - module_id
+      - action_class
+      - required_permission
+      - service_method
+      - status
+      - requested_service_status
+      - live_execution_service_status
+      - deployment_ref
+      - runtime_configuration_ref
+      - decision_reason
+      - enablement_precondition_authority
+      - detail
+      title: AdminLiveServiceDecisionItem
+      description: Operator-visible backend live-service decision evidence.
+    AdminLiveServiceDecisionListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_live_service_decision_list
+        decisions:
+          items:
+            $ref: '#/components/schemas/AdminLiveServiceDecisionItem'
+          type: array
+          title: Decisions
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        passed_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Count
+        blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Count
+        warning_count:
+          type: integer
+          minimum: 0.0
+          title: Warning Count
+        resolver_eligible_count:
+          type: integer
+          minimum: 0.0
+          title: Resolver Eligible Count
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - passed_count
+      - blocked_count
+      - warning_count
+      - resolver_eligible_count
+      title: AdminLiveServiceDecisionListResponse
+      description: List backend-owned live-service decision evidence records.
+    AdminLiveServiceDecisionResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_live_service_decision
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: local_state_mutation
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        decision:
+          anyOf:
+          - $ref: '#/components/schemas/AdminLiveServiceDecisionItem'
+          - type: 'null'
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: AdminLiveServiceDecisionResponse
+      description: Response for live-service decision mutations and detail reads.
     AdminMovementRepricingDetailResponse:
       properties:
         type:

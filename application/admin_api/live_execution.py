@@ -7,10 +7,18 @@ place, cancel, move, reconcile, or submit Coinbase orders.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import os
+from pathlib import Path
+from threading import RLock
 from typing import Any, Protocol, Sequence
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiGateStatus,
     AdminApiLiveAdmissionBlocker,
     AdminApiLiveExecutionStatus,
     AdminApiPermission,
@@ -56,6 +64,12 @@ LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS = (
     "backend_live_service_configuration_missing",
 )
 LIVE_EXECUTION_SERVICE_CONTRACT_EVIDENCE_REF = "live_execution_service_contract"
+LIVE_SERVICE_DECISION_SOURCE = "admin_api_live_service_decision_log"
+LIVE_SERVICE_DECISION_ROUTE = "/api/v1/admin/live-execution/service-decisions"
+LIVE_SERVICE_DECISION_METHOD = "POST"
+LIVE_SERVICE_DECISION_MODULE_ID = "admin_system_health"
+LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
+LIVE_SERVICE_DECISION_REQUIRED_PERMISSION = AdminApiPermission.CONFIG_UPDATE
 LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY = "backend_route_binding_only_no_execution"
 LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS = (
     "route_bound_stealth_live_execution_adapter",
@@ -95,6 +109,78 @@ class AdminApiLiveExecutionServiceState:
     status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
     source: str = "not_configured"
     missing_reason: str | None = LIVE_EXECUTION_DISABLED_REASON
+
+
+class LiveServiceDecisionRecord(BaseModel):
+    """Append-only backend live-service enablement decision evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
+    recorded_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    requested_service_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    service_enabled: bool = False
+    source: str = LIVE_SERVICE_DECISION_SOURCE
+    deployment_ref: str = Field(min_length=1)
+    runtime_configuration_ref: str = Field(min_length=1)
+    decision_reason: str = Field(min_length=1)
+    live_coinbase_execution_approved: bool = False
+    max_submitted_notional_usdc: str = "0"
+    max_executed_notional_usdc: str = "0"
+
+
+class FileAdminApiLiveServiceDecisionStore:
+    """Append-only JSONL live-service decision evidence store."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get("COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH")
+            or Path("runtime_state") / "admin_api_live_service_decisions.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(self, record: LiveServiceDecisionRecord) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.decision_id
+
+    def read_recent(self, *, limit: int = 100) -> list[LiveServiceDecisionRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[LiveServiceDecisionRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(LiveServiceDecisionRecord.model_validate_json(line))
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def find_by_decision_id(
+        self,
+        decision_id: str,
+    ) -> LiveServiceDecisionRecord | None:
+        """Return the latest record with the given decision id, if present."""
+
+        for record in self.read_recent(limit=500):
+            if record.decision_id == decision_id:
+                return record
+        return None
 
 
 class AdminApiLiveExecutionService(Protocol):

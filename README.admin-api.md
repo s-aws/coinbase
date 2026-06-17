@@ -20,7 +20,8 @@ stealth create, reveal, move, cancel, recovery, and reconciliation command contr
 live-disabled movement reprice command contract, read-only futures/perpetual
 account and position routes, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
-admission audit, and reconciliation plan record routes, and read-only spot
+admission audit, reconciliation plan, and live-service decision evidence
+routes, and read-only spot
 operator routes. Live-shaped trading command HTTP routes still return
 `not_implemented` after auth, permission, idempotency, and audit handling;
 they do not submit orders, cancel orders, or call Coinbase.
@@ -71,6 +72,14 @@ requirement, and notional caps. Only `allowed=true` with `status=passed` is
 resolver-eligible. The routes do not execute reconciliation, mutate order or
 exchange state, submit Coinbase orders, or create browser/BFF reconciliation
 authority.
+M55 adds backend-owned live-service decision evidence routes at
+`/api/v1/admin/live-execution/service-decisions`. The `POST` route records an
+append-only disabled-service decision only: it rejects enabled service,
+live Coinbase approval, `passed` status, and nonzero submitted or executed
+notional. List/detail routes are read-only evidence. These routes do not
+enable live service, construct adapters, call Coinbase, invoke managers,
+execute reconciliation, mutate state, clear execution blockers, or create
+browser/BFF execution authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

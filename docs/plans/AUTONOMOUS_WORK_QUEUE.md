@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3481-3500**.
+- Approved phase range: **3501-3520**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3461-3480`.
+- Previous completed range: `3481-3500`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,97 +23,108 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3481-3500
+## Active Phases 3501-3520
 
-These phases add backend-owned traceability from the existing remaining
-execution blocker chain to the disabled live-service and live-adapter
-contracts. The trace rows identify the unresolved authority, contract refs,
-evidence refs, required/missing artifacts, verification gates, and blockers
-that keep live service enablement and live adapter construction blocked. This
-is display evidence only: it must not resolve blockers, construct adapters,
-enable live execution, call Coinbase, invoke managers, execute reconciliation,
-cancel/replace active placements, mutate lifecycle/order/exchange state, grant
-browser authority, or grant BFF execution authority.
+These phases add backend-owned live-service enablement decision evidence as an
+append-only local-state contract while keeping the service disabled. The
+recorded decision is evidence that a backend decision was made; it is not
+evidence that live execution is permitted. This batch must reject enabled
+service decisions, live Coinbase approval, passed status, and nonzero
+submitted or executed notional. It must not enable live service, construct
+adapters, call Coinbase, invoke managers, execute reconciliation, cancel or
+replace active placements, mutate lifecycle/order/exchange state, clear M55
+blockers, grant browser authority, or grant BFF execution authority.
 
-### Phase 3481 - Advance Active Queue Range
+### Phase 3501 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3461-3480 to active phases 3481-3500 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3481-3500 to active phases 3501-3520 while preserving no-live defaults and cap policy.
 
-### Phase 3482 - Prior Range Completion Evidence
+### Phase 3502 - Prior Range Completion Evidence
 
-- Record completed phases 3461-3480 as live-adapter construction precondition evidence with passing gates, blind/contextless review, backend commit `73c8b5f5`, frontend commit `ddc52d7`, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3481-3500 as blocker-traceability evidence with passing gates, blind/contextless review, backend commit `f4d756ee`, frontend commit `e0b59b8`, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3483 - Backend Trace Helper
+### Phase 3503 - Decision Evidence Store
 
-- Add one shared backend helper for live-service and live-adapter blocker trace evidence.
+- Add a backend append-only live-service decision evidence record and durable JSONL store with no Coinbase, manager, adapter, or lifecycle dependencies.
 
-### Phase 3484 - Blocker Chain Model Expansion
+### Phase 3504 - Fail-Closed Decision Service
 
-- Add typed trace fields to create and non-create remaining execution blocker rows.
+- Add a backend service boundary that only accepts disabled, blocked, zero-notional live-service decision evidence and rejects all enablement-like requests.
 
-### Phase 3485 - Create And Non-Create Trace Wiring
+### Phase 3505 - Admin API Routes
 
-- Populate trace fields for live-service-disabled and live-adapter-disabled blocker rows without resolving either prerequisite.
+- Add list, detail, and record Admin API routes for live-service decision evidence with auth/RBAC, idempotency, operator intent, and audit evidence.
 
-### Phase 3486 - Backend Regression Coverage
+### Phase 3506 - Route Inventory And OpenAPI
 
-- Prove create and non-create blocker chains expose trace refs and remain blocked, no-live, no-manager, no-Coinbase, and no-mutation.
+- Bind the new routes into the route inventory, regenerate OpenAPI, and prove path inventory stays in sync.
 
-### Phase 3487 - OpenAPI Refresh
+### Phase 3507 - Backend Focused Coverage
 
-- Regenerate backend OpenAPI after blocker-chain row schemas expand.
+- Add regression coverage proving record/replay/list/detail behavior, RBAC failures, idempotency conflict, audit records, and fail-closed rejection paths.
 
-### Phase 3488 - Frontend Schema Sync
+### Phase 3508 - Frontend Schema And Wrappers
 
-- Regenerate frontend OpenAPI TypeScript schema from the backend OpenAPI artifact.
+- Regenerate the frontend schema and add canonical client wrappers for list/detail/record live-service decision evidence.
 
-### Phase 3489 - Frontend Trace Rendering
+### Phase 3509 - Frontend BFF, Mutation, And Mock Contracts
 
-- Render blocker trace authority, evidence refs, required/missing artifacts, gates, and blockers as display-only rows in the shared dry-submit evidence formatter.
+- Sync BFF allowlists, mutation contracts, route coverage evidence, and mock fixtures without adding browser execution authority.
 
-### Phase 3490 - Frontend Fixtures And Focused Coverage
+### Phase 3510 - Runtime Snapshot Coverage
 
-- Update frontend fixtures and tests proving command and lifecycle blocker trace rows render without command enablement.
+- Load live-service decision list/detail evidence through the canonical admin runtime snapshot.
 
-### Phase 3491 - Backend Documentation Sync
+### Phase 3511 - Frontend Contract Documentation
 
-- Update backend Admin API README, roadmap, maintainer handoff, and agent state docs for the 3481-3500 traceability phase.
+- Update API and mock documentation so contextless agents can distinguish decision evidence from live-service enablement.
 
-### Phase 3492 - Frontend Documentation Sync
+### Phase 3512 - Roadmap And Validator Sync
 
-- Update frontend API contract, command workflow, roadmap, testing, and maintainer handoff docs for the traceability phase.
+- Update backend/frontend autonomous queue validators, roadmap docs, maintainer handoffs, and agent state for approved phases 3501-3520.
 
-### Phase 3493 - Validator Range Sync
+### Phase 3513 - Stale Range And Authority Scan
 
-- Update backend/frontend autonomous queue validators and quality artifacts for approved phases 3481-3500.
+- Search for stale active-range references and wording that implies the decision evidence resolves live-service, adapter, Coinbase, manager, reconciliation, state-mutation, browser, or BFF blockers.
 
-### Phase 3494 - Stale Range And Authority Scan
+### Phase 3514 - Frontend Focused Gates
 
-- Search for stale 3461-3480 active-range references and wording that implies trace rows resolve live service or adapter blockers.
+- Run generated API checks and focused frontend tests for client wrappers, mocks, BFF proxy, mutation contracts, runtime snapshot, and quality gates.
 
-### Phase 3495 - Focused Gates
+### Phase 3515 - Backend Full Regression
 
-- Run focused backend Admin API contract checks, frontend dry-submit/read-model checks, generated API checks, typecheck, and autonomous queue checks.
+- Run focused Admin API contract tests and full backend regression.
 
-### Phase 3496 - Contextless Review
+### Phase 3516 - Frontend Release Gate
 
-- Run blind/contextless review proving a fresh agent can explain that blocker trace rows identify missing live-service/adapter artifacts without granting execution authority.
+- Run the full frontend release gate.
 
-### Phase 3497 - Full Gates
+### Phase 3517 - Contextless Review
 
-- Run full backend regression and frontend `npm run release:gate`.
+- Run blind/contextless review proving a fresh agent can explain that the route records disabled service decision evidence only.
 
-### Phase 3498 - Commit, Push, And No-Live Report
+### Phase 3518 - Commit, Push, And No-Live Report
 
-- Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and continue to the next approved milestone-linked gap unless a major blocker appears.
+- Commit and push both repositories and report `$0` live Coinbase submitted/executed notional.
 
-### Phase 3499 - Post-Push Cleanliness Check
+### Phase 3519 - Post-Push Cleanliness Check
 
-- Verify both worktrees are clean and tracking the pushed branch after the traceability commits land.
+- Verify both worktrees are clean and tracking the pushed branch.
 
-### Phase 3500 - Next Gap Continuation
+### Phase 3520 - Requested Pause
 
-- Continue to the next approved M55 blocker gap only if it is directly linked to the durable milestone ledger and no major blocker has appeared.
+- Pause after this phase so the session can be restarted as requested.
+
+## Completed Phases 3481-3500
+
+These phases added backend-owned traceability from the remaining execution
+blocker chain to disabled live-service and live-adapter contracts. Trace rows
+identify unresolved authority, contract refs, evidence refs, required/missing
+artifacts, verification gates, and blockers. They remain display evidence
+only and do not resolve blockers, construct adapters, enable live execution,
+call Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, grant browser authority,
+or grant BFF execution authority.
 
 ## Completed Phases 3461-3480
 

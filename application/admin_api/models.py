@@ -1778,6 +1778,100 @@ class AdminReconciliationPlanResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminLiveServiceDecisionCreateRequest(BaseModel):
+    """Append one backend-owned live-service decision evidence record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str = Field(min_length=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    requested_service_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    service_enabled: bool = False
+    deployment_ref: str = Field(min_length=1)
+    runtime_configuration_ref: str = Field(min_length=1)
+    decision_reason: str = Field(min_length=1)
+    live_coinbase_execution_approved: bool = False
+    max_submitted_notional_usdc: DecimalString = "0"
+    max_executed_notional_usdc: DecimalString = "0"
+
+
+class AdminLiveServiceDecisionItem(BaseModel):
+    """Operator-visible backend live-service decision evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str
+    recorded_at: str
+    route: str
+    method: str
+    module_id: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    status: AdminApiGateStatus
+    requested_service_status: AdminApiLiveExecutionStatus
+    live_execution_service_status: AdminApiLiveExecutionStatus
+    service_enabled: bool = False
+    source: str = "admin_api_live_service_decision_log"
+    deployment_ref: str
+    runtime_configuration_ref: str
+    decision_reason: str
+    live_coinbase_execution_approved: bool = False
+    max_submitted_notional_usdc: DecimalString = "0"
+    max_executed_notional_usdc: DecimalString = "0"
+    enablement_precondition_required: bool = True
+    enablement_precondition_resolved: bool = False
+    enablement_precondition_authority: str
+    required_enablement_artifacts: list[str] = Field(default_factory=list)
+    recorded_enablement_artifacts: list[str] = Field(default_factory=list)
+    missing_enablement_artifacts: list[str] = Field(default_factory=list)
+    resolver_eligible: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    detail: str
+
+
+class AdminLiveServiceDecisionListResponse(BaseModel):
+    """List backend-owned live-service decision evidence records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_live_service_decision_list"
+    decisions: list[AdminLiveServiceDecisionItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    warning_count: int = Field(ge=0)
+    resolver_eligible_count: int = Field(ge=0)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminLiveServiceDecisionResponse(BaseModel):
+    """Response for live-service decision mutations and detail reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_live_service_decision"
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    decision: AdminLiveServiceDecisionItem | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class SpotPnlCheckpointCreateRequest(BaseModel):
     """Append one backend-owned Spot P/L review checkpoint."""
 

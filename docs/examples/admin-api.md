@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "3301-3320",
+  "approved_phase_range": "3501-3520",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,24 +860,24 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "3301-3320",
+  "approved_phase_range": "3501-3520",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
-  "functionality_inventory_count": 23,
-  "backend_supported_workflow_count": 22,
-  "admin_exposed_workflow_count": 20,
-  "command_workflow_count": 15,
+  "functionality_inventory_count": 24,
+  "backend_supported_workflow_count": 23,
+  "admin_exposed_workflow_count": 21,
+  "command_workflow_count": 16,
   "live_designated_workflow_count": 7,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 29,
-  "route_bound_mutation_taxonomy_count": 27,
-  "live_disabled_mutation_count": 19,
+  "mutation_taxonomy_count": 43,
+  "route_bound_mutation_taxonomy_count": 41,
+  "live_disabled_mutation_count": 32,
   "backend_contract_required_mutation_count": 2,
   "compatibility_mutation_count": 3,
   "functionality_inventory": [
@@ -910,6 +910,42 @@ Expected current enterprise readiness posture:
       ],
       "frontend_boundary": "Keep buttons dry-submit/live-disabled unless backend capability and live-enablement evidence explicitly admit execution.",
       "spot_rule_boundary": "Spot commands must preserve no-shorting and inventory authority.",
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "workflow_id": "admin.live_service_decisions",
+      "module_id": "admin_system_health",
+      "module": "Admin / System Health",
+      "workflow_type": "command_draft",
+      "exposure_status": "admin_exposed",
+      "support_status": "platform_ready",
+      "backend_supported": true,
+      "admin_api_exposed": true,
+      "frontend_exposed": true,
+      "command_capable": true,
+      "live_designated": false,
+      "live_enabled": false,
+      "identity_keys": [
+        "decision_id",
+        "deployment_ref",
+        "runtime_configuration_ref"
+      ],
+      "read_routes": [
+        "GET /api/v1/admin/live-execution/service-decisions",
+        "GET /api/v1/admin/live-execution/service-decisions/{decision_id}"
+      ],
+      "command_routes": [
+        "POST /api/v1/admin/live-execution/service-decisions"
+      ],
+      "required_next_contract": "Controlled live adapter admission must still pass live service, live adapter, verification, and browser-boundary gates.",
+      "blockers": [
+        "live_execution_disabled",
+        "live_service_enablement_missing",
+        "live_adapter_construction_missing"
+      ],
+      "frontend_boundary": "The browser may display and forward disabled live-service decision evidence only; it must not enable service or clear live-readiness blockers.",
+      "spot_rule_boundary": "Live-service decision records are platform evidence. Spot wallet, USDC, cost-basis, and no-shorting rules stay in route-specific guard inputs.",
       "live_coinbase_execution": "not_run",
       "notional_usdc": "0"
     },
@@ -975,6 +1011,46 @@ Expected current enterprise readiness posture:
         "cancel reconciliation proof missing"
       ],
       "frontend_boundary": "Do not accept exchange order_id as the internal cancel identity; frontend cancel evidence must stay client_order_id-scoped.",
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "mutation_id": "admin.live_service_decisions",
+      "mutation_family": "admin_live_service_decision",
+      "workflow_id": "admin.live_service_decisions",
+      "module_id": "admin_system_health",
+      "module": "Admin / System Health",
+      "exposure_status": "admin_exposed",
+      "support_status": "platform_ready",
+      "command_surfaces": [
+        "POST /api/v1/admin/live-execution/service-decisions"
+      ],
+      "action_classes": ["local_state_mutation"],
+      "required_permissions": ["config:update"],
+      "identity_keys": [
+        "decision_id",
+        "deployment_ref",
+        "runtime_configuration_ref"
+      ],
+      "idempotency_required": true,
+      "operator_intent_required": true,
+      "rbac_required": true,
+      "approval_required": true,
+      "cap_guard_required": true,
+      "admission_audit_required": true,
+      "reconciliation_required": true,
+      "live_adapter_required": false,
+      "owning_backend_service": "application/admin_api/live_service_decision_service.py",
+      "shared_command_service_method": "record_live_service_decision",
+      "browser_authority": "display_only",
+      "bff_execution_authority": "forward_only_no_execution",
+      "route_local_execution_allowed": false,
+      "blockers": [
+        "live_execution_disabled",
+        "live_service_enablement_missing",
+        "live_adapter_construction_missing"
+      ],
+      "frontend_boundary": "The frontend may record and display disabled live-service decision evidence through generated contracts only; it must not enable service, approve Coinbase execution, or clear live-readiness blockers.",
       "live_coinbase_execution": "not_run",
       "notional_usdc": "0"
     },
@@ -2700,6 +2776,62 @@ Only `allowed=true` with `status=passed` is resolver-eligible. Any mismatch,
 blocked status, warning status, read-only route target, local-state route
 target, permission mismatch, or duplicate plan id fails closed as evidence
 only.
+
+## Live-Service Decision Evidence
+
+Live-service decision routes persist backend-owned disabled-service evidence
+only. They do not enable live service, construct adapters, call Coinbase,
+invoke managers, execute reconciliation, mutate state, clear M55 blockers, or
+let the browser/BFF create execution authority.
+
+List recorded decisions:
+
+```http
+GET /api/v1/admin/live-execution/service-decisions?decision_status=blocked&limit=10
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Read one decision:
+
+```http
+GET /api/v1/admin/live-execution/service-decisions/live-service-decision-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Record one disabled backend live-service decision:
+
+```http
+POST /api/v1/admin/live-execution/service-decisions
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: live-service-decision-record-001
+X-Correlation-Id: corr-live-service-decision-001
+X-Operator-Intent: record_disabled_live_service_decision
+Content-Type: application/json
+
+{
+  "decision_id": "live-service-decision-001",
+  "status": "blocked",
+  "requested_service_status": "live_disabled",
+  "service_enabled": false,
+  "deployment_ref": "deployment-live-service-disabled",
+  "runtime_configuration_ref": "runtime-live-service-disabled",
+  "decision_reason": "Record explicit disabled service decision evidence.",
+  "live_coinbase_execution_approved": false,
+  "max_submitted_notional_usdc": "0",
+  "max_executed_notional_usdc": "0"
+}
+```
+
+The writer rejects enabled service decisions, live Coinbase approval,
+`passed` status, any requested service status other than `live_disabled`, and
+nonzero submitted or executed notional. Recorded rows remain
+`resolver_eligible=false`.
 
 ## Structured Errors
 
