@@ -109,6 +109,12 @@ LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY = "backend_contract_only_no_executi
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY = (
     "backend_artifact_acceptance_requirements_only_no_execution"
 )
+LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_READBACK_SOURCE = (
+    "backend_live_adapter_artifact_acceptance_readback"
+)
+LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_MISSING_REASON = (
+    "required_backend_acceptance_evidence_missing"
+)
 LIVE_ADAPTER_CONSTRUCTION_CONTRACT_REF = (
     "application/admin_api/live_execution.py::build_live_adapter_construction_contract"
 )
@@ -599,9 +605,47 @@ def build_live_adapter_construction_contract(
             "evidence_ids": [],
             "evidence_source_refs": [],
             "satisfies_artifact": False,
+            "acceptance_evidence_status": AdminApiGateStatus.BLOCKED,
+            "acceptance_evidence_count": 1,
+            "missing_acceptance_evidence_count": 1,
+            "accepted_acceptance_evidence_count": 0,
+            "acceptance_evidence": [
+                {
+                    "artifact": artifact,
+                    "status": AdminApiGateStatus.BLOCKED,
+                    "evidence_id": artifact_acceptance[artifact][
+                        "required_evidence_id"
+                    ],
+                    "source": (
+                        LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_READBACK_SOURCE
+                    ),
+                    "evidence_present": False,
+                    "evidence_owner": artifact_acceptance[artifact][
+                        "evidence_owner"
+                    ],
+                    "expected_source_refs": artifact_acceptance[artifact][
+                        "required_source_refs"
+                    ],
+                    "observed_source_refs": [],
+                    "accepted": False,
+                    "satisfies_artifact": False,
+                    "missing_reason": (
+                        LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_MISSING_REASON
+                    ),
+                    "blocker": f"{artifact.value}_acceptance_evidence_missing",
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "detail": (
+                        "Required backend acceptance evidence has not been "
+                        "recorded; this readback cannot construct or satisfy "
+                        "a live adapter."
+                    ),
+                }
+            ],
             "satisfaction_blockers": [
                 f"{artifact.value}_evidence_missing",
                 f"{artifact.value}_acceptance_not_run",
+                f"{artifact.value}_acceptance_evidence_missing",
             ],
             **artifact_acceptance[artifact],
             "detail": artifact_details[artifact],

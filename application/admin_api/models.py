@@ -4195,6 +4195,28 @@ class AdminLiveCapGuardContractEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveAdapterConstructionArtifactAcceptanceEvidence(BaseModel):
+    """Readback for one artifact's required backend acceptance evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact: AdminApiLiveAdapterConstructionArtifact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    evidence_id: str
+    source: str
+    evidence_present: bool = False
+    evidence_owner: str
+    expected_source_refs: list[str] = Field(default_factory=list)
+    observed_source_refs: list[str] = Field(default_factory=list)
+    accepted: bool = False
+    satisfies_artifact: bool = False
+    missing_reason: str
+    blocker: str
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -4220,6 +4242,13 @@ class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     evidence_source_refs: list[str] = Field(default_factory=list)
     satisfies_artifact: bool = False
+    acceptance_evidence_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    acceptance_evidence_count: int = Field(default=0, ge=0)
+    missing_acceptance_evidence_count: int = Field(default=0, ge=0)
+    accepted_acceptance_evidence_count: int = Field(default=0, ge=0)
+    acceptance_evidence: list[
+        AdminLiveAdapterConstructionArtifactAcceptanceEvidence
+    ] = Field(default_factory=list)
     satisfaction_blockers: list[str] = Field(default_factory=list)
     detail: str
 

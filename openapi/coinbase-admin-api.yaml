@@ -12637,6 +12637,73 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminLiveAdapterConstructionArtifactAcceptanceEvidence:
+      properties:
+        artifact:
+          $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        evidence_id:
+          type: string
+          title: Evidence Id
+        source:
+          type: string
+          title: Source
+        evidence_present:
+          type: boolean
+          title: Evidence Present
+          default: false
+        evidence_owner:
+          type: string
+          title: Evidence Owner
+        expected_source_refs:
+          items:
+            type: string
+          type: array
+          title: Expected Source Refs
+        observed_source_refs:
+          items:
+            type: string
+          type: array
+          title: Observed Source Refs
+        accepted:
+          type: boolean
+          title: Accepted
+          default: false
+        satisfies_artifact:
+          type: boolean
+          title: Satisfies Artifact
+          default: false
+        missing_reason:
+          type: string
+          title: Missing Reason
+        blocker:
+          type: string
+          title: Blocker
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - artifact
+      - evidence_id
+      - source
+      - evidence_owner
+      - missing_reason
+      - blocker
+      - detail
+      title: AdminLiveAdapterConstructionArtifactAcceptanceEvidence
+      description: Readback for one artifact's required backend acceptance evidence.
     AdminLiveAdapterConstructionArtifactItem:
       properties:
         artifact:
@@ -12707,6 +12774,29 @@ components:
           type: boolean
           title: Satisfies Artifact
           default: false
+        acceptance_evidence_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        acceptance_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Acceptance Evidence Count
+          default: 0
+        missing_acceptance_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Acceptance Evidence Count
+          default: 0
+        accepted_acceptance_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Acceptance Evidence Count
+          default: 0
+        acceptance_evidence:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactAcceptanceEvidence'
+          type: array
+          title: Acceptance Evidence
         satisfaction_blockers:
           items:
             type: string

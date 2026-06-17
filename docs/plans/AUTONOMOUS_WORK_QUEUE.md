@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3641-3660**.
+- Approved phase range: **3661-3680**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3621-3640`.
+- Previous completed range: `3641-3660`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,97 +23,121 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3641-3660
+## Active Phases 3661-3680
 
-These phases add per-artifact acceptance requirements to the typed backend
-live-adapter construction contract. The requirements are evidence only: they
-may name required evidence ids, source refs, owners, acceptance checks,
-negative checks, current evidence state, satisfaction blockers, and explicit
-unsatisfied status for each required artifact. They must not construct
-adapters, mark artifacts satisfied, enable service, call Coinbase, invoke
-managers, execute reconciliation, cancel or replace active placements, mutate
-lifecycle/order/exchange state, clear M55 blockers, grant browser authority,
-or grant BFF execution authority.
+These phases add backend-owned acceptance evidence readback rows to each
+live-adapter construction artifact requirement. The rows may show required
+evidence id, source, owner, expected source refs, observed source refs,
+missing reason, blocker, accepted false, and satisfies false. They are
+readback evidence only: they must not construct adapters, mark artifacts
+satisfied, enable service, call Coinbase, invoke managers, execute
+reconciliation, cancel or replace active placements, mutate lifecycle/order/
+exchange state, clear M55 blockers, grant browser authority, or grant BFF
+execution authority.
 
-### Phase 3641 - Prior Range Completion Evidence
+### Phase 3661 - Prior Range Completion Evidence
 
-- Record completed phases 3621-3640 with backend commit `72dc6e6d`, frontend commit `59b95ae`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3641-3660 with backend commit `0fff6369`, frontend commit `90b0751`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3642 - Advance Active Queue Range
+### Phase 3662 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3621-3640 to active phases 3641-3660 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3641-3660 to active phases 3661-3680 while preserving no-live defaults and cap policy.
 
-### Phase 3643 - Artifact Acceptance Requirement Fields
+### Phase 3663 - Backend Acceptance Readback Model
 
-- Add typed backend fields for artifact acceptance authority, required evidence ids, source refs, checks, negative checks, evidence presence, and satisfaction blockers.
+- Add typed backend acceptance evidence readback rows to construction artifacts while reusing the existing construction contract path.
 
-### Phase 3644 - Backend Contract Projection
+### Phase 3664 - Backend Contract Projection
 
-- Populate each construction-contract artifact with acceptance requirements while keeping evidence present false, artifacts unsatisfied, and construction satisfaction false.
+- Populate every artifact with blocked missing acceptance evidence rows while keeping artifacts unsatisfied, accepted counts zero, and construction satisfaction false.
 
-### Phase 3645 - Backend Model And Schema Sync
+### Phase 3665 - Backend Model And Schema Sync
 
-- Regenerate backend OpenAPI so the frontend consumes the artifact acceptance requirements from generated schema.
+- Regenerate backend OpenAPI so the frontend consumes acceptance evidence readback from generated schema.
 
-### Phase 3646 - Backend Focused Coverage
+### Phase 3666 - Backend Focused Coverage
 
-- Add focused assertions proving every construction artifact carries acceptance requirements, remains unsatisfied, and cannot clear adapter blockers.
+- Add focused assertions proving every construction artifact carries blocked missing acceptance evidence and cannot clear adapter blockers.
 
-### Phase 3647 - Frontend Schema Sync
+### Phase 3667 - Frontend Schema Sync
 
 - Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
 
-### Phase 3648 - Frontend Mock And Runtime Sync
+### Phase 3668 - Frontend Mock And Runtime Sync
 
-- Add artifact acceptance requirements to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
+- Add blocked acceptance evidence readback rows to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
 
-### Phase 3649 - Frontend Display Sync
+### Phase 3669 - Frontend Display Sync
 
-- Render acceptance evidence ids, current evidence state, satisfaction blockers, checks, and authority through existing adapter evidence rows.
+- Render acceptance evidence readback rows separately from acceptance requirements through existing adapter evidence rows.
 
-### Phase 3650 - Frontend Focused Coverage
+### Phase 3670 - Frontend Focused Coverage
 
-- Update focused mock, runtime, read-model, dry-submit, and quality tests so artifact acceptance requirements cannot drift.
+- Update focused mock, runtime, read-model, dry-submit, and quality tests so acceptance evidence readback cannot drift or imply satisfaction.
 
-### Phase 3651 - Documentation Sync
+### Phase 3671 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for artifact acceptance requirements.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for acceptance evidence readback.
 
-### Phase 3652 - Autonomous Validator Sync
+### Phase 3672 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 3641-3660.
+- Update backend/frontend autonomous validators and active-range metadata for phases 3661-3680.
 
-### Phase 3653 - Stale Authority Scan
+### Phase 3673 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale 3621-3640 active-range wording or text implying acceptance requirements satisfy or construct adapters.
+- Search backend/frontend code and docs for stale active-range wording or text implying acceptance evidence readback satisfies or constructs adapters.
 
-### Phase 3654 - Backend Focused Gates
+### Phase 3674 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 3655 - Frontend Focused Gates
+### Phase 3675 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3656 - Full Backend Regression
+### Phase 3676 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3657 - Full Frontend Release Gate And UI Smoke
+### Phase 3677 - Full Frontend Release Gate And UI Smoke
 
 - Run `npm run release:gate` in `C:\coinbase-frontend` and verify the live-updated admin UI remains available with no-live posture.
 
-### Phase 3658 - Blind Contextless Review
+### Phase 3678 - Blind Contextless Review
 
-- Run blind/contextless review proving a fresh agent can explain that acceptance requirements are evidence only and cannot build, satisfy, or enable adapters.
+- Run blind/contextless review proving a fresh agent can explain that acceptance evidence readback is missing evidence only and cannot build, satisfy, or enable adapters.
 
-### Phase 3659 - Final Clean Tree Check
+### Phase 3679 - Final Clean Tree Check
 
 - Verify backend/frontend status, diff checks, and no-live notional evidence before staging.
 
-### Phase 3660 - Commit, Push, And No-Live Report
+### Phase 3680 - Commit, Push, And No-Live Report
 
 - Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
+
+## Completed Phases 3641-3660
+
+These phases added per-artifact acceptance requirements to the typed backend
+live-adapter construction contract. The requirements name required evidence
+ids, source refs, owners, acceptance checks, negative checks, current evidence
+state, satisfaction blockers, and explicit unsatisfied status for each
+required artifact. They do not construct adapters, mark artifacts satisfied,
+enable service, call Coinbase, invoke managers, execute reconciliation,
+cancel or replace active placements, mutate lifecycle/order/exchange state,
+clear M55 blockers, grant browser authority, or grant BFF execution
+authority.
+
+Completion evidence:
+
+- Backend commit `0fff6369` and frontend commit `90b0751` were pushed.
+- Backend full regression passed with `867` tests and `1` warning.
+- Frontend `npm run release:gate` passed with `260` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed.
+- Live UI rendered at `http://127.0.0.1:3000` with approved phases
+  `3641-3660`, live-disabled posture, and no browser console errors.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 3621-3640
 
