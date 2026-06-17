@@ -14042,6 +14042,788 @@ components:
       type: object
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary
       description: Aggregate over blocked acceptance-evidence producer readiness rows.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlan:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_route_contract_remediation_work_item_claim_traces
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_contract_clearance_plans
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_route_contract_remediation_work_item_claim_traces_no_execution
+        plan_index:
+          type: integer
+          minimum: 1.0
+          title: Plan Index
+        plan_id:
+          type: string
+          title: Plan Id
+        claim_trace_id:
+          type: string
+          title: Claim Trace Id
+        claim_id:
+          type: string
+          title: Claim Id
+        claim:
+          type: string
+          title: Claim
+          default: producer_route_contract_available
+        clearance_target:
+          type: string
+          title: Clearance Target
+          default: producer_route_contract_available
+        work_item_id:
+          type: string
+          title: Work Item Id
+        dependency_id:
+          type: string
+          title: Dependency Id
+        remediation_id:
+          type: string
+          title: Remediation Id
+        validation_id:
+          type: string
+          title: Validation Id
+        route_contract_id:
+          type: string
+          title: Route Contract Id
+        route_requirement_id:
+          type: string
+          title: Route Requirement Id
+        producer_contract_id:
+          type: string
+          title: Producer Contract Id
+        evidence_id:
+          type: string
+          title: Evidence Id
+        artifact:
+          $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+        source_work_item_ref:
+          type: string
+          title: Source Work Item Ref
+        route_contract_ref:
+          type: string
+          title: Route Contract Ref
+        route_inventory_ref:
+          type: string
+          title: Route Inventory Ref
+        shared_command_service_ref:
+          type: string
+          title: Shared Command Service Ref
+        check_key:
+          type: string
+          title: Check Key
+        dependency_stage:
+          type: string
+          title: Dependency Stage
+        dependency_order:
+          type: integer
+          minimum: 1.0
+          title: Dependency Order
+        remediation_action:
+          type: string
+          title: Remediation Action
+        required_backend_work:
+          type: string
+          title: Required Backend Work
+        required_backend_refs:
+          items:
+            type: string
+          type: array
+          title: Required Backend Refs
+        planned_backend_sequence:
+          items:
+            type: string
+          type: array
+          title: Planned Backend Sequence
+        required_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Required Verification Gates
+        predecessor_dependency_ids:
+          items:
+            type: string
+          type: array
+          title: Predecessor Dependency Ids
+        successor_dependency_ids:
+          items:
+            type: string
+          type: array
+          title: Successor Dependency Ids
+        handoff_blockers:
+          items:
+            type: string
+          type: array
+          title: Handoff Blockers
+        first_handoff_blocker:
+          type: string
+          title: First Handoff Blocker
+        required_before_claim_resolved:
+          type: boolean
+          title: Required Before Claim Resolved
+          default: true
+        verification_gate:
+          type: string
+          title: Verification Gate
+        blocker:
+          type: string
+          title: Blocker
+        claim_trace_blocker:
+          type: string
+          title: Claim Trace Blocker
+        work_item_blocker:
+          type: string
+          title: Work Item Blocker
+        dependency_blocker:
+          type: string
+          title: Dependency Blocker
+        remediation_blocker:
+          type: string
+          title: Remediation Blocker
+        validation_blocker:
+          type: string
+          title: Validation Blocker
+        plan_ready:
+          type: boolean
+          title: Plan Ready
+          default: false
+        sequence_ready:
+          type: boolean
+          title: Sequence Ready
+          default: false
+        all_dependencies_ready:
+          type: boolean
+          title: All Dependencies Ready
+          default: false
+        all_predecessors_ready:
+          type: boolean
+          title: All Predecessors Ready
+          default: false
+        all_verification_gates_passed:
+          type: boolean
+          title: All Verification Gates Passed
+          default: false
+        claim_allowed:
+          type: boolean
+          title: Claim Allowed
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        clears_claim_trace:
+          type: boolean
+          title: Clears Claim Trace
+          default: false
+        clears_work_item:
+          type: boolean
+          title: Clears Work Item
+          default: false
+        clears_route_requirement:
+          type: boolean
+          title: Clears Route Requirement
+          default: false
+        route_contract_clearance_allowed:
+          type: boolean
+          title: Route Contract Clearance Allowed
+          default: false
+        work_item_ready:
+          type: boolean
+          title: Work Item Ready
+          default: false
+        handoff_ready:
+          type: boolean
+          title: Handoff Ready
+          default: false
+        dependency_ready:
+          type: boolean
+          title: Dependency Ready
+          default: false
+        remediation_ready:
+          type: boolean
+          title: Remediation Ready
+          default: false
+        action_ready:
+          type: boolean
+          title: Action Ready
+          default: false
+        dependency_graph_ready:
+          type: boolean
+          title: Dependency Graph Ready
+          default: false
+        route_contract_available:
+          type: boolean
+          title: Route Contract Available
+          default: false
+        route_registered:
+          type: boolean
+          title: Route Registered
+          default: false
+        route_inventory_entry_present:
+          type: boolean
+          title: Route Inventory Entry Present
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: false
+        shared_command_service_method_present:
+          type: boolean
+          title: Shared Command Service Method Present
+          default: false
+        shared_command_service_bound:
+          type: boolean
+          title: Shared Command Service Bound
+          default: false
+        route_handler_present:
+          type: boolean
+          title: Route Handler Present
+          default: false
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        requirement_resolved:
+          type: boolean
+          title: Requirement Resolved
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contract:
+          type: boolean
+          title: Satisfies Producer Contract
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - plan_index
+      - plan_id
+      - claim_trace_id
+      - claim_id
+      - work_item_id
+      - dependency_id
+      - remediation_id
+      - validation_id
+      - route_contract_id
+      - route_requirement_id
+      - producer_contract_id
+      - evidence_id
+      - artifact
+      - source_work_item_ref
+      - route_contract_ref
+      - route_inventory_ref
+      - shared_command_service_ref
+      - check_key
+      - dependency_stage
+      - dependency_order
+      - remediation_action
+      - required_backend_work
+      - first_handoff_blocker
+      - verification_gate
+      - blocker
+      - claim_trace_blocker
+      - work_item_blocker
+      - dependency_blocker
+      - remediation_blocker
+      - validation_blocker
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlan
+      description: Blocked backend sequencing plan for clearing a route-contract claim.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlanSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_route_contract_clearance_plans
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_contract_clearance_plan_summary
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_route_contract_clearance_plans
+        total_plan_count:
+          type: integer
+          minimum: 0.0
+          title: Total Plan Count
+          default: 0
+        blocked_plan_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Plan Count
+          default: 0
+        ready_plan_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Plan Count
+          default: 0
+        plan_ids:
+          items:
+            type: string
+          type: array
+          title: Plan Ids
+        claim_trace_ids:
+          items:
+            type: string
+          type: array
+          title: Claim Trace Ids
+        claim_ids:
+          items:
+            type: string
+          type: array
+          title: Claim Ids
+        claims:
+          items:
+            type: string
+          type: array
+          title: Claims
+        clearance_targets:
+          items:
+            type: string
+          type: array
+          title: Clearance Targets
+        work_item_ids:
+          items:
+            type: string
+          type: array
+          title: Work Item Ids
+        dependency_ids:
+          items:
+            type: string
+          type: array
+          title: Dependency Ids
+        remediation_ids:
+          items:
+            type: string
+          type: array
+          title: Remediation Ids
+        validation_ids:
+          items:
+            type: string
+          type: array
+          title: Validation Ids
+        route_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Route Contract Ids
+        route_requirement_ids:
+          items:
+            type: string
+          type: array
+          title: Route Requirement Ids
+        source_work_item_refs:
+          items:
+            type: string
+          type: array
+          title: Source Work Item Refs
+        route_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Route Contract Refs
+        route_inventory_refs:
+          items:
+            type: string
+          type: array
+          title: Route Inventory Refs
+        shared_command_service_refs:
+          items:
+            type: string
+          type: array
+          title: Shared Command Service Refs
+        required_backend_refs:
+          items:
+            type: string
+          type: array
+          title: Required Backend Refs
+        producer_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Producer Contract Ids
+        evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Evidence Ids
+        artifacts:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+          type: array
+          title: Artifacts
+        check_keys:
+          items:
+            type: string
+          type: array
+          title: Check Keys
+        dependency_stages:
+          items:
+            type: string
+          type: array
+          title: Dependency Stages
+        remediation_actions:
+          items:
+            type: string
+          type: array
+          title: Remediation Actions
+        required_backend_work:
+          items:
+            type: string
+          type: array
+          title: Required Backend Work
+        planned_backend_sequence:
+          items:
+            type: string
+          type: array
+          title: Planned Backend Sequence
+        required_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Required Verification Gates
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        claim_trace_blockers:
+          items:
+            type: string
+          type: array
+          title: Claim Trace Blockers
+        work_item_blockers:
+          items:
+            type: string
+          type: array
+          title: Work Item Blockers
+        dependency_blockers:
+          items:
+            type: string
+          type: array
+          title: Dependency Blockers
+        remediation_blockers:
+          items:
+            type: string
+          type: array
+          title: Remediation Blockers
+        validation_blockers:
+          items:
+            type: string
+          type: array
+          title: Validation Blockers
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+        predecessor_edge_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Edge Count
+          default: 0
+        successor_edge_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Edge Count
+          default: 0
+        first_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Plan Id
+        first_claim_trace_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Claim Trace Id
+        first_blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Blocker
+        all_plans_ready:
+          type: boolean
+          title: All Plans Ready
+          default: false
+        clearance_plan_ready:
+          type: boolean
+          title: Clearance Plan Ready
+          default: false
+        sequence_ready:
+          type: boolean
+          title: Sequence Ready
+          default: false
+        all_dependencies_ready:
+          type: boolean
+          title: All Dependencies Ready
+          default: false
+        all_predecessors_ready:
+          type: boolean
+          title: All Predecessors Ready
+          default: false
+        all_verification_gates_passed:
+          type: boolean
+          title: All Verification Gates Passed
+          default: false
+        all_claims_resolved:
+          type: boolean
+          title: All Claims Resolved
+          default: false
+        all_work_items_ready:
+          type: boolean
+          title: All Work Items Ready
+          default: false
+        work_queue_ready:
+          type: boolean
+          title: Work Queue Ready
+          default: false
+        handoff_ready:
+          type: boolean
+          title: Handoff Ready
+          default: false
+        dependency_graph_ready:
+          type: boolean
+          title: Dependency Graph Ready
+          default: false
+        any_action_ready:
+          type: boolean
+          title: Any Action Ready
+          default: false
+        all_remediations_ready:
+          type: boolean
+          title: All Remediations Ready
+          default: false
+        route_contract_validation_ready:
+          type: boolean
+          title: Route Contract Validation Ready
+          default: false
+        all_checks_passed:
+          type: boolean
+          title: All Checks Passed
+          default: false
+        all_route_contracts_available:
+          type: boolean
+          title: All Route Contracts Available
+          default: false
+        all_routes_registered:
+          type: boolean
+          title: All Routes Registered
+          default: false
+        route_inventory_entry_present:
+          type: boolean
+          title: Route Inventory Entry Present
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: false
+        shared_command_service_method_present:
+          type: boolean
+          title: Shared Command Service Method Present
+          default: false
+        shared_command_service_bound:
+          type: boolean
+          title: Shared Command Service Bound
+          default: false
+        route_handler_present:
+          type: boolean
+          title: Route Handler Present
+          default: false
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        all_requirements_resolved:
+          type: boolean
+          title: All Requirements Resolved
+          default: false
+        producer_clearance_ready:
+          type: boolean
+          title: Producer Clearance Ready
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contracts:
+          type: boolean
+          title: Satisfies Producer Contracts
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer-route contract clearance plan summary is backend-derived
+            sequencing evidence over blocked claim traces. It aggregates required
+            route, inventory, shared-service, handler, store, validation, writer,
+            and acceptance-path work but cannot perform that work, resolve claims,
+            write or accept evidence, construct adapters, or enable live execution.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlanSummary
+      description: Aggregate over blocked route-contract clearance plans.
     AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposal:
       properties:
         source_ref:
@@ -18419,6 +19201,13 @@ components:
             Claim Traces
         acceptance_evidence_producer_route_contract_remediation_work_item_claim_trace_summary:
           $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationWorkItemClaimTraceSummary'
+        acceptance_evidence_producer_route_contract_clearance_plans:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlan'
+          type: array
+          title: Acceptance Evidence Producer Route Contract Clearance Plans
+        acceptance_evidence_producer_route_contract_clearance_plan_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlanSummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

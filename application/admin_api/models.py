@@ -5802,6 +5802,223 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemedia
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlan(
+    BaseModel
+):
+    """Blocked backend sequencing plan for clearing a route-contract claim."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_remediation_work_item_claim_traces"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_plans"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_remediation_work_item_claim_traces_no_execution"
+    )
+    plan_index: int = Field(ge=1)
+    plan_id: str
+    claim_trace_id: str
+    claim_id: str
+    claim: str = "producer_route_contract_available"
+    clearance_target: str = "producer_route_contract_available"
+    work_item_id: str
+    dependency_id: str
+    remediation_id: str
+    validation_id: str
+    route_contract_id: str
+    route_requirement_id: str
+    producer_contract_id: str
+    evidence_id: str
+    artifact: AdminApiLiveAdapterConstructionArtifact
+    source_work_item_ref: str
+    route_contract_ref: str
+    route_inventory_ref: str
+    shared_command_service_ref: str
+    check_key: str
+    dependency_stage: str
+    dependency_order: int = Field(ge=1)
+    remediation_action: str
+    required_backend_work: str
+    required_backend_refs: list[str] = Field(default_factory=list)
+    planned_backend_sequence: list[str] = Field(default_factory=list)
+    required_verification_gates: list[str] = Field(default_factory=list)
+    predecessor_dependency_ids: list[str] = Field(default_factory=list)
+    successor_dependency_ids: list[str] = Field(default_factory=list)
+    handoff_blockers: list[str] = Field(default_factory=list)
+    first_handoff_blocker: str
+    required_before_claim_resolved: bool = True
+    verification_gate: str
+    blocker: str
+    claim_trace_blocker: str
+    work_item_blocker: str
+    dependency_blocker: str
+    remediation_blocker: str
+    validation_blocker: str
+    plan_ready: bool = False
+    sequence_ready: bool = False
+    all_dependencies_ready: bool = False
+    all_predecessors_ready: bool = False
+    all_verification_gates_passed: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    clears_claim_trace: bool = False
+    clears_work_item: bool = False
+    clears_route_requirement: bool = False
+    route_contract_clearance_allowed: bool = False
+    work_item_ready: bool = False
+    handoff_ready: bool = False
+    dependency_ready: bool = False
+    remediation_ready: bool = False
+    action_ready: bool = False
+    dependency_graph_ready: bool = False
+    route_contract_available: bool = False
+    route_registered: bool = False
+    route_inventory_entry_present: bool = False
+    route_inventory_bound: bool = False
+    shared_command_service_method_present: bool = False
+    shared_command_service_bound: bool = False
+    route_handler_present: bool = False
+    producer_route_available: bool = False
+    requirement_resolved: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contract: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlanSummary(
+    BaseModel
+):
+    """Aggregate over blocked route-contract clearance plans."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_plans"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_plan_summary"
+    )
+    authority: str = "backend_derived_from_route_contract_clearance_plans"
+    total_plan_count: int = Field(default=0, ge=0)
+    blocked_plan_count: int = Field(default=0, ge=0)
+    ready_plan_count: int = Field(default=0, ge=0)
+    plan_ids: list[str] = Field(default_factory=list)
+    claim_trace_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    claims: list[str] = Field(default_factory=list)
+    clearance_targets: list[str] = Field(default_factory=list)
+    work_item_ids: list[str] = Field(default_factory=list)
+    dependency_ids: list[str] = Field(default_factory=list)
+    remediation_ids: list[str] = Field(default_factory=list)
+    validation_ids: list[str] = Field(default_factory=list)
+    route_contract_ids: list[str] = Field(default_factory=list)
+    route_requirement_ids: list[str] = Field(default_factory=list)
+    source_work_item_refs: list[str] = Field(default_factory=list)
+    route_contract_refs: list[str] = Field(default_factory=list)
+    route_inventory_refs: list[str] = Field(default_factory=list)
+    shared_command_service_refs: list[str] = Field(default_factory=list)
+    required_backend_refs: list[str] = Field(default_factory=list)
+    producer_contract_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    artifacts: list[AdminApiLiveAdapterConstructionArtifact] = Field(
+        default_factory=list
+    )
+    check_keys: list[str] = Field(default_factory=list)
+    dependency_stages: list[str] = Field(default_factory=list)
+    remediation_actions: list[str] = Field(default_factory=list)
+    required_backend_work: list[str] = Field(default_factory=list)
+    planned_backend_sequence: list[str] = Field(default_factory=list)
+    required_verification_gates: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    claim_trace_blockers: list[str] = Field(default_factory=list)
+    work_item_blockers: list[str] = Field(default_factory=list)
+    dependency_blockers: list[str] = Field(default_factory=list)
+    remediation_blockers: list[str] = Field(default_factory=list)
+    validation_blockers: list[str] = Field(default_factory=list)
+    verification_gates: list[str] = Field(default_factory=list)
+    predecessor_edge_count: int = Field(default=0, ge=0)
+    successor_edge_count: int = Field(default=0, ge=0)
+    first_plan_id: str | None = None
+    first_claim_trace_id: str | None = None
+    first_blocker: str | None = None
+    all_plans_ready: bool = False
+    clearance_plan_ready: bool = False
+    sequence_ready: bool = False
+    all_dependencies_ready: bool = False
+    all_predecessors_ready: bool = False
+    all_verification_gates_passed: bool = False
+    all_claims_resolved: bool = False
+    all_work_items_ready: bool = False
+    work_queue_ready: bool = False
+    handoff_ready: bool = False
+    dependency_graph_ready: bool = False
+    any_action_ready: bool = False
+    all_remediations_ready: bool = False
+    route_contract_validation_ready: bool = False
+    all_checks_passed: bool = False
+    all_route_contracts_available: bool = False
+    all_routes_registered: bool = False
+    route_inventory_entry_present: bool = False
+    route_inventory_bound: bool = False
+    shared_command_service_method_present: bool = False
+    shared_command_service_bound: bool = False
+    route_handler_present: bool = False
+    producer_route_available: bool = False
+    all_requirements_resolved: bool = False
+    producer_clearance_ready: bool = False
+    m55_completion_claim_allowed: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contracts: bool = False
+    satisfies_construction: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-route contract clearance plan summary is backend-derived "
+        "sequencing evidence over blocked claim traces. It aggregates required "
+        "route, inventory, shared-service, handler, store, validation, writer, "
+        "and acceptance-path work but cannot perform that work, resolve "
+        "claims, write or accept evidence, construct adapters, or enable live "
+        "execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -6020,6 +6237,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractRemediationWorkItemClaimTraceSummary
+        )
+    )
+    acceptance_evidence_producer_route_contract_clearance_plans: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlan
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_clearance_plan_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlanSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearancePlanSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(

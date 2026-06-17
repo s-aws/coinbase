@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3941-3960` is backend `fad5dc71`
-  and frontend `527c5a5`; active range is `3961-3980`.
+- Commit (optional): completed range `3961-3980` is backend `6bbba256`
+  and frontend `dda4e74`; active range is `3981-4000`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3941-3960`; active range is `3961-3980`.
+- Latest completed autonomous range: `3961-3980`; active range is `3981-4000`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -344,7 +344,7 @@ Keep it short. Keep it factual.
   bind route inventory, bind shared command services, register handlers, write
   or accept evidence, satisfy artifacts, clear readiness, construct adapters,
   or create live execution authority.
-- Active `3961-3980` work: add blocked producer-route contract remediation
+- Completed `3961-3980` work: add blocked producer-route contract remediation
   work-item claim traces and a claim-trace summary derived from remediation
   work-item rows. The traces and summary may map unresolved
   `producer_route_contract_available` claims to work item ids, dependency ids,
@@ -355,6 +355,18 @@ Keep it short. Keep it factual.
   clear work items, perform remediation, register routes, bind route inventory,
   bind shared command services, register handlers, write or accept evidence,
   satisfy artifacts, construct adapters, or create live execution authority.
+- Active `3981-4000` work: add blocked producer-route contract clearance
+  plans and a clearance-plan summary derived from remediation work-item claim
+  traces. The plans and summary may list claim trace ids, work item ids,
+  dependency ids, remediation ids, validation ids, route refs, required
+  backend work labels, required backend refs, planned backend sequence,
+  verification gates, handoff blockers, and disabled route-registration/
+  route-inventory/shared-service/handler/store/validation/replay/writer/
+  acceptance/construction/execution flags, but they must not resolve claims,
+  clear work items, perform remediation, register routes, bind route
+  inventory, bind shared command services, register handlers, write or accept
+  evidence, satisfy artifacts, construct adapters, or create live execution
+  authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -528,14 +540,15 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3961-3980`.
+- Active autonomous range: `3981-4000`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add blocked producer-route contract remediation
-  work-item claim traces and a claim-trace summary under the existing
-  live-adapter construction contract in active phases `3961-3980` so future
-  backend work can see which unresolved route-contract availability claim is
-  still blocked by each remediation work item. The traces and summary may
-  list false claim/work-item/remediation/dependency/action readiness,
+- Current direction: add blocked producer-route contract clearance plans and a
+  clearance-plan summary under the existing live-adapter construction contract
+  in active phases `3981-4000` so future backend work can see the ordered
+  route, inventory, shared-service, handler, store, validation/replay, writer,
+  and acceptance-path work required before the unresolved route-contract
+  availability claim can ever resolve. The plans and summary may list false
+  plan/sequence/claim/work-item/remediation/dependency/action readiness,
   predecessor and successor dependency ids, route-registration,
   route-inventory, shared-service, handler, store, validation/replay, writer,
   acceptance, construction, clearance, and execution flags and false producer
@@ -1141,9 +1154,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3961-3980 backend live-adapter
-  acceptance-evidence producer-route contract remediation work-item claim-trace
-  implementation, sync frontend generated schema/display, run focused gates,
-  blind/contextless review, full gates, then commit and push both repositories
-  with `$0` live Coinbase execution before continuing only to the next
-  milestone-linked gap.
+- Exact next command: continue the active 3981-4000 backend live-adapter
+  acceptance-evidence producer-route contract clearance-plan implementation,
+  sync frontend generated schema/display, run focused gates, blind/contextless
+  review, full gates, then commit and push both repositories with `$0` live
+  Coinbase execution before continuing only to the next milestone-linked gap.

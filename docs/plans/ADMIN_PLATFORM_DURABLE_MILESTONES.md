@@ -2879,11 +2879,18 @@ Current backend evidence:
   3941-3960 add remediation work-item rows and a work-queue summary that name
   required backend work, required backend refs, and handoff blockers while
   preserving the same no-remediation/no-construction/no-execution/no-live
-  authority. Active phases 3961-3980 add remediation work-item claim traces
+  authority. Completed phases 3961-3980 add remediation work-item claim traces
   and a claim-trace summary that map those work items back to unresolved
   producer-route contract availability claims while preserving no-claim-
   resolution, no-remediation, no-construction, no-execution, and no-live
-  authority.
+  authority. Active phases 3981-4000 add producer-route contract clearance
+  plans and a clearance-plan summary that turn those unresolved claim traces
+  into backend-owned sequencing evidence for the route contract, route
+  inventory, shared command service, route handler, acceptance-evidence store,
+  validation/replay gate, writer, and acceptance path required before the
+  claim could ever resolve. Those rows preserve no-remediation,
+  no-claim-resolution, no-route-registration, no-binding, no-writing,
+  no-acceptance, no-construction, no-execution, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

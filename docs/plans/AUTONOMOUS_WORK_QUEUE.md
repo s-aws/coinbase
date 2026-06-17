@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3961-3980**.
+- Approved phase range: **3981-4000**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3941-3960`.
+- Previous completed range: `3961-3980`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,100 +23,115 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3961-3980
+## Active Phases 3981-4000
 
-These phases add backend-owned remediation work-item claim traces and a
-claim-trace summary over the producer-route contract remediation work-item
-rows. Each trace maps one blocked work item back to the unresolved
-`producer_route_contract_available` claim so a contextless reader cannot
-mistake handoff/work-queue evidence for claim resolution. This remains
-evidence only. It must not perform remediation, resolve claims, clear work
-items, register a route, bind route inventory, bind a shared command service,
-register a handler, create a store, configure validation/replay gates, create
-a writer, write or accept evidence, construct adapters, call Coinbase, invoke
-managers, execute reconciliation, cancel/replace active placements, mutate
-lifecycle/order/exchange state, grant browser authority, or grant BFF
-execution authority.
+These phases add backend-owned producer-route contract clearance-plan rows and
+a clearance-plan summary under the live-adapter construction acceptance
+evidence path. Each plan is derived from one unresolved remediation work-item
+claim trace and lists the backend route, inventory, shared-service, handler,
+store, validation, replay, writer, and acceptance-path work that must happen
+before the `producer_route_contract_available` claim can ever resolve. This
+remains evidence only. It must not perform remediation, resolve claims, clear
+work items, register a route, bind route inventory, bind a shared command
+service, register a handler, create a store, configure validation/replay
+gates, create a writer, write or accept evidence, construct adapters, call
+Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, grant browser authority, or
+grant BFF execution authority.
 
-### Phase 3961 - Prior Range Completion Evidence
+### Phase 3981 - Prior Range Completion Evidence
 
-- Record completed phases 3941-3960 with backend commit `fad5dc71`, frontend commit `527c5a5`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3961-3980 with backend commit `6bbba256`, frontend commit `dda4e74`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3962 - Advance Active Queue Range
+### Phase 3982 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3941-3960 to active phases 3961-3980 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3961-3980 to active phases 3981-4000 while preserving no-live defaults and cap policy.
 
-### Phase 3963 - Backend Claim-Trace Model
+### Phase 3983 - Backend Clearance-Plan Model
 
-- Add typed blocked producer-route contract remediation work-item claim-trace and claim-trace summary models to the existing live-adapter construction contract path.
+- Add typed blocked producer-route contract clearance-plan and clearance-plan summary models to the existing live-adapter construction contract path.
 
-### Phase 3964 - Backend Claim-Trace Projection
+### Phase 3984 - Backend Clearance-Plan Projection
 
-- Derive one claim trace from every blocked remediation work item and preserve work item id, dependency id, remediation id, validation id, route contract id, requirement id, claim id, producer contract id, evidence id, artifact, source work item ref, route refs, check key, required backend work, required backend refs, handoff blockers, and predecessor/successor dependency ids.
+- Derive one clearance plan from every blocked remediation work-item claim trace and preserve claim trace id, work item id, dependency id, remediation id, validation id, route contract id, requirement id, claim id, producer contract id, evidence id, artifact, source work item ref, route refs, check key, required backend work, required backend refs, handoff blockers, and predecessor/successor dependency ids.
 
-### Phase 3965 - Claim Non-Resolution Evidence
+### Phase 3985 - Clearance Sequence Evidence
 
-- Keep each trace blocked with `claim_resolved=false`, `claim_allowed=false`, `clears_work_item=false`, `route_registered=false`, `route_inventory_bound=false`, `shared_command_service_bound=false`, `writer_allowed=false`, `accepts_evidence=false`, `satisfies_construction=false`, and all execution authority disabled.
+- Add the required backend sequence for route contract clearance: define route contract, register route inventory binding, bind shared command service method, register route handler, configure append-only acceptance-evidence store, configure validation/replay gate, enable backend writer, and enable backend acceptance path.
 
-### Phase 3966 - Backend Claim-Trace Summary
+### Phase 3986 - Clearance Non-Resolution Evidence
 
-- Aggregate trace counts, ids, work item ids, dependency ids, remediation ids, validation ids, route refs, required backend refs, blockers, verification gates, edge counts, first blocker, and disabled authority flags.
+- Keep each plan blocked with `plan_ready=false`, `claim_resolved=false`, `route_contract_clearance_allowed=false`, `route_registered=false`, `route_inventory_bound=false`, `shared_command_service_bound=false`, `writer_allowed=false`, `accepts_evidence=false`, `satisfies_construction=false`, and all execution authority disabled.
 
-### Phase 3967 - Backend Schema And Coverage
+### Phase 3987 - Backend Clearance-Plan Summary
 
-- Regenerate backend OpenAPI and add focused assertions proving trace rows and summary are blocked, derived, work-item-linked, no-remediation, no-claim-resolution, no-registration, no-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
+- Aggregate plan counts, ids, claim trace ids, work item ids, dependency ids, remediation ids, validation ids, route refs, required backend refs, planned sequence, verification gates, blockers, edge counts, first blocker, and disabled authority flags.
 
-### Phase 3968 - Frontend Schema And Mock Sync
+### Phase 3988 - Backend Schema And Coverage
+
+- Regenerate backend OpenAPI and add focused assertions proving clearance plans and summary are blocked, derived, claim-trace-linked, no-remediation, no-claim-resolution, no-registration, no-binding, no-handler, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-execution, and no-live.
+
+### Phase 3989 - Frontend Schema And Mock Sync
 
 - Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
 
-### Phase 3969 - Frontend Display Sync
+### Phase 3990 - Frontend Display Sync
 
-- Render producer-route contract remediation work-item claim traces and claim-trace summary separately from work-item, dependency, remediation, validation, proposal, requirement, and clearance claim-trace rows through the existing adapter evidence display.
+- Render producer-route contract clearance plans and clearance-plan summary separately from claim traces, work items, dependency rows, remediation rows, validation rows, proposals, route requirements, and clearance claim traces through the existing adapter evidence display.
 
-### Phase 3970 - Frontend Focused Coverage
+### Phase 3991 - Frontend Focused Coverage
 
-- Update focused mock, dry-submit, runtime, read-model, and quality tests so claim-trace readback cannot imply remediation, claim resolution, work-item clearance, route registration, route inventory binding, shared-service binding, handler registration, store, validation, replay, writer, acceptance, construction, or execution authority.
+- Update focused mock, dry-submit, runtime, read-model, and quality tests so clearance-plan readback cannot imply remediation, claim resolution, work-item clearance, route registration, route inventory binding, shared-service binding, handler registration, store, validation, replay, writer, acceptance, construction, or execution authority.
 
-### Phase 3971 - Documentation Sync
+### Phase 3992 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract remediation work-item claim-trace readback.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract clearance-plan readback.
 
-### Phase 3972 - Autonomous Validator Sync
+### Phase 3993 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 3961-3980.
+- Update backend/frontend autonomous validators and active-range metadata for phases 3981-4000.
 
-### Phase 3973 - Stale Authority Scan
+### Phase 3994 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale active-range wording or text implying route-contract remediation work-item claim traces can resolve claims, perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
+- Search backend/frontend code and docs for stale active-range wording or text implying route-contract clearance plans can resolve claims, perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, satisfy, clear, construct, execute, or enable adapters.
 
-### Phase 3974 - Backend Focused Gates
+### Phase 3995 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 3975 - Frontend Focused Gates
+### Phase 3996 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3976 - Full Backend Regression
+### Phase 3997 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3977 - Full Frontend Release Gate
+### Phase 3998 - Full Frontend Release Gate
 
 - Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 3978 - Blind Contextless Review
+### Phase 3999 - Blind Contextless Review And Live UI Smoke
 
-- Run blind/contextless review proving a fresh agent can explain that remediation work-item claim traces are evidence only and cannot resolve claims, clear work items, perform remediation, register routes, bind route inventory, bind shared command services, register handlers, write, accept, clear, construct, execute, or enable adapters.
+- Run blind/contextless review proving a fresh agent can explain that clearance plans are sequencing evidence only, then verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
 
-### Phase 3979 - Live UI Smoke
-
-- Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
-
-### Phase 3980 - Completion Evidence, Commit, Push, And Continue
+### Phase 4000 - Completion Evidence, Commit, Push, And Continue
 
 - Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees; then continue only to the next milestone-linked gap.
+
+## Completed Phases 3961-3980
+
+Phases 3961-3980 added backend-owned remediation work-item claim traces and a
+claim-trace summary over the producer-route contract remediation work-item
+rows. Each trace maps one blocked work item back to the unresolved
+`producer_route_contract_available` claim so a contextless reader cannot
+mistake handoff/work-queue evidence for claim resolution. Backend commit
+`6bbba256` and frontend commit `dda4e74` contain the pushed range. Backend
+regression passed with `867 passed, 1 warning`. Frontend `npm run
+release:gate` passed with 260 unit tests and 3 Playwright tests. Live UI
+smoke passed at `http://127.0.0.1:3000`. Blind/contextless reviews passed for
+both repositories. Live Coinbase execution was not run; submitted notional
+`0` USDC and executed notional `0` USDC.
 
 ## Completed Phases 3941-3960
 
