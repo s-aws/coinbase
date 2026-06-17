@@ -145,6 +145,10 @@ from application.admin_api.live_execution import (
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_DEPENDENCY_SUMMARY_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_DEPENDENCY_SUMMARY_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_ITEM_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_ITEM_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_QUEUE_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_QUEUE_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_MISSING_REASON,
@@ -3271,6 +3275,87 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     )
     assert "coinbase_order_submitted" in live_readiness_schema["properties"]
     assert "reconciliation_executed" in live_readiness_schema["properties"]
+    assert "AdminLiveAdapterConstructionContractEvidence" in written[
+        "components"
+    ]["schemas"]
+    construction_contract_schema = written["components"]["schemas"][
+        "AdminLiveAdapterConstructionContractEvidence"
+    ]
+    assert "acceptance_evidence_producer_clearance_work_items" in (
+        construction_contract_schema["properties"]
+    )
+    assert "acceptance_evidence_producer_clearance_work_queue_summary" in (
+        construction_contract_schema["properties"]
+    )
+    assert (
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkItem"
+        in written["components"]["schemas"]
+    )
+    producer_clearance_work_item_schema = written["components"]["schemas"][
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkItem"
+    ]
+    for property_name in (
+        "source_ref",
+        "source",
+        "work_item_index",
+        "producer_contract_id",
+        "evidence_id",
+        "artifact",
+        "category",
+        "clearance_action_id",
+        "readiness_item_id",
+        "clearance_sequence",
+        "required_ref",
+        "verification_gate",
+        "readiness_blocker",
+        "blocker",
+        "work_item_authority",
+        "dependency_ready",
+        "clearance_ready",
+        "blocks_m55_completion",
+        "blocks_live_execution",
+        "execution_allowed",
+        "executed",
+    ):
+        assert property_name in producer_clearance_work_item_schema[
+            "properties"
+        ]
+    assert (
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSummary"
+        in written["components"]["schemas"]
+    )
+    producer_clearance_work_queue_schema = written["components"]["schemas"][
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSummary"
+    ]
+    for property_name in (
+        "source_ref",
+        "source",
+        "total_work_item_count",
+        "blocked_work_item_count",
+        "ready_work_item_count",
+        "producer_contract_count",
+        "work_item_refs",
+        "producer_contract_ids",
+        "evidence_ids",
+        "artifacts",
+        "categories",
+        "required_refs",
+        "verification_gates",
+        "first_work_item_ref",
+        "first_producer_contract_id",
+        "first_artifact",
+        "work_queue_authority",
+        "work_queue_ready",
+        "producer_clearance_ready",
+        "m55_completion_claim_allowed",
+        "live_execution_allowed",
+        "executable",
+        "execution_allowed",
+        "executed",
+    ):
+        assert property_name in producer_clearance_work_queue_schema[
+            "properties"
+        ]
     assert (
         "StealthExecutionBackendDecisionResolutionSummary"
         in written["components"]["schemas"]
@@ -5665,6 +5750,166 @@ def _assert_live_adapter_construction_contract(
     assert clearance_dependency_summary["executed"] is False
     assert clearance_dependency_summary["browser_authority"] == "display_only"
     assert clearance_dependency_summary["bff_authority"] == (
+        "forward_only_no_execution"
+    )
+    clearance_work_items = contract[
+        "acceptance_evidence_producer_clearance_work_items"
+    ]
+    expected_first_work_item_ids = [
+        f"{artifact.value}_evidence_producer_route_contract_clearance_action"
+        for artifact in LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+    ]
+    assert [
+        item["clearance_action_id"] for item in clearance_work_items
+    ] == expected_first_work_item_ids
+    assert len(clearance_work_items) == 3
+    for index, work_item in enumerate(clearance_work_items, start=1):
+        artifact_value = (
+            work_item["artifact"].value
+            if hasattr(work_item["artifact"], "value")
+            else work_item["artifact"]
+        )
+        source_action = next(
+            action
+            for action in clearance_actions
+            if action["clearance_action_id"] == work_item["clearance_action_id"]
+        )
+        assert work_item["source_ref"] == (
+            "acceptance_evidence_producer_clearance_actions"
+        )
+        assert work_item["status"] == AdminApiGateStatus.BLOCKED
+        assert work_item["source"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_ITEM_SOURCE
+        )
+        assert work_item["work_item_index"] == index
+        assert work_item["producer_contract_id"] == (
+            f"{artifact_value}_evidence_producer_contract"
+        )
+        assert work_item["evidence_id"] == f"{artifact_value}_evidence"
+        assert work_item["category"] == "producer_route_contract"
+        assert work_item["readiness_item_id"] == (
+            f"{artifact_value}_evidence_producer_route_contract"
+        )
+        assert work_item["clearance_sequence"] == source_action[
+            "clearance_sequence"
+        ]
+        assert work_item["required_ref"] == source_action["required_ref"]
+        assert work_item["required_route"] is None
+        assert work_item["required_method"] == "POST"
+        assert work_item["verification_gate"] == source_action[
+            "verification_gate"
+        ]
+        assert work_item["readiness_blocker"] == (
+            f"{artifact_value}_producer_route_contract_missing"
+        )
+        assert work_item["blocker"] == source_action["blocker"]
+        assert work_item["missing_reason"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_MISSING_REASON
+        )
+        assert work_item["work_item_authority"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_ITEM_AUTHORITY
+        )
+        assert work_item["route_available"] is False
+        assert work_item["store_available"] is False
+        assert work_item["validation_configured"] is False
+        assert work_item["replay_protection_configured"] is False
+        assert work_item["writer_allowed"] is False
+        assert work_item["writes_acceptance_evidence"] is False
+        assert work_item["accepts_evidence"] is False
+        assert work_item["satisfies_producer_contract"] is False
+        assert work_item["satisfies_construction"] is False
+        assert work_item["dependency_ready"] is False
+        assert work_item["clearance_ready"] is False
+        assert work_item["clearance_allowed"] is False
+        assert work_item["clearance_executed"] is False
+        assert work_item["blocks_m55_completion"] is True
+        assert work_item["blocks_live_execution"] is True
+        assert work_item["execution_allowed"] is False
+        assert work_item["executed"] is False
+        assert work_item["no_live_execution"] is True
+        assert work_item["backend_owned"] is True
+        assert work_item["route_bound"] is True
+        assert work_item["command_context_bound"] is True
+        assert work_item["browser_authority"] == "display_only"
+        assert work_item["bff_authority"] == "forward_only_no_execution"
+    clearance_work_queue_summary = contract[
+        "acceptance_evidence_producer_clearance_work_queue_summary"
+    ]
+    assert clearance_work_queue_summary["source_ref"] == (
+        "acceptance_evidence_producer_clearance_work_items"
+    )
+    assert clearance_work_queue_summary["status"] == AdminApiGateStatus.BLOCKED
+    assert clearance_work_queue_summary["source"] == (
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_QUEUE_SOURCE
+    )
+    assert clearance_work_queue_summary["total_work_item_count"] == len(
+        clearance_work_items
+    )
+    assert clearance_work_queue_summary["blocked_work_item_count"] == len(
+        clearance_work_items
+    )
+    assert clearance_work_queue_summary["ready_work_item_count"] == 0
+    assert clearance_work_queue_summary["producer_contract_count"] == len(
+        clearance_work_items
+    )
+    assert clearance_work_queue_summary["work_item_refs"] == [
+        item["clearance_action_id"] for item in clearance_work_items
+    ]
+    assert clearance_work_queue_summary["producer_contract_ids"] == [
+        item["producer_contract_id"] for item in clearance_work_items
+    ]
+    assert clearance_work_queue_summary["evidence_ids"] == [
+        item["evidence_id"] for item in clearance_work_items
+    ]
+    assert clearance_work_queue_summary["artifacts"] == [
+        item["artifact"] for item in clearance_work_items
+    ]
+    assert clearance_work_queue_summary["categories"] == [
+        "producer_route_contract",
+        "producer_route_contract",
+        "producer_route_contract",
+    ]
+    assert clearance_work_queue_summary["required_refs"] == [
+        "application/admin_api/live_execution.py::"
+        "acceptance_evidence_producer_route_contract"
+    ]
+    assert clearance_work_queue_summary["verification_gates"] == [
+        "producer_route_is_backend_owned_and_route_inventory_bound"
+    ]
+    assert clearance_work_queue_summary["first_work_item_ref"] == (
+        expected_first_work_item_ids[0]
+    )
+    assert clearance_work_queue_summary["first_producer_contract_id"] == (
+        "route_bound_stealth_live_execution_adapter_evidence_producer_contract"
+    )
+    assert clearance_work_queue_summary["first_artifact"] == (
+        AdminApiLiveAdapterConstructionArtifact.ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER
+    )
+    assert clearance_work_queue_summary["work_queue_authority"] == (
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_QUEUE_AUTHORITY
+    )
+    assert clearance_work_queue_summary["work_queue_ready"] is False
+    assert clearance_work_queue_summary["producer_clearance_ready"] is False
+    assert clearance_work_queue_summary["m55_completion_claim_allowed"] is False
+    assert clearance_work_queue_summary["live_execution_allowed"] is False
+    assert clearance_work_queue_summary["executable"] is False
+    assert clearance_work_queue_summary["route_available"] is False
+    assert clearance_work_queue_summary["store_available"] is False
+    assert clearance_work_queue_summary["validation_configured"] is False
+    assert clearance_work_queue_summary["replay_protection_configured"] is False
+    assert clearance_work_queue_summary["writer_allowed"] is False
+    assert clearance_work_queue_summary["writes_acceptance_evidence"] is False
+    assert clearance_work_queue_summary["accepts_evidence"] is False
+    assert clearance_work_queue_summary["satisfies_producer_contracts"] is False
+    assert clearance_work_queue_summary["satisfies_construction"] is False
+    assert clearance_work_queue_summary["execution_allowed"] is False
+    assert clearance_work_queue_summary["executed"] is False
+    assert clearance_work_queue_summary["no_live_execution"] is True
+    assert clearance_work_queue_summary["backend_owned"] is True
+    assert clearance_work_queue_summary["route_bound"] is True
+    assert clearance_work_queue_summary["command_context_bound"] is True
+    assert clearance_work_queue_summary["browser_authority"] == "display_only"
+    assert clearance_work_queue_summary["bff_authority"] == (
         "forward_only_no_execution"
     )
     assert contract["required_artifacts"] == list(
@@ -10359,7 +10604,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10586,7 +10831,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -10826,7 +11071,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -11085,7 +11330,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -11310,7 +11555,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -12215,7 +12460,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15405,7 +15650,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -15620,7 +15865,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "3781-3800"
+    assert readback_payload["approved_phase_range"] == "3801-3820"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -18699,7 +18944,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "3781-3800"
+    assert payload["approved_phase_range"] == "3801-3820"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -20527,7 +20772,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "3781-3800"
+    assert live_payload["approved_phase_range"] == "3801-3820"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -21090,7 +21335,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "3781-3800"
+    assert enterprise_payload["approved_phase_range"] == "3801-3820"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -21865,7 +22110,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "3781-3800"
+    assert recovery_preview_payload["approved_phase_range"] == "3801-3820"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

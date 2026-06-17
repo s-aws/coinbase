@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3781-3800**.
+- Approved phase range: **3801-3820**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3761-3780`.
+- Previous completed range: `3781-3800`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,98 +23,112 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3781-3800
+## Active Phases 3801-3820
 
-These phases add a blocked dependency summary over producer-readiness
-clearance actions. The summary aggregates action counts, dependency-blocked
-refs, clearable refs, terminal refs, first blocked action, and disabled
-route/store/validation/replay/writer/acceptance/construction/clearance/execution flags.
-It is derived from the clearance-action rows and remains planning evidence
-only. It must not create a route, store, validation/replay gate, writer,
-acceptance path, adapter construction path, Coinbase call, manager call,
-reconciliation execution, active-placement cancellation/replacement,
-lifecycle/order/exchange mutation, browser authority, or BFF execution
-authority.
+These phases add backend-owned producer-clearance work items and a queue
+summary under the live-adapter construction acceptance-evidence producer path.
+Each work item is derived from the first blocked clearance action for a
+missing producer contract; the queue summary aggregates counts, refs, evidence
+ids, artifacts, categories, required refs, gates, and disabled authority
+flags. This remains evidence only. It must not create a route, store,
+validation/replay gate, writer, acceptance path, adapter construction path,
+Coinbase call, manager call, reconciliation execution, active-placement
+cancellation/replacement, lifecycle/order/exchange mutation, browser
+authority, or BFF execution authority.
 
-### Phase 3781 - Prior Range Completion Evidence
+### Phase 3801 - Prior Range Completion Evidence
 
-- Record completed phases 3761-3780 with backend commit `33fb549f`, frontend commit `d5d212a`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3781-3800 with backend commit `43750317`, frontend commit `71e8059`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3782 - Advance Active Queue Range
+### Phase 3802 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3761-3780 to active phases 3781-3800 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3781-3800 to active phases 3801-3820 while preserving no-live defaults and cap policy.
 
-### Phase 3783 - Backend Dependency Summary Model
+### Phase 3803 - Backend Work-Item Model
 
-- Add a typed producer-readiness clearance dependency summary to the existing live-adapter construction contract path.
+- Add typed producer-clearance work-item and queue-summary models to the existing live-adapter construction contract path.
 
-### Phase 3784 - Backend Dependency Summary Projection
+### Phase 3804 - Backend Work-Item Projection
 
-- Derive blocked/ready counts, dependency-blocked refs, clearable refs, terminal refs, first refs, and disabled authority flags from existing clearance-action rows.
+- Derive one blocked work item per missing producer contract from that contract's first blocked clearance action.
 
-### Phase 3785 - Backend Schema Sync
+### Phase 3805 - Backend Work-Queue Summary
 
-- Regenerate backend OpenAPI so the frontend consumes dependency-summary fields from generated schema.
+- Aggregate work-item counts, refs, producer contract ids, evidence ids, artifacts, categories, required refs, gates, and disabled authority flags.
 
-### Phase 3786 - Backend Focused Coverage
+### Phase 3806 - Backend Schema And Coverage
 
-- Add focused assertions proving the dependency summary is blocked, derived from clearance actions, has no clearable actions, and all route/store/validation/replay/writer/acceptance/construction/clearance/execution flags are false.
+- Regenerate backend OpenAPI and add focused assertions proving work items and queue summary are blocked, derived, no-route, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-clearance, no-execution, and no-live.
 
-### Phase 3787 - Frontend Schema Sync
+### Phase 3807 - Frontend Schema And Mock Sync
 
-- Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
+- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
 
-### Phase 3788 - Frontend Mock And Runtime Sync
+### Phase 3808 - Frontend Display Sync
 
-- Add producer-readiness clearance dependency summary fields to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
+- Render producer-clearance work items and queue summary separately from readiness rows, clearance-action rows, and dependency summaries through existing adapter evidence rows.
 
-### Phase 3789 - Frontend Display Sync
+### Phase 3809 - Frontend Focused Coverage
 
-- Render the dependency summary separately from clearance action rows through existing adapter evidence rows.
+- Update focused mock, dry-submit, runtime, read-model, and quality tests so work-item readback cannot imply write/acceptance/construction/clearance/execution authority.
 
-### Phase 3790 - Frontend Focused Coverage
+### Phase 3810 - Documentation Sync
 
-- Update focused mock, runtime, read-model, dry-submit, and quality tests so the dependency summary cannot drift or imply write/acceptance/construction/clearance authority.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for work-item and queue-summary readback.
 
-### Phase 3791 - Documentation Sync
+### Phase 3811 - Autonomous Validator Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for dependency-summary readback.
+- Update backend/frontend autonomous validators and active-range metadata for phases 3801-3820.
 
-### Phase 3792 - Autonomous Validator Sync
+### Phase 3812 - Stale Authority Scan
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 3781-3800.
+- Search backend/frontend code and docs for stale active-range wording or text implying work items can write, accept, satisfy, clear, construct, execute, or enable adapters.
 
-### Phase 3793 - Stale Authority Scan
-
-- Search backend/frontend code and docs for stale active-range wording or text implying dependency summaries can write, accept, satisfy, clear, construct, or enable adapters.
-
-### Phase 3794 - Backend Focused Gates
+### Phase 3813 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 3795 - Frontend Focused Gates
+### Phase 3814 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 3796 - Full Backend Regression
+### Phase 3815 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 3797 - Full Frontend Release Gate And UI Smoke
+### Phase 3816 - Full Frontend Release Gate
 
-- Run `npm run release:gate` in `C:\coinbase-frontend` and verify the live-updated admin UI remains available with no-live posture.
+- Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 3798 - Blind Contextless Review
+### Phase 3817 - Blind Contextless Review
 
-- Run blind/contextless review proving a fresh agent can explain that dependency summaries are planning evidence only and cannot build, satisfy, write, accept, clear, or enable adapters.
+- Run blind/contextless review proving a fresh agent can explain that work items and queue summary are planning evidence only and cannot build, satisfy, write, accept, clear, execute, or enable adapters.
 
-### Phase 3799 - Final Clean Tree Check
+### Phase 3818 - Live UI Smoke
 
-- Verify backend/frontend status, diff checks, and no-live notional evidence before staging.
+- Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
 
-### Phase 3800 - Commit, Push, And No-Live Report
+### Phase 3819 - Completion Evidence And No-Live Ledger
 
-- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
+- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3820 - Commit, Push, And Pause Summary
+
+- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, verify clean worktrees, and pause so the session can restart.
+
+## Completed Phases 3781-3800
+
+These phases added a blocked dependency summary over producer-readiness
+clearance actions. The summary aggregates action counts, dependency-blocked
+refs, clearable refs, terminal refs, first blocked action, and disabled
+route/store/validation/replay/writer/acceptance/construction/clearance/
+execution flags. It is derived from the clearance-action rows and remains
+planning evidence only. It did not create a route, store, validation/replay
+gate, writer, acceptance path, adapter construction path, Coinbase call,
+manager call, reconciliation execution, active-placement cancellation/
+replacement, lifecycle/order/exchange mutation, browser authority, or BFF
+execution authority. Backend commit `43750317` and frontend commit `71e8059`
+contain the pushed range.
 
 ## Completed Phases 3761-3780
 

@@ -12930,6 +12930,372 @@ components:
       type: object
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary
       description: Aggregate over blocked producer-readiness clearance action rows.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkItem:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_clearance_actions
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_clearance_work_items
+        work_item_index:
+          type: integer
+          minimum: 1.0
+          title: Work Item Index
+        producer_contract_id:
+          type: string
+          title: Producer Contract Id
+        evidence_id:
+          type: string
+          title: Evidence Id
+        artifact:
+          $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+        category:
+          type: string
+          title: Category
+        clearance_action_id:
+          type: string
+          title: Clearance Action Id
+        readiness_item_id:
+          type: string
+          title: Readiness Item Id
+        clearance_sequence:
+          type: integer
+          minimum: 1.0
+          title: Clearance Sequence
+        required_ref:
+          type: string
+          title: Required Ref
+        required_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Route
+        required_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Method
+        verification_gate:
+          type: string
+          title: Verification Gate
+        readiness_blocker:
+          type: string
+          title: Readiness Blocker
+        blocker:
+          type: string
+          title: Blocker
+        missing_reason:
+          type: string
+          title: Missing Reason
+          default: acceptance_evidence_producer_clearance_action_missing
+        work_item_authority:
+          type: string
+          title: Work Item Authority
+          default: backend_derived_from_first_blocked_producer_clearance_action
+        route_available:
+          type: boolean
+          title: Route Available
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contract:
+          type: boolean
+          title: Satisfies Producer Contract
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        dependency_ready:
+          type: boolean
+          title: Dependency Ready
+          default: false
+        clearance_ready:
+          type: boolean
+          title: Clearance Ready
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        clearance_executed:
+          type: boolean
+          title: Clearance Executed
+          default: false
+        blocks_m55_completion:
+          type: boolean
+          title: Blocks M55 Completion
+          default: true
+        blocks_live_execution:
+          type: boolean
+          title: Blocks Live Execution
+          default: true
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - work_item_index
+      - producer_contract_id
+      - evidence_id
+      - artifact
+      - category
+      - clearance_action_id
+      - readiness_item_id
+      - clearance_sequence
+      - required_ref
+      - verification_gate
+      - readiness_blocker
+      - blocker
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkItem
+      description: First blocked clearance action for one acceptance-evidence producer.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_clearance_work_items
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_clearance_work_queue
+        total_work_item_count:
+          type: integer
+          minimum: 0.0
+          title: Total Work Item Count
+          default: 0
+        blocked_work_item_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Work Item Count
+          default: 0
+        ready_work_item_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Work Item Count
+          default: 0
+        producer_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Producer Contract Count
+          default: 0
+        work_item_refs:
+          items:
+            type: string
+          type: array
+          title: Work Item Refs
+        producer_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Producer Contract Ids
+        evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Evidence Ids
+        artifacts:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+          type: array
+          title: Artifacts
+        categories:
+          items:
+            type: string
+          type: array
+          title: Categories
+        required_refs:
+          items:
+            type: string
+          type: array
+          title: Required Refs
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+        first_work_item_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Work Item Ref
+        first_producer_contract_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Producer Contract Id
+        first_artifact:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+          - type: 'null'
+        work_queue_authority:
+          type: string
+          title: Work Queue Authority
+          default: backend_derived_from_producer_clearance_work_items
+        work_queue_ready:
+          type: boolean
+          title: Work Queue Ready
+          default: false
+        producer_clearance_ready:
+          type: boolean
+          title: Producer Clearance Ready
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        route_available:
+          type: boolean
+          title: Route Available
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contracts:
+          type: boolean
+          title: Satisfies Producer Contracts
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer-clearance work queue summary is backend-derived planning
+            evidence over the first blocked clearance action for each missing acceptance-evidence
+            producer contract. It cannot configure routes, stores, validation/replay
+            gates, writers, acceptance paths, adapter construction, or live execution.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSummary
+      description: Aggregate over producer-clearance work items.
     AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract:
       properties:
         evidence_id:
@@ -13666,6 +14032,13 @@ components:
           title: Acceptance Evidence Producer Clearance Actions
         acceptance_evidence_producer_clearance_dependency_summary:
           $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary'
+        acceptance_evidence_producer_clearance_work_items:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkItem'
+          type: array
+          title: Acceptance Evidence Producer Clearance Work Items
+        acceptance_evidence_producer_clearance_work_queue_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'
