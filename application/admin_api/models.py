@@ -68,6 +68,7 @@ from core.enums import (
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
     StealthCoinbaseExchangePolicyEvidenceSource,
+    StealthStateMutationPolicyEvidenceSource,
     StealthLifecycleWriteGuardEvidenceSource,
     StealthManagerPolicyEvidenceSource,
     StealthMutationClaimEvidenceSource,
@@ -515,6 +516,39 @@ class StealthCoinbaseExchangeSubmissionPolicyProofRequest(BaseModel):
     admission_audit_id: str = Field(min_length=1)
     cap_guard_decision_id: str = Field(min_length=1)
     coinbase_exchange_policy_proof_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class StealthStateMutationPolicyProofRequest(BaseModel):
+    """Stealth state-mutation policy proof keyed by path id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str = Field(min_length=1)
+    guarded_command_route: str = Field(min_length=1)
+    guarded_command_method: str = "POST"
+    guarded_service_method: str = Field(min_length=1)
+    guarded_mutation_family: AdminApiMutationFamilyType
+    guarded_actor_id: str = Field(min_length=1)
+    guarded_operator_intent: str = Field(min_length=1)
+    guarded_idempotency_key: str = Field(min_length=1)
+    guarded_payload_hash: str = Field(min_length=64, max_length=64)
+    state_mutation_policy_ref: str = Field(min_length=1)
+    lifecycle_state_policy_ref: str = Field(min_length=1)
+    order_state_policy_ref: str = Field(min_length=1)
+    exchange_state_policy_ref: str = Field(min_length=1)
+    post_write_reconciliation_policy_ref: str = Field(min_length=1)
+    evidence_source: StealthStateMutationPolicyEvidenceSource
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    state_mutation_policy_proof_id: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     dry_run: bool = True
     operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
@@ -1097,6 +1131,18 @@ class StealthCoinbaseExchangeSubmissionPolicyProofCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthCoinbaseExchangeSubmissionPolicyProofRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class StealthStateMutationPolicyProofCommand(BaseModel):
+    """Shared service command for state-mutation policy proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthStateMutationPolicyProofRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
@@ -2761,6 +2807,74 @@ class StealthCoinbaseExchangeSubmissionPolicyProofRecordItem(BaseModel):
     detail: str
 
 
+class StealthStateMutationPolicyProofRecordItem(BaseModel):
+    """Read-only persisted stealth state-mutation policy evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    state_mutation_policy_proof_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    stealth_order_id: str
+    guarded_command_route: str
+    guarded_command_method: str
+    guarded_service_method: str
+    guarded_mutation_family: AdminApiMutationFamilyType
+    guarded_actor_id: str
+    guarded_operator_intent: str
+    guarded_idempotency_key: str
+    guarded_payload_hash: str
+    state_mutation_policy_ref: str
+    lifecycle_state_policy_ref: str
+    order_state_policy_ref: str
+    exchange_state_policy_ref: str
+    post_write_reconciliation_policy_ref: str
+    evidence_source: StealthStateMutationPolicyEvidenceSource
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_stealth_state_mutation_policy_log"
+    proof_persisted: bool = True
+    state_mutation_policy_verified: bool = False
+    state_mutation_allowed: bool = False
+    lifecycle_state_mutation_allowed: bool = False
+    order_state_mutation_allowed: bool = False
+    exchange_state_mutation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    reconciliation_plan_built: bool = False
+    reconciliation_execution_ran: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthRecoveryProofRecordItem(BaseModel):
     """Read-only persisted stealth recovery proof evidence."""
 
@@ -4330,6 +4444,56 @@ class StealthCoinbaseExchangeSubmissionPolicyReadResponse(AdminApiReadPayload):
     live_coinbase_read_allowed: bool = False
     live_cap_verified: bool = False
     manager_invocation_ran: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_required: bool = True
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
+class StealthStateMutationPolicyReadResponse(AdminApiReadPayload):
+    """Read-only stealth state-mutation policy proof readback."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_state_mutation_policy"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    state_mutation_policy_verified: bool = False
+    persisted_proof_count: int = Field(default=0, ge=0)
+    persisted_proofs: list[StealthStateMutationPolicyProofRecordItem] = Field(
+        default_factory=list
+    )
+    latest_state_mutation_policy_proof_id: str | None = None
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    route_bound: bool = True
+    proof_records_created: bool = False
+    state_mutation_allowed: bool = False
+    lifecycle_state_mutation_allowed: bool = False
+    order_state_mutation_allowed: bool = False
+    exchange_state_mutation_allowed: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    reconciliation_plan_build_allowed: bool = False
+    reconciliation_plan_built: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_execution_ran: bool = False
     coinbase_read_attempted: bool = False
     coinbase_read_succeeded: bool = False
     coinbase_rest_read_ran: bool = False

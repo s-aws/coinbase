@@ -2791,12 +2791,13 @@ Current backend evidence:
   active-placement cancel/replace, state mutation, browser, or BFF authority.
   Resolver lookups use the newest exact-command policy proof row, ignore newer
   rows for other guarded command contexts, and block on a newer unsafe
-  exact-command row. Active phases 3381-3400 consume those resolver rows
-  inside `execution_live_readiness` decision artifact evidence. Resolved
-  artifacts, evidence ids, and sources are display/backend evidence only;
-  backend decisions remain blocked and live execution, Coinbase, manager,
-  reconciliation, active-placement, state mutation, browser, and BFF authority
-  remain disabled.
+  exact-command row. Completed phases 3381-3400 consume those resolver rows
+  inside `execution_live_readiness` decision artifact evidence. Active phases
+  3401-3420 add backend-owned stealth state-mutation policy proof/readback
+  evidence for future exact-command resolver work. The proof records are
+  append-only local evidence only; backend decisions remain blocked and live
+  execution, Coinbase, manager, reconciliation, active-placement, state
+  mutation, browser, and BFF authority remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

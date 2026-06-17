@@ -100,8 +100,12 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3361-3380` under M55.
-- Active autonomous range: `3381-3400` under M55.
+- Latest completed autonomous range: `3381-3400` under M55.
+- Active autonomous range: `3401-3420` under M55.
+- Active 3401-3420 work adds backend-owned stealth state-mutation policy
+  proof/readback evidence. This phase must keep `state_mutation_policy`
+  unresolved in live-readiness decisions until a later exact-command resolver
+  phase consumes and validates the evidence.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -448,11 +452,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   authority disabled. Resolver lookups use the newest exact-command policy
   proof row, ignore newer rows for other guarded command contexts, and block
   on a newer unsafe exact-command row.
-  The active 3381-3400 range consumes those resolver rows inside
-  `execution_live_readiness` decision artifact evidence. Resolved artifacts,
-  evidence ids, and sources are backend/display evidence only; backend
-  decisions remain blocked and live execution, Coinbase, manager,
-  reconciliation, state mutation, browser, and BFF authority remain disabled.
+  The completed 3381-3400 range consumes those resolver rows inside
+  `execution_live_readiness` decision artifact evidence. Active phases
+  3401-3420 add backend-owned state-mutation policy proof/readback evidence
+  for later resolver work. The proof records are append-only local evidence
+  only; backend decisions remain blocked and live execution, Coinbase,
+  manager, reconciliation, state mutation, browser, and BFF authority remain
+  disabled.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

@@ -152,6 +152,9 @@ class AdminApiPermission(str, Enum):
     STEALTH_COINBASE_EXCHANGE_POLICY_RECORD = (
         "stealth_coinbase_exchange_policy:record"
     )
+    STEALTH_STATE_MUTATION_POLICY_RECORD = (
+        "stealth_state_mutation_policy:record"
+    )
     STEALTH_POST_WRITE_RECONCILIATION_POLICY_RECORD = (
         "stealth_post_write_reconciliation_policy:record"
     )
@@ -295,6 +298,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_COINBASE_EXCHANGE_SUBMISSION_POLICY_PROOF = (
         "stealth_coinbase_exchange_submission_policy_proof"
     )
+    STEALTH_STATE_MUTATION_POLICY_PROOF = (
+        "stealth_state_mutation_policy_proof"
+    )
     STEALTH_POST_WRITE_RECONCILIATION_EXECUTION_POLICY_PROOF = (
         "stealth_post_write_reconciliation_execution_policy_proof"
     )
@@ -332,6 +338,7 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
         "post_write_reconciliation_execution_policy"
     )
+    STATE_MUTATION_POLICY = "state_mutation_policy"
     LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
     MANAGER_INVOCATION_POLICY = "manager_invocation_policy"
@@ -533,6 +540,14 @@ class StealthCoinbaseExchangePolicyEvidenceSource(str, Enum):
     MANUAL_REVIEW = "manual_review"
     TEST_EVIDENCE = "test_evidence"
     EXCHANGE_POLICY_REVIEW = "exchange_policy_review"
+
+
+class StealthStateMutationPolicyEvidenceSource(str, Enum):
+    """Source posture for stealth state-mutation policy evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    STATE_MUTATION_POLICY_REVIEW = "state_mutation_policy_review"
 
 
 class StealthRevealTriggerEvidenceSource(str, Enum):

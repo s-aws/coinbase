@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3381-3400**.
+- Approved phase range: **3401-3420**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
 - Previous completed range: `3361-3380`.
 - The approved range allows unattended work without asking for another
@@ -23,101 +23,96 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3381-3400
+## Active Phases 3401-3420
 
-These phases continue M55 by making the existing `execution_live_readiness`
-backend decision ledger consume exact-command prerequisite resolver evidence
-for manager-invocation policy, Coinbase exchange submission-policy, and
-post-write reconciliation execution-policy proofs. The ledger may expose
-`resolved_resolution_artifacts`, evidence ids, evidence sources, and
-`resolution_evidence_present`, and may remove only the proven policy artifact
-from `missing_resolution_artifacts`. It must keep every backend decision
-blocked until the remaining service, adapter, manager, Coinbase, active-
-placement, reconciliation, state-mutation, and live-enable blockers are
-actually satisfied. It must not call Coinbase, invoke managers, submit orders,
+These phases continue M55 by adding a backend-owned stealth state-mutation
+policy proof/readback foundation. The new surface may persist reviewed policy
+references for exact guarded command context, expose readback evidence, and
+sync frontend contracts. It must not resolve `state_mutation_policy` in
+`execution_live_readiness`, call Coinbase, invoke managers, submit orders,
 cancel orders, read Coinbase, cancel or replace active placements, execute
-reconciliation, mutate state, grant browser authority, or grant BFF execution
-authority.
+reconciliation, mutate lifecycle/order/exchange state, grant browser
+authority, or grant BFF execution authority.
 
-### Phase 3381 - Advance Active Queue Range
+### Phase 3401 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3361-3380 to active phases 3381-3400 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3381-3400 to active phases 3401-3420 while preserving no-live defaults and cap policy.
 
-### Phase 3382 - Prior Range Completion Evidence
+### Phase 3402 - Prior Range Completion Evidence
 
-- Keep completed phases 3361-3380 recorded as exact-command policy proof prerequisite resolver evidence with passing backend/frontend gates, blind/contextless review, backend commit `f7f5cc8b`, frontend commit `61c0ff3`, and `$0` live Coinbase submitted/executed notional.
+- Keep completed phases 3381-3400 recorded as live-readiness policy artifact evidence consumption with passing backend/frontend gates, blind/contextless review, backend commit `e12ff0c1`, frontend commit `b595717`, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3383 - Decision Artifact Contract Fields
+### Phase 3403 - State-Mutation Policy Enums
 
-- Add required backend decision fields for resolved resolution artifacts, evidence ids, evidence sources, and evidence-present status.
+- Add enum-backed state-mutation policy permission, mutation family, and evidence-source contracts.
 
-### Phase 3384 - Shared Resolver Artifact Mapping
+### Phase 3404 - State-Mutation Proof Store
 
-- Add one shared live-readiness mapping from existing exact-command prerequisite resolver rows to backend decision policy artifacts.
+- Add an append-only locked JSONL store for state-mutation policy proof records keyed by `stealth_order_id` and proof id.
 
-### Phase 3385 - Create Live-Readiness Bridge
+### Phase 3405 - State-Mutation Proof Service
 
-- Thread stealth create lifecycle-write prerequisite resolver rows into `execution_live_readiness` without changing live-disabled or blocked decision status.
+- Add a backend-owned service that validates route inventory, exact guarded command context, dry-run/no-live posture, and matching admission evidence before appending proof records.
 
-### Phase 3386 - Non-Create Live-Readiness Bridge
+### Phase 3406 - Command Service Integration
 
-- Thread reveal, cancel, move, recover, reconcile, and reprice prerequisite resolver rows into the same `execution_live_readiness` path.
+- Add one command-service method for recording state-mutation policy proof evidence through the existing idempotent admission path.
 
-### Phase 3387 - Missing Evidence Preservation
+### Phase 3407 - Readback Contract
 
-- Prove no-proof and unavailable-proof cases keep resolved-artifact fields empty and leave all artifacts missing.
+- Add read-only state-mutation policy readback that exposes persisted proof rows and explicit false mutation/manager/Coinbase/reconciliation flags.
 
-### Phase 3388 - Unsafe Evidence Preservation
+### Phase 3408 - Route Inventory And FastAPI Surface
 
-- Prove stale, wrong-context, or unsafe exact-command proof rows cannot appear as resolved live-readiness artifacts.
+- Add `GET /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy` and `POST /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy-proofs` through the existing Admin API route inventory and adapters.
 
-### Phase 3389 - OpenAPI And Schema Contract Sync
+### Phase 3409 - Backend Regression Coverage
 
-- Update backend OpenAPI contract tests and frontend generated/typed consumers for the new required evidence fields without hand-editing generated schema.
+- Add focused no-live/path-keyed regression coverage for rejection without admission evidence, exact accepted proof recording, idempotent replay, readback, and audit rows.
 
-### Phase 3390 - Frontend Adapter Mapping
+### Phase 3410 - Enterprise Readiness Taxonomy
 
-- Map resolved artifacts, evidence ids, evidence sources, and evidence-present status into the stealth orders view model.
+- Add route-bound mutation taxonomy and command-suite evidence mapping for the state-mutation policy proof route without creating execution authority.
 
-### Phase 3391 - UI And Dry-Submit Evidence Display
+### Phase 3411 - Backend Documentation
 
-- Display resolved-vs-missing decision artifacts in the existing readiness UI and dry-submit evidence rows without adding execution controls.
+- Add feature README, examples, API docs, handoff, and roadmap updates for state-mutation policy proof/readback.
 
-### Phase 3392 - Mock And Runtime Fixtures
+### Phase 3412 - OpenAPI Regeneration
 
-- Update mock backend and unit fixtures so contextless frontend tests expose the new fields.
+- Regenerate backend OpenAPI after the new route and schema contracts are complete.
 
-### Phase 3393 - Documentation And Handoff
+### Phase 3413 - Frontend Schema Sync
 
-- Update backend/frontend roadmaps, handoff, testing docs, and local AI context for live-readiness policy-artifact evidence consumption.
+- Regenerate frontend OpenAPI TypeScript schema and ensure generated files are not hand-edited.
 
-### Phase 3394 - Autonomous And Release Metadata
+### Phase 3414 - Frontend API Client Wrappers
 
-- Update backend and frontend autonomous checks, deployment readiness, artifact contracts, and active range metadata for phases 3381-3400.
+- Add canonical frontend wrappers for reading and recording state-mutation policy proof evidence.
 
-### Phase 3395 - Stale Range And Authority Drift Scan
+### Phase 3415 - Frontend Mock Runtime
 
-- Scan both repositories for stale active range references and wording that implies policy evidence clears live execution.
+- Update mock backend, runtime fixtures, and route coverage so the new proof/readback surfaces are available in mock and backend modes.
 
-### Phase 3396 - Focused Backend Gates
+### Phase 3416 - Frontend Evidence Rendering
 
-- Run focused backend Admin API/OpenAPI/autonomous checks covering no-proof, safe-proof, and unsafe-proof live-readiness behavior.
+- Render state-mutation policy readback as evidence only in existing readiness/stealth surfaces without adding execution controls.
 
-### Phase 3397 - Focused Frontend Gates
+### Phase 3417 - Frontend Documentation
 
-- Run focused frontend adapter, mock backend, dry-submit, read-model, quality, and autonomous tests for the new evidence fields.
+- Update frontend API contract, command workflow, testing, examples, and roadmap docs for the new state-mutation policy proof/readback surface.
 
-### Phase 3398 - Blind Contextless Review
+### Phase 3418 - Stale Range And Authority Drift Scan
 
-- Run blind/contextless review asking whether a fresh agent can explain that resolved policy artifacts are evidence only and do not clear backend decisions.
+- Scan backend and frontend docs/tests/mocks for stale 3381-3400 active-range wording and for text implying state-mutation proof authorizes mutation.
 
-### Phase 3399 - Full Gates And Browser Check
+### Phase 3419 - Focused Gates And Contextless Review
 
-- Run backend full regression, frontend `npm run release:gate`, and browser/UI smoke checks.
+- Run backend focused tests, frontend focused API/unit checks, autonomous checks, and blind/contextless review proving the proof surface is evidence only.
 
-### Phase 3400 - Commit, Push, Pause, And No-Live Report
+### Phase 3420 - Full Gates, Commit, Push, Pause, And No-Live Report
 
-- Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and pause for the requested restart.
+- Run backend full regression, frontend `npm run release:gate`, commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and pause for the requested restart.
 
 ## Completed Phases 3361-3380
 

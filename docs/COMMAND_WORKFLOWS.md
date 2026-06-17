@@ -266,6 +266,17 @@ verification, and safe-chain references only. The records do not execute
 reconciliation, call Coinbase, invoke managers, submit/cancel/read orders,
 cancel/replace active placements, mutate lifecycle/order/exchange state, or
 grant browser/BFF authority.
+The backend can now persist state-mutation policy evidence through
+`POST /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy-proofs`
+and read it through
+`GET /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy`.
+Workflows may display route-bound state, lifecycle, order, exchange, and
+post-write policy references only. The records do not authorize or perform
+lifecycle/order/exchange-state mutation, call Coinbase, invoke managers,
+submit/cancel/read orders, cancel/replace active placements, execute
+reconciliation, or grant browser/BFF authority. This foundation does not yet
+resolve the `state_mutation_policy` live-readiness blocker; a later backend
+exact-command resolver must consume and validate the evidence.
 Create and non-create execution prerequisite resolvers may now read the
 post-write proof, execution-journal, and verification stores for exact
 command-context records. A safe proof without a matching accepted journal is

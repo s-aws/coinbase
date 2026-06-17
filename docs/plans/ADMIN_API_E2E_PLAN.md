@@ -38,97 +38,54 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Readiness Policy Artifact Evidence Batch - Phases 3381-3400
+## Active M55 State-Mutation Policy Proof Batch - Phases 3401-3420
 
-These phases continue M55 after exact-command policy proof prerequisite
-resolver consumption by making `execution_live_readiness` expose which policy
-artifacts have backend proof evidence. The backend may add
-resolved-artifact/evidence/source fields to decision rows and may remove only
-the proven policy artifact from `missing_resolution_artifacts`. It must keep
-decision status blocked and keep live service, adapter, manager invocation,
-Coinbase submit/cancel/read, active-placement cancel/replace, reconciliation
-execution, state mutation, browser authority, and BFF execution authority
-disabled until later approved execution phases satisfy those blockers.
+These phases continue M55 after live-readiness policy artifact evidence by
+adding a backend-owned stealth state-mutation policy proof/readback surface.
+The surface persists reviewed state, lifecycle, order, exchange, and
+post-write policy references for exact guarded command context. It must keep
+`state_mutation_policy` unresolved in live-readiness decisions until a later
+approved resolver phase consumes and validates the evidence. It must not call
+Coinbase, invoke managers, submit orders, cancel orders, read Coinbase,
+cancel or replace active placements, execute reconciliation, mutate
+lifecycle/order/exchange state, grant browser authority, or grant BFF
+execution authority.
 
-### Phase 3381 - Advance Active Queue Range
+### Phase 3401 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 3361-3380 to active phases 3381-3400 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 3381-3400 to active phases 3401-3420 while preserving no-live defaults and cap policy.
 
-### Phase 3382 - Prior Range Completion Evidence
+### Phase 3402 - Prior Range Completion Evidence
 
-- Keep completed phases 3361-3380 recorded as exact-command policy proof prerequisite resolver evidence with passing gates, blind/contextless review, backend commit `f7f5cc8b`, frontend commit `61c0ff3`, and `$0` live Coinbase submitted/executed notional.
+- Keep completed phases 3381-3400 recorded as live-readiness policy artifact evidence consumption with passing gates, blind/contextless review, backend commit `e12ff0c1`, frontend commit `b595717`, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3383 - Backend Decision Evidence Fields
+### Phase 3403 - State-Mutation Policy Backend Contract
 
-- Add required backend decision fields for resolved resolution artifacts, evidence ids, evidence sources, and evidence-present status.
+- Add enum-backed permission, mutation family, evidence source, request/record/readback models, store, service, route inventory, and FastAPI adapters for state-mutation policy proof/readback.
 
-### Phase 3384 - Shared Artifact Mapping
+### Phase 3404 - Backend Proof Regression
 
-- Add one shared mapping from existing exact-command prerequisite resolver rows to backend live-readiness decision artifacts.
+- Prove state-mutation policy proof recording is path-keyed, exact-admission-bound, idempotent, no-live, append-only, and never mutates state.
 
-### Phase 3385 - Create Contract Bridge
+### Phase 3405 - Enterprise Readiness And Docs
 
-- Pass stealth create prerequisite resolver rows into `execution_live_readiness`.
+- Add mutation taxonomy, command-suite evidence mapping, feature README, examples, docs index, and handoff/agent-state updates for the new proof surface.
 
-### Phase 3386 - Non-Create Contract Bridge
+### Phase 3406 - OpenAPI And Frontend Schema
 
-- Pass non-create stealth prerequisite resolver rows into the same `execution_live_readiness` builder.
+- Regenerate backend OpenAPI and frontend generated API schema from the backend contract.
 
-### Phase 3387 - Missing And Unsafe Regression
+### Phase 3407 - Frontend API And Mock Sync
 
-- Cover no-proof, safe-proof, and unsafe-proof cases so only safe exact-command policy artifacts appear as resolved evidence.
+- Add canonical frontend wrappers, mock runtime evidence, route coverage, and docs for the state-mutation policy proof/readback surface.
 
-### Phase 3388 - OpenAPI Contract Sync
+### Phase 3408 - Focused Gates And Review
 
-- Update OpenAPI contract coverage for the new required fields.
+- Run focused backend/frontend checks, autonomous checks, and blind/contextless review proving the surface is evidence only.
 
-### Phase 3389 - Frontend Schema Association
+### Phase 3409 - Full Gates, Commit, Push, Pause, And No-Live Report
 
-- Keep the frontend schema/types/mock consumers associated with the backend contract.
-
-### Phase 3390 - UI Evidence Display
-
-- Display resolved and missing decision artifacts without adding proof writers or execution controls.
-
-### Phase 3391 - Dry-Submit Evidence Display
-
-- Include resolved-artifact evidence in dry-submit rows.
-
-### Phase 3392 - Mock And Runtime Coverage
-
-- Update frontend mock backend and unit fixtures.
-
-### Phase 3393 - Docs And Handoff
-
-- Update roadmap, handoff, testing docs, and local AI context.
-
-### Phase 3394 - Autonomous Metadata
-
-- Update autonomous validators and active range metadata.
-
-### Phase 3395 - Drift Scan
-
-- Scan both repositories for stale active range or authority wording drift.
-
-### Phase 3396 - Focused Backend Gates
-
-- Run focused backend Admin API/OpenAPI/autonomous checks.
-
-### Phase 3397 - Focused Frontend Gates
-
-- Run focused frontend adapter, mock, dry-submit, read-model, quality, and autonomous checks.
-
-### Phase 3398 - Blind Contextless Review
-
-- Verify a contextless agent understands policy artifacts are evidence only.
-
-### Phase 3399 - Full Gates And Browser Check
-
-- Run backend full regression, frontend release gate, and browser/UI smoke.
-
-### Phase 3400 - Commit, Push, Pause, And No-Live Report
-
-- Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and pause for the requested restart.
+- Run backend full regression, frontend `npm run release:gate`, commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and pause for the requested restart.
 
 ## Completed M55 Policy Proof Resolver Consumption Batch - Phases 3361-3380
 

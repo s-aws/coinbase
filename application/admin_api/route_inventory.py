@@ -210,6 +210,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_state_mutation_policy",
+        parity_test=(
+            "read-only state-mutation policy evidence; no lifecycle/order/"
+            "exchange-state mutation, manager invocation, Coinbase call, "
+            "active-placement cancel/replace, or reconciliation execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -593,6 +609,26 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "does not submit/read/cancel Coinbase orders, invoke managers, "
             "cancel/replace active placements, execute reconciliation, or "
             "mutate lifecycle/order/exchange state"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/"
+            "state-mutation-policy-proofs"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_STATE_MUTATION_POLICY_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for state-mutation policy proof admission",
+        audit="required",
+        shared_method="record_stealth_state_mutation_policy_proof",
+        parity_test=(
+            "stealth_order_id identity; policy proof evidence remains no-live "
+            "and does not authorize or perform lifecycle/order/exchange-state "
+            "mutation, invoke managers, submit/read/cancel Coinbase, "
+            "cancel/replace active placements, or execute reconciliation"
         ),
     ),
     AdminApiRouteInventoryItem(
