@@ -202,6 +202,32 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_SO
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_SUMMARY_AUTHORITY = (
     "backend_derived_from_producer_route_contract_proposals"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_validation_items"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_AUTHORITY = (
+    "backend_derived_from_route_contract_proposals_no_binding"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_validation_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_SUMMARY_AUTHORITY = (
+    "backend_derived_from_route_contract_validation_items"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_CHECKS = (
+    ("route_contract_available", "producer route contract exists"),
+    ("route_registered", "producer route is registered"),
+    ("route_inventory_entry_present", "route inventory entry exists"),
+    ("route_inventory_bound", "route inventory is bound"),
+    ("shared_command_service_method_present", "shared command service method exists"),
+    ("shared_command_service_bound", "shared command service is bound"),
+    ("route_handler_present", "route handler exists"),
+    ("store_available", "append-only acceptance evidence store exists"),
+    ("validation_configured", "validation gate is configured"),
+    ("replay_protection_configured", "replay protection is configured"),
+    ("writer_allowed", "backend writer is allowed"),
+    ("accepts_evidence", "backend acceptance path is enabled"),
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS = (
     "producer_route_contract",
     "append_only_acceptance_evidence_store",
@@ -1866,6 +1892,241 @@ def build_live_adapter_construction_contract(
             "enable live execution."
         ),
     }
+    producer_route_contract_validation_items = [
+        {
+            "source_ref": "acceptance_evidence_producer_route_contract_proposals",
+            "status": AdminApiGateStatus.BLOCKED,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_SOURCE
+            ),
+            "authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_AUTHORITY
+            ),
+            "validation_index": validation_index,
+            "validation_id": (
+                f"{proposal['route_contract_id']}_validation_{check_key}"
+            ),
+            "route_contract_id": proposal["route_contract_id"],
+            "route_requirement_id": proposal["route_requirement_id"],
+            "claim_id": proposal["claim_id"],
+            "claim": proposal["claim"],
+            "producer_contract_id": proposal["producer_contract_id"],
+            "evidence_id": proposal["evidence_id"],
+            "artifact": proposal["artifact"],
+            "work_item_ref": proposal["work_item_ref"],
+            "route_contract_ref": proposal["route_contract_ref"],
+            "route_inventory_ref": proposal["route_inventory_ref"],
+            "shared_command_service_ref": proposal[
+                "shared_command_service_ref"
+            ],
+            "check_key": check_key,
+            "check_description": check_description,
+            "expected_state": True,
+            "observed_state": False,
+            "passed": False,
+            "required_before_claim_resolved": True,
+            "verification_gate": (
+                "producer_route_contract_validation_matrix_remains_fail_closed"
+            ),
+            "blocker": f"{proposal['route_contract_id']}_{check_key}_missing",
+            "route_contract_available": False,
+            "route_registered": False,
+            "route_inventory_entry_present": False,
+            "route_inventory_bound": False,
+            "shared_command_service_method_present": False,
+            "shared_command_service_bound": False,
+            "route_handler_present": False,
+            "producer_route_available": False,
+            "requirement_resolved": False,
+            "claim_allowed": False,
+            "claim_resolved": False,
+            "clears_route_requirement": False,
+            "clears_claim_trace": False,
+            "clears_work_item": False,
+            "store_available": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "writer_allowed": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_producer_contract": False,
+            "satisfies_construction": False,
+            "construction_allowed": False,
+            "adapter_constructed": False,
+            "live_execution_allowed": False,
+            "execution_allowed": False,
+            "executed": False,
+            "no_live_execution": True,
+            "backend_owned": True,
+            "route_bound": True,
+            "command_context_bound": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This validation item is derived from a blocked producer-route "
+                "contract proposal. It records a missing backend prerequisite "
+                "for future route-contract availability, but it does not bind "
+                "route inventory, register a handler, write evidence, "
+                "construct adapters, or enable live execution."
+            ),
+        }
+        for validation_index, (proposal, check) in enumerate(
+            (
+                (proposal, check)
+                for proposal in producer_route_contract_proposals
+                for check in (
+                    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_CHECKS
+                )
+            ),
+            start=1,
+        )
+        for check_key, check_description in (check,)
+    ]
+    blocked_producer_route_contract_validation_items = [
+        item
+        for item in producer_route_contract_validation_items
+        if not item["passed"]
+    ]
+    passed_producer_route_contract_validation_items = [
+        item
+        for item in producer_route_contract_validation_items
+        if item["passed"]
+    ]
+    producer_route_contract_validation_summary = {
+        "source_ref": (
+            "acceptance_evidence_producer_route_contract_validation_items"
+        ),
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_VALIDATION_SUMMARY_AUTHORITY
+        ),
+        "total_validation_count": len(
+            producer_route_contract_validation_items
+        ),
+        "blocked_validation_count": len(
+            blocked_producer_route_contract_validation_items
+        ),
+        "passed_validation_count": len(
+            passed_producer_route_contract_validation_items
+        ),
+        "route_contract_ids": list(
+            dict.fromkeys(
+                item["route_contract_id"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "route_requirement_ids": list(
+            dict.fromkeys(
+                item["route_requirement_id"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "claim_ids": list(
+            dict.fromkeys(
+                item["claim_id"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "work_item_refs": list(
+            dict.fromkeys(
+                item["work_item_ref"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "producer_contract_ids": list(
+            dict.fromkeys(
+                item["producer_contract_id"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "evidence_ids": list(
+            dict.fromkeys(
+                item["evidence_id"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "artifacts": list(
+            dict.fromkeys(
+                item["artifact"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "validation_ids": [
+            item["validation_id"]
+            for item in producer_route_contract_validation_items
+        ],
+        "check_keys": list(
+            dict.fromkeys(
+                item["check_key"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "blockers": [
+            item["blocker"]
+            for item in blocked_producer_route_contract_validation_items
+        ],
+        "verification_gates": list(
+            dict.fromkeys(
+                item["verification_gate"]
+                for item in producer_route_contract_validation_items
+            )
+        ),
+        "first_validation_id": (
+            producer_route_contract_validation_items[0]["validation_id"]
+            if producer_route_contract_validation_items
+            else None
+        ),
+        "first_blocker": (
+            blocked_producer_route_contract_validation_items[0]["blocker"]
+            if blocked_producer_route_contract_validation_items
+            else None
+        ),
+        "route_contract_validation_ready": False,
+        "all_checks_passed": False,
+        "all_route_contracts_available": False,
+        "all_routes_registered": False,
+        "route_inventory_entry_present": False,
+        "route_inventory_bound": False,
+        "shared_command_service_method_present": False,
+        "shared_command_service_bound": False,
+        "route_handler_present": False,
+        "producer_route_available": False,
+        "all_requirements_resolved": False,
+        "all_claims_resolved": False,
+        "work_queue_ready": False,
+        "producer_clearance_ready": False,
+        "m55_completion_claim_allowed": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-route contract validation summary is backend-derived "
+            "evidence over missing proposal prerequisites. It cannot register "
+            "routes, bind route inventory, bind shared command services, "
+            "write or accept evidence, construct adapters, or enable live "
+            "execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -1976,6 +2237,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_route_contract_proposal_summary": (
             producer_route_contract_proposal_summary
+        ),
+        "acceptance_evidence_producer_route_contract_validation_items": (
+            producer_route_contract_validation_items
+        ),
+        "acceptance_evidence_producer_route_contract_validation_summary": (
+            producer_route_contract_validation_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),

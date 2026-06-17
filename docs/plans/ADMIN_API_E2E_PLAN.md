@@ -38,41 +38,62 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Proposal Batch - Phases 3861-3880
+## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Validation Batch - Phases 3881-3900
 
-These phases add backend-owned producer-route contract proposals and a blocked
-proposal summary under the live-adapter construction acceptance-evidence
-producer path while keeping adapter construction disabled. Each proposal is
-derived from a producer-route requirement and names the route contract, route
-inventory, and shared command-service evidence that would be required before
-the forbidden `producer_route_contract_available` claim could ever resolve. It
-remains planning evidence only. It cannot register producer routes, bind route
-inventory, bind shared command services, create stores, configure validation or
-replay gates, create writers, construct adapters, record or accept evidence,
-mark artifacts satisfied, enable adapters, enable service, call Coinbase,
-invoke managers, execute reconciliation, cancel/replace active placements,
-mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
-authority, or grant BFF execution authority.
+These phases add backend-owned producer-route contract validation rows and a
+blocked validation summary under the live-adapter construction acceptance-
+evidence producer path while keeping adapter construction disabled. Each
+validation row is derived from a producer-route contract proposal and names a
+missing prerequisite before the forbidden `producer_route_contract_available`
+claim could ever resolve: route contract availability, route registration,
+route inventory binding, shared command-service binding, handler presence,
+append-only store readiness, validation/replay readiness, writer readiness, or
+acceptance readiness. It remains planning evidence only. It cannot register
+producer routes, bind route inventory, bind shared command services, create
+handlers, create stores, configure validation or replay gates, create writers,
+construct adapters, record or accept evidence, mark artifacts satisfied, enable
+adapters, enable service, call Coinbase, invoke managers, execute
+reconciliation, cancel/replace active placements, mutate lifecycle/order/
+exchange state, clear M55 blockers, grant browser authority, or grant BFF
+execution authority.
 
-### Phase 3861 - Prior Range Completion Evidence
+### Phase 3881 - Prior Range Completion Evidence
 
-- Record completed phases 3841-3860 with backend commit `b471e0b4`, frontend commit `a7f81a7`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 3861-3880 with backend commit `95cb9ae9`, frontend commit `ade43dc`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
 
-### Phase 3862 - Backend Producer Route Contract Proposals
+### Phase 3882 - Backend Producer Route Contract Validation Rows
 
-- Add typed blocked route contract proposals and populate one proposal per producer-route requirement for the unresolved producer-route contract availability claim.
+- Add typed blocked route-contract validation items and populate one row per route-contract proposal prerequisite for the unresolved producer-route contract availability claim.
 
-### Phase 3863 - Backend Producer Route Contract Proposal Summary
+### Phase 3883 - Backend Producer Route Contract Validation Summary
 
-- Add a typed blocked route-contract proposal summary aggregating proposal counts, contract ids, requirement ids, claim ids, work-item refs, producer contract ids, evidence ids, route contract refs, route inventory refs, shared command-service refs, gates, and disabled authority flags.
+- Add a typed blocked route-contract validation summary aggregating validation counts, validation ids, check keys, blockers, contract ids, requirement ids, claim ids, work-item refs, producer contract ids, evidence ids, artifacts, gates, and disabled authority flags.
 
-### Phase 3864 - Frontend Contract Sync
+### Phase 3884 - Frontend Contract Sync
 
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract proposal and summary readback.
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract validation rows and summary readback.
 
-### Phase 3865 - Validators, Gates, Review, Commit, And No-Live Report
+### Phase 3885 - Validators, Gates, Review, Commit, And No-Live Report
 
 - Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Proposal Batch - Phases 3861-3880
+
+These phases added backend-owned producer-route contract proposals and a
+blocked proposal summary under the live-adapter construction acceptance-
+evidence producer path while keeping adapter construction disabled. Each
+proposal is derived from a producer-route requirement and names the route
+contract, route inventory, and shared command-service evidence that would be
+required before the forbidden `producer_route_contract_available` claim could
+ever resolve. It remains planning evidence only. It cannot register producer
+routes, bind route inventory, bind shared command services, create stores,
+configure validation or replay gates, create writers, construct adapters,
+record or accept evidence, mark artifacts satisfied, enable adapters, enable
+service, call Coinbase, invoke managers, execute reconciliation,
+cancel/replace active placements, mutate lifecycle/order/exchange state,
+clear M55 blockers, grant browser authority, or grant BFF execution authority.
+Backend commit `95cb9ae9` and frontend commit `ade43dc` contain the pushed
+range.
 
 ## Completed M55 Live-Adapter Acceptance Evidence Producer Route Requirement Batch - Phases 3841-3860
 

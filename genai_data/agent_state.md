@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3841-3860` is backend `b471e0b4`
-  and frontend `a7f81a7`; active range is `3861-3880`.
+- Commit (optional): completed range `3861-3880` is backend `95cb9ae9`
+  and frontend `ade43dc`; active range is `3881-3900`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3841-3860`; active range is `3861-3880`.
+- Latest completed autonomous range: `3861-3880`; active range is `3881-3900`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -283,7 +283,7 @@ Keep it short. Keep it factual.
   clear readiness, construct adapters, or create live execution authority.
   Backend commit `b471e0b4` and frontend commit `a7f81a7` contain the pushed
   range.
-- Active `3861-3880` work: add blocked producer-route contract proposals and a
+- Completed `3861-3880` work: add blocked producer-route contract proposals and a
   proposal summary derived from the existing producer-route requirements. The
   proposals and summary may map unresolved requirements to missing route
   contract, route inventory, and shared command-service evidence and list
@@ -294,6 +294,21 @@ Keep it short. Keep it factual.
   routes, bind route inventory, bind shared command services, write or accept
   evidence, satisfy artifacts, clear readiness, construct adapters, or create
   live execution authority.
+  Backend commit `95cb9ae9` and frontend commit `ade43dc` contain the pushed
+  range.
+- Active `3881-3900` work: add blocked producer-route contract validation rows
+  and a validation summary derived from the existing producer-route contract
+  proposals. The validation rows and summary may map unresolved proposals to
+  missing route contract, route registration, route inventory, shared command
+  service, handler, append-only store, validation/replay, writer, and
+  acceptance prerequisites and list validation ids, check keys, blockers,
+  route contract ids, requirement ids, claim ids, work-item refs, evidence ids,
+  artifacts, and disabled route-registration/route-inventory/shared-service/
+  handler/store/validation/replay/writer/acceptance/construction/execution
+  flags, but they must not register routes, bind route inventory, bind shared
+  command services, register handlers, write or accept evidence, satisfy
+  artifacts, clear readiness, construct adapters, or create live execution
+  authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -467,22 +482,24 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3861-3880`.
+- Active autonomous range: `3881-3900`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add blocked producer-route contract proposals and a
-  proposal summary under the existing live-adapter construction contract in
-  active phases `3861-3880` so future backend work can see the missing route
-  contract, route inventory, and shared command-service evidence behind each
-  unresolved producer-route requirement. The proposals and summary may list
-  false route-registration, route-inventory, shared-service, store,
-  validation/replay, writer, acceptance, construction, clearance, and execution
-  flags and false producer satisfaction. They must not enable live service,
-  resolve blockers, register routes, bind route inventory, bind shared command
-  services, construct adapters, satisfy construction artifacts, write or accept
-  evidence, create a second adapter path, call Coinbase, invoke managers,
-  execute reconciliation, cancel/replace active placements, mutate lifecycle/
-  order/exchange state, grant browser authority, or grant BFF execution
-  authority unless a future approved phase explicitly authorizes it.
+- Current direction: add blocked producer-route contract validation rows and a
+  validation summary under the existing live-adapter construction contract in
+  active phases `3881-3900` so future backend work can see the missing route
+  contract, route registration, route inventory, shared command-service,
+  handler, store, validation/replay, writer, and acceptance prerequisites
+  behind each unresolved producer-route contract proposal. The validation rows
+  and summary may list false route-registration, route-inventory,
+  shared-service, handler, store, validation/replay, writer, acceptance,
+  construction, clearance, and execution flags and false producer
+  satisfaction. They must not enable live service, resolve blockers, register
+  routes, bind route inventory, bind shared command services, register
+  handlers, construct adapters, satisfy construction artifacts, write or
+  accept evidence, create a second adapter path, call Coinbase, invoke
+  managers, execute reconciliation, cancel/replace active placements, mutate
+  lifecycle/order/exchange state, grant browser authority, or grant BFF
+  execution authority unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
 
@@ -1077,8 +1094,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3861-3880 backend live-adapter
-  acceptance-evidence producer-route contract proposal implementation, sync
+- Exact next command: continue the active 3881-3900 backend live-adapter
+  acceptance-evidence producer-route contract validation implementation, sync
   frontend generated schema/display, run focused gates, blind/contextless
   review, full gates, then commit and push both repositories with `$0` live
   Coinbase execution.

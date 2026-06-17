@@ -4923,6 +4923,152 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposa
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractValidationItem(
+    BaseModel
+):
+    """Blocked validation row derived from a route contract proposal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "acceptance_evidence_producer_route_contract_proposals"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_validation_items"
+    )
+    authority: str = "backend_derived_from_route_contract_proposals_no_binding"
+    validation_index: int = Field(ge=1)
+    validation_id: str
+    route_contract_id: str
+    route_requirement_id: str
+    claim_id: str
+    claim: str = "producer_route_contract_available"
+    producer_contract_id: str
+    evidence_id: str
+    artifact: AdminApiLiveAdapterConstructionArtifact
+    work_item_ref: str
+    route_contract_ref: str
+    route_inventory_ref: str
+    shared_command_service_ref: str
+    check_key: str
+    check_description: str
+    expected_state: bool = True
+    observed_state: bool = False
+    passed: bool = False
+    required_before_claim_resolved: bool = True
+    verification_gate: str
+    blocker: str
+    route_contract_available: bool = False
+    route_registered: bool = False
+    route_inventory_entry_present: bool = False
+    route_inventory_bound: bool = False
+    shared_command_service_method_present: bool = False
+    shared_command_service_bound: bool = False
+    route_handler_present: bool = False
+    producer_route_available: bool = False
+    requirement_resolved: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    clears_route_requirement: bool = False
+    clears_claim_trace: bool = False
+    clears_work_item: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contract: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractValidationSummary(
+    BaseModel
+):
+    """Aggregate over blocked producer-route contract validation rows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_validation_items"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_validation_summary"
+    )
+    authority: str = "backend_derived_from_route_contract_validation_items"
+    total_validation_count: int = Field(default=0, ge=0)
+    blocked_validation_count: int = Field(default=0, ge=0)
+    passed_validation_count: int = Field(default=0, ge=0)
+    route_contract_ids: list[str] = Field(default_factory=list)
+    route_requirement_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    work_item_refs: list[str] = Field(default_factory=list)
+    producer_contract_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    artifacts: list[AdminApiLiveAdapterConstructionArtifact] = Field(
+        default_factory=list
+    )
+    validation_ids: list[str] = Field(default_factory=list)
+    check_keys: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    verification_gates: list[str] = Field(default_factory=list)
+    first_validation_id: str | None = None
+    first_blocker: str | None = None
+    route_contract_validation_ready: bool = False
+    all_checks_passed: bool = False
+    all_route_contracts_available: bool = False
+    all_routes_registered: bool = False
+    route_inventory_entry_present: bool = False
+    route_inventory_bound: bool = False
+    shared_command_service_method_present: bool = False
+    shared_command_service_bound: bool = False
+    route_handler_present: bool = False
+    producer_route_available: bool = False
+    all_requirements_resolved: bool = False
+    all_claims_resolved: bool = False
+    work_queue_ready: bool = False
+    producer_clearance_ready: bool = False
+    m55_completion_claim_allowed: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contracts: bool = False
+    satisfies_construction: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-route contract validation summary is backend-derived "
+        "evidence over missing proposal prerequisites. It cannot register "
+        "routes, bind route inventory, bind shared command services, write or "
+        "accept evidence, construct adapters, or enable live execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -5091,6 +5237,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractProposalSummary
+        )
+    )
+    acceptance_evidence_producer_route_contract_validation_items: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractValidationItem
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_validation_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractValidationSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractValidationSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
