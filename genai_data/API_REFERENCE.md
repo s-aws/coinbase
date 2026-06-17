@@ -121,6 +121,18 @@ Current behavior:
   not clear readiness, write or accept evidence, satisfy producer contracts,
   construct adapters, invoke managers, call Coinbase, mutate state, or grant
   browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_clearance_work_items` and
+  `acceptance_evidence_producer_clearance_work_queue_summary` as backend-
+  derived queue evidence over each producer contract's first blocked
+  clearance action. It may also expose
+  `acceptance_evidence_producer_clearance_claim_traces` and
+  `acceptance_evidence_producer_clearance_claim_trace_summary` mapping the
+  forbidden `producer_route_contract_available` claim back to each blocked
+  work item. These fields do not resolve claims, clear work items, write or
+  accept evidence, satisfy producer contracts, construct adapters, invoke
+  managers, call Coinbase, mutate state, or grant browser/BFF execution
+  authority.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   exposes read-only persisted active-placement exchange-truth evidence keyed
   by `stealth_order_id`; it does not read Coinbase, verify exchange truth,

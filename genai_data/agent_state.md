@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `3781-3800` is backend `43750317`
-  and frontend `71e8059`; active range is `3801-3820`.
+- Commit (optional): completed range `3801-3820` is backend `b04a18c0`
+  and frontend `6db7a28`; active range is `3821-3840`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3781-3800`; active range is `3801-3820`.
+- Latest completed autonomous range: `3801-3820`; active range is `3821-3840`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -253,12 +253,22 @@ Keep it short. Keep it factual.
   artifacts, clear readiness, construct adapters, or create live execution
   authority. Backend commit `43750317` and frontend commit `71e8059` contain
   the pushed range.
-- Active `3801-3820` work: add blocked producer-clearance work items and a
+- Completed `3801-3820` work: add blocked producer-clearance work items and a
   work-queue summary derived from each producer contract's first blocked
   clearance action. The work items and summary may list work refs, evidence
   ids, artifacts, categories, required refs, gates, blockers, and disabled
   route/store/validation/replay/writer/acceptance/construction/clearance/
   execution flags, but they must not write or accept evidence, satisfy
+  artifacts, clear readiness, construct adapters, or create live execution
+  authority. Backend commit `b04a18c0` and frontend commit `6db7a28` contain
+  the pushed range.
+- Active `3821-3840` work: add blocked producer-clearance claim traces and a
+  claim trace summary derived from the existing producer-clearance work items.
+  The traces and summary may map forbidden producer-route availability claims
+  back to blocked work items and list claim ids, work-item refs, evidence ids,
+  artifacts, required refs, gates, blockers, and disabled route/store/
+  validation/replay/writer/acceptance/construction/clearance/execution flags,
+  but they must not resolve claims, write or accept evidence, satisfy
   artifacts, clear readiness, construct adapters, or create live execution
   authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
@@ -434,18 +444,18 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3801-3820`.
+- Active autonomous range: `3821-3840`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add blocked producer-clearance work items and a work-
-  queue summary under the existing live-adapter construction contract in
-  active phases `3801-3820` so future backend work can see one first-blocked
-  action per missing producer contract plus an aggregate work queue without
-  inferring it row by row. The work items and queue summary may list false
-  route/store/validation/replay/writer/acceptance/construction/clearance/
-  execution flags and false producer satisfaction. They must not enable live service,
-  resolve blockers, construct adapters, satisfy construction artifacts, write
-  or accept evidence, create a second adapter path, call Coinbase, invoke
-  managers, execute reconciliation, cancel/replace active placements, mutate
+- Current direction: add blocked producer-clearance claim traces and a claim
+  trace summary under the existing live-adapter construction contract in
+  active phases `3821-3840` so future backend work can see why the producer-
+  route availability claim is still forbidden for each missing producer
+  contract. The traces and summary may list false route/store/validation/
+  replay/writer/acceptance/construction/clearance/execution flags and false
+  producer satisfaction. They must not enable live service, resolve blockers,
+  construct adapters, satisfy construction artifacts, write or accept
+  evidence, create a second adapter path, call Coinbase, invoke managers,
+  execute reconciliation, cancel/replace active placements, mutate
   lifecycle/order/exchange state, grant browser authority, or grant BFF
   execution authority unless a future approved phase explicitly authorizes it.
 
@@ -1042,8 +1052,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3801-3820 backend live-adapter
-  acceptance-evidence producer-clearance work-item and work-queue summary
-  implementation, sync frontend generated schema/display, run focused gates,
+- Exact next command: continue the active 3821-3840 backend live-adapter
+  acceptance-evidence producer-clearance claim-trace implementation, sync
+  frontend generated schema/display, run focused gates,
   blind/contextless review, full gates, then commit and push both
   repositories with `$0` live Coinbase execution.

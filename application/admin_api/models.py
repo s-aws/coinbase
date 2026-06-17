@@ -4534,6 +4534,121 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSu
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTrace(
+    BaseModel
+):
+    """Forbidden producer-clearance claim mapped to a blocked work item."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "acceptance_evidence_producer_clearance_work_items"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = "backend_acceptance_evidence_producer_clearance_claim_traces"
+    claim_trace_index: int = Field(ge=1)
+    claim_id: str
+    claim: str = "producer_route_contract_available"
+    producer_contract_id: str
+    evidence_id: str
+    artifact: AdminApiLiveAdapterConstructionArtifact
+    category: str
+    work_item_ref: str
+    readiness_item_id: str
+    required_ref: str
+    required_route: str | None = None
+    required_method: str | None = None
+    verification_gate: str
+    blocker: str
+    claim_trace_authority: str = (
+        "backend_derived_from_producer_clearance_work_items_no_claim_resolution"
+    )
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    clears_work_item: bool = False
+    route_available: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contract: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTraceSummary(
+    BaseModel
+):
+    """Aggregate over forbidden producer-clearance claim traces."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "acceptance_evidence_producer_clearance_claim_traces"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_clearance_claim_trace_summary"
+    )
+    authority: str = "backend_derived_from_producer_clearance_claim_traces"
+    total_claim_trace_count: int = Field(default=0, ge=0)
+    blocked_claim_trace_count: int = Field(default=0, ge=0)
+    resolved_claim_trace_count: int = Field(default=0, ge=0)
+    claim_ids: list[str] = Field(default_factory=list)
+    claims: list[str] = Field(default_factory=list)
+    work_item_refs: list[str] = Field(default_factory=list)
+    producer_contract_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    artifacts: list[AdminApiLiveAdapterConstructionArtifact] = Field(
+        default_factory=list
+    )
+    required_refs: list[str] = Field(default_factory=list)
+    verification_gates: list[str] = Field(default_factory=list)
+    first_claim_id: str | None = None
+    first_work_item_ref: str | None = None
+    claim_trace_ready: bool = False
+    all_claims_resolved: bool = False
+    work_queue_ready: bool = False
+    producer_clearance_ready: bool = False
+    m55_completion_claim_allowed: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    route_available: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contracts: bool = False
+    satisfies_construction: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-clearance claim trace summary is backend-derived evidence "
+        "over blocked work items. It proves producer-route contract "
+        "availability claims remain unresolved and cannot clear work items, "
+        "construct adapters, or enable live execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -4672,6 +4787,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSummary
+        )
+    )
+    acceptance_evidence_producer_clearance_claim_traces: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTrace
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_clearance_claim_trace_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTraceSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTraceSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(

@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3801-3820**.
+- Approved phase range: **3821-3840**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3781-3800`.
+- Previous completed range: `3801-3820`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,98 +23,113 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3801-3820
+## Active Phases 3821-3840
 
-These phases add backend-owned producer-clearance work items and a queue
+These phases add backend-owned producer-clearance claim traces and a claim
+trace summary under the live-adapter construction acceptance-evidence
+producer path. Each trace maps the forbidden
+`producer_route_contract_available` claim to the blocked producer-clearance
+work item that prevents it from being resolved; the summary aggregates claim
+ids, work-item refs, producer contract ids, evidence ids, artifacts, required
+refs, gates, and disabled authority flags. This remains evidence only. It
+must not create a route, store, validation/replay gate, writer, acceptance
+path, adapter construction path, Coinbase call, manager call, reconciliation
+execution, active-placement cancellation/replacement, lifecycle/order/
+exchange mutation, browser authority, or BFF execution authority.
+
+### Phase 3821 - Prior Range Completion Evidence
+
+- Record completed phases 3801-3820 with backend commit `b04a18c0`, frontend commit `6db7a28`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3822 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3801-3820 to active phases 3821-3840 while preserving no-live defaults and cap policy.
+
+### Phase 3823 - Backend Claim Trace Model
+
+- Add typed producer-clearance claim-trace and claim-summary models to the existing live-adapter construction contract path.
+
+### Phase 3824 - Backend Claim Trace Projection
+
+- Derive one blocked claim trace per producer-clearance work item for the currently forbidden producer-route contract availability claim.
+
+### Phase 3825 - Backend Claim Summary
+
+- Aggregate claim trace counts, claim ids, work-item refs, producer contract ids, evidence ids, artifacts, required refs, gates, and disabled authority flags.
+
+### Phase 3826 - Backend Schema And Coverage
+
+- Regenerate backend OpenAPI and add focused assertions proving claim traces and summary are blocked, derived, no-route, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-clearance, no-execution, and no-live.
+
+### Phase 3827 - Frontend Schema And Mock Sync
+
+- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
+
+### Phase 3828 - Frontend Display Sync
+
+- Render producer-clearance claim traces and summary separately from work items and queue summary through existing adapter evidence rows.
+
+### Phase 3829 - Frontend Focused Coverage
+
+- Update focused mock, dry-submit, runtime, read-model, and quality tests so claim-trace readback cannot imply write/acceptance/construction/clearance/execution authority.
+
+### Phase 3830 - Documentation Sync
+
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for claim-trace readback.
+
+### Phase 3831 - Autonomous Validator Sync
+
+- Update backend/frontend autonomous validators and active-range metadata for phases 3821-3840.
+
+### Phase 3832 - Stale Authority Scan
+
+- Search backend/frontend code and docs for stale active-range wording or text implying claim traces can write, accept, satisfy, clear, construct, execute, or enable adapters.
+
+### Phase 3833 - Backend Focused Gates
+
+- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+
+### Phase 3834 - Frontend Focused Gates
+
+- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
+
+### Phase 3835 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short`.
+
+### Phase 3836 - Full Frontend Release Gate
+
+- Run `npm run release:gate` in `C:\coinbase-frontend`.
+
+### Phase 3837 - Blind Contextless Review
+
+- Run blind/contextless review proving a fresh agent can explain that claim traces and summary are planning evidence only and cannot build, satisfy, write, accept, clear, execute, or enable adapters.
+
+### Phase 3838 - Live UI Smoke
+
+- Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
+
+### Phase 3839 - Completion Evidence And No-Live Ledger
+
+- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3840 - Commit, Push, And Continue Summary
+
+- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, verify clean worktrees, and continue only to the next milestone-linked gap.
+
+## Completed Phases 3801-3820
+
+These phases added backend-owned producer-clearance work items and a queue
 summary under the live-adapter construction acceptance-evidence producer path.
 Each work item is derived from the first blocked clearance action for a
 missing producer contract; the queue summary aggregates counts, refs, evidence
 ids, artifacts, categories, required refs, gates, and disabled authority
-flags. This remains evidence only. It must not create a route, store,
+flags. This remains evidence only. It did not create a route, store,
 validation/replay gate, writer, acceptance path, adapter construction path,
 Coinbase call, manager call, reconciliation execution, active-placement
 cancellation/replacement, lifecycle/order/exchange mutation, browser
-authority, or BFF execution authority.
-
-### Phase 3801 - Prior Range Completion Evidence
-
-- Record completed phases 3781-3800 with backend commit `43750317`, frontend commit `71e8059`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3802 - Advance Active Queue Range
-
-- Move the durable autonomous queue from completed phases 3781-3800 to active phases 3801-3820 while preserving no-live defaults and cap policy.
-
-### Phase 3803 - Backend Work-Item Model
-
-- Add typed producer-clearance work-item and queue-summary models to the existing live-adapter construction contract path.
-
-### Phase 3804 - Backend Work-Item Projection
-
-- Derive one blocked work item per missing producer contract from that contract's first blocked clearance action.
-
-### Phase 3805 - Backend Work-Queue Summary
-
-- Aggregate work-item counts, refs, producer contract ids, evidence ids, artifacts, categories, required refs, gates, and disabled authority flags.
-
-### Phase 3806 - Backend Schema And Coverage
-
-- Regenerate backend OpenAPI and add focused assertions proving work items and queue summary are blocked, derived, no-route, no-store, no-validation, no-replay, no-writer, no-acceptance, no-construction, no-clearance, no-execution, and no-live.
-
-### Phase 3807 - Frontend Schema And Mock Sync
-
-- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures without hand-editing generated files.
-
-### Phase 3808 - Frontend Display Sync
-
-- Render producer-clearance work items and queue summary separately from readiness rows, clearance-action rows, and dependency summaries through existing adapter evidence rows.
-
-### Phase 3809 - Frontend Focused Coverage
-
-- Update focused mock, dry-submit, runtime, read-model, and quality tests so work-item readback cannot imply write/acceptance/construction/clearance/execution authority.
-
-### Phase 3810 - Documentation Sync
-
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for work-item and queue-summary readback.
-
-### Phase 3811 - Autonomous Validator Sync
-
-- Update backend/frontend autonomous validators and active-range metadata for phases 3801-3820.
-
-### Phase 3812 - Stale Authority Scan
-
-- Search backend/frontend code and docs for stale active-range wording or text implying work items can write, accept, satisfy, clear, construct, execute, or enable adapters.
-
-### Phase 3813 - Backend Focused Gates
-
-- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
-
-### Phase 3814 - Frontend Focused Gates
-
-- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
-
-### Phase 3815 - Full Backend Regression
-
-- Run `pytest tests\regression\ -v --tb=short`.
-
-### Phase 3816 - Full Frontend Release Gate
-
-- Run `npm run release:gate` in `C:\coinbase-frontend`.
-
-### Phase 3817 - Blind Contextless Review
-
-- Run blind/contextless review proving a fresh agent can explain that work items and queue summary are planning evidence only and cannot build, satisfy, write, accept, clear, execute, or enable adapters.
-
-### Phase 3818 - Live UI Smoke
-
-- Verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
-
-### Phase 3819 - Completion Evidence And No-Live Ledger
-
-- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3820 - Commit, Push, And Pause Summary
-
-- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, verify clean worktrees, and pause so the session can restart.
+authority, or BFF execution authority. Backend commit `b04a18c0` and frontend
+commit `6db7a28` contain the pushed range.
 
 ## Completed Phases 3781-3800
 

@@ -2839,12 +2839,17 @@ Current backend evidence:
   acceptance/construction flags, false satisfaction, and no-live authority.
   Completed phases 3781-3800 add a blocked dependency summary over those
   clearance actions while preserving no-clearance, no-writer, no-acceptance,
-  no-execution, false satisfaction, and no-live authority. Active phases
+  no-execution, false satisfaction, and no-live authority. Completed phases
   3801-3820 add blocked producer-clearance work items and a work-queue summary
   derived from each producer contract's first blocked clearance action while
   preserving no-route, no-store, no-validation, no-replay, no-writer,
   no-acceptance, no-construction, no-clearance, no-execution, false
-  satisfaction, and no-live authority.
+  satisfaction, and no-live authority. Active phases 3821-3840 add producer-
+  clearance claim traces and a summary mapping forbidden producer-route
+  availability claims back to those work items while preserving no-route,
+  no-store, no-validation, no-replay, no-writer, no-acceptance,
+  no-construction, no-clearance, no-execution, false satisfaction, and no-live
+  authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

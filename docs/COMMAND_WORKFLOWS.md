@@ -352,6 +352,22 @@ only, plus `execution_allowed=false` and `executed=false`. The summary does
 not clear readiness, write or accept evidence, satisfy
 producer contracts, construct adapters, invoke managers, call Coinbase, mutate
 state, or grant browser/BFF execution authority.
+The nested construction contract may also expose
+`acceptance_evidence_producer_clearance_work_items` and
+`acceptance_evidence_producer_clearance_work_queue_summary`, backend-derived
+queue evidence over each producer contract's first blocked clearance action.
+It may also expose `acceptance_evidence_producer_clearance_claim_traces` and
+`acceptance_evidence_producer_clearance_claim_trace_summary`, backend-derived
+traceability evidence mapping the forbidden
+`producer_route_contract_available` claim to each blocked work item. Workflows
+may display the claim ids, work item refs, producer contract ids, evidence
+ids, required refs/routes/methods, blockers, false claim resolution, false
+work-item clearance, false producer satisfaction, disabled route/store/
+validation/replay/writer/acceptance/construction/clearance/execution flags,
+and display/forward-only authority only. These rows do not resolve claims,
+clear work items, write or accept evidence, satisfy producer contracts,
+construct adapters, invoke managers, call Coinbase, mutate state, or grant
+browser/BFF execution authority.
 Exact command responses that require active-placement exchange truth also
 include a nested `active_placement_exchange_truth_contract`. It is the same
 backend-owned evidence shape used by command-suite `exchange_truth_checks`.

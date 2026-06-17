@@ -12778,6 +12778,379 @@ components:
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction
       description: Blocked action naming the backend work required for a readiness
         item.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTrace:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_clearance_work_items
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_clearance_claim_traces
+        claim_trace_index:
+          type: integer
+          minimum: 1.0
+          title: Claim Trace Index
+        claim_id:
+          type: string
+          title: Claim Id
+        claim:
+          type: string
+          title: Claim
+          default: producer_route_contract_available
+        producer_contract_id:
+          type: string
+          title: Producer Contract Id
+        evidence_id:
+          type: string
+          title: Evidence Id
+        artifact:
+          $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+        category:
+          type: string
+          title: Category
+        work_item_ref:
+          type: string
+          title: Work Item Ref
+        readiness_item_id:
+          type: string
+          title: Readiness Item Id
+        required_ref:
+          type: string
+          title: Required Ref
+        required_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Route
+        required_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Method
+        verification_gate:
+          type: string
+          title: Verification Gate
+        blocker:
+          type: string
+          title: Blocker
+        claim_trace_authority:
+          type: string
+          title: Claim Trace Authority
+          default: backend_derived_from_producer_clearance_work_items_no_claim_resolution
+        claim_allowed:
+          type: boolean
+          title: Claim Allowed
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        clears_work_item:
+          type: boolean
+          title: Clears Work Item
+          default: false
+        route_available:
+          type: boolean
+          title: Route Available
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contract:
+          type: boolean
+          title: Satisfies Producer Contract
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - claim_trace_index
+      - claim_id
+      - producer_contract_id
+      - evidence_id
+      - artifact
+      - category
+      - work_item_ref
+      - readiness_item_id
+      - required_ref
+      - verification_gate
+      - blocker
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTrace
+      description: Forbidden producer-clearance claim mapped to a blocked work item.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTraceSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_clearance_claim_traces
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_clearance_claim_trace_summary
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_producer_clearance_claim_traces
+        total_claim_trace_count:
+          type: integer
+          minimum: 0.0
+          title: Total Claim Trace Count
+          default: 0
+        blocked_claim_trace_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Claim Trace Count
+          default: 0
+        resolved_claim_trace_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Claim Trace Count
+          default: 0
+        claim_ids:
+          items:
+            type: string
+          type: array
+          title: Claim Ids
+        claims:
+          items:
+            type: string
+          type: array
+          title: Claims
+        work_item_refs:
+          items:
+            type: string
+          type: array
+          title: Work Item Refs
+        producer_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Producer Contract Ids
+        evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Evidence Ids
+        artifacts:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+          type: array
+          title: Artifacts
+        required_refs:
+          items:
+            type: string
+          type: array
+          title: Required Refs
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+        first_claim_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Claim Id
+        first_work_item_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Work Item Ref
+        claim_trace_ready:
+          type: boolean
+          title: Claim Trace Ready
+          default: false
+        all_claims_resolved:
+          type: boolean
+          title: All Claims Resolved
+          default: false
+        work_queue_ready:
+          type: boolean
+          title: Work Queue Ready
+          default: false
+        producer_clearance_ready:
+          type: boolean
+          title: Producer Clearance Ready
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        route_available:
+          type: boolean
+          title: Route Available
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contracts:
+          type: boolean
+          title: Satisfies Producer Contracts
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer-clearance claim trace summary is backend-derived evidence
+            over blocked work items. It proves producer-route contract availability
+            claims remain unresolved and cannot clear work items, construct adapters,
+            or enable live execution.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTraceSummary
+      description: Aggregate over forbidden producer-clearance claim traces.
     AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary:
       properties:
         source_ref:
@@ -14039,6 +14412,13 @@ components:
           title: Acceptance Evidence Producer Clearance Work Items
         acceptance_evidence_producer_clearance_work_queue_summary:
           $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceWorkQueueSummary'
+        acceptance_evidence_producer_clearance_claim_traces:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTrace'
+          type: array
+          title: Acceptance Evidence Producer Clearance Claim Traces
+        acceptance_evidence_producer_clearance_claim_trace_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTraceSummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

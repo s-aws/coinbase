@@ -166,6 +166,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_QUEUE_SOUR
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_WORK_QUEUE_AUTHORITY = (
     "backend_derived_from_producer_clearance_work_items"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_TRACE_SOURCE = (
+    "backend_acceptance_evidence_producer_clearance_claim_traces"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_TRACE_AUTHORITY = (
+    "backend_derived_from_producer_clearance_work_items_no_claim_resolution"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_clearance_claim_trace_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_SUMMARY_AUTHORITY = (
+    "backend_derived_from_producer_clearance_claim_traces"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS = (
     "producer_route_contract",
     "append_only_acceptance_evidence_store",
@@ -1260,6 +1272,176 @@ def build_live_adapter_construction_contract(
             "adapter construction, or live execution."
         ),
     }
+    producer_readiness_clearance_claim_traces = [
+        {
+            "source_ref": "acceptance_evidence_producer_clearance_work_items",
+            "status": AdminApiGateStatus.BLOCKED,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_TRACE_SOURCE
+            ),
+            "claim_trace_index": index,
+            "claim_id": (
+                f"{item['producer_contract_id']}_producer_route_contract_claim"
+            ),
+            "claim": "producer_route_contract_available",
+            "producer_contract_id": item["producer_contract_id"],
+            "evidence_id": item["evidence_id"],
+            "artifact": item["artifact"],
+            "category": item["category"],
+            "work_item_ref": item["clearance_action_id"],
+            "readiness_item_id": item["readiness_item_id"],
+            "required_ref": item["required_ref"],
+            "required_route": item["required_route"],
+            "required_method": item["required_method"],
+            "verification_gate": item["verification_gate"],
+            "blocker": item["blocker"],
+            "claim_trace_authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_TRACE_AUTHORITY
+            ),
+            "claim_allowed": False,
+            "claim_resolved": False,
+            "clears_work_item": False,
+            "route_available": False,
+            "store_available": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "writer_allowed": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_producer_contract": False,
+            "satisfies_construction": False,
+            "construction_allowed": False,
+            "adapter_constructed": False,
+            "live_execution_allowed": False,
+            "execution_allowed": False,
+            "executed": False,
+            "no_live_execution": True,
+            "backend_owned": True,
+            "route_bound": True,
+            "command_context_bound": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This claim trace maps the forbidden producer-route contract "
+                "availability claim to the blocked producer-clearance work "
+                "item that would need backend-owned implementation first. It "
+                "cannot resolve the claim, clear the work item, construct an "
+                "adapter, or enable live execution."
+            ),
+        }
+        for index, item in enumerate(
+            producer_readiness_clearance_work_items, start=1
+        )
+    ]
+    blocked_producer_readiness_clearance_claim_traces = [
+        trace
+        for trace in producer_readiness_clearance_claim_traces
+        if not trace["claim_resolved"]
+    ]
+    ready_producer_readiness_clearance_claim_traces = [
+        trace
+        for trace in producer_readiness_clearance_claim_traces
+        if trace["claim_resolved"]
+    ]
+    producer_readiness_clearance_claim_trace_summary = {
+        "source_ref": "acceptance_evidence_producer_clearance_claim_traces",
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_SUMMARY_AUTHORITY
+        ),
+        "total_claim_trace_count": len(
+            producer_readiness_clearance_claim_traces
+        ),
+        "blocked_claim_trace_count": len(
+            blocked_producer_readiness_clearance_claim_traces
+        ),
+        "resolved_claim_trace_count": len(
+            ready_producer_readiness_clearance_claim_traces
+        ),
+        "claim_ids": [
+            trace["claim_id"]
+            for trace in producer_readiness_clearance_claim_traces
+        ],
+        "claims": list(
+            dict.fromkeys(
+                trace["claim"]
+                for trace in producer_readiness_clearance_claim_traces
+            )
+        ),
+        "work_item_refs": [
+            trace["work_item_ref"]
+            for trace in producer_readiness_clearance_claim_traces
+        ],
+        "producer_contract_ids": [
+            trace["producer_contract_id"]
+            for trace in producer_readiness_clearance_claim_traces
+        ],
+        "evidence_ids": [
+            trace["evidence_id"]
+            for trace in producer_readiness_clearance_claim_traces
+        ],
+        "artifacts": [
+            trace["artifact"]
+            for trace in producer_readiness_clearance_claim_traces
+        ],
+        "required_refs": list(
+            dict.fromkeys(
+                trace["required_ref"]
+                for trace in producer_readiness_clearance_claim_traces
+            )
+        ),
+        "verification_gates": list(
+            dict.fromkeys(
+                trace["verification_gate"]
+                for trace in producer_readiness_clearance_claim_traces
+            )
+        ),
+        "first_claim_id": (
+            producer_readiness_clearance_claim_traces[0]["claim_id"]
+            if producer_readiness_clearance_claim_traces
+            else None
+        ),
+        "first_work_item_ref": (
+            producer_readiness_clearance_claim_traces[0]["work_item_ref"]
+            if producer_readiness_clearance_claim_traces
+            else None
+        ),
+        "claim_trace_ready": False,
+        "all_claims_resolved": False,
+        "work_queue_ready": False,
+        "producer_clearance_ready": False,
+        "m55_completion_claim_allowed": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "route_available": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-clearance claim trace summary is backend-derived "
+            "evidence over blocked work items. It proves producer-route "
+            "contract availability claims remain unresolved and cannot clear "
+            "work items, construct adapters, or enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -1352,6 +1534,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_clearance_work_queue_summary": (
             producer_readiness_clearance_work_queue_summary
+        ),
+        "acceptance_evidence_producer_clearance_claim_traces": (
+            producer_readiness_clearance_claim_traces
+        ),
+        "acceptance_evidence_producer_clearance_claim_trace_summary": (
+            producer_readiness_clearance_claim_trace_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
