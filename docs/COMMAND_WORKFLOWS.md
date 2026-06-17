@@ -368,6 +368,21 @@ and display/forward-only authority only. These rows do not resolve claims,
 clear work items, write or accept evidence, satisfy producer contracts,
 construct adapters, invoke managers, call Coinbase, mutate state, or grant
 browser/BFF execution authority.
+The nested construction contract may also expose
+`acceptance_evidence_producer_route_requirements` and
+`acceptance_evidence_producer_route_requirement_summary`, backend-derived
+route requirement evidence over those unresolved claim traces. Workflows may
+display route requirement ids, route contract refs, claim ids, work item refs,
+producer contract ids, evidence ids, required refs/routes/methods, blockers,
+false route-contract availability, false route registration, false route
+inventory binding, false shared service binding, false claim resolution, false
+work-item clearance, false producer satisfaction, disabled store/validation/
+replay/writer/acceptance/construction/clearance/execution flags, and
+display/forward-only authority only. These rows do not register routes, bind
+route inventory, bind shared command services, resolve claims, clear work
+items, write or accept evidence, satisfy producer contracts, construct
+adapters, invoke managers, call Coinbase, mutate state, or grant browser/BFF
+execution authority.
 Exact command responses that require active-placement exchange truth also
 include a nested `active_placement_exchange_truth_contract`. It is the same
 backend-owned evidence shape used by command-suite `exchange_truth_checks`.

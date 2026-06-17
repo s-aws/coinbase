@@ -145,12 +145,15 @@ dependency-blocked refs, clearable refs, terminal refs, first blocked action,
 and disabled route/store/validation/replay/writer/acceptance/construction/
 clearance/execution flags. M55 phases 3801-3820 add blocked producer-
 clearance work items and a queue summary derived from each producer
-contract's first blocked clearance action. Active phases 3821-3840 add
-blocked producer-clearance claim traces and a summary mapping forbidden
-producer-route availability claims back to those work items. These layers do
-not construct adapters, write or accept evidence, satisfy construction
-artifacts, enable live service, call Coinbase, invoke managers, execute
-reconciliation, mutate state, or grant browser/BFF authority.
+contract's first blocked clearance action. M55 phases 3821-3840 add blocked
+producer-clearance claim traces and a summary mapping forbidden producer-route
+availability claims back to those work items. Active phases 3841-3860 add
+blocked producer-route requirements and a summary mapping those claim traces
+to the missing backend route contract evidence. These layers do not register
+routes, bind route inventory, construct adapters, write or accept evidence,
+satisfy construction artifacts, enable live service, call Coinbase, invoke
+managers, execute reconciliation, mutate state, or grant browser/BFF
+authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

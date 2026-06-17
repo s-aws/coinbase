@@ -14042,6 +14042,433 @@ components:
       type: object
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerReadinessSummary
       description: Aggregate over blocked acceptance-evidence producer readiness rows.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteRequirement:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_clearance_claim_traces
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_requirements
+        route_requirement_index:
+          type: integer
+          minimum: 1.0
+          title: Route Requirement Index
+        route_requirement_id:
+          type: string
+          title: Route Requirement Id
+        claim_id:
+          type: string
+          title: Claim Id
+        claim:
+          type: string
+          title: Claim
+          default: producer_route_contract_available
+        producer_contract_id:
+          type: string
+          title: Producer Contract Id
+        evidence_id:
+          type: string
+          title: Evidence Id
+        artifact:
+          $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+        category:
+          type: string
+          title: Category
+        work_item_ref:
+          type: string
+          title: Work Item Ref
+        readiness_item_id:
+          type: string
+          title: Readiness Item Id
+        required_ref:
+          type: string
+          title: Required Ref
+        required_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Route
+        required_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Method
+        verification_gate:
+          type: string
+          title: Verification Gate
+        blocker:
+          type: string
+          title: Blocker
+        route_contract_ref:
+          type: string
+          title: Route Contract Ref
+        route_requirement_authority:
+          type: string
+          title: Route Requirement Authority
+          default: backend_derived_from_producer_clearance_claim_traces_no_route_registration
+        route_contract_available:
+          type: boolean
+          title: Route Contract Available
+          default: false
+        route_registered:
+          type: boolean
+          title: Route Registered
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: false
+        shared_command_service_bound:
+          type: boolean
+          title: Shared Command Service Bound
+          default: false
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        claim_allowed:
+          type: boolean
+          title: Claim Allowed
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        clears_claim_trace:
+          type: boolean
+          title: Clears Claim Trace
+          default: false
+        clears_work_item:
+          type: boolean
+          title: Clears Work Item
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contract:
+          type: boolean
+          title: Satisfies Producer Contract
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - route_requirement_index
+      - route_requirement_id
+      - claim_id
+      - producer_contract_id
+      - evidence_id
+      - artifact
+      - category
+      - work_item_ref
+      - readiness_item_id
+      - required_ref
+      - verification_gate
+      - blocker
+      - route_contract_ref
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteRequirement
+      description: Blocked route contract requirement derived from a producer claim
+        trace.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteRequirementSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_route_requirements
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_requirement_summary
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_producer_route_requirements
+        total_route_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Total Route Requirement Count
+          default: 0
+        blocked_route_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Route Requirement Count
+          default: 0
+        ready_route_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Route Requirement Count
+          default: 0
+        route_requirement_ids:
+          items:
+            type: string
+          type: array
+          title: Route Requirement Ids
+        claim_ids:
+          items:
+            type: string
+          type: array
+          title: Claim Ids
+        work_item_refs:
+          items:
+            type: string
+          type: array
+          title: Work Item Refs
+        producer_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Producer Contract Ids
+        evidence_ids:
+          items:
+            type: string
+          type: array
+          title: Evidence Ids
+        artifacts:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveAdapterConstructionArtifact'
+          type: array
+          title: Artifacts
+        route_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Route Contract Refs
+        required_refs:
+          items:
+            type: string
+          type: array
+          title: Required Refs
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+        first_route_requirement_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Route Requirement Id
+        first_claim_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Claim Id
+        route_requirement_ready:
+          type: boolean
+          title: Route Requirement Ready
+          default: false
+        all_route_contracts_available:
+          type: boolean
+          title: All Route Contracts Available
+          default: false
+        all_routes_registered:
+          type: boolean
+          title: All Routes Registered
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: false
+        shared_command_service_bound:
+          type: boolean
+          title: Shared Command Service Bound
+          default: false
+        producer_route_available:
+          type: boolean
+          title: Producer Route Available
+          default: false
+        claim_trace_ready:
+          type: boolean
+          title: Claim Trace Ready
+          default: false
+        all_claims_resolved:
+          type: boolean
+          title: All Claims Resolved
+          default: false
+        work_queue_ready:
+          type: boolean
+          title: Work Queue Ready
+          default: false
+        producer_clearance_ready:
+          type: boolean
+          title: Producer Clearance Ready
+          default: false
+        m55_completion_claim_allowed:
+          type: boolean
+          title: M55 Completion Claim Allowed
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contracts:
+          type: boolean
+          title: Satisfies Producer Contracts
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer-route requirement summary is backend-derived evidence
+            over route requirements that remain unavailable. It cannot register routes,
+            bind route inventory, satisfy producer contracts, construct adapters,
+            or enable live execution.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteRequirementSummary
+      description: Aggregate over blocked producer-route requirements.
     AdminLiveAdapterConstructionArtifactAcceptanceEvidence:
       properties:
         artifact:
@@ -14419,6 +14846,13 @@ components:
           title: Acceptance Evidence Producer Clearance Claim Traces
         acceptance_evidence_producer_clearance_claim_trace_summary:
           $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceClaimTraceSummary'
+        acceptance_evidence_producer_route_requirements:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteRequirement'
+          type: array
+          title: Acceptance Evidence Producer Route Requirements
+        acceptance_evidence_producer_route_requirement_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteRequirementSummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

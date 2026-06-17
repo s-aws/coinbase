@@ -178,6 +178,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_SUMMARY_S
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_CLAIM_SUMMARY_AUTHORITY = (
     "backend_derived_from_producer_clearance_claim_traces"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_REQUIREMENT_SOURCE = (
+    "backend_acceptance_evidence_producer_route_requirements"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_REQUIREMENT_AUTHORITY = (
+    "backend_derived_from_producer_clearance_claim_traces_no_route_registration"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_requirement_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_AUTHORITY = (
+    "backend_derived_from_producer_route_requirements"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS = (
     "producer_route_contract",
     "append_only_acceptance_evidence_store",
@@ -1442,6 +1454,189 @@ def build_live_adapter_construction_contract(
             "work items, construct adapters, or enable live execution."
         ),
     }
+    producer_route_requirements = [
+        {
+            "source_ref": "acceptance_evidence_producer_clearance_claim_traces",
+            "status": AdminApiGateStatus.BLOCKED,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_REQUIREMENT_SOURCE
+            ),
+            "route_requirement_index": index,
+            "route_requirement_id": (
+                f"{trace['producer_contract_id']}_producer_route_requirement"
+            ),
+            "claim_id": trace["claim_id"],
+            "claim": trace["claim"],
+            "producer_contract_id": trace["producer_contract_id"],
+            "evidence_id": trace["evidence_id"],
+            "artifact": trace["artifact"],
+            "category": trace["category"],
+            "work_item_ref": trace["work_item_ref"],
+            "readiness_item_id": trace["readiness_item_id"],
+            "required_ref": trace["required_ref"],
+            "required_route": trace["required_route"],
+            "required_method": trace["required_method"],
+            "verification_gate": trace["verification_gate"],
+            "blocker": trace["blocker"],
+            "route_contract_ref": trace["required_ref"],
+            "route_requirement_authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_REQUIREMENT_AUTHORITY
+            ),
+            "route_contract_available": False,
+            "route_registered": False,
+            "route_inventory_bound": False,
+            "shared_command_service_bound": False,
+            "producer_route_available": False,
+            "claim_allowed": False,
+            "claim_resolved": False,
+            "clears_claim_trace": False,
+            "clears_work_item": False,
+            "store_available": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "writer_allowed": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_producer_contract": False,
+            "satisfies_construction": False,
+            "construction_allowed": False,
+            "adapter_constructed": False,
+            "live_execution_allowed": False,
+            "execution_allowed": False,
+            "executed": False,
+            "no_live_execution": True,
+            "backend_owned": True,
+            "route_bound": True,
+            "command_context_bound": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This route requirement is backend-derived evidence for the "
+                "producer route contract that would be needed before the "
+                "producer-route availability claim could ever resolve. It "
+                "does not register a route, bind route inventory, write "
+                "acceptance evidence, construct an adapter, or enable live "
+                "execution."
+            ),
+        }
+        for index, trace in enumerate(
+            producer_readiness_clearance_claim_traces, start=1
+        )
+    ]
+    blocked_producer_route_requirements = [
+        route_requirement
+        for route_requirement in producer_route_requirements
+        if not route_requirement["route_contract_available"]
+    ]
+    ready_producer_route_requirements = [
+        route_requirement
+        for route_requirement in producer_route_requirements
+        if route_requirement["route_contract_available"]
+    ]
+    producer_route_requirement_summary = {
+        "source_ref": "acceptance_evidence_producer_route_requirements",
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_SUMMARY_AUTHORITY
+        ),
+        "total_route_requirement_count": len(producer_route_requirements),
+        "blocked_route_requirement_count": len(
+            blocked_producer_route_requirements
+        ),
+        "ready_route_requirement_count": len(ready_producer_route_requirements),
+        "route_requirement_ids": [
+            route_requirement["route_requirement_id"]
+            for route_requirement in producer_route_requirements
+        ],
+        "claim_ids": [
+            route_requirement["claim_id"]
+            for route_requirement in producer_route_requirements
+        ],
+        "work_item_refs": [
+            route_requirement["work_item_ref"]
+            for route_requirement in producer_route_requirements
+        ],
+        "producer_contract_ids": [
+            route_requirement["producer_contract_id"]
+            for route_requirement in producer_route_requirements
+        ],
+        "evidence_ids": [
+            route_requirement["evidence_id"]
+            for route_requirement in producer_route_requirements
+        ],
+        "artifacts": [
+            route_requirement["artifact"]
+            for route_requirement in producer_route_requirements
+        ],
+        "route_contract_refs": list(
+            dict.fromkeys(
+                route_requirement["route_contract_ref"]
+                for route_requirement in producer_route_requirements
+            )
+        ),
+        "required_refs": list(
+            dict.fromkeys(
+                route_requirement["required_ref"]
+                for route_requirement in producer_route_requirements
+            )
+        ),
+        "verification_gates": list(
+            dict.fromkeys(
+                route_requirement["verification_gate"]
+                for route_requirement in producer_route_requirements
+            )
+        ),
+        "first_route_requirement_id": (
+            producer_route_requirements[0]["route_requirement_id"]
+            if producer_route_requirements
+            else None
+        ),
+        "first_claim_id": (
+            producer_route_requirements[0]["claim_id"]
+            if producer_route_requirements
+            else None
+        ),
+        "route_requirement_ready": False,
+        "all_route_contracts_available": False,
+        "all_routes_registered": False,
+        "route_inventory_bound": False,
+        "shared_command_service_bound": False,
+        "producer_route_available": False,
+        "claim_trace_ready": False,
+        "all_claims_resolved": False,
+        "work_queue_ready": False,
+        "producer_clearance_ready": False,
+        "m55_completion_claim_allowed": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-route requirement summary is backend-derived evidence "
+            "over route requirements that remain unavailable. It cannot "
+            "register routes, bind route inventory, satisfy producer "
+            "contracts, construct adapters, or enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -1540,6 +1735,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_clearance_claim_trace_summary": (
             producer_readiness_clearance_claim_trace_summary
+        ),
+        "acceptance_evidence_producer_route_requirements": (
+            producer_route_requirements
+        ),
+        "acceptance_evidence_producer_route_requirement_summary": (
+            producer_route_requirement_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),

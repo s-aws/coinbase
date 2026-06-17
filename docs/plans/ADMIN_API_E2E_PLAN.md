@@ -38,9 +38,45 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Producer Clearance Claim Trace Batch - Phases 3821-3840
+## Active M55 Live-Adapter Acceptance Evidence Producer Route Requirement Batch - Phases 3841-3860
 
-These phases add backend-owned producer-clearance claim traces and a blocked
+These phases add backend-owned producer-route requirements and a blocked
+route-requirement summary under the live-adapter construction
+acceptance-evidence producer path while keeping adapter construction
+disabled. Each requirement is derived from a producer-clearance claim trace
+and names the missing backend route contract evidence that would be required
+before the forbidden `producer_route_contract_available` claim could ever
+resolve. It remains planning evidence only. It cannot register producer
+routes, bind route inventory, create stores, configure validation or replay
+gates, create writers, construct adapters, record or accept evidence, mark
+artifacts satisfied, enable adapters, enable service, call Coinbase, invoke
+managers, execute reconciliation, cancel/replace active placements, mutate
+lifecycle/order/exchange state, clear M55 blockers, grant browser authority,
+or grant BFF execution authority.
+
+### Phase 3841 - Prior Range Completion Evidence
+
+- Record completed phases 3821-3840 with backend commit `2a3e5e9c`, frontend commit `d40a6dc`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3842 - Backend Producer Route Requirements
+
+- Add typed blocked route requirements and populate one requirement per producer-clearance claim trace for the unresolved producer-route contract availability claim.
+
+### Phase 3843 - Backend Producer Route Requirement Summary
+
+- Add a typed blocked route-requirement summary aggregating requirement counts, requirement ids, claim ids, work-item refs, producer contract ids, evidence ids, route contract refs, gates, and disabled authority flags.
+
+### Phase 3844 - Frontend Contract Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-requirement and summary readback.
+
+### Phase 3845 - Validators, Gates, Review, Commit, And No-Live Report
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Acceptance Evidence Producer Clearance Claim Trace Batch - Phases 3821-3840
+
+These phases added backend-owned producer-clearance claim traces and a blocked
 claim trace summary under the live-adapter construction acceptance-evidence
 producer path while keeping adapter construction disabled. Each trace maps
 the forbidden `producer_route_contract_available` claim to the blocked
@@ -52,27 +88,8 @@ or replay gates, writers, acceptance paths, construct adapters, record or
 accept evidence, mark artifacts satisfied, enable adapters, enable service,
 call Coinbase, invoke managers, execute reconciliation, cancel/replace active
 placements, mutate lifecycle/order/exchange state, clear M55 blockers, grant
-browser authority, or grant BFF execution authority.
-
-### Phase 3821 - Prior Range Completion Evidence
-
-- Record completed phases 3801-3820 with backend commit `b04a18c0`, frontend commit `6db7a28`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3822 - Backend Producer Clearance Claim Traces
-
-- Add typed blocked claim traces and populate one trace per producer-clearance work item for the unresolved producer-route contract availability claim.
-
-### Phase 3823 - Backend Producer Clearance Claim Summary
-
-- Add a typed blocked claim trace summary aggregating trace counts, claim ids, work-item refs, producer contract ids, evidence ids, artifacts, required refs, gates, and disabled authority flags.
-
-### Phase 3824 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for claim-trace and summary readback.
-
-### Phase 3825 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `$0` live Coinbase submitted/executed notional.
+browser authority, or grant BFF execution authority. Backend commit
+`2a3e5e9c` and frontend commit `d40a6dc` contain the pushed range.
 
 ## Completed M55 Live-Adapter Acceptance Evidence Producer Clearance Work Queue Batch - Phases 3801-3820
 
