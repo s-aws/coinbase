@@ -100,12 +100,13 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3381-3400` under M55.
-- Active autonomous range: `3401-3420` under M55.
-- Active 3401-3420 work adds backend-owned stealth state-mutation policy
-  proof/readback evidence. This phase must keep `state_mutation_policy`
-  unresolved in live-readiness decisions until a later exact-command resolver
-  phase consumes and validates the evidence.
+- Latest completed autonomous range: `3401-3420` under M55.
+- Active autonomous range: `3421-3440` under M55.
+- Completed 3401-3420 work added backend-owned stealth state-mutation policy
+  proof/readback evidence; active 3421-3440 work consumes it as exact-command
+  resolver evidence. Safe exact proof rows may resolve the
+  `state_mutation_policy` prerequisite row, but live-readiness decisions remain
+  unresolved and fail-closed with no mutation or execution authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -454,7 +455,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   on a newer unsafe exact-command row.
   The completed 3381-3400 range consumes those resolver rows inside
   `execution_live_readiness` decision artifact evidence. Active phases
-  3401-3420 add backend-owned state-mutation policy proof/readback evidence
+  3401-3420 added backend-owned state-mutation policy proof/readback evidence; 3421-3440 consume it as resolver-only prerequisite evidence
   for later resolver work. The proof records are append-only local evidence
   only; backend decisions remain blocked and live execution, Coinbase,
   manager, reconciliation, state mutation, browser, and BFF authority remain

@@ -85,6 +85,7 @@ GUARDED_COINBASE_EXCHANGE_POLICY_COMMANDS: tuple[
         mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
     ),
 )
+GUARDED_STEALTH_POLICY_COMMANDS = GUARDED_COINBASE_EXCHANGE_POLICY_COMMANDS
 
 
 class StealthCoinbaseExchangeSubmissionPolicyError(ValueError):

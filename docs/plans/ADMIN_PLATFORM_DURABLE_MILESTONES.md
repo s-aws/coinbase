@@ -2793,7 +2793,7 @@ Current backend evidence:
   rows for other guarded command contexts, and block on a newer unsafe
   exact-command row. Completed phases 3381-3400 consume those resolver rows
   inside `execution_live_readiness` decision artifact evidence. Active phases
-  3401-3420 add backend-owned stealth state-mutation policy proof/readback
+  3401-3420 added backend-owned stealth state-mutation policy proof/readback; 3421-3440 consume it as resolver-only prerequisite
   evidence for future exact-command resolver work. The proof records are
   append-only local evidence only; backend decisions remain blocked and live
   execution, Coinbase, manager, reconciliation, active-placement, state

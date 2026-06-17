@@ -22198,6 +22198,19 @@ components:
           - type: string
           - type: 'null'
           title: Manager Invocation Policy Proof Id
+        state_mutation_policy_required:
+          type: boolean
+          title: State Mutation Policy Required
+          default: false
+        state_mutation_policy_resolved:
+          type: boolean
+          title: State Mutation Policy Resolved
+          default: false
+        state_mutation_policy_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State Mutation Policy Proof Id
         mutation_claim_snapshot_required:
           type: boolean
           title: Mutation Claim Snapshot Required
@@ -22487,6 +22500,7 @@ components:
       - manager_invocation_policy
       - coinbase_exchange_submission_policy
       - post_write_reconciliation_execution_policy
+      - state_mutation_policy
       - active_placement_exchange_truth
       - reveal_trigger_evidence
       - mutation_claim_snapshot
@@ -23982,6 +23996,7 @@ components:
       - manager_invocation_policy
       - coinbase_exchange_submission_policy
       - post_write_reconciliation_execution_policy
+      - state_mutation_policy
       - lifecycle_write_guard_proof
       - live_execution_service
       - live_execution_adapter
@@ -24552,6 +24567,19 @@ components:
           - type: string
           - type: 'null'
           title: Manager Invocation Policy Proof Id
+        state_mutation_policy_required:
+          type: boolean
+          title: State Mutation Policy Required
+          default: true
+        state_mutation_policy_resolved:
+          type: boolean
+          title: State Mutation Policy Resolved
+          default: false
+        state_mutation_policy_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State Mutation Policy Proof Id
         lifecycle_write_guard_proof_required:
           type: boolean
           title: Lifecycle Write Guard Proof Required

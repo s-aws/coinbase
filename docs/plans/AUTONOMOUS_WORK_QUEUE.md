@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3401-3420**.
+- Approved phase range: **3421-3440**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3361-3380`.
+- Previous completed range: `3401-3420`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,7 +23,98 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3401-3420
+## Active Phases 3421-3440
+
+These phases consume backend-owned stealth state-mutation policy proof records
+as exact-command prerequisite resolver evidence for stealth create, reveal,
+cancel, move, reprice, recovery, and reconciliation contracts. The resolver
+path is backend-store read-only evidence. It must not resolve live execution
+itself, call Coinbase, invoke managers, cancel or replace active placements,
+execute reconciliation, mutate lifecycle/order/exchange state, grant browser
+authority, or grant BFF execution authority. A newer unsafe exact-command row
+must block rather than falling back to an older safe row.
+
+### Phase 3421 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3401-3420 to active phases 3421-3440 while preserving no-live defaults and cap policy.
+
+### Phase 3422 - Prior Range Completion Evidence
+
+- Keep completed phases 3401-3420 recorded as state-mutation policy proof/readback foundation work with passing backend/frontend gates, blind/contextless review, backend commit `e6af38f3`, frontend commit `6e8b921`, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3423 - Create Resolver Contract
+
+- Add state-mutation policy proof records as an enum-backed required create lifecycle execution prerequisite.
+
+### Phase 3424 - Create Exact-Context Lookup
+
+- Resolve create state-mutation policy proof evidence only from newest exact route, method, service, mutation family, actor, intent, idempotency, payload, approval, audit, cap/guard, and reconciliation-plan context.
+
+### Phase 3425 - Create Unsafe-Row Blocking
+
+- Prove unsafe exact create state-mutation policy rows block and expose stale/invalid evidence instead of falling back to older safe rows.
+
+### Phase 3426 - Non-Create Resolver Contract
+
+- Add state-mutation policy proof records as a required prerequisite for stealth reveal, cancel, move, reprice, recovery, and reconciliation execution contracts.
+
+### Phase 3427 - Non-Create Exact-Context Lookup
+
+- Resolve non-create state-mutation policy proof evidence from newest exact guarded command context only.
+
+### Phase 3428 - Non-Create Unsafe-Row Blocking
+
+- Prove unsafe exact non-create state-mutation policy rows block and remain no-live/no-mutation.
+
+### Phase 3429 - Live-Readiness Artifact Mapping
+
+- Map resolved state-mutation policy prerequisite evidence into live-readiness decision artifacts while keeping the backend decision unresolved and fail-closed.
+
+### Phase 3430 - Route And Service Store Plumbing
+
+- Thread the state-mutation policy proof store through create command service and shared stealth command execution posture helpers.
+
+### Phase 3431 - OpenAPI And Route Inventory Refresh
+
+- Regenerate backend OpenAPI and route inventory after resolver contract changes.
+
+### Phase 3432 - Frontend Schema Sync
+
+- Regenerate frontend OpenAPI TypeScript schema from the backend contract.
+
+### Phase 3433 - Frontend Mock Contract Sync
+
+- Update mock create and non-create execution contracts so state-mutation policy appears in prerequisite rows and typed fields.
+
+### Phase 3434 - Frontend Evidence Rendering
+
+- Surface create-contract state-mutation policy required/resolved/proof evidence in the stealth read model without adding execution controls.
+
+### Phase 3435 - Focused Backend Coverage
+
+- Run focused Admin API resolver regressions for exact safe and unsafe create/non-create state-mutation policy evidence.
+
+### Phase 3436 - Focused Frontend Coverage
+
+- Run focused frontend API, typecheck, mock, dry-submit, and stealth read-model checks.
+
+### Phase 3437 - Documentation And Handoff Sync
+
+- Update roadmap, workflow, handoff, and state docs to describe resolver-only consumption of state-mutation policy proof evidence.
+
+### Phase 3438 - Contextless Review
+
+- Run blind/contextless review proving an agent can explain how state-mutation policy proof records satisfy prerequisites without granting execution authority.
+
+### Phase 3439 - Full Gates
+
+- Run backend full regression and frontend release gate after backend/frontend contract changes.
+
+### Phase 3440 - Commit, Push, Pause, And No-Live Report
+
+- Commit and push both repositories, report `$0` live Coinbase submitted/executed notional, and pause as requested after this phase.
+
+## Completed Phases 3401-3420
 
 These phases continue M55 by adding a backend-owned stealth state-mutation
 policy proof/readback foundation. The new surface may persist reviewed policy

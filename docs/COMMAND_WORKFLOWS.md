@@ -274,9 +274,11 @@ Workflows may display route-bound state, lifecycle, order, exchange, and
 post-write policy references only. The records do not authorize or perform
 lifecycle/order/exchange-state mutation, call Coinbase, invoke managers,
 submit/cancel/read orders, cancel/replace active placements, execute
-reconciliation, or grant browser/BFF authority. This foundation does not yet
-resolve the `state_mutation_policy` live-readiness blocker; a later backend
-exact-command resolver must consume and validate the evidence.
+reconciliation, or grant browser/BFF authority. Create and non-create
+execution prerequisite resolvers may now consume the newest exact safe proof
+row as `state_mutation_policy` prerequisite evidence. The corresponding
+live-readiness backend decision remains unresolved and fail-closed; the proof
+does not grant mutation or execution authority.
 Create and non-create execution prerequisite resolvers may now read the
 post-write proof, execution-journal, and verification stores for exact
 command-context records. A safe proof without a matching accepted journal is

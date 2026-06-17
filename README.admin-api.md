@@ -203,8 +203,10 @@ proof evidence only after exact backend admission prerequisites match. It
 does not authorize or perform lifecycle, order, or exchange-state mutation,
 invoke managers, call Coinbase, submit/cancel/read Coinbase orders,
 cancel/replace active placements, execute reconciliation, or grant browser/BFF
-authority. It is evidence for a later backend state-mutation policy resolver;
-it does not clear `state_mutation_policy` live-readiness blockers by itself.
+authority. Create and non-create execution prerequisite resolvers may consume the
+newest exact safe proof row as `state_mutation_policy` prerequisite evidence.
+That still does not clear live-readiness decisions or authorize execution by
+itself.
 The per-order stealth detail route
 `GET /api/v1/stealth/orders/{stealth_order_id}` also exposes
 `active_placement_audit` as local evidence for whether the current stealth row
@@ -575,8 +577,8 @@ responses may resolve only the `cancel_replace_proof` prerequisite from the
 latest safe same-`stealth_order_id` proof record when it exactly matches
 route, method, service method, actor, operator intent, idempotency key,
 payload hash, and mutation family. A resolved proof does not resolve
-active-placement exchange truth, mutation claims, live service, live adapter,
-or post-write reconciliation. Unsafe latest proof evidence remains
+active-placement exchange truth, mutation claims, state-mutation policy, live
+service, live adapter, or post-write reconciliation. Unsafe latest proof evidence remains
 missing/stale and does not fall back to older records.
 Those exact command responses also expose
 `active_placement_cancel_replace_contract`, a nested projection of the same

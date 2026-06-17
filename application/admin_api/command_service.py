@@ -1645,6 +1645,9 @@ class AdminApiCommandService:
             post_write_reconciliation_policy_proof_store=(
                 self.dependencies.stealth_post_write_reconciliation_policy_proof_store_getter()
             ),
+            state_mutation_policy_proof_store=(
+                self.dependencies.stealth_state_mutation_policy_proof_store_getter()
+            ),
             post_write_reconciliation_proof_store=(
                 self.dependencies.stealth_post_write_reconciliation_proof_store_getter()
             ),

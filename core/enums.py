@@ -378,6 +378,7 @@ class StealthCreateLifecycleExecutionPrerequisite(str, Enum):
     POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
         "post_write_reconciliation_execution_policy"
     )
+    STATE_MUTATION_POLICY = "state_mutation_policy"
     LIFECYCLE_WRITE_GUARD_PROOF = "lifecycle_write_guard_proof"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
@@ -430,6 +431,7 @@ class StealthCommandExecutionPrerequisite(str, Enum):
     POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
         "post_write_reconciliation_execution_policy"
     )
+    STATE_MUTATION_POLICY = "state_mutation_policy"
     ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
     REVEAL_TRIGGER_EVIDENCE = "reveal_trigger_evidence"
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"

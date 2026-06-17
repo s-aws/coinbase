@@ -47,6 +47,10 @@ from .stealth_post_write_reconciliation_policy import (
     FileStealthPostWriteReconciliationExecutionPolicyProofStore,
     StealthPostWriteReconciliationExecutionPolicyProofRecord,
 )
+from .stealth_state_mutation_policy import (
+    FileStealthStateMutationPolicyProofStore,
+    StealthStateMutationPolicyProofRecord,
+)
 from .stealth_execution_preflight import (
     build_stealth_execution_live_readiness,
     build_stealth_execution_preflight,
@@ -91,6 +95,7 @@ REQUIRED_CREATE_EXECUTION_PREREQUISITES: tuple[str, ...] = (
     StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY.value,
     StealthCreateLifecycleExecutionPrerequisite.COINBASE_EXCHANGE_SUBMISSION_POLICY.value,
     StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY.value,
+    StealthCreateLifecycleExecutionPrerequisite.STATE_MUTATION_POLICY.value,
     StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF.value,
     StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value,
     StealthCreateLifecycleExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value,
@@ -124,6 +129,10 @@ NEXT_REQUIRED_CREATE_CONTRACT_BY_PREREQUISITE: dict[
     StealthCreateLifecycleExecutionPrerequisite.POST_WRITE_RECONCILIATION_EXECUTION_POLICY: (
         "POST /api/v1/stealth/orders/{stealth_order_id}/"
         "post-write-reconciliation-execution-policy-proofs"
+    ),
+    StealthCreateLifecycleExecutionPrerequisite.STATE_MUTATION_POLICY: (
+        "POST /api/v1/stealth/orders/{stealth_order_id}/"
+        "state-mutation-policy-proofs"
     ),
     StealthCreateLifecycleExecutionPrerequisite.LIFECYCLE_WRITE_GUARD_PROOF: (
         "POST /api/v1/stealth/orders/{stealth_order_id}/"
@@ -176,6 +185,9 @@ def build_stealth_create_lifecycle_write_execution_contract(
     post_write_reconciliation_policy_proof_store: (
         FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
     ) = None,
+    state_mutation_policy_proof_store: (
+        FileStealthStateMutationPolicyProofStore | None
+    ) = None,
     post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
     ) = None,
@@ -199,6 +211,7 @@ def build_stealth_create_lifecycle_write_execution_contract(
         post_write_reconciliation_policy_proof_store=(
             post_write_reconciliation_policy_proof_store
         ),
+        state_mutation_policy_proof_store=state_mutation_policy_proof_store,
         post_write_reconciliation_proof_store=post_write_reconciliation_proof_store,
         post_write_execution_journal_store=post_write_execution_journal_store,
         post_write_reconciliation_verification_store=(
@@ -317,6 +330,20 @@ def build_stealth_create_lifecycle_write_execution_contract(
                 for item in resolution
                 if item.prerequisite
                 == StealthCreateLifecycleExecutionPrerequisite.MANAGER_INVOCATION_POLICY
+            ),
+            None,
+        ),
+        state_mutation_policy_required=True,
+        state_mutation_policy_resolved=(
+            StealthCreateLifecycleExecutionPrerequisite.STATE_MUTATION_POLICY.value
+            in resolved
+        ),
+        state_mutation_policy_proof_id=next(
+            (
+                item.resolved_evidence_id
+                for item in resolution
+                if item.prerequisite
+                == StealthCreateLifecycleExecutionPrerequisite.STATE_MUTATION_POLICY
             ),
             None,
         ),
@@ -699,6 +726,9 @@ def _build_prerequisite_resolution(
     post_write_reconciliation_policy_proof_store: (
         FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
     ),
+    state_mutation_policy_proof_store: (
+        FileStealthStateMutationPolicyProofStore | None
+    ),
     post_write_reconciliation_proof_store: (
         FileStealthPostWriteReconciliationProofStore | None
     ),
@@ -787,38 +817,29 @@ def _build_prerequisite_resolution(
         dependency_missing_reason="cap_guard_decision_missing",
         detail="Route-specific reconciliation plan resolver evidence.",
     )
+    common_resolved = (
+        approval.resolved
+        and admission.resolved
+        and cap_guard.resolved
+        and reconciliation.resolved
+    )
     lifecycle_guard = _resolve_lifecycle_write_guard_proof(
         stealth_order_id=stealth_order_id,
         admission_decision=admission_decision,
         lifecycle_write_guard_proof_store=lifecycle_write_guard_proof_store,
-        prerequisites_resolved=(
-            approval.resolved
-            and admission.resolved
-            and cap_guard.resolved
-            and reconciliation.resolved
-        ),
+        prerequisites_resolved=common_resolved,
     )
     manager_policy = _resolve_manager_invocation_policy_proof(
         stealth_order_id=stealth_order_id,
         admission_decision=admission_decision,
         manager_policy_proof_store=manager_policy_proof_store,
-        prerequisites_resolved=(
-            approval.resolved
-            and admission.resolved
-            and cap_guard.resolved
-            and reconciliation.resolved
-        ),
+        prerequisites_resolved=common_resolved,
     )
     coinbase_exchange_policy = _resolve_coinbase_exchange_submission_policy_proof(
         stealth_order_id=stealth_order_id,
         admission_decision=admission_decision,
         coinbase_exchange_policy_proof_store=coinbase_exchange_policy_proof_store,
-        prerequisites_resolved=(
-            approval.resolved
-            and admission.resolved
-            and cap_guard.resolved
-            and reconciliation.resolved
-        ),
+        prerequisites_resolved=common_resolved,
     )
     post_write_reconciliation_policy = (
         _resolve_post_write_reconciliation_execution_policy_proof(
@@ -827,13 +848,14 @@ def _build_prerequisite_resolution(
             post_write_reconciliation_policy_proof_store=(
                 post_write_reconciliation_policy_proof_store
             ),
-            prerequisites_resolved=(
-                approval.resolved
-                and admission.resolved
-                and cap_guard.resolved
-                and reconciliation.resolved
-            ),
+            prerequisites_resolved=common_resolved,
         )
+    )
+    state_mutation_policy = _resolve_state_mutation_policy_proof(
+        stealth_order_id=stealth_order_id,
+        admission_decision=admission_decision,
+        state_mutation_policy_proof_store=state_mutation_policy_proof_store,
+        prerequisites_resolved=common_resolved,
     )
 
     return [
@@ -844,6 +866,7 @@ def _build_prerequisite_resolution(
         manager_policy,
         coinbase_exchange_policy,
         post_write_reconciliation_policy,
+        state_mutation_policy,
         lifecycle_guard,
         _resolver_item(
             prerequisite=(
@@ -1478,6 +1501,165 @@ def _is_safe_post_write_reconciliation_execution_policy_proof(
 
 def _post_write_reconciliation_execution_policy_proof_matches_admission(
     record: StealthPostWriteReconciliationExecutionPolicyProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        record.guarded_command_route == STEALTH_CREATE_ROUTE
+        and record.guarded_command_method == STEALTH_CREATE_METHOD
+        and record.guarded_service_method == STEALTH_CREATE_SERVICE_METHOD
+        and record.guarded_mutation_family == AdminApiMutationFamilyType.STEALTH_CREATE
+        and record.guarded_actor_id == admission_decision.actor_id
+        and record.guarded_operator_intent == admission_decision.operator_intent
+        and record.guarded_idempotency_key == admission_decision.idempotency_key
+        and record.guarded_payload_hash == admission_decision.payload_hash
+        and record.reconciliation_plan_id == admission_decision.reconciliation_plan_id
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+        and record.cap_guard_decision_id == admission_decision.cap_guard_decision_id
+    )
+
+
+def _resolve_state_mutation_policy_proof(
+    *,
+    stealth_order_id: str | None,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    state_mutation_policy_proof_store: (
+        FileStealthStateMutationPolicyProofStore | None
+    ),
+    prerequisites_resolved: bool,
+) -> StealthCreateLifecyclePrerequisiteResolverItem:
+    prerequisite = StealthCreateLifecycleExecutionPrerequisite.STATE_MUTATION_POLICY
+    source = "admin_api_stealth_state_mutation_policy_log"
+    if not prerequisites_resolved:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=(
+                StealthCreateLifecycleExecutionPrerequisiteLookupStatus.BLOCKED_BY_DEPENDENCY
+            ),
+            missing_reason="admission_prerequisites_missing",
+            detail=(
+                "State-mutation policy proof lookup requires approval, audit, "
+                "cap/guard, and reconciliation evidence first."
+            ),
+        )
+    if state_mutation_policy_proof_store is None or not stealth_order_id:
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.UNAVAILABLE,
+            missing_reason="state_mutation_policy_proof_store_unavailable",
+            detail="State-mutation policy proof store was unavailable.",
+        )
+
+    record = _find_latest_state_mutation_policy_proof(
+        store=state_mutation_policy_proof_store,
+        stealth_order_id=stealth_order_id,
+        admission_decision=admission_decision,
+    )
+    if record is not None and not _is_safe_state_mutation_policy_proof(
+        record,
+        admission_decision=admission_decision,
+    ):
+        return _resolver_item(
+            prerequisite=prerequisite,
+            identity_value=stealth_order_id,
+            source=source,
+            lookup_status=StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING,
+            lookup_ran=True,
+            resolved_evidence_id=record.state_mutation_policy_proof_id,
+            missing_reason="state_mutation_policy_proof_not_safe",
+            stale_or_invalid=True,
+            proof_lookup_authority="backend_store_read_only_no_execution",
+            detail=(
+                "Latest exact-command state-mutation policy proof was found "
+                "but is not safe exact-context no-live/no-mutation evidence "
+                "for stealth create execution posture."
+            ),
+        )
+    return _resolver_item(
+        prerequisite=prerequisite,
+        identity_value=stealth_order_id,
+        source=source,
+        lookup_status=(
+            StealthCreateLifecycleExecutionPrerequisiteLookupStatus.RESOLVED
+            if record is not None
+            else StealthCreateLifecycleExecutionPrerequisiteLookupStatus.MISSING
+        ),
+        lookup_ran=True,
+        resolved=record is not None,
+        resolved_evidence_id=(
+            record.state_mutation_policy_proof_id if record is not None else None
+        ),
+        missing_reason=(
+            None if record is not None else "no_matching_state_mutation_policy_proof"
+        ),
+        proof_lookup_authority="backend_store_read_only_no_execution",
+        detail=(
+            "Backend-owned state-mutation policy proof lookup is read-only and "
+            "does not mutate lifecycle, order, or exchange state, invoke "
+            "managers, call Coinbase, execute reconciliation, or authorize "
+            "execution."
+        ),
+    )
+
+
+def _find_latest_state_mutation_policy_proof(
+    *,
+    store: FileStealthStateMutationPolicyProofStore,
+    stealth_order_id: str,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> StealthStateMutationPolicyProofRecord | None:
+    for record in store.read_for_stealth_order_id(stealth_order_id, limit=500):
+        if _state_mutation_policy_proof_matches_admission(
+            record,
+            admission_decision=admission_decision,
+        ):
+            return record
+    return None
+
+
+def _is_safe_state_mutation_policy_proof(
+    record: StealthStateMutationPolicyProofRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> bool:
+    return (
+        _state_mutation_policy_proof_matches_admission(
+            record,
+            admission_decision=admission_decision,
+        )
+        and record.proof_persisted is True
+        and record.state_mutation_policy_verified is False
+        and record.state_mutation_allowed is False
+        and record.lifecycle_state_mutation_allowed is False
+        and record.order_state_mutation_allowed is False
+        and record.exchange_state_mutation_allowed is False
+        and record.manager_invocation_ran is False
+        and record.reconciliation_plan_built is False
+        and record.reconciliation_execution_ran is False
+        and record.coinbase_read_attempted is False
+        and record.coinbase_read_succeeded is False
+        and record.coinbase_rest_read_ran is False
+        and record.coinbase_order_submitted is False
+        and record.coinbase_order_cancel_submitted is False
+        and record.active_placement_cancel_replace_ran is False
+        and record.reconciliation_executed is False
+        and record.order_state_mutated is False
+        and record.lifecycle_state_mutated is False
+        and record.exchange_state_mutated is False
+        and record.live_exchange_submitted is False
+        and record.live_coinbase_orders_ran is False
+        and record.browser_authority == "display_only"
+        and record.bff_authority == "forward_only_no_execution"
+    )
+
+
+def _state_mutation_policy_proof_matches_admission(
+    record: StealthStateMutationPolicyProofRecord,
     *,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
 ) -> bool:

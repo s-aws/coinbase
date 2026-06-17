@@ -2,14 +2,17 @@
 
 Stealth state-mutation policy records are backend-owned, append-only local
 evidence for the enterprise Admin API. They let an operator persist one
-route-bound proof record for a future guarded stealth command without
-authorizing or performing lifecycle, order, or exchange-state mutation.
+route-bound proof record for a guarded stealth command without authorizing or
+performing lifecycle, order, or exchange-state mutation.
 
 Use this only after the backend has built the exact guarded command context
-for the stealth command being reviewed. The proof is local evidence for a
-future state-mutation policy resolver. It is not state mutation, Coinbase
-exchange truth, live Coinbase approval, reconciliation execution, browser
-authority, or BFF execution authority.
+for the stealth command being reviewed. Create and non-create stealth
+execution contracts may consume the newest exact-context safe proof row as
+`state_mutation_policy` prerequisite evidence. That resolver evidence is local
+readback only: it does not clear live-readiness decisions, perform state
+mutation, prove Coinbase exchange truth, approve live Coinbase activity,
+execute reconciliation, grant browser authority, or grant BFF execution
+authority.
 
 ## Surfaces
 

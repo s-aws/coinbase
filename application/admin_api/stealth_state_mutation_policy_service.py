@@ -17,7 +17,7 @@ from .models import (
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .stealth_coinbase_exchange_policy_service import (
-    GUARDED_COINBASE_EXCHANGE_POLICY_COMMANDS,
+    GUARDED_STEALTH_POLICY_COMMANDS,
 )
 from .stealth_state_mutation_policy import (
     FileStealthStateMutationPolicyProofStore,
@@ -164,7 +164,7 @@ class AdminApiStealthStateMutationPolicyService:
         guarded_command = next(
             (
                 command
-                for command in GUARDED_COINBASE_EXCHANGE_POLICY_COMMANDS
+                for command in GUARDED_STEALTH_POLICY_COMMANDS
                 if command.route == body.guarded_command_route
             ),
             None,

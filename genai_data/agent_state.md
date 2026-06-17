@@ -38,8 +38,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3381-3400`; active range is
-  `3401-3420`.
+- Latest completed autonomous range: `3401-3420`; active range is `3421-3440`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -120,8 +119,7 @@ Keep it short. Keep it factual.
   artifacts while preserving blocked decisions and no-live/no-write authority.
   Backend commit `e12ff0c1` and frontend commit `b595717` contain the pushed
   range.
-- Active `3401-3420` work: add backend-owned stealth state-mutation policy
-  proof/readback evidence and frontend contract sync. The proof surface is
+- Active `3421-3440` work: consume backend-owned stealth state-mutation policy proof/readback evidence as resolver-only prerequisite evidence and frontend contract sync. The proof surface is
   append-only local evidence only; it must not resolve
   `state_mutation_policy` in live-readiness decisions, mutate lifecycle/order/
   exchange state, call Coinbase, invoke managers, cancel/replace placements,
@@ -300,10 +298,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3401-3420`.
+- Active autonomous range: `3421-3440`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: add backend-owned stealth state-mutation policy
-  proof/readback evidence and frontend contract sync for `3401-3420`. Do not
+- Current direction: consume backend-owned stealth state-mutation policy proof/readback evidence as resolver-only prerequisite evidence and frontend contract sync for `3421-3440`. Do not
   resolve live-readiness state-mutation blockers, mutate state, or run live
   Coinbase execution unless a future approved phase explicitly authorizes it.
 
@@ -889,13 +886,13 @@ Keep it short. Keep it factual.
   are display/backend evidence only; backend decisions remain blocked and live
   execution, Coinbase, manager, reconciliation, state mutation, browser, and
   BFF authority remain disabled.
-- What is active for M55 3401-3420: backend and frontend add state-mutation
+- What is completed for M55 3401-3420: backend and frontend added state-mutation
   policy proof/readback evidence as append-only local evidence for later
   exact-command resolver work. It must not resolve live-readiness blockers,
   mutate lifecycle/order/exchange state, call Coinbase, invoke managers,
   cancel/replace placements, execute reconciliation, or grant browser/BFF
   authority.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3401-3420 implementation, run
+- Exact next command: continue the active 3421-3440 resolver implementation, run
   focused gates, blind/contextless reviews, full gates, browser availability,
   then commit and push both repositories with `$0` live Coinbase execution.
