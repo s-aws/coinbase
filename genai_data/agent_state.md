@@ -38,7 +38,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `3421-3440`; active range is `3441-3460`.
+- Latest completed autonomous range: `3441-3460`; active range is `3461-3480`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -125,11 +125,18 @@ Keep it short. Keep it factual.
   `state_mutation_policy` prerequisite row, but live-readiness decisions remain
   unresolved and fail-closed with no mutation or execution authority. Backend
   commit `a5248c33` and frontend commit `d4f50f5` contain the pushed range.
-- Active `3441-3460` work: expand the existing disabled
+- Completed `3441-3460` work: expanded the existing disabled
   `live_execution_service_contract` with backend-only enablement
   preconditions, missing artifacts, verification gates, and blockers. The
   contract remains evidence-only and must not enable live execution, construct
   adapters, call Coinbase, invoke managers, execute reconciliation,
+  cancel/replace active placements, mutate lifecycle/order/exchange state,
+  grant browser authority, or grant BFF execution authority.
+- Active `3461-3480` work: expand the existing disabled
+  `live_execution_adapter_contract` with backend-only construction
+  preconditions, missing artifacts, verification gates, and blockers. The
+  contract remains evidence-only and must not construct adapters, create a
+  second adapter path, call Coinbase, invoke managers, execute reconciliation,
   cancel/replace active placements, mutate lifecycle/order/exchange state,
   grant browser authority, or grant BFF execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
@@ -305,13 +312,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `3441-3460`.
+- Active autonomous range: `3461-3480`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: expand the existing disabled
-  `live_execution_service_contract` with backend-only enablement
-  preconditions for `3441-3460`. Do not enable live service construction,
-  adapters, Coinbase calls, manager invocation, reconciliation execution,
-  active-placement cancel/replace, state mutation, browser authority, or BFF
+  `live_execution_adapter_contract` with backend-only construction
+  preconditions for `3461-3480`. Do not construct adapters, create a second
+  adapter path, enable live service construction, call Coinbase, invoke
+  managers, execute reconciliation, cancel/replace active placements, mutate
+  lifecycle/order/exchange state, grant browser authority, or grant BFF
   execution authority unless a future approved phase explicitly authorizes it.
 
 ## Decisions (Durable)
@@ -907,7 +915,7 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: continue the active 3441-3460 live-service enablement
+- Exact next command: continue the active 3461-3480 live-adapter construction
   precondition implementation, run focused gates, blind/contextless review,
   full gates, then commit and push both repositories with `$0` live Coinbase
   execution.

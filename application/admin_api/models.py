@@ -4011,6 +4011,16 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     adapter_reference: str
     action_class: AdminApiActionClass
     executable: bool = False
+    construction_precondition_required: bool = True
+    construction_precondition_resolved: bool = False
+    construction_precondition_authority: str = (
+        "backend_route_binding_only_no_execution"
+    )
+    required_construction_artifacts: list[str] = Field(default_factory=list)
+    missing_construction_artifacts: list[str] = Field(default_factory=list)
+    construction_contract_refs: list[str] = Field(default_factory=list)
+    construction_verification_gates: list[str] = Field(default_factory=list)
+    construction_blockers: list[str] = Field(default_factory=list)
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     forbidden_methods: list[str] = Field(default_factory=list)

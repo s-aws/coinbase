@@ -13147,6 +13147,43 @@ components:
           type: boolean
           title: Executable
           default: false
+        construction_precondition_required:
+          type: boolean
+          title: Construction Precondition Required
+          default: true
+        construction_precondition_resolved:
+          type: boolean
+          title: Construction Precondition Resolved
+          default: false
+        construction_precondition_authority:
+          type: string
+          title: Construction Precondition Authority
+          default: backend_route_binding_only_no_execution
+        required_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Required Construction Artifacts
+        missing_construction_artifacts:
+          items:
+            type: string
+          type: array
+          title: Missing Construction Artifacts
+        construction_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Construction Contract Refs
+        construction_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Construction Verification Gates
+        construction_blockers:
+          items:
+            type: string
+          type: array
+          title: Construction Blockers
         browser_authority:
           type: string
           title: Browser Authority

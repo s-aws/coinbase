@@ -501,8 +501,12 @@ route-bound adapter evidence object produced by the shared backend
 `build_live_execution_adapter_contract` helper. It names the
 `AdminApiCommandService.*` method, route, module id, action class, forbidden
 execution methods, and display-only browser/BFF authority while remaining
-disabled and non-executable. It is not an adapter implementation, live switch,
-Coinbase caller, manager invocation path, or BFF execution grant.
+disabled and non-executable. It also reports backend-only construction
+preconditions, required/missing construction artifacts, verification gates, and
+blockers while keeping `construction_precondition_resolved` false until a
+future approved backend phase binds the adapter through the shared command
+service. It is not an adapter implementation, live switch, Coinbase caller,
+manager invocation path, or BFF execution grant.
 For commands that require active-placement exchange truth, the contract may
 resolve that single prerequisite from the existing append-only backend proof
 store when a safe same-`stealth_order_id` proof record exists. That resolver

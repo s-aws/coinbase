@@ -2795,12 +2795,14 @@ Current backend evidence:
   inside `execution_live_readiness` decision artifact evidence. Completed
   phases 3401-3420 added backend-owned stealth state-mutation policy
   proof/readback; completed phases 3421-3440 consume it as resolver-only
-  prerequisite evidence for exact-command resolver work. Active phases
+  prerequisite evidence for exact-command resolver work. Completed phases
   3441-3460 add backend-only enablement precondition evidence to the existing
-  disabled `live_execution_service_contract`. The service contract remains
-  disabled, non-executable, and no-live; backend decisions remain blocked and
-  Coinbase, manager, reconciliation, active-placement, state mutation,
-  browser, and BFF authority remain disabled.
+  disabled `live_execution_service_contract`. Active phases 3461-3480 add
+  backend-only construction precondition evidence to the existing disabled
+  `live_execution_adapter_contract`. Both contracts remain disabled,
+  non-executable, and no-live; backend decisions remain blocked and Coinbase,
+  manager, reconciliation, active-placement, state mutation, browser, and BFF
+  authority remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

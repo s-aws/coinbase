@@ -100,19 +100,25 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3421-3440` under M55.
-- Active autonomous range: `3441-3460` under M55.
+- Latest completed autonomous range: `3441-3460` under M55.
+- Active autonomous range: `3461-3480` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
   but live-readiness decisions remain unresolved and fail-closed with no
-  mutation or execution authority. Active 3441-3460 work expands the existing
+  mutation or execution authority. Completed 3441-3460 work expanded the existing
   disabled `live_execution_service_contract` with backend-only enablement
   preconditions, missing artifacts, verification gates, and blockers. Those
   fields are evidence-only and do not enable live service construction,
   Coinbase calls, manager invocation, reconciliation execution,
   active-placement cancel/replace, state mutation, browser authority, or BFF
-  execution authority.
+  execution authority. Active 3461-3480 work expands the existing disabled
+  `live_execution_adapter_contract` with backend-only construction
+  preconditions, missing artifacts, verification gates, and blockers. Those
+  fields are evidence-only and do not construct adapters, create a second
+  adapter path, call Coinbase, invoke managers, execute reconciliation,
+  cancel/replace active placements, mutate lifecycle/order/exchange state,
+  grant browser authority, or grant BFF execution authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -463,10 +469,12 @@ notional, retained inventory, reconciliation result, and audit ids.
   `execution_live_readiness` decision artifact evidence. Completed phases
   3401-3420 added backend-owned state-mutation policy proof/readback evidence;
   completed phases 3421-3440 consume it as resolver-only prerequisite
-  evidence. Active phases 3441-3460 add backend-only enablement precondition
-  evidence to the existing disabled `live_execution_service_contract`. Backend
-  decisions remain blocked and live execution, Coinbase, manager,
-  reconciliation, state mutation, browser, and BFF authority remain disabled.
+  evidence. Completed phases 3441-3460 added backend-only enablement
+  precondition evidence to the existing disabled `live_execution_service_contract`.
+  Active phases 3461-3480 add backend-only construction precondition evidence
+  to the existing disabled `live_execution_adapter_contract`. Backend decisions
+  remain blocked and live execution, Coinbase, manager, reconciliation, state
+  mutation, browser, and BFF authority remain disabled.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

@@ -55,6 +55,27 @@ LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS = (
     "explicit_live_enablement_decision_missing",
     "backend_live_service_configuration_missing",
 )
+LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY = "backend_route_binding_only_no_execution"
+LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS = (
+    "route_bound_stealth_live_execution_adapter",
+    "shared_command_service_adapter",
+    "route_inventory_execution_binding",
+)
+LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS = (
+    "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+    "application/admin_api/command_service.py::AdminApiCommandService",
+    "application/admin_api/route_inventory.py",
+)
+LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES = (
+    "adapter_is_route_bound",
+    "adapter_calls_shared_command_service_only",
+    "no_parallel_manager_or_coinbase_path_exists",
+    "live_coinbase_execution_requires_explicit_phase_approval",
+)
+LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS = (
+    "backend_live_adapter_construction_missing",
+    "route_bound_stealth_live_execution_adapter_missing",
+)
 M53_PILOT_LIVE_ADAPTER_ROUTE = "/api/v1/orders"
 M53_PILOT_LIVE_ADAPTER_METHOD = "POST"
 M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
@@ -208,12 +229,33 @@ def build_disabled_live_execution_adapter_contract(
         "adapter_reference": adapter_reference,
         "action_class": action_class,
         "executable": False,
+        "construction_precondition_required": True,
+        "construction_precondition_resolved": False,
+        "construction_precondition_authority": (
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY
+        ),
+        "required_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "missing_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "construction_contract_refs": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS
+        ),
+        "construction_verification_gates": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
+        ),
+        "construction_blockers": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
+        ),
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
         "evidence": [
             "Live-shaped route is mapped to the shared backend command service.",
             "The disabled live execution service descriptor has no executable adapter.",
+            "Backend live adapter construction preconditions are unresolved.",
             "Browser and BFF layers cannot create a route-local execution adapter.",
         ],
         "detail": (
@@ -256,6 +298,26 @@ def build_m53_pilot_live_execution_adapter_contract(
         "adapter_reference": adapter_reference,
         "action_class": action_class,
         "executable": False,
+        "construction_precondition_required": True,
+        "construction_precondition_resolved": False,
+        "construction_precondition_authority": (
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY
+        ),
+        "required_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "missing_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "construction_contract_refs": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS
+        ),
+        "construction_verification_gates": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
+        ),
+        "construction_blockers": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
+        ),
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
@@ -263,6 +325,7 @@ def build_m53_pilot_live_execution_adapter_contract(
             "M53 pilot maps one route to the shared backend command service.",
             "Pilot adapter admission is dry-run only and exposes no submit method.",
             "Live execution service admission remains required before Coinbase submission.",
+            "Backend live adapter construction preconditions remain unresolved.",
             "Browser and BFF layers cannot make the pilot adapter executable.",
         ],
         "detail": (
