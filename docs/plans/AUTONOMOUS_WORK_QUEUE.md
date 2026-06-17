@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **3761-3780**.
+- Approved phase range: **3781-3800**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `3741-3760`.
+- Previous completed range: `3761-3780`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,98 +23,112 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 3761-3780
+## Active Phases 3781-3800
 
-These phases add blocked clearance-action rows derived from each missing
+These phases add a blocked dependency summary over producer-readiness
+clearance actions. The summary aggregates action counts, dependency-blocked
+refs, clearable refs, terminal refs, first blocked action, and disabled
+route/store/validation/replay/writer/acceptance/construction/clearance/execution flags.
+It is derived from the clearance-action rows and remains planning evidence
+only. It must not create a route, store, validation/replay gate, writer,
+acceptance path, adapter construction path, Coinbase call, manager call,
+reconciliation execution, active-placement cancellation/replacement,
+lifecycle/order/exchange mutation, browser authority, or BFF execution
+authority.
+
+### Phase 3781 - Prior Range Completion Evidence
+
+- Record completed phases 3761-3780 with backend commit `33fb549f`, frontend commit `d5d212a`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+
+### Phase 3782 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 3761-3780 to active phases 3781-3800 while preserving no-live defaults and cap policy.
+
+### Phase 3783 - Backend Dependency Summary Model
+
+- Add a typed producer-readiness clearance dependency summary to the existing live-adapter construction contract path.
+
+### Phase 3784 - Backend Dependency Summary Projection
+
+- Derive blocked/ready counts, dependency-blocked refs, clearable refs, terminal refs, first refs, and disabled authority flags from existing clearance-action rows.
+
+### Phase 3785 - Backend Schema Sync
+
+- Regenerate backend OpenAPI so the frontend consumes dependency-summary fields from generated schema.
+
+### Phase 3786 - Backend Focused Coverage
+
+- Add focused assertions proving the dependency summary is blocked, derived from clearance actions, has no clearable actions, and all route/store/validation/replay/writer/acceptance/construction/clearance/execution flags are false.
+
+### Phase 3787 - Frontend Schema Sync
+
+- Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
+
+### Phase 3788 - Frontend Mock And Runtime Sync
+
+- Add producer-readiness clearance dependency summary fields to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
+
+### Phase 3789 - Frontend Display Sync
+
+- Render the dependency summary separately from clearance action rows through existing adapter evidence rows.
+
+### Phase 3790 - Frontend Focused Coverage
+
+- Update focused mock, runtime, read-model, dry-submit, and quality tests so the dependency summary cannot drift or imply write/acceptance/construction/clearance authority.
+
+### Phase 3791 - Documentation Sync
+
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for dependency-summary readback.
+
+### Phase 3792 - Autonomous Validator Sync
+
+- Update backend/frontend autonomous validators and active-range metadata for phases 3781-3800.
+
+### Phase 3793 - Stale Authority Scan
+
+- Search backend/frontend code and docs for stale active-range wording or text implying dependency summaries can write, accept, satisfy, clear, construct, or enable adapters.
+
+### Phase 3794 - Backend Focused Gates
+
+- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+
+### Phase 3795 - Frontend Focused Gates
+
+- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
+
+### Phase 3796 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short`.
+
+### Phase 3797 - Full Frontend Release Gate And UI Smoke
+
+- Run `npm run release:gate` in `C:\coinbase-frontend` and verify the live-updated admin UI remains available with no-live posture.
+
+### Phase 3798 - Blind Contextless Review
+
+- Run blind/contextless review proving a fresh agent can explain that dependency summaries are planning evidence only and cannot build, satisfy, write, accept, clear, or enable adapters.
+
+### Phase 3799 - Final Clean Tree Check
+
+- Verify backend/frontend status, diff checks, and no-live notional evidence before staging.
+
+### Phase 3800 - Commit, Push, And No-Live Report
+
+- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
+
+## Completed Phases 3761-3780
+
+These phases added blocked clearance-action rows derived from each missing
 acceptance-evidence producer-readiness item. The action rows name the backend
 contract, route/store/validation category, required ref, verification gate,
 source readiness blocker, and disabled route/store/validation/replay/writer/
 acceptance/construction flags needed to clear the future producer path. They
-are planning evidence only. They must not create a route, store,
+are planning evidence only. They did not create a route, store,
 validation/replay gate, writer, acceptance path, adapter construction path,
 Coinbase call, manager call, reconciliation execution, active-placement
 cancellation/replacement, lifecycle/order/exchange mutation, browser
-authority, or BFF execution authority.
-
-### Phase 3761 - Prior Range Completion Evidence
-
-- Record completed phases 3741-3760 with backend commit `155e77bb`, frontend commit `6e01bb2`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
-
-### Phase 3762 - Advance Active Queue Range
-
-- Move the durable autonomous queue from completed phases 3741-3760 to active phases 3761-3780 while preserving no-live defaults and cap policy.
-
-### Phase 3763 - Backend Clearance Action Model
-
-- Add typed producer-readiness clearance action rows to the existing live-adapter construction contract path.
-
-### Phase 3764 - Backend Clearance Action Projection
-
-- Derive one blocked clearance action per missing readiness item with source readiness blocker, required ref, required route/method, verification gate, and disabled authority flags.
-
-### Phase 3765 - Backend Clearance Aggregate Fields
-
-- Add aggregate blocked/ready counts, blockers, source, and authority fields for producer-readiness clearance actions.
-
-### Phase 3766 - Backend Schema Sync
-
-- Regenerate backend OpenAPI so the frontend consumes clearance action rows from generated schema.
-
-### Phase 3767 - Backend Focused Coverage
-
-- Add focused assertions proving clearance actions are blocked, derived from readiness rows, ordered deterministically, and all route/store/validation/replay/writer/acceptance/construction flags are false.
-
-### Phase 3768 - Frontend Schema Sync
-
-- Regenerate frontend OpenAPI TypeScript schema from the backend artifact without hand-editing generated files.
-
-### Phase 3769 - Frontend Mock And Runtime Sync
-
-- Add producer-readiness clearance action fields to mock disabled and pilot adapter fixtures, runtime snapshots, and quality metadata.
-
-### Phase 3770 - Frontend Display Sync
-
-- Render producer-readiness clearance actions separately from readiness summary and per-item readiness rows through existing adapter evidence rows.
-
-### Phase 3771 - Frontend Focused Coverage
-
-- Update focused mock, runtime, read-model, dry-submit, and quality tests so clearance actions cannot drift or imply write/acceptance/construction authority.
-
-### Phase 3772 - Documentation Sync
-
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for clearance-action readback.
-
-### Phase 3773 - Autonomous Validator Sync
-
-- Update backend/frontend autonomous validators and active-range metadata for phases 3761-3780.
-
-### Phase 3774 - Stale Authority Scan
-
-- Search backend/frontend code and docs for stale active-range wording or text implying clearance actions can write, accept, satisfy, construct, or enable adapters.
-
-### Phase 3775 - Backend Focused Gates
-
-- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
-
-### Phase 3776 - Frontend Focused Gates
-
-- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
-
-### Phase 3777 - Full Backend Regression
-
-- Run `pytest tests\regression\ -v --tb=short`.
-
-### Phase 3778 - Full Frontend Release Gate And UI Smoke
-
-- Run `npm run release:gate` in `C:\coinbase-frontend` and verify the live-updated admin UI remains available with no-live posture.
-
-### Phase 3779 - Blind Contextless Review
-
-- Run blind/contextless review proving a fresh agent can explain that clearance actions are planning evidence only and cannot build, satisfy, write, accept, or enable adapters.
-
-### Phase 3780 - Commit, Push, And No-Live Report
-
-- Commit and push backend and frontend repositories after gates and review pass, report `$0` live Coinbase submitted/executed notional, and verify clean worktrees.
+authority, or BFF execution authority. Backend commit `33fb549f` and frontend
+commit `d5d212a` contain the pushed range.
 
 ## Completed Phases 3741-3760
 

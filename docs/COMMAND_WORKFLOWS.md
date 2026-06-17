@@ -342,6 +342,16 @@ and M53 pilot configuration remain separate from construction satisfaction:
 `adapter_configuration_satisfies_construction=false`, and satisfied
 construction artifacts stay empty while required construction artifacts remain
 unsatisfied.
+The nested construction contract may also expose
+`acceptance_evidence_producer_clearance_dependency_summary`, a blocked
+backend-derived aggregate over producer-readiness clearance action rows.
+Workflows may display counts, dependency-blocked refs, clearable refs,
+terminal refs, first blocker, graph readiness, clearance allowance, and
+disabled route/store/validation/replay/writer/acceptance/construction flags
+only, plus `execution_allowed=false` and `executed=false`. The summary does
+not clear readiness, write or accept evidence, satisfy
+producer contracts, construct adapters, invoke managers, call Coinbase, mutate
+state, or grant browser/BFF execution authority.
 Exact command responses that require active-placement exchange truth also
 include a nested `active_placement_exchange_truth_contract`. It is the same
 backend-owned evidence shape used by command-suite `exchange_truth_checks`.

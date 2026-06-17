@@ -2833,10 +2833,13 @@ Current backend evidence:
   satisfaction, and no-live authority. Completed phases 3741-3760 add a
   blocked contract-level aggregate over those producer-readiness rows while
   preserving missing criteria, disabled route/store/validation/replay/writer/
-  acceptance flags, false satisfaction, and no-live authority. Active phases
+  acceptance flags, false satisfaction, and no-live authority. Completed phases
   3761-3780 add blocked producer-readiness clearance action rows while
   preserving missing route/store/validation/replay criteria, disabled writer/
   acceptance/construction flags, false satisfaction, and no-live authority.
+  Active phases 3781-3800 add a blocked dependency summary over those
+  clearance actions while preserving no-clearance, no-writer, no-acceptance,
+  no-execution, false satisfaction, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

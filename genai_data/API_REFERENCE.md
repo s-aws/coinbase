@@ -114,6 +114,13 @@ Current behavior:
   and summary rows mapping each forbidden claim to the backend decision,
   clearance/work-queue refs, backend contract evidence, and disabled
   claim-cleared/resolver/writer/execution flags that keep it blocked.
+  Exact command contracts also expose
+  `live_execution_adapter_contract.construction_contract.acceptance_evidence_producer_clearance_dependency_summary`
+  when backend construction evidence is present. That summary is blocked
+  aggregate evidence over producer-readiness clearance action rows. It does
+  not clear readiness, write or accept evidence, satisfy producer contracts,
+  construct adapters, invoke managers, call Coinbase, mutate state, or grant
+  browser/BFF execution authority.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   exposes read-only persisted active-placement exchange-truth evidence keyed
   by `stealth_order_id`; it does not read Coinbase, verify exchange truth,

@@ -12778,6 +12778,158 @@ components:
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction
       description: Blocked action naming the backend work required for a readiness
         item.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_clearance_actions
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_clearance_dependency_summary
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_producer_clearance_actions_no_write
+        total_action_count:
+          type: integer
+          minimum: 0.0
+          title: Total Action Count
+          default: 0
+        blocked_action_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Action Count
+          default: 0
+        ready_action_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Action Count
+          default: 0
+        dependency_ready_count:
+          type: integer
+          minimum: 0.0
+          title: Dependency Ready Count
+          default: 0
+        dependency_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Dependency Blocked Count
+          default: 0
+        predecessor_edge_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Edge Count
+          default: 0
+        successor_edge_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Edge Count
+          default: 0
+        dependency_blocked_refs:
+          items:
+            type: string
+          type: array
+          title: Dependency Blocked Refs
+        clearable_action_refs:
+          items:
+            type: string
+          type: array
+          title: Clearable Action Refs
+        terminal_action_refs:
+          items:
+            type: string
+          type: array
+          title: Terminal Action Refs
+        first_clearance_action_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Clearance Action Id
+        first_dependency_blocked_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Dependency Blocked Ref
+        dependency_graph_ready:
+          type: boolean
+          title: Dependency Graph Ready
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        clearance_executed:
+          type: boolean
+          title: Clearance Executed
+          default: false
+        route_available:
+          type: boolean
+          title: Route Available
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_producer_contracts:
+          type: boolean
+          title: Satisfies Producer Contracts
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer-readiness clearance dependency summary is backend-derived
+            planning evidence over blocked clearance actions. It proves no producer
+            clearance action is clearable and does not configure routes, stores, validation/replay
+            gates, writers, acceptance paths, adapter construction, or live execution.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary
+      description: Aggregate over blocked producer-readiness clearance action rows.
     AdminLiveAdapterConstructionAcceptanceEvidenceProducerContract:
       properties:
         evidence_id:
@@ -13512,6 +13664,8 @@ components:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction'
           type: array
           title: Acceptance Evidence Producer Clearance Actions
+        acceptance_evidence_producer_clearance_dependency_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'

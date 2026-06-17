@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3741-3760` under M55.
-- Active autonomous range: `3761-3780` under M55.
+- Latest completed autonomous range: `3761-3780` under M55.
+- Active autonomous range: `3781-3800` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -169,10 +169,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   3741-3760 work adds a blocked producer-readiness aggregate summary over
   those rows while preserving missing criteria, disabled route/store/
   validation/replay/writer/acceptance flags, false satisfaction, and no-live
-  authority. Active 3761-3780 work adds blocked producer-readiness clearance
-  action rows while preserving missing route/store/validation/replay criteria,
-  disabled writer/acceptance/construction flags, false satisfaction, and
-  no-live authority. Those fields remain evidence only and do not satisfy
+  authority. Completed 3761-3780 work adds blocked producer-readiness
+  clearance action rows while preserving missing route/store/validation/
+  replay criteria, disabled writer/acceptance/construction flags, false
+  satisfaction, and no-live authority. Active 3781-3800 work adds a blocked
+  dependency summary over those clearance actions while preserving
+  no-clearance, no-writer, no-acceptance, no-execution, false satisfaction,
+  and no-live authority. Those fields remain evidence only and do not satisfy
   artifacts.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single

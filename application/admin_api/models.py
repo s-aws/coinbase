@@ -4372,6 +4372,54 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction(
     detail: str
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary(
+    BaseModel
+):
+    """Aggregate over blocked producer-readiness clearance action rows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = "acceptance_evidence_producer_clearance_actions"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = "backend_acceptance_evidence_producer_clearance_dependency_summary"
+    authority: str = "backend_derived_from_producer_clearance_actions_no_write"
+    total_action_count: int = Field(default=0, ge=0)
+    blocked_action_count: int = Field(default=0, ge=0)
+    ready_action_count: int = Field(default=0, ge=0)
+    dependency_ready_count: int = Field(default=0, ge=0)
+    dependency_blocked_count: int = Field(default=0, ge=0)
+    predecessor_edge_count: int = Field(default=0, ge=0)
+    successor_edge_count: int = Field(default=0, ge=0)
+    dependency_blocked_refs: list[str] = Field(default_factory=list)
+    clearable_action_refs: list[str] = Field(default_factory=list)
+    terminal_action_refs: list[str] = Field(default_factory=list)
+    first_clearance_action_id: str | None = None
+    first_dependency_blocked_ref: str | None = None
+    dependency_graph_ready: bool = False
+    clearance_allowed: bool = False
+    clearance_executed: bool = False
+    route_available: bool = False
+    store_available: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writer_allowed: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_producer_contracts: bool = False
+    satisfies_construction: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-readiness clearance dependency summary is backend-derived "
+        "planning evidence over blocked clearance actions. It proves no "
+        "producer clearance action is clearable and does not configure routes, "
+        "stores, validation/replay gates, writers, acceptance paths, adapter "
+        "construction, or live execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -4495,6 +4543,13 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     acceptance_evidence_producer_clearance_actions: list[
         AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction
     ] = Field(default_factory=list)
+    acceptance_evidence_producer_clearance_dependency_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceDependencySummary
+        )
+    )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
         default_factory=list
     )

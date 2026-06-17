@@ -148,6 +148,12 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_AUTHORIT
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_ACTION_MISSING_REASON = (
     "acceptance_evidence_producer_clearance_action_missing"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_DEPENDENCY_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_clearance_dependency_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_DEPENDENCY_SUMMARY_AUTHORITY = (
+    "backend_derived_from_producer_clearance_actions_no_write"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_READINESS_ITEMS = (
     "producer_route_contract",
     "append_only_acceptance_evidence_store",
@@ -998,6 +1004,83 @@ def build_live_adapter_construction_contract(
         for action in producer_readiness_clearance_actions
         if action["ready"]
     ]
+    producer_readiness_clearance_dependency_blocked_refs = [
+        action["clearance_action_id"]
+        for action in producer_readiness_clearance_actions
+        if not action["ready"]
+    ]
+    producer_readiness_clearable_action_refs = [
+        action["clearance_action_id"]
+        for action in producer_readiness_clearance_actions
+        if action["ready"]
+        and action["clearance_allowed"]
+        and action["clearance_executed"]
+    ]
+    producer_readiness_terminal_action_refs = [
+        action["clearance_action_id"]
+        for action in producer_readiness_clearance_actions
+        if action["category"] == "validation_replay_gate"
+    ]
+    producer_readiness_clearance_dependency_summary = {
+        "source_ref": "acceptance_evidence_producer_clearance_actions",
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_DEPENDENCY_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_CLEARANCE_DEPENDENCY_SUMMARY_AUTHORITY
+        ),
+        "total_action_count": len(producer_readiness_clearance_actions),
+        "blocked_action_count": len(
+            blocked_producer_readiness_clearance_actions
+        ),
+        "ready_action_count": len(ready_producer_readiness_clearance_actions),
+        "dependency_ready_count": 0,
+        "dependency_blocked_count": len(
+            producer_readiness_clearance_dependency_blocked_refs
+        ),
+        "predecessor_edge_count": 0,
+        "successor_edge_count": 0,
+        "dependency_blocked_refs": (
+            producer_readiness_clearance_dependency_blocked_refs
+        ),
+        "clearable_action_refs": producer_readiness_clearable_action_refs,
+        "terminal_action_refs": producer_readiness_terminal_action_refs,
+        "first_clearance_action_id": (
+            producer_readiness_clearance_actions[0]["clearance_action_id"]
+            if producer_readiness_clearance_actions
+            else None
+        ),
+        "first_dependency_blocked_ref": (
+            producer_readiness_clearance_dependency_blocked_refs[0]
+            if producer_readiness_clearance_dependency_blocked_refs
+            else None
+        ),
+        "dependency_graph_ready": False,
+        "clearance_allowed": False,
+        "clearance_executed": False,
+        "route_available": False,
+        "store_available": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writer_allowed": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_producer_contracts": False,
+        "satisfies_construction": False,
+        "execution_allowed": False,
+        "executed": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-readiness clearance dependency summary is "
+            "backend-derived planning evidence over blocked clearance "
+            "actions. It proves no producer clearance action is clearable and "
+            "does not configure routes, stores, validation/replay gates, "
+            "writers, acceptance paths, adapter construction, or live "
+            "execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -1081,6 +1164,9 @@ def build_live_adapter_construction_contract(
         ],
         "acceptance_evidence_producer_clearance_actions": (
             producer_readiness_clearance_actions
+        ),
+        "acceptance_evidence_producer_clearance_dependency_summary": (
+            producer_readiness_clearance_dependency_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),

@@ -136,11 +136,14 @@ aggregate over those producer-readiness rows with total, missing, and
 satisfied readiness counts, category lists, producer contract ids, next
 required readiness item ids, blockers, first blocker, disabled route/store/
 validation/replay/writer/acceptance flags, false satisfaction, and no-live
-authority. Active phases 3761-3780 add blocked clearance-action rows for each
+authority. M55 phases 3761-3780 add blocked clearance-action rows for each
 missing producer-readiness item so future backend work can see the exact
 required ref, route/method, verification gate, source blocker, and disabled
-writer/acceptance/construction flags. These layers do not construct adapters,
-write or accept evidence,
+writer/acceptance/construction flags. Active phases 3781-3800 add a blocked
+dependency summary over those clearance actions with action counts,
+dependency-blocked refs, clearable refs, terminal refs, first blocked action,
+and disabled route/store/validation/replay/writer/acceptance/construction/
+clearance/execution flags. These layers do not construct adapters, write or accept evidence,
 satisfy construction artifacts, enable live service, call Coinbase, invoke
 managers, execute reconciliation, mutate state, or grant browser/BFF
 authority.
