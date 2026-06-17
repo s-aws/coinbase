@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **4061-4080**.
+- Approved phase range: **4081-4100**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4041-4060`.
+- Previous completed range: `4061-4080`.
 - The approved range allows unattended work without asking for another
   approval when the work stayed inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,102 +23,118 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 4061-4080
+## Active Phases 4081-4100
 
-These phases continue M55 after clearance-step review-input evidence by adding
-backend-owned review-input store-requirement rows and a store-requirement
-summary under the same live-adapter construction acceptance-evidence path.
-Each store requirement is derived from one missing review-input row and names
-the backend store, writer, record key, validation gate, and replay gate that
-would be required before review-input evidence could ever be recorded. This
-remains readback evidence only. It must not create stores, configure
-validation/replay, create writers, write records, accept or validate inputs,
-complete reviews, mark steps ready, resolve claims, clear work items, perform
-remediation, register routes, bind route inventory, bind shared command
-services, register handlers, write or accept construction evidence, construct
-adapters, call Coinbase, invoke managers, execute reconciliation, cancel/
-replace active placements, mutate lifecycle/order/exchange state, grant
-browser authority, or grant BFF execution authority.
+These phases continue M55 after clearance-step review-input store
+requirements by adding backend-owned append-only review-input store record
+contract rows and a record-contract summary under the same live-adapter
+construction acceptance-evidence path. Each record contract is derived from
+one blocked store requirement and names the record schema, append-only log,
+payload fields, idempotency key, validation gate, replay gate, store, writer,
+and blocker required before review-input evidence could ever be accepted.
+This remains readback evidence only. It must not create stores, create
+records, configure validation/replay, bind idempotency, write records, accept
+or validate inputs, complete reviews, mark steps ready, resolve claims, clear
+work items, perform remediation, register routes, bind route inventory, bind
+shared command services, register handlers, write or accept construction
+evidence, construct adapters, call Coinbase, invoke managers, execute
+reconciliation, cancel/replace active placements, mutate lifecycle/order/
+exchange state, grant browser authority, or grant BFF execution authority.
 
-### Phase 4061 - Prior Range Completion Evidence
+### Phase 4081 - Prior Range Completion Evidence
 
-- Record completed phases 4041-4060 with backend commit `b67aa1db`, frontend commit `a5bd09d`, passing gates, blind/contextless review, live UI smoke, and `$0` live Coinbase submitted/executed notional.
+- Record completed phases 4061-4080 with backend commit `1af3a7c5`, frontend commit `ec7d199`, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 4062 - Advance Active Queue Range
+### Phase 4082 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4041-4060 to active phases 4061-4080 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4061-4080 to active phases 4081-4100 while preserving no-live defaults and cap policy.
 
-### Phase 4063 - Backend Store-Requirement Model
+### Phase 4083 - Backend Record-Contract Model
 
-- Add typed blocked producer-route contract clearance-step review-input store-requirement and store-requirement summary models to the existing live-adapter construction contract path.
+- Add typed blocked producer-route contract clearance-step review-input store record-contract and record-contract summary models to the existing live-adapter construction contract path.
 
-### Phase 4064 - Backend Store-Requirement Projection
+### Phase 4084 - Backend Record-Contract Projection
 
-- Derive one store-requirement row from every missing clearance-step review-input row and preserve requirement id, input id, review id, step id, plan id, claim trace id, required input, required store, writer, record key, validation gate, replay gate, and blockers.
+- Derive one record-contract row from every missing clearance-step review-input store requirement and preserve record contract id, requirement id, input id, review id, step id, plan id, claim trace id, store ref, writer ref, record key, schema ref, append-only log ref, idempotency key, validation gate, replay gate, and blockers.
 
-### Phase 4065 - Missing Store/Writer Evidence
+### Phase 4085 - Missing Record Schema And Log Evidence
 
-- Keep each store requirement blocked with `store_available=false`, `record_present=false`, `record_accepted=false`, `record_validated=false`, `writer_allowed=false`, `write_allowed=false`, `validation_configured=false`, and `replay_protection_configured=false`.
+- Keep each record contract blocked with `record_contract_available=false`, `record_schema_available=false`, `append_only_log_available=false`, `idempotency_key_bound=false`, `payload_schema_validated=false`, and `replay_protected=false`.
 
-### Phase 4066 - Input Non-Resolution Evidence
+### Phase 4086 - Store And Input Non-Resolution Evidence
 
-- Preserve `input_present=false`, `input_accepted=false`, `input_validated=false`, `review_ready=false`, `review_completed=false`, `step_ready=false`, `claim_resolved=false`, `satisfies_construction=false`, and all execution authority disabled.
+- Preserve `store_available=false`, `record_present=false`, `record_accepted=false`, `record_validated=false`, `writer_allowed=false`, `write_allowed=false`, `input_present=false`, `input_accepted=false`, `input_validated=false`, `review_ready=false`, `review_completed=false`, `step_ready=false`, `claim_resolved=false`, and all execution authority disabled.
 
-### Phase 4067 - Backend Store-Requirement Summary
+### Phase 4087 - Backend Record-Contract Summary
 
-- Aggregate requirement counts, missing store counts, accepted record counts, input ids, store refs, writer refs, record keys, validation gates, replay gates, blockers, first requirement, first input, and disabled authority flags.
+- Aggregate record-contract counts, missing contract counts, accepted record counts, requirement ids, input ids, store refs, writer refs, record keys, schema refs, append-only log refs, payload fields, idempotency keys, validation gates, replay gates, blockers, first record contract, first requirement, first input, and disabled authority flags.
 
-### Phase 4068 - Backend Schema And Coverage
+### Phase 4088 - Backend Schema And Coverage
 
-- Regenerate backend OpenAPI and add focused assertions proving store requirements and summary are blocked, derived from review inputs, store/writer/validation/replay-linked, no-write, no-input-acceptance, no-review-completion, no-step-readiness, no-claim-resolution, no-construction, no-execution, and no-live.
+- Regenerate backend OpenAPI and add focused assertions proving record contracts and summary are blocked, derived from store requirements, schema/log/idempotency/validation/replay-linked, no-write, no-input-acceptance, no-review-completion, no-step-readiness, no-claim-resolution, no-construction, no-execution, and no-live.
 
-### Phase 4069 - Frontend Schema And Mock Sync
+### Phase 4089 - Frontend Schema And Mock Sync
 
-- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures for store-requirement rows and summary without hand-editing generated files.
+- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures for record-contract rows and summary without hand-editing generated files.
 
-### Phase 4070 - Frontend Display Sync
+### Phase 4090 - Frontend Display Sync
 
-- Render producer-route contract clearance-step review-input store requirements and store-requirement summary separately from review inputs through the existing adapter evidence display.
+- Render producer-route contract clearance-step review-input store record contracts and record-contract summary separately from store requirements through the existing adapter evidence display.
 
-### Phase 4071 - Frontend Focused Coverage
+### Phase 4091 - Frontend Focused Coverage
 
-- Update focused mock and dry-submit tests so store-requirement readback cannot imply store availability, writer authority, record acceptance, input validation, review completion, step readiness, claim resolution, construction, or execution authority.
+- Update focused mock and dry-submit tests so record-contract readback cannot imply schema availability, append-only log availability, idempotency binding, payload validation, replay protection, store availability, writer authority, record acceptance, input validation, review completion, step readiness, claim resolution, construction, or execution authority.
 
-### Phase 4072 - Documentation Sync
+### Phase 4092 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract clearance-step review-input store-requirement readback.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, and agent-state docs for route-contract clearance-step review-input store record-contract readback.
 
-### Phase 4073 - Autonomous Validator Sync
+### Phase 4093 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 4061-4080.
+- Update backend/frontend autonomous validators and active-range metadata for phases 4081-4100.
 
-### Phase 4074 - Stale Authority Scan
+### Phase 4094 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale active-range wording or text implying review-input store requirements can create stores, write records, accept inputs, validate inputs, complete reviews, make steps ready, resolve claims, construct adapters, execute, or enable live trading.
+- Search backend/frontend code and docs for stale active-range wording or text implying record contracts can create stores, create records, write records, bind idempotency, validate payloads, accept inputs, complete reviews, make steps ready, resolve claims, construct adapters, execute, or enable live trading.
 
-### Phase 4075 - Backend Focused Gates
+### Phase 4095 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 4076 - Frontend Focused Gates
+### Phase 4096 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 4077 - Full Backend Regression
+### Phase 4097 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short`.
 
-### Phase 4078 - Full Frontend Release Gate
+### Phase 4098 - Full Frontend Release Gate
 
 - Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 4079 - Blind Contextless Review And Live UI Smoke
+### Phase 4099 - Blind Contextless Review And Live UI Smoke
 
-- Run blind/contextless review proving a fresh agent can explain that store-requirement rows are missing backend store/writer evidence only, then verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
+- Run blind/contextless review proving a fresh agent can explain that record-contract rows are missing backend record-schema/log/idempotency evidence only, then verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
 
-### Phase 4080 - Completion Evidence, Commit, Push
+### Phase 4100 - Completion Evidence, Commit, Push
 
-- Record gate evidence, review outcome, UI smoke result, and `$0` live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees.
+- Record gate evidence, review outcome, UI smoke result, and `0` USDC live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees.
+
+## Completed Phases 4061-4080
+
+Phases 4061-4080 added backend-owned producer-route contract clearance-step
+review-input store requirement rows and a store-requirement summary under the
+live-adapter construction acceptance evidence path. Each store requirement is
+derived from one blocked review-input row and names the backend store, writer,
+record key, validation gate, and replay gate that would be required before
+review-input evidence could ever be recorded. Backend commit `1af3a7c5` and
+frontend commit `ec7d199` contain the pushed range. Backend regression passed
+with `867 passed, 1 warning`. Frontend `npm run release:gate` passed with
+260 unit tests and 3 Playwright tests. Live UI smoke passed at
+`http://127.0.0.1:3000`. Blind/contextless reviews passed for both
+repositories. Live Coinbase execution was not run; submitted notional `0`
+USDC and executed notional `0` USDC.
 
 ## Completed Phases 4041-4060
 

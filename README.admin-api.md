@@ -177,12 +177,16 @@ review summary that list the backend-owned review inputs and gates required
 before those steps could ever become ready. Completed phases 4041-4060 add
 blocked clearance-step review-input rows and a review-input summary derived
 from those review rows without creating, accepting, validating, or completing
-any input. Active phases 4061-4080 add blocked clearance-step review-input
+any input. Completed phases 4061-4080 add blocked clearance-step review-input
 store requirement rows and a store-requirement summary derived from those
 review-input rows without creating stores, writing evidence, accepting
 records, validating records, completing inputs, completing reviews, resolving
 claims, satisfying construction, constructing adapters, or executing live
-paths.
+paths. Active phases 4081-4100 add blocked clearance-step review-input store
+record-contract rows and a record-contract summary derived from those store
+requirements without creating records, binding idempotency, validating
+payloads, accepting evidence, completing inputs, resolving claims,
+constructing adapters, or executing live paths.
 These layers
 do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,

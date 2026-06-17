@@ -2900,13 +2900,21 @@ Current backend evidence:
   review-input summary derived from the completed 4021-4040 review rows while
   preserving no-input-creation, no-input-acceptance, no-input-validation,
   no-review-completion, no-step-readiness, no-claim-resolution,
-  no-construction, no-execution, and no-live authority. Active phases
+  no-construction, no-execution, and no-live authority. Completed phases
   4061-4080 add clearance-step review-input store requirement rows and a
   store-requirement summary derived from the completed 4041-4060 review-input
   rows while preserving no-store-creation, no-record-creation,
   no-record-acceptance, no-record-validation, no-writer-availability,
   no-input-completion, no-review-completion, no-step-readiness,
   no-claim-resolution, no-construction, no-execution, and no-live authority.
+  Active phases 4081-4100 add clearance-step review-input store
+  record-contract rows and a record-contract summary derived from the
+  completed 4061-4080 store requirements while preserving no-record-contract
+  availability, no-schema availability, no-append-only-log availability,
+  no-idempotency binding, no-payload validation, no-replay protection,
+  no-record-creation, no-record-acceptance, no-input-completion,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

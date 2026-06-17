@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4041-4060` is backend `b67aa1db`
-  and frontend `a5bd09d`; active range is `4061-4080`.
+- Commit (optional): completed range `4061-4080` is backend `1af3a7c5`
+  and frontend `ec7d199`; active range is `4081-4100`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `4041-4060`; active range is `4061-4080`.
+- Latest completed autonomous range: `4061-4080`; active range is `4081-4100`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -396,7 +396,7 @@ Keep it short. Keep it factual.
   routes, bind route inventory, bind shared command services, register
   handlers, write or accept evidence, satisfy artifacts, construct adapters,
   or create live execution authority.
-- Active `4061-4080` work: add blocked producer-route contract
+- Completed `4061-4080` work: add blocked producer-route contract
   clearance-step review-input store requirement rows and a store-requirement
   summary derived from clearance-step review-input rows. The requirement rows
   and summary may list requirement ids, input ids, review ids, step ids, plan
@@ -409,6 +409,20 @@ Keep it short. Keep it factual.
   inventory, bind shared command services, register handlers, write or accept
   evidence, satisfy artifacts, construct adapters, or create live execution
   authority.
+- Active `4081-4100` work: add blocked producer-route contract
+  clearance-step review-input store record-contract rows and a record-contract
+  summary derived from store requirement rows. The record-contract rows and
+  summary may list record contract ids, requirement ids, input ids, review ids,
+  step ids, plan ids, required store refs, writer refs, record keys, schema
+  refs, append-only log refs, payload fields, idempotency keys, validation
+  gates, replay gates, blockers, and disabled record-contract/schema/log/
+  idempotency/payload/replay/store/record/writer/input/review/step/claim/
+  construction/execution flags, but they must not create records, bind
+  idempotency, validate payloads, protect replay, accept records, complete
+  inputs, complete reviews, make steps ready, resolve claims, clear work
+  items, perform remediation, register routes, bind route inventory, bind
+  shared command services, register handlers, write or accept evidence,
+  satisfy artifacts, construct adapters, or create live execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -582,23 +596,25 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4061-4080`.
+- Active autonomous range: `4081-4100`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: add blocked producer-route contract clearance-step
-  review-input store requirement rows and a store-requirement summary under
+  review-input store record-contract rows and a record-contract summary under
   the existing live-adapter construction contract in active phases
-  `4061-4080` so future backend work can see the missing store, writer,
-  record key, validation gate, and replay gate that still block a review input
-  from becoming acceptable. The rows and summary may list false store/record/
-  writer/validation/replay/input/review/step/claim/work-item/remediation/
-  dependency/action readiness, route-registration, route-inventory,
-  shared-service, handler, acceptance, construction, clearance, and execution
-  flags and false producer satisfaction. They must not enable live service,
-  create stores, create records, accept records, validate records, create
-  writers, complete inputs, complete reviews, make steps ready, resolve
-  claims, clear work items, perform remediation, register routes, bind route
-  inventory, bind shared command services, register handlers, construct
-  adapters, satisfy construction artifacts, write or
+  `4081-4100` so future backend work can see the missing record schema,
+  append-only log, payload fields, idempotency key, validation gate, and
+  replay gate that still block a review-input record from becoming
+  acceptable. The rows and summary may list false record-contract/schema/log/
+  idempotency/payload/replay/store/record/writer/input/review/step/claim/
+  work-item/remediation/dependency/action readiness, route-registration,
+  route-inventory, shared-service, handler, acceptance, construction,
+  clearance, and execution flags and false producer satisfaction. They must
+  not enable live service, create stores, create records, bind idempotency,
+  validate payloads, accept records, validate records, create writers,
+  complete inputs, complete reviews, make steps ready, resolve claims, clear
+  work items, perform remediation, register routes, bind route inventory,
+  bind shared command services, register handlers, construct adapters,
+  satisfy construction artifacts, write or
   accept evidence, create a second adapter path, call Coinbase, invoke
   managers, execute reconciliation, cancel/replace active placements, mutate
   lifecycle/order/exchange state, grant browser authority, or grant BFF
@@ -1197,8 +1213,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: complete the active 4061-4080 backend live-adapter
+- Exact next command: complete the active 4081-4100 backend live-adapter
   acceptance-evidence producer-route contract clearance-step review-input
-  store requirement implementation, sync frontend generated schema/display,
+  store record-contract implementation, sync frontend generated schema/display,
   run focused gates, blind/contextless review, full gates, then commit and
-  push both repositories with `$0` live Coinbase execution.
+  push both repositories with `0` USDC live Coinbase execution.

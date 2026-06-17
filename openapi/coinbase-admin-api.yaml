@@ -16005,6 +16005,634 @@ components:
       - detail
       title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInput
       description: Missing input evidence for one blocked clearance-step review.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordContract:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_route_contract_clearance_step_review_input_store_requirements
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_contracts
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_route_contract_clearance_step_review_input_store_requirements_no_record_write
+        record_contract_index:
+          type: integer
+          minimum: 1.0
+          title: Record Contract Index
+        requirement_index:
+          type: integer
+          minimum: 1.0
+          title: Requirement Index
+        input_index:
+          type: integer
+          minimum: 1.0
+          title: Input Index
+        review_index:
+          type: integer
+          minimum: 1.0
+          title: Review Index
+        step_index:
+          type: integer
+          minimum: 1.0
+          title: Step Index
+        plan_index:
+          type: integer
+          minimum: 1.0
+          title: Plan Index
+        record_contract_id:
+          type: string
+          title: Record Contract Id
+        requirement_id:
+          type: string
+          title: Requirement Id
+        input_id:
+          type: string
+          title: Input Id
+        review_id:
+          type: string
+          title: Review Id
+        step_id:
+          type: string
+          title: Step Id
+        plan_id:
+          type: string
+          title: Plan Id
+        claim_trace_id:
+          type: string
+          title: Claim Trace Id
+        claim_id:
+          type: string
+          title: Claim Id
+        claim:
+          type: string
+          title: Claim
+          default: producer_route_contract_available
+        clearance_target:
+          type: string
+          title: Clearance Target
+          default: producer_route_contract_available
+        step_name:
+          type: string
+          title: Step Name
+        input_name:
+          type: string
+          title: Input Name
+        required_review_input:
+          type: string
+          title: Required Review Input
+        required_store_ref:
+          type: string
+          title: Required Store Ref
+        required_writer_ref:
+          type: string
+          title: Required Writer Ref
+        required_record_key:
+          type: string
+          title: Required Record Key
+        required_record_schema_ref:
+          type: string
+          title: Required Record Schema Ref
+        required_append_only_log_ref:
+          type: string
+          title: Required Append Only Log Ref
+        required_payload_fields:
+          items:
+            type: string
+          type: array
+          title: Required Payload Fields
+        required_idempotency_key:
+          type: string
+          title: Required Idempotency Key
+        required_validation_gate:
+          type: string
+          title: Required Validation Gate
+        required_replay_gate:
+          type: string
+          title: Required Replay Gate
+        store_gate:
+          type: string
+          title: Store Gate
+        record_contract_gate:
+          type: string
+          title: Record Contract Gate
+        blocker:
+          type: string
+          title: Blocker
+        store_requirement_blocker:
+          type: string
+          title: Store Requirement Blocker
+        input_blocker:
+          type: string
+          title: Input Blocker
+        record_contract_required:
+          type: boolean
+          title: Record Contract Required
+          default: true
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        record_schema_available:
+          type: boolean
+          title: Record Schema Available
+          default: false
+        append_only_log_available:
+          type: boolean
+          title: Append Only Log Available
+          default: false
+        idempotency_key_bound:
+          type: boolean
+          title: Idempotency Key Bound
+          default: false
+        payload_schema_validated:
+          type: boolean
+          title: Payload Schema Validated
+          default: false
+        replay_protected:
+          type: boolean
+          title: Replay Protected
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        record_present:
+          type: boolean
+          title: Record Present
+          default: false
+        record_accepted:
+          type: boolean
+          title: Record Accepted
+          default: false
+        record_validated:
+          type: boolean
+          title: Record Validated
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        write_allowed:
+          type: boolean
+          title: Write Allowed
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        input_present:
+          type: boolean
+          title: Input Present
+          default: false
+        input_accepted:
+          type: boolean
+          title: Input Accepted
+          default: false
+        input_validated:
+          type: boolean
+          title: Input Validated
+          default: false
+        review_ready:
+          type: boolean
+          title: Review Ready
+          default: false
+        review_completed:
+          type: boolean
+          title: Review Completed
+          default: false
+        step_ready:
+          type: boolean
+          title: Step Ready
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - record_contract_index
+      - requirement_index
+      - input_index
+      - review_index
+      - step_index
+      - plan_index
+      - record_contract_id
+      - requirement_id
+      - input_id
+      - review_id
+      - step_id
+      - plan_id
+      - claim_trace_id
+      - claim_id
+      - step_name
+      - input_name
+      - required_review_input
+      - required_store_ref
+      - required_writer_ref
+      - required_record_key
+      - required_record_schema_ref
+      - required_append_only_log_ref
+      - required_idempotency_key
+      - required_validation_gate
+      - required_replay_gate
+      - store_gate
+      - record_contract_gate
+      - blocker
+      - store_requirement_blocker
+      - input_blocker
+      - detail
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordContract
+      description: Missing append-only record contract for one review-input store
+        requirement.
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordContractSummary:
+      properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_contracts
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_contract_summary
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_route_contract_clearance_step_review_input_store_record_contracts
+        total_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Total Record Contract Count
+          default: 0
+        missing_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Record Contract Count
+          default: 0
+        accepted_record_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Record Count
+          default: 0
+        requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Requirement Count
+          default: 0
+        input_count:
+          type: integer
+          minimum: 0.0
+          title: Input Count
+          default: 0
+        record_contract_ids:
+          items:
+            type: string
+          type: array
+          title: Record Contract Ids
+        requirement_ids:
+          items:
+            type: string
+          type: array
+          title: Requirement Ids
+        input_ids:
+          items:
+            type: string
+          type: array
+          title: Input Ids
+        required_store_refs:
+          items:
+            type: string
+          type: array
+          title: Required Store Refs
+        required_writer_refs:
+          items:
+            type: string
+          type: array
+          title: Required Writer Refs
+        required_record_keys:
+          items:
+            type: string
+          type: array
+          title: Required Record Keys
+        required_record_schema_refs:
+          items:
+            type: string
+          type: array
+          title: Required Record Schema Refs
+        required_append_only_log_refs:
+          items:
+            type: string
+          type: array
+          title: Required Append Only Log Refs
+        required_payload_fields:
+          items:
+            type: string
+          type: array
+          title: Required Payload Fields
+        required_idempotency_keys:
+          items:
+            type: string
+          type: array
+          title: Required Idempotency Keys
+        required_validation_gates:
+          items:
+            type: string
+          type: array
+          title: Required Validation Gates
+        required_replay_gates:
+          items:
+            type: string
+          type: array
+          title: Required Replay Gates
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        store_requirement_blockers:
+          items:
+            type: string
+          type: array
+          title: Store Requirement Blockers
+        record_contract_gates:
+          items:
+            type: string
+          type: array
+          title: Record Contract Gates
+        first_record_contract_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Record Contract Id
+        first_requirement_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Requirement Id
+        first_input_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Input Id
+        first_blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Blocker
+        all_record_contracts_available:
+          type: boolean
+          title: All Record Contracts Available
+          default: false
+        all_record_schemas_available:
+          type: boolean
+          title: All Record Schemas Available
+          default: false
+        all_append_only_logs_available:
+          type: boolean
+          title: All Append Only Logs Available
+          default: false
+        all_idempotency_keys_bound:
+          type: boolean
+          title: All Idempotency Keys Bound
+          default: false
+        all_payload_schemas_validated:
+          type: boolean
+          title: All Payload Schemas Validated
+          default: false
+        all_replay_protected:
+          type: boolean
+          title: All Replay Protected
+          default: false
+        all_records_present:
+          type: boolean
+          title: All Records Present
+          default: false
+        all_records_accepted:
+          type: boolean
+          title: All Records Accepted
+          default: false
+        all_records_validated:
+          type: boolean
+          title: All Records Validated
+          default: false
+        all_inputs_present:
+          type: boolean
+          title: All Inputs Present
+          default: false
+        all_inputs_accepted:
+          type: boolean
+          title: All Inputs Accepted
+          default: false
+        all_inputs_validated:
+          type: boolean
+          title: All Inputs Validated
+          default: false
+        all_reviews_ready:
+          type: boolean
+          title: All Reviews Ready
+          default: false
+        all_reviews_completed:
+          type: boolean
+          title: All Reviews Completed
+          default: false
+        all_steps_ready:
+          type: boolean
+          title: All Steps Ready
+          default: false
+        all_claims_resolved:
+          type: boolean
+          title: All Claims Resolved
+          default: false
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        record_schema_available:
+          type: boolean
+          title: Record Schema Available
+          default: false
+        append_only_log_available:
+          type: boolean
+          title: Append Only Log Available
+          default: false
+        idempotency_key_bound:
+          type: boolean
+          title: Idempotency Key Bound
+          default: false
+        payload_schema_validated:
+          type: boolean
+          title: Payload Schema Validated
+          default: false
+        replay_protected:
+          type: boolean
+          title: Replay Protected
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        write_allowed:
+          type: boolean
+          title: Write Allowed
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        writes_acceptance_evidence:
+          type: boolean
+          title: Writes Acceptance Evidence
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        satisfies_construction:
+          type: boolean
+          title: Satisfies Construction
+          default: false
+        construction_allowed:
+          type: boolean
+          title: Construction Allowed
+          default: false
+        adapter_constructed:
+          type: boolean
+          title: Adapter Constructed
+          default: false
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executed:
+          type: boolean
+          title: Executed
+          default: false
+        no_live_execution:
+          type: boolean
+          title: No Live Execution
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+          default: Producer-route contract clearance-step review-input store record
+            contract summary is backend-derived from blocked store requirements. It
+            aggregates missing append-only record schemas, payload fields, idempotency
+            keys, validation gates, replay gates, stores, and writers, but cannot
+            create records, validate payloads, bind idempotency, write or accept evidence,
+            complete reviews, construct adapters, or enable live execution.
+      additionalProperties: false
+      type: object
+      title: AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordContractSummary
+      description: Aggregate over missing review-input store record contracts.
     AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRequirement:
       properties:
         source_ref:
@@ -21996,6 +22624,14 @@ components:
             Input Store Requirements
         acceptance_evidence_producer_route_contract_clearance_step_review_input_store_requirement_summary:
           $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRequirementSummary'
+        acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_contracts:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordContract'
+          type: array
+          title: Acceptance Evidence Producer Route Contract Clearance Step Review
+            Input Store Record Contracts
+        acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_contract_summary:
+          $ref: '#/components/schemas/AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordContractSummary'
         artifacts:
           items:
             $ref: '#/components/schemas/AdminLiveAdapterConstructionArtifactItem'
