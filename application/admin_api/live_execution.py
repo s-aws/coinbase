@@ -382,6 +382,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_QUEUE_SUMMARY_AUTHORITY = (
     "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_items"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_AUTHORITY = (
+    "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_items_no_claim_resolution"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SUMMARY_AUTHORITY = (
+    "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_PLAN_SEQUENCE = (
     "define_backend_route_contract",
     "register_route_inventory_binding",
@@ -7125,6 +7137,416 @@ def build_live_adapter_construction_contract(
             "construct adapters, call Coinbase, or enable live execution."
         ),
     }
+    record_validation_remediation_dependency_work_item_claim_traces = [
+        {
+            "source_ref": (
+                "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_items"
+            ),
+            "status": AdminApiGateStatus.BLOCKED,
+            "source": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SOURCE
+            ),
+            "authority": (
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_AUTHORITY
+            ),
+            "claim_trace_index": index,
+            "claim_trace_id": f"{item['work_item_id']}_claim_trace",
+            "upstream_claim_trace_id": item["claim_trace_id"],
+            "claim_id": item["claim_id"],
+            "claim": item["claim"],
+            "work_item_id": item["work_item_id"],
+            "dependency_id": item["dependency_id"],
+            "remediation_id": item["remediation_id"],
+            "record_validation_id": item["record_validation_id"],
+            "record_contract_id": item["record_contract_id"],
+            "requirement_id": item["requirement_id"],
+            "input_id": item["input_id"],
+            "review_id": item["review_id"],
+            "step_id": item["step_id"],
+            "plan_id": item["plan_id"],
+            "clearance_target": item["clearance_target"],
+            "step_name": item["step_name"],
+            "input_name": item["input_name"],
+            "required_review_input": item["required_review_input"],
+            "required_store_ref": item["required_store_ref"],
+            "required_writer_ref": item["required_writer_ref"],
+            "required_record_key": item["required_record_key"],
+            "required_record_schema_ref": item["required_record_schema_ref"],
+            "required_append_only_log_ref": item["required_append_only_log_ref"],
+            "required_payload_fields": item["required_payload_fields"],
+            "required_idempotency_key": item["required_idempotency_key"],
+            "required_validation_gate": item["required_validation_gate"],
+            "required_replay_gate": item["required_replay_gate"],
+            "validation_checks": item["validation_checks"],
+            "required_backend_work": item["required_backend_work"],
+            "required_backend_refs": item["required_backend_refs"],
+            "validation_gate": item["validation_gate"],
+            "replay_gate": item["replay_gate"],
+            "remediation_gate": item["remediation_gate"],
+            "work_stage": item["work_stage"],
+            "work_queue_order": item["work_queue_order"],
+            "dependency_stage": item["dependency_stage"],
+            "dependency_order": item["dependency_order"],
+            "predecessor_dependency_ids": item["predecessor_dependency_ids"],
+            "successor_dependency_ids": item["successor_dependency_ids"],
+            "predecessor_remediation_ids": item["predecessor_remediation_ids"],
+            "successor_remediation_ids": item["successor_remediation_ids"],
+            "predecessor_record_validation_ids": item[
+                "predecessor_record_validation_ids"
+            ],
+            "successor_record_validation_ids": item[
+                "successor_record_validation_ids"
+            ],
+            "handoff_blockers": item["handoff_blockers"],
+            "first_handoff_blocker": item["first_handoff_blocker"],
+            "required_before_claim_resolved": True,
+            "required_before_work_item_ready": True,
+            "required_before_record_validation_ready": True,
+            "required_before_remediation_performed": True,
+            "verification_gate": (
+                "record_validation_remediation_dependency_work_item_claim_traces_remain_fail_closed"
+            ),
+            "blocker": f"{item['work_item_id']}_claim_trace_blocked",
+            "work_item_blocker": item["blocker"],
+            "dependency_blocker": item["dependency_blocker"],
+            "remediation_blocker": item["remediation_blocker"],
+            "validation_blocker": item["validation_blocker"],
+            "record_contract_blocker": item["record_contract_blocker"],
+            "store_requirement_blocker": item["store_requirement_blocker"],
+            "input_blocker": item["input_blocker"],
+            "claim_allowed": False,
+            "claim_resolved": False,
+            "clears_claim_trace": False,
+            "clears_work_item": False,
+            "clears_dependency": False,
+            "clears_remediation": False,
+            "clears_record_validation": False,
+            "work_item_ready": False,
+            "work_queue_ready": False,
+            "handoff_ready": False,
+            "dependency_ready": False,
+            "all_predecessors_ready": False,
+            "dependency_graph_ready": False,
+            "action_ready": False,
+            "remediation_required": True,
+            "remediation_ready": False,
+            "remediation_performed": False,
+            "record_validation_ready": False,
+            "record_contract_available": False,
+            "record_schema_available": False,
+            "append_only_log_available": False,
+            "idempotency_key_bound": False,
+            "payload_schema_validated": False,
+            "replay_protected": False,
+            "store_available": False,
+            "writer_allowed": False,
+            "write_allowed": False,
+            "validation_configured": False,
+            "replay_protection_configured": False,
+            "record_present": False,
+            "record_accepted": False,
+            "record_validated": False,
+            "input_present": False,
+            "input_accepted": False,
+            "input_validated": False,
+            "review_ready": False,
+            "review_completed": False,
+            "step_ready": False,
+            "writes_acceptance_evidence": False,
+            "accepts_evidence": False,
+            "satisfies_construction": False,
+            "construction_allowed": False,
+            "adapter_constructed": False,
+            "live_execution_allowed": False,
+            "execution_allowed": False,
+            "executed": False,
+            "no_live_execution": True,
+            "backend_owned": True,
+            "route_bound": True,
+            "command_context_bound": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "This record-validation remediation dependency work-item "
+                "claim trace maps an unresolved producer-route contract "
+                "availability claim back to one blocked dependency work item. "
+                "It cannot resolve claims, clear work items or dependencies, "
+                "perform remediation, create validators, bind idempotency, "
+                "validate payloads, protect replay, write or accept evidence, "
+                "accept or validate records, complete inputs, reviews, or "
+                "steps, construct adapters, call Coinbase, or enable live "
+                "execution."
+            ),
+        }
+        for index, item in enumerate(
+            record_validation_remediation_dependency_work_items, start=1
+        )
+    ]
+    blocked_record_validation_remediation_dependency_work_item_claim_traces = [
+        trace
+        for trace in record_validation_remediation_dependency_work_item_claim_traces
+        if not trace["claim_resolved"]
+    ]
+    resolved_record_validation_remediation_dependency_work_item_claim_traces = [
+        trace
+        for trace in record_validation_remediation_dependency_work_item_claim_traces
+        if trace["claim_resolved"]
+    ]
+    record_validation_remediation_dependency_work_item_claim_trace_summary = {
+        "source_ref": (
+            "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+        ),
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SUMMARY_AUTHORITY
+        ),
+        "total_claim_trace_count": len(
+            record_validation_remediation_dependency_work_item_claim_traces
+        ),
+        "blocked_claim_trace_count": len(
+            blocked_record_validation_remediation_dependency_work_item_claim_traces
+        ),
+        "resolved_claim_trace_count": len(
+            resolved_record_validation_remediation_dependency_work_item_claim_traces
+        ),
+        "claim_trace_ids": [
+            trace["claim_trace_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "upstream_claim_trace_ids": [
+            trace["upstream_claim_trace_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "claim_ids": [
+            trace["claim_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "claims": list(
+            dict.fromkeys(
+                trace["claim"]
+                for trace in record_validation_remediation_dependency_work_item_claim_traces
+            )
+        ),
+        "work_item_ids": [
+            trace["work_item_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "dependency_ids": [
+            trace["dependency_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "remediation_ids": [
+            trace["remediation_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "record_validation_ids": [
+            trace["record_validation_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "record_contract_ids": [
+            trace["record_contract_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "requirement_ids": [
+            trace["requirement_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "input_ids": [
+            trace["input_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "review_ids": [
+            trace["review_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "step_ids": [
+            trace["step_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "plan_ids": [
+            trace["plan_id"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "clearance_targets": list(
+            dict.fromkeys(
+                trace["clearance_target"]
+                for trace in record_validation_remediation_dependency_work_item_claim_traces
+            )
+        ),
+        "required_backend_work": list(
+            dict.fromkeys(
+                work
+                for trace in record_validation_remediation_dependency_work_item_claim_traces
+                for work in trace["required_backend_work"]
+            )
+        ),
+        "required_backend_refs": list(
+            dict.fromkeys(
+                ref
+                for trace in record_validation_remediation_dependency_work_item_claim_traces
+                for ref in trace["required_backend_refs"]
+            )
+        ),
+        "validation_gates": [
+            trace["validation_gate"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "replay_gates": [
+            trace["replay_gate"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "remediation_gates": [
+            trace["remediation_gate"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "work_stages": list(
+            dict.fromkeys(
+                trace["work_stage"]
+                for trace in record_validation_remediation_dependency_work_item_claim_traces
+            )
+        ),
+        "dependency_stages": list(
+            dict.fromkeys(
+                trace["dependency_stage"]
+                for trace in record_validation_remediation_dependency_work_item_claim_traces
+            )
+        ),
+        "verification_gates": list(
+            dict.fromkeys(
+                trace["verification_gate"]
+                for trace in record_validation_remediation_dependency_work_item_claim_traces
+            )
+        ),
+        "blockers": [
+            trace["blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "work_item_blockers": [
+            trace["work_item_blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "dependency_blockers": [
+            trace["dependency_blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "remediation_blockers": [
+            trace["remediation_blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "validation_blockers": [
+            trace["validation_blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "record_contract_blockers": [
+            trace["record_contract_blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "store_requirement_blockers": [
+            trace["store_requirement_blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "input_blockers": [
+            trace["input_blocker"]
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ],
+        "predecessor_edge_count": sum(
+            len(trace["predecessor_dependency_ids"])
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ),
+        "successor_edge_count": sum(
+            len(trace["successor_dependency_ids"])
+            for trace in record_validation_remediation_dependency_work_item_claim_traces
+        ),
+        "first_claim_trace_id": (
+            record_validation_remediation_dependency_work_item_claim_traces[0][
+                "claim_trace_id"
+            ]
+            if record_validation_remediation_dependency_work_item_claim_traces
+            else None
+        ),
+        "first_work_item_id": (
+            record_validation_remediation_dependency_work_item_claim_traces[0][
+                "work_item_id"
+            ]
+            if record_validation_remediation_dependency_work_item_claim_traces
+            else None
+        ),
+        "first_dependency_id": (
+            record_validation_remediation_dependency_work_item_claim_traces[0][
+                "dependency_id"
+            ]
+            if record_validation_remediation_dependency_work_item_claim_traces
+            else None
+        ),
+        "first_record_validation_id": (
+            record_validation_remediation_dependency_work_item_claim_traces[0][
+                "record_validation_id"
+            ]
+            if record_validation_remediation_dependency_work_item_claim_traces
+            else None
+        ),
+        "first_blocker": (
+            record_validation_remediation_dependency_work_item_claim_traces[0][
+                "blocker"
+            ]
+            if record_validation_remediation_dependency_work_item_claim_traces
+            else None
+        ),
+        "all_claims_resolved": False,
+        "all_work_items_ready": False,
+        "work_queue_ready": False,
+        "handoff_ready": False,
+        "dependency_graph_ready": False,
+        "all_dependencies_ready": False,
+        "all_predecessors_ready": False,
+        "any_action_ready": False,
+        "all_remediations_ready": False,
+        "remediation_ready": False,
+        "remediation_performed": False,
+        "all_record_validations_ready": False,
+        "record_validation_ready": False,
+        "all_record_contracts_available": False,
+        "record_contract_available": False,
+        "record_schema_available": False,
+        "append_only_log_available": False,
+        "idempotency_key_bound": False,
+        "payload_schema_validated": False,
+        "replay_protected": False,
+        "store_available": False,
+        "writer_allowed": False,
+        "write_allowed": False,
+        "validation_configured": False,
+        "replay_protection_configured": False,
+        "writes_acceptance_evidence": False,
+        "accepts_evidence": False,
+        "satisfies_construction": False,
+        "construction_allowed": False,
+        "adapter_constructed": False,
+        "live_execution_allowed": False,
+        "executable": False,
+        "execution_allowed": False,
+        "executed": False,
+        "no_live_execution": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "command_context_bound": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Producer-route contract clearance-step review-input store "
+            "record-validation remediation dependency work-item claim trace "
+            "summary is backend-derived from blocked dependency work-item "
+            "claim traces. It maps unresolved claims to work items but cannot "
+            "resolve claims, clear work items or dependencies, perform "
+            "remediation, create validators, bind idempotency, validate "
+            "payloads, protect replay, write or accept evidence, accept or "
+            "validate records, complete inputs, reviews, or steps, construct "
+            "adapters, call Coinbase, or enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -7325,6 +7747,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_queue_summary": (
             record_validation_remediation_dependency_work_queue_summary
+        ),
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces": (
+            record_validation_remediation_dependency_work_item_claim_traces
+        ),
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_summary": (
+            record_validation_remediation_dependency_work_item_claim_trace_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
