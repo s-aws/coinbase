@@ -2907,9 +2907,17 @@ Current backend evidence:
   no-record-acceptance, no-record-validation, no-writer-availability,
   no-input-completion, no-review-completion, no-step-readiness,
   no-claim-resolution, no-construction, no-execution, and no-live authority.
-  Active phases 4081-4100 add clearance-step review-input store
+  Completed phases 4081-4100 add clearance-step review-input store
   record-contract rows and a record-contract summary derived from the
   completed 4061-4080 store requirements while preserving no-record-contract
+  availability, no-schema availability, no-append-only-log availability,
+  no-idempotency binding, no-payload validation, no-replay protection,
+  no-record-creation, no-record-acceptance, no-input-completion,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority. Active phases
+  4101-4120 add clearance-step review-input store record-validation rows and
+  a record-validation summary derived from the completed 4081-4100 record
+  contracts while preserving no-validation-readiness, no-record-contract
   availability, no-schema availability, no-append-only-log availability,
   no-idempotency binding, no-payload validation, no-replay protection,
   no-record-creation, no-record-acceptance, no-input-completion,

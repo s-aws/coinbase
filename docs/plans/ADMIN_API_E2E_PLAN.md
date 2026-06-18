@@ -38,44 +38,56 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Contract Batch - Phases 4081-4100
+## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Validation Batch - Phases 4101-4120
 
 These phases add backend-owned producer-route contract clearance-step
+review-input store record-validation rows and a blocked record-validation
+summary over the existing record-contract rows while keeping adapter
+construction disabled. Each validation row is derived from one blocked record
+contract and names the missing record schema, append-only log, payload fields,
+idempotency key, validation gate, replay gate, validation checks, and blockers
+required before that input evidence record could ever be accepted. It remains
+readback evidence only. It cannot create validators, configure validation or
+replay, bind idempotency, validate payloads, protect replay, write evidence,
+accept records, validate records, complete inputs, complete reviews, make
+steps ready, resolve claims, clear work items, perform remediation, register
+producer routes, bind route inventory, bind shared command services, create
+handlers, construct adapters, record or accept evidence, mark artifacts
+satisfied, enable adapters, enable service, call Coinbase, invoke managers,
+execute reconciliation, cancel/replace active placements, mutate lifecycle/
+order/exchange state, clear M55 blockers, grant browser authority, or grant
+BFF execution authority.
+
+### Phase 4101 - Prior Range Completion Evidence
+
+- Record completed phases 4081-4100 with backend commit `a3013784`, frontend commit `8763ead`, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+
+### Phase 4102 - Backend Record Validation Rows
+
+- Add typed blocked clearance-step review-input store record-validation rows and populate one row per record contract, preserving record validation id, record contract id, requirement id, input id, review id, step id, plan id, claim trace id, schema ref, append-only log ref, payload fields, idempotency key, validation gate, replay gate, validation checks, blockers, and disabled authority flags.
+
+### Phase 4103 - Backend Record Validation Summary
+
+- Add a blocked record-validation summary aggregating validation ids, record contract ids, requirement ids, input ids, schema refs, append-only log refs, payload fields, idempotency keys, validation gates, replay gates, validation checks, blockers, counts, and disabled authority flags.
+
+### Phase 4104 - Frontend Contract Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract clearance-step review-input store record-validation and record-validation summary readback.
+
+### Phase 4105 - Validators, Gates, Review, Commit, And No-Live Report
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `0` USDC live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Contract Batch - Phases 4081-4100
+
+These phases added backend-owned producer-route contract clearance-step
 review-input store record-contract rows and a blocked record-contract summary
 over the existing store-requirement rows while keeping adapter construction
 disabled. Each record-contract row is derived from one blocked store
 requirement and names the missing record schema, append-only log, payload
 fields, idempotency key, validation gate, replay gate, store, writer, and
-blockers required before that input evidence could ever be accepted. It
-remains readback evidence only. It cannot create stores, create records, bind
-idempotency, validate payloads, write evidence, accept records, validate
-records, complete inputs, complete reviews, make steps ready, resolve claims,
-clear work items, perform remediation, register producer routes, bind route
-inventory, bind shared command services, create handlers, construct adapters,
-record or accept evidence, mark artifacts satisfied, enable adapters, enable
-service, call Coinbase, invoke managers, execute reconciliation, cancel/
-replace active placements, mutate lifecycle/order/exchange state, clear M55
-blockers, grant browser authority, or grant BFF execution authority.
-
-### Phase 4081 - Prior Range Completion Evidence
-
-- Record completed phases 4061-4080 with backend commit `1af3a7c5`, frontend commit `ec7d199`, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
-
-### Phase 4082 - Backend Record Contract Rows
-
-- Add typed blocked clearance-step review-input store record-contract rows and populate one row per store requirement, preserving requirement id, input id, review id, step id, plan id, claim trace id, store ref, writer ref, record key, schema ref, append-only log ref, idempotency key, validation gate, replay gate, blockers, and disabled authority flags.
-
-### Phase 4083 - Backend Record Contract Summary
-
-- Add a blocked record-contract summary aggregating record contract ids, requirement ids, input ids, store refs, writer refs, record keys, schema refs, append-only log refs, payload fields, idempotency keys, validation gates, replay gates, blockers, counts, and disabled authority flags.
-
-### Phase 4084 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract clearance-step review-input store record-contract and record-contract summary readback.
-
-### Phase 4085 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `0` USDC live Coinbase submitted/executed notional.
+blockers required before that input evidence could ever be accepted. Backend
+commit `a3013784` and frontend commit `8763ead` contain the pushed range.
 
 ## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Requirement Batch - Phases 4061-4080
 

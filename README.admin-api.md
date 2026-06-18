@@ -182,11 +182,16 @@ store requirement rows and a store-requirement summary derived from those
 review-input rows without creating stores, writing evidence, accepting
 records, validating records, completing inputs, completing reviews, resolving
 claims, satisfying construction, constructing adapters, or executing live
-paths. Active phases 4081-4100 add blocked clearance-step review-input store
+paths. Completed phases 4081-4100 add blocked clearance-step review-input store
 record-contract rows and a record-contract summary derived from those store
 requirements without creating records, binding idempotency, validating
 payloads, accepting evidence, completing inputs, resolving claims,
-constructing adapters, or executing live paths.
+constructing adapters, or executing live paths. Active phases 4101-4120 add
+blocked clearance-step review-input store record-validation rows and a
+record-validation summary derived from those record contracts without creating
+validators, binding idempotency, validating payloads, protecting replay,
+accepting records, completing reviews, resolving claims, constructing
+adapters, or executing live paths.
 These layers
 do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,
