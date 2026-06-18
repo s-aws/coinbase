@@ -9032,6 +9032,9 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearan
         "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"
     )
     total_input_count: int = Field(default=0, ge=0)
+    materialized_input_count: int = Field(default=0, ge=0)
+    detail_row_limit: int = Field(default=0, ge=0)
+    detail_rows_limited: bool = False
     missing_input_count: int = Field(default=0, ge=0)
     accepted_input_count: int = Field(default=0, ge=0)
     review_count: int = Field(default=0, ge=0)
@@ -9137,6 +9140,267 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearan
         "inputs, complete reviews, perform steps, resolve claims, write "
         "acceptance evidence, construct adapters, call Coinbase, or enable "
         "live execution."
+    )
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirement(
+    BaseModel
+):
+    """Missing backend store/writer requirement for one claim-trace review input."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs_no_store_or_writer"
+    )
+    requirement_index: int = Field(ge=1)
+    input_index: int = Field(ge=1)
+    review_index: int = Field(ge=1)
+    step_index: int = Field(ge=1)
+    plan_index: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    input_order: int = Field(ge=1)
+    requirement_id: str
+    input_id: str
+    review_id: str
+    clearance_step_id: str
+    plan_id: str
+    claim_trace_id: str
+    upstream_claim_trace_id: str
+    upstream_plan_id: str
+    claim_id: str
+    claim: str = "producer_route_contract_available"
+    clearance_target: str = "producer_route_contract_available"
+    step_name: str
+    step_label: str
+    input_name: str
+    required_review_input: str
+    required_ref_kind: str
+    required_ref: str
+    work_item_id: str
+    dependency_id: str
+    remediation_id: str
+    record_validation_id: str
+    record_contract_id: str
+    upstream_requirement_id: str
+    source_input_id: str
+    source_review_id: str
+    source_step_id: str
+    source_step_name: str
+    required_backend_refs: list[str] = Field(default_factory=list)
+    required_store_ref: str
+    required_writer_ref: str
+    required_record_key: str
+    required_validation_gate: str
+    required_replay_gate: str
+    validation_checks: list[str] = Field(default_factory=list)
+    input_gate: str
+    review_gate: str
+    store_gate: str
+    depends_on_prior_step_ids: list[str] = Field(default_factory=list)
+    blocks_next_step_ids: list[str] = Field(default_factory=list)
+    validation_gate: str
+    replay_gate: str
+    remediation_gate: str
+    clearance_step_review_gate: str
+    work_stage: str = "record_validation_remediation_dependency"
+    work_queue_order: int = Field(ge=1)
+    dependency_stage: str = "record_validation_remediation"
+    dependency_order: int = Field(ge=1)
+    predecessor_dependency_ids: list[str] = Field(default_factory=list)
+    successor_dependency_ids: list[str] = Field(default_factory=list)
+    predecessor_remediation_ids: list[str] = Field(default_factory=list)
+    successor_remediation_ids: list[str] = Field(default_factory=list)
+    predecessor_record_validation_ids: list[str] = Field(default_factory=list)
+    successor_record_validation_ids: list[str] = Field(default_factory=list)
+    handoff_blockers: list[str] = Field(default_factory=list)
+    first_handoff_blocker: str
+    blocker: str
+    input_blocker: str
+    review_blocker: str
+    clearance_step_blocker: str
+    plan_blocker: str
+    claim_trace_blocker: str
+    work_item_blocker: str
+    dependency_blocker: str
+    remediation_blocker: str
+    validation_blocker: str
+    record_contract_blocker: str
+    source_input_blocker: str
+    store_required: bool = True
+    required_before_input_present: bool = True
+    required_before_input_accepted: bool = True
+    required_before_input_validated: bool = True
+    required_before_review_ready: bool = True
+    required_before_review_completed: bool = True
+    required_before_step_ready: bool = True
+    required_before_claim_resolved: bool = True
+    store_available: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_completed: bool = False
+    review_allowed: bool = False
+    review_inputs_present: bool = False
+    review_gates_passed: bool = False
+    step_ready: bool = False
+    step_completed: bool = False
+    step_allowed: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    clears_claim_trace: bool = False
+    clears_work_item: bool = False
+    clears_dependency: bool = False
+    clears_remediation: bool = False
+    clears_record_validation: bool = False
+    work_item_ready: bool = False
+    dependency_ready: bool = False
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    record_validation_ready: bool = False
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementSummary(
+    BaseModel
+):
+    """Aggregate over missing claim-trace review-input store requirements."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_summary"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements"
+    )
+    total_requirement_count: int = Field(default=0, ge=0)
+    materialized_requirement_count: int = Field(default=0, ge=0)
+    detail_row_limit: int = Field(default=0, ge=0)
+    detail_rows_limited: bool = False
+    missing_store_count: int = Field(default=0, ge=0)
+    accepted_record_count: int = Field(default=0, ge=0)
+    input_count: int = Field(default=0, ge=0)
+    review_count: int = Field(default=0, ge=0)
+    step_count: int = Field(default=0, ge=0)
+    plan_count: int = Field(default=0, ge=0)
+    requirement_ids: list[str] = Field(default_factory=list)
+    input_ids: list[str] = Field(default_factory=list)
+    review_ids: list[str] = Field(default_factory=list)
+    step_ids: list[str] = Field(default_factory=list)
+    plan_ids: list[str] = Field(default_factory=list)
+    claim_trace_ids: list[str] = Field(default_factory=list)
+    upstream_claim_trace_ids: list[str] = Field(default_factory=list)
+    upstream_plan_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    required_store_refs: list[str] = Field(default_factory=list)
+    required_writer_refs: list[str] = Field(default_factory=list)
+    required_record_keys: list[str] = Field(default_factory=list)
+    required_validation_gates: list[str] = Field(default_factory=list)
+    required_replay_gates: list[str] = Field(default_factory=list)
+    required_backend_refs: list[str] = Field(default_factory=list)
+    store_gates: list[str] = Field(default_factory=list)
+    input_gates: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    input_blockers: list[str] = Field(default_factory=list)
+    review_blockers: list[str] = Field(default_factory=list)
+    clearance_step_blockers: list[str] = Field(default_factory=list)
+    plan_blockers: list[str] = Field(default_factory=list)
+    claim_trace_blockers: list[str] = Field(default_factory=list)
+    source_input_ids: list[str] = Field(default_factory=list)
+    source_review_ids: list[str] = Field(default_factory=list)
+    first_requirement_id: str | None = None
+    first_input_id: str | None = None
+    first_review_id: str | None = None
+    first_step_id: str | None = None
+    first_plan_id: str | None = None
+    first_blocker: str | None = None
+    all_stores_available: bool = False
+    all_records_present: bool = False
+    all_records_accepted: bool = False
+    all_records_validated: bool = False
+    all_inputs_present: bool = False
+    all_inputs_accepted: bool = False
+    all_inputs_validated: bool = False
+    all_reviews_ready: bool = False
+    all_reviews_completed: bool = False
+    all_steps_ready: bool = False
+    all_steps_completed: bool = False
+    all_claims_resolved: bool = False
+    all_work_items_ready: bool = False
+    all_dependencies_ready: bool = False
+    all_remediations_ready: bool = False
+    all_record_validations_ready: bool = False
+    all_record_contracts_available: bool = False
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-route contract clearance-step review-input store "
+        "record-validation remediation dependency work-item claim-trace "
+        "clearance-step review input store requirement summary is "
+        "backend-derived from missing claim-trace clearance-step review "
+        "inputs. It aggregates the missing backend stores, writers, record "
+        "keys, validation gates, and replay gates required before input "
+        "evidence can be recorded, but cannot create stores, write or accept "
+        "records, complete reviews or steps, resolve claims, construct "
+        "adapters, call Coinbase, or enable live execution."
     )
 
 
@@ -9508,6 +9772,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputSummary
+        )
+    )
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirement
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(

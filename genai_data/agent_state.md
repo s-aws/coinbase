@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-18
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4241-4260` is backend `ba032836`
-  and frontend `cf00781`; active range is `4261-4280`.
+- Commit (optional): completed range `4261-4280` is backend `e254a278`
+  and frontend `298b5b5`; active range is `4281-4300`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `4241-4260`; active range is `4261-4280`.
+- Latest completed autonomous range: `4261-4280`; active range is `4281-4300`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -440,9 +440,12 @@ Keep it short. Keep it factual.
   claim-trace clearance steps and a clearance-step summary derived from those
   clearance plans. Completed `4241-4260` work adds blocked claim-trace
   clearance-step reviews and a clearance-step review summary derived from
-  those clearance steps. Active `4261-4280` work adds blocked claim-trace
+  those clearance steps. Completed `4261-4280` work adds blocked claim-trace
   clearance-step review inputs and a review-input summary derived from those
-  clearance-step reviews. The work items, traces, plans, steps, reviews, inputs, and summaries
+  clearance-step reviews. Active `4281-4300` work adds blocked claim-trace
+  clearance-step review-input store requirements and a store-requirement
+  summary derived from those clearance-step review inputs. The work items,
+  traces, plans, steps, reviews, inputs, store requirements, and summaries
   may list work item ids, dependency ids, remediation ids, validation
   ids, record contract ids, requirement ids, input ids, immediate
   predecessor/successor dependency ids, missing backend work, work refs,
@@ -629,29 +632,31 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4261-4280`.
+- Active autonomous range: `4281-4300`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: add blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
-  claim-trace clearance-step review inputs and a review-input summary under
-  the existing live-adapter construction contract in active phases
-  `4261-4280` so future backend work can see the missing backend-owned inputs
-  required before any blocked claim-trace clearance-step review could ever
-  progress. The input rows expose source input ids, source review ids,
-  clearance step ids, claim-trace ids, upstream plan ids,
-  work-item/dependency/remediation/record-validation context, required
-  references, required inputs, input gates, review gates, and inherited
-  blockers while keeping all input presence, input acceptance, input
-  validation, review completion, step completion, write, acceptance,
-  construction, and live execution flags false. They must not make inputs
-  present, accept inputs, validate inputs, complete reviews or steps, resolve claims,
-  clear claim traces, clear work items, resolve dependencies, perform
-  remediation, create stores, create records, bind idempotency, validate
-  payloads, accept records, validate records, create writers, complete inputs,
-  complete reviews, make steps ready, register routes, bind route inventory,
-  bind shared command services, register handlers, construct adapters, satisfy
-  construction artifacts, write or accept evidence, create a second adapter
-  path, call Coinbase, invoke managers, execute reconciliation,
+  claim-trace clearance-step review-input store requirements and a
+  store-requirement summary under the existing live-adapter construction
+  contract in active phases `4281-4300` so future backend work can see the
+  missing backend-owned store, writer, record key, validation gate, and replay
+  gate required before any blocked claim-trace clearance-step review input
+  could ever be recorded. The store-requirement rows expose source input ids,
+  source review ids, clearance step ids, claim-trace ids, upstream plan ids,
+  work-item/dependency/remediation/record-validation context, required backend
+  refs, store gates, input gates, review gates, and inherited blockers while
+  keeping all store availability, writer authority, write permission, record
+  presence, record acceptance, record validation, input presence, input
+  acceptance, input validation, review completion, step completion,
+  construction, and live execution flags false. They must not create stores,
+  create records, allow writers, allow writes, make inputs present, accept
+  inputs, validate inputs, complete reviews or steps, resolve claims, clear
+  claim traces, clear work items, resolve dependencies, perform remediation,
+  bind idempotency, validate payloads, accept records, validate records,
+  complete inputs, complete reviews, make steps ready, register routes, bind
+  route inventory, bind shared command services, register handlers, construct
+  adapters, satisfy construction artifacts, write or accept evidence, create a
+  second adapter path, call Coinbase, invoke managers, execute reconciliation,
   cancel/replace active placements, mutate lifecycle/order/exchange state,
   grant browser authority, or grant BFF execution authority unless a future
   approved phase explicitly authorizes it.
@@ -1248,10 +1253,12 @@ Keep it short. Keep it factual.
   state-mutation policy proof/readback evidence as resolver-only prerequisite
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
+- What is completed for M55 4281-4300: backend and frontend expose bounded
+  readback-only claim-trace clearance-step review-input store requirements and
+  store-requirement summaries. Summary totals retain the full logical scope,
+  materialized/detail fields describe the capped detail rows, and all rows
+  remain blocked, no-store, no-writer, no-record-write, no-adapter, no-live,
+  display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete the active 4261-4280 backend live-adapter
-  acceptance-evidence producer-route contract clearance-step review-input
-  store record-validation remediation dependency work-item claim-trace
-  clearance-step review input implementation, sync frontend generated schema/display,
-  run focused gates, blind/contextless review, full gates, then commit and
-  push both repositories with `0` USDC live Coinbase execution.
+- Exact next command: pause for the requested restart after phase 4281-4300.
+  Do not advance to the next phase until the user resumes.

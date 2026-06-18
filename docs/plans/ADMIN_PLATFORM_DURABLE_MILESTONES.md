@@ -2960,14 +2960,23 @@ Current backend evidence:
   no-step-completion, no-step-allowance, no-claim-resolution,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation-execution, no-record-acceptance, no-construction,
-  no-execution, and no-live authority. Active phases 4261-4280 add
+  no-execution, and no-live authority. Completed phases 4261-4280 add
   claim-trace clearance-step review inputs and a review-input summary derived
   from those blocked reviews while preserving no-input-presence,
   no-input-acceptance, no-input-validation, no-review-completion,
   no-step-completion, no-step-allowance, no-claim-resolution,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation-execution, no-record-acceptance, no-construction,
-  no-execution, and no-live authority.
+  no-execution, and no-live authority. Active phases 4281-4300 add
+  claim-trace clearance-step review-input store requirements and a
+  store-requirement summary derived from those blocked review inputs while
+  preserving no-store-creation, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation-execution, no-construction, no-execution, and no-live
+  authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

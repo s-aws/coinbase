@@ -222,12 +222,25 @@ review summary derived from those steps, without completing reviews, accepting
 review inputs, passing review gates, completing steps, resolving claims,
 clearing claim traces, clearing work items or dependencies, performing
 remediation, accepting records, constructing adapters, or executing live
-paths. Active phases 4261-4280 add blocked dependency work-item claim-trace
+paths. Completed phases 4261-4280 add blocked dependency work-item claim-trace
 clearance-step review inputs and a review-input summary derived from those
 reviews, without making inputs present, accepting inputs, validating inputs,
 completing reviews, completing steps, resolving claims, clearing claim traces,
 clearing work items or dependencies, performing remediation, accepting
-records, constructing adapters, or executing live paths.
+records, constructing adapters, or executing live paths. Active phases
+4281-4300 add blocked dependency work-item claim-trace clearance-step
+review-input store requirements and a store-requirement summary derived from
+those review inputs, without creating stores, allowing writers, writing or
+accepting records, validating records, accepting inputs, validating inputs,
+completing reviews, completing steps, resolving claims, clearing claim traces,
+clearing work items or dependencies, performing remediation, constructing
+adapters, or executing live paths.
+The long claim-trace review-input and review-input store-requirement detail
+arrays are bounded representative readbacks. Their summaries keep full logical
+totals in `total_input_count`, `total_requirement_count`,
+`missing_input_count`, and `missing_store_count`, while
+`materialized_input_count`, `materialized_requirement_count`,
+`detail_row_limit`, and `detail_rows_limited` describe the capped detail rows.
 These layers
 do not accept or validate review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,

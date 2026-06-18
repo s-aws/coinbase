@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4241-4260` under M55.
-- Active autonomous range: `4261-4280` under M55.
+- Latest completed autonomous range: `4261-4280` under M55.
+- Active autonomous range: `4281-4300` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -302,13 +302,26 @@ notional, retained inventory, reconciliation result, and audit ids.
   no-review-input-presence, no-gate-passage, no-step-completion,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation execution, no-record-acceptance, no-construction,
-  no-execution, and no-live authority. Active 4261-4280 work adds
+  no-execution, and no-live authority. Completed 4261-4280 work adds
   claim-trace clearance-step review inputs and a review-input summary over
   those blocked reviews while preserving no-input-presence,
   no-input-acceptance, no-input-validation, no-review-completion,
   no-step-completion, no-claim-trace-clearance, no-work-item-clearance,
   no-dependency-clearance, no-remediation execution, no-record-acceptance,
+  no-construction, no-execution, and no-live authority. Active 4281-4300 work
+  adds claim-trace clearance-step review-input store requirements and a
+  store-requirement summary over those blocked review inputs while preserving
+  no-store-creation, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-claim-resolution, no-claim-trace-clearance,
+  no-work-item-clearance, no-dependency-clearance, no-remediation execution,
   no-construction, no-execution, and no-live authority.
+- The long claim-trace clearance-step review-input and review-input
+  store-requirement detail arrays are intentionally capped representative
+  readbacks. Use the summary totals for full logical scope and the
+  `materialized_*`, `detail_row_limit`, and `detail_rows_limited` fields to
+  identify how many detail rows were returned.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
