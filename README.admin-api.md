@@ -234,7 +234,7 @@ those review inputs, without creating stores, allowing writers, writing or
 accepting records, validating records, accepting inputs, validating inputs,
 completing reviews, completing steps, resolving claims, clearing claim traces,
 clearing work items or dependencies, performing remediation, constructing
-adapters, or executing live paths. Active phases 4301-4320 add blocked
+adapters, or executing live paths. Completed phases 4301-4320 add blocked
 dependency work-item claim-trace clearance-step review-input store record
 contracts and a record-contract summary derived from those store requirements,
 without making record contracts available, making schemas available, making
@@ -243,13 +243,24 @@ protecting replay, creating stores, allowing writers, writing or accepting
 records, validating records, accepting inputs, validating inputs, completing
 reviews, completing steps, resolving claims, clearing claim traces, clearing
 work items or dependencies, performing remediation, constructing adapters, or
-executing live paths.
-The long claim-trace review-input, review-input store-requirement, and store
-record-contract detail arrays are bounded representative readbacks. Their
+executing live paths. Active phases 4321-4340 add blocked dependency work-item
+claim-trace clearance-step review-input store record validations and a
+record-validation summary derived from those record contracts, without making
+validations ready, making record contracts available, making schemas available,
+making append-only logs available, binding idempotency, validating payloads,
+protecting replay, writing or accepting records, validating records, accepting
+inputs, validating inputs, completing reviews, completing steps, resolving
+claims, clearing claim traces, clearing work items or dependencies, performing
+remediation, constructing adapters, or executing live paths.
+The long claim-trace review-input, review-input store-requirement, store
+record-contract, and store record-validation detail arrays are bounded
+representative readbacks. Their
 summaries keep full logical totals in `total_input_count`,
 `total_requirement_count`, `total_record_contract_count`,
-`missing_input_count`, `missing_store_count`, and `missing_record_contract_count`, while
+`total_record_validation_count`, `missing_input_count`, `missing_store_count`,
+`missing_record_contract_count`, and `missing_record_validation_count`, while
 `materialized_input_count`, `materialized_requirement_count`,
+`materialized_record_contract_count`, `materialized_record_validation_count`,
 `detail_row_limit`, and `detail_rows_limited` describe the capped detail rows.
 These layers
 do not accept or validate review inputs, complete reviews, make steps ready, register routes, bind route

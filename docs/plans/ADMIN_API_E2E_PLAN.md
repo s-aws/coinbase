@@ -38,7 +38,110 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Validation Remediation Dependency Work-Item Claim Trace Clearance-Step Review Input Store Record Contract Batch - Phases 4301-4320
+## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Validation Remediation Dependency Work-Item Claim Trace Clearance-Step Review Input Store Record Validation Batch - Phases 4321-4340
+
+These phases add backend-owned producer-route contract clearance-step
+review-input store record-validation remediation dependency work-item
+claim-trace clearance-step review-input store record validations and a blocked
+record-validation summary over the existing dependency work-item claim-trace
+clearance-step review-input store record contracts while keeping adapter
+construction disabled. Each record validation is derived from one blocked
+record contract and maps the record validation checks, validation gate, replay
+gate, schema, append-only log, payload fields, idempotency key, blockers, and
+disabled authority required before input evidence could ever be accepted. It
+remains readback evidence only. It cannot create validators, validate payloads,
+bind idempotency, protect replay, write evidence, record or accept evidence,
+make records present, accept records, validate records, accept inputs,
+validate inputs, complete reviews, complete steps, resolve claims, clear claim
+traces, clear work items, clear dependencies, perform remediation, configure
+validation or replay, register producer routes, bind route inventory, bind
+shared command services, create handlers, construct adapters, mark artifacts
+satisfied, enable adapters, enable service, call Coinbase, invoke managers,
+execute reconciliation, cancel/replace active placements, mutate lifecycle/
+order/exchange state, clear M55 blockers, grant browser authority, or grant
+BFF execution authority.
+
+### Phase 4321 - Prior Range Completion Evidence
+
+- Record completed phases 4301-4320 with backend commit `3d9bb178`, frontend commit `3d41094`, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+
+### Phase 4322 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 4301-4320 to active phases 4321-4340 while preserving no-live defaults and cap policy.
+
+### Phase 4323 - Backend Claim-Trace Store Record-Validation Model
+
+- Add typed blocked producer-route contract clearance-step review-input store record-validation remediation dependency work-item claim-trace clearance-step review-input store record-validation and record-validation summary models to the existing live-adapter construction contract path.
+
+### Phase 4324 - Backend Record-Validation Projection
+
+- Populate one blocked record validation per bounded clearance-step review-input store record contract, preserving record validation id, record contract id, requirement id, input id, review id, step id, plan id, claim-trace ids, upstream ids, work item id, dependency id, remediation id, source input/review ids, schema refs, log refs, store/writer refs, payload fields, idempotency key, validation checks, gates, blockers, source refs, and disabled authority flags.
+
+### Phase 4325 - Record-Validation Gate And Blocker Evidence
+
+- Preserve each record validation's schema ref, append-only log ref, payload fields, idempotency key, required validation gate, required replay gate, derived validation gate, derived replay gate, record-contract gate, store gate, inherited record-contract blocker, required backend refs, source input blocker, first missing record-validation blocker, work stage, work-queue order, and fail-closed validation gate.
+
+### Phase 4326 - No-Validation-Or-Replay Authority Evidence
+
+- Keep each record validation blocked with `record_validation_ready=false`, `record_contract_available=false`, `record_schema_available=false`, `append_only_log_available=false`, `idempotency_key_bound=false`, `payload_schema_validated=false`, `replay_protected=false`, `store_available=false`, `writer_allowed=false`, `write_allowed=false`, `record_present=false`, `record_accepted=false`, `record_validated=false`, `input_present=false`, `input_accepted=false`, `input_validated=false`, `review_ready=false`, `review_completed=false`, `step_ready=false`, `step_completed=false`, `claim_allowed=false`, `claim_resolved=false`, and all construction/execution authority disabled.
+
+### Phase 4327 - Backend Record-Validation Summary
+
+- Add a blocked record-validation summary aggregating record validation ids, record contract ids, requirement ids, input ids, review ids, step ids, plan ids, claim trace ids, upstream plan ids, claim ids, upstream requirement ids, upstream record ids, schema refs, log refs, store refs, writer refs, payload fields, idempotency keys, validation checks, validation gates, replay gates, backend refs, input gates, record-contract gates, blockers, counts, and disabled authority flags.
+
+### Phase 4328 - Backend Schema And Coverage
+
+- Regenerate backend OpenAPI and add focused assertions proving record validations and summary are blocked, derived from dependency work-item claim-trace clearance-step review-input store record contracts, no-validation-readiness, no-record-contract, no-schema, no-log, no-idempotency-binding, no-payload-validation, no-replay-protection, no-store, no-writer, no-write, no-record, no-input-presence, no-input-acceptance, no-input-validation, no-review-completion, no-step-completion, no-claim-resolution, no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance, no-remediation, no-acceptance, no-construction, no-execution, and no-live.
+
+### Phase 4329 - Frontend Schema And Mock Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract clearance-step review-input store record validations and record-validation summary readback.
+
+### Phase 4330 - Frontend Display Sync
+
+- Render producer-route contract clearance-step review-input store record-validation remediation dependency work-item claim-trace clearance-step review-input store record validations and summary separately from record-contract rows through the existing adapter evidence display.
+
+### Phase 4331 - Frontend Focused Coverage
+
+- Update focused mock and dry-submit tests so record-validation readback cannot imply validation readiness, record-contract availability, schema availability, append-only log availability, idempotency binding, payload validation, replay protection, store availability, writer authority, write permission, record presence, record acceptance, record validation, input presence, input acceptance, input validation, review completion, gate passage, step completion, claim resolution, claim-trace clearance, work-item clearance, dependency clearance, remediation execution, construction, or execution authority.
+
+### Phase 4332 - Documentation Sync
+
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, expanded context, contextless review logs, and agent-state docs for route-contract clearance-step review-input store record-validation readback.
+
+### Phase 4333 - Autonomous Validator Sync
+
+- Update backend/frontend autonomous validators and active-range metadata for phases 4321-4340.
+
+### Phase 4334 - Stale Authority Scan
+
+- Search backend/frontend code and docs for stale active-range wording or text implying claim-trace clearance-step review-input store record validations can create validators, validate payloads, bind idempotency, protect replay, write or accept records, validate records, accept inputs, validate inputs, complete reviews, complete steps, resolve claims, clear claim traces, clear work items or dependencies, perform remediation, write or accept evidence, make steps ready, construct adapters, execute, or enable live trading.
+
+### Phase 4335 - Backend Focused Gates
+
+- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+
+### Phase 4336 - Frontend Focused Gates
+
+- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
+
+### Phase 4337 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short` and `python3 -m pytest tests/regression/ -v` as the documented cross-shell regression form when available.
+
+### Phase 4338 - Full Frontend Release Gate
+
+- Run `npm run release:gate` in `C:\coinbase-frontend`.
+
+### Phase 4339 - Blind Contextless Review And Live UI Smoke
+
+- Run blind/contextless review proving a fresh agent can explain that dependency work-item claim-trace clearance-step review-input store record validations are missing validation readiness over blocked record contracts only, then verify the local admin frontend renders the current phase range and no-live posture without browser console errors.
+
+### Phase 4340 - Completion Evidence, Commit, Push
+
+- Record gate evidence, review outcome, and `0` USDC live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees.
+
+## Completed Detail M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Validation Remediation Dependency Work-Item Claim Trace Clearance-Step Review Input Store Record Contract Batch - Phases 4301-4320
 
 These phases add backend-owned producer-route contract clearance-step
 review-input store record-validation remediation dependency work-item

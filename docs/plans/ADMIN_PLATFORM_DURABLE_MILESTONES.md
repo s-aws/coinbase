@@ -2976,7 +2976,7 @@ Current backend evidence:
   no-step-completion, no-step-allowance, no-claim-resolution,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation-execution, no-construction, no-execution, and no-live
-  authority. Active phases 4301-4320 add claim-trace clearance-step
+  authority. Completed phases 4301-4320 add claim-trace clearance-step
   review-input store record contracts and a record-contract summary derived
   from those blocked store requirements while preserving no-record-contract,
   no-schema, no-log, no-idempotency-binding, no-payload-validation,
@@ -2986,6 +2986,17 @@ Current backend evidence:
   no-step-completion, no-step-allowance, no-claim-resolution,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation-execution, no-construction, no-execution, and no-live
+  authority. Active phases 4321-4340 add claim-trace clearance-step
+  review-input store record validations and a record-validation summary
+  derived from those blocked record contracts while preserving
+  no-validation-readiness, no-record-contract, no-schema, no-log,
+  no-idempotency-binding, no-payload-validation, no-replay-protection,
+  no-store, no-writer, no-write, no-record-presence, no-record-acceptance,
+  no-record-validation, no-input-presence, no-input-acceptance,
+  no-input-validation, no-review-completion, no-step-completion,
+  no-step-allowance, no-claim-resolution, no-claim-trace-clearance,
+  no-work-item-clearance, no-dependency-clearance, no-remediation-execution,
+  no-construction, no-execution, and no-live
   authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state

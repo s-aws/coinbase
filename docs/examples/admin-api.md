@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "4301-4320",
+  "approved_phase_range": "4321-4340",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "4301-4320",
+  "approved_phase_range": "4321-4340",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1496,12 +1496,73 @@ plans and ordered clearance steps:
 }
 ```
 
+The same construction contract also exposes blocked claim-trace clearance-step
+review-input store record validations derived from the blocked store record
+contracts:
+
+```json
+{
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations": [
+    {
+      "status": "blocked",
+      "record_validation_id": "claim-trace-review-input-store-record-contract-001_record_validation",
+      "record_contract_id": "claim-trace-review-input-store-record-contract-001",
+      "requirement_id": "claim-trace-review-input-store-requirement-001",
+      "input_id": "claim-trace-review-input-001",
+      "validation_checks": [
+        "record_contract_available",
+        "record_schema_available",
+        "append_only_log_available",
+        "idempotency_key_bound",
+        "payload_schema_validated",
+        "replay_protected",
+        "store_available",
+        "writer_allowed",
+        "write_allowed",
+        "record_present",
+        "record_accepted",
+        "record_validated"
+      ],
+      "record_validation_ready": false,
+      "record_contract_available": false,
+      "payload_schema_validated": false,
+      "replay_protected": false,
+      "record_accepted": false,
+      "record_validated": false,
+      "construction_allowed": false,
+      "live_execution_allowed": false,
+      "execution_allowed": false,
+      "executed": false,
+      "no_live_execution": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ],
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_summary": {
+    "status": "blocked",
+    "total_record_validation_count": 36864,
+    "materialized_record_validation_count": 768,
+    "missing_record_validation_count": 36864,
+    "ready_record_validation_count": 0,
+    "all_record_validations_ready": false,
+    "all_record_contracts_available": false,
+    "all_payload_schemas_validated": false,
+    "all_replay_protected": false,
+    "live_execution_allowed": false,
+    "execution_allowed": false,
+    "executed": false,
+    "no_live_execution": true
+  }
+}
+```
+
 These remediation, dependency, dependency work-queue, clearance-plan, and
-clearance-step fields are diagnostic readback only. They name and order
-missing backend work; they do not complete steps, resolve claims, clear work
-items or dependencies, perform remediation, create validators, bind
-idempotency, validate payloads, protect replay, write or accept evidence,
-construct adapters, call Coinbase, or grant browser/BFF execution authority.
+clearance-step fields, plus the store record-validation fields above, are
+diagnostic readback only. They name and order missing backend work; they do not
+complete steps, resolve claims, clear work items or dependencies, perform
+remediation, create validators, bind idempotency, validate payloads, protect
+replay, write or accept evidence, construct adapters, call Coinbase, or grant
+browser/BFF execution authority.
 
 ## Cancel By Client Order ID
 
