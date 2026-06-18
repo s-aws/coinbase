@@ -216,15 +216,20 @@ paths. Completed phases 4221-4240 add blocked dependency work-item claim-trace
 clearance steps and a clearance-step summary derived from those plans, without
 completing steps, resolving claims, clearing claim traces, clearing work items
 or dependencies, performing remediation, accepting records, constructing
-adapters, or executing live paths. Active phases 4241-4260 add blocked
+adapters, or executing live paths. Completed phases 4241-4260 add blocked
 dependency work-item claim-trace clearance-step reviews and a clearance-step
 review summary derived from those steps, without completing reviews, accepting
 review inputs, passing review gates, completing steps, resolving claims,
 clearing claim traces, clearing work items or dependencies, performing
 remediation, accepting records, constructing adapters, or executing live
-paths.
+paths. Active phases 4261-4280 add blocked dependency work-item claim-trace
+clearance-step review inputs and a review-input summary derived from those
+reviews, without making inputs present, accepting inputs, validating inputs,
+completing reviews, completing steps, resolving claims, clearing claim traces,
+clearing work items or dependencies, performing remediation, accepting
+records, constructing adapters, or executing live paths.
 These layers
-do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
+do not accept or validate review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,
 configure validation/replay, create writers, construct adapters, write or
 accept evidence, satisfy construction artifacts, enable live service, call
