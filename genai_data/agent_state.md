@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-18
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4261-4280` is backend `e254a278`
-  and frontend `298b5b5`; active range is `4281-4300`.
+- Commit (optional): completed range `4281-4300` is backend `56bc132d`
+  and frontend `ce5f0c2`; active range is `4301-4320`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `4261-4280`; active range is `4281-4300`.
+- Latest completed autonomous range: `4281-4300`; active range is `4301-4320`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -442,10 +442,13 @@ Keep it short. Keep it factual.
   clearance-step reviews and a clearance-step review summary derived from
   those clearance steps. Completed `4261-4280` work adds blocked claim-trace
   clearance-step review inputs and a review-input summary derived from those
-  clearance-step reviews. Active `4281-4300` work adds blocked claim-trace
+  clearance-step reviews. Completed `4281-4300` work adds blocked claim-trace
   clearance-step review-input store requirements and a store-requirement
-  summary derived from those clearance-step review inputs. The work items,
-  traces, plans, steps, reviews, inputs, store requirements, and summaries
+  summary derived from those clearance-step review inputs. Active `4301-4320`
+  work adds blocked claim-trace clearance-step review-input store record
+  contracts and a record-contract summary derived from those store
+  requirements. The work items, traces, plans, steps, reviews, inputs, store
+  requirements, record contracts, and summaries
   may list work item ids, dependency ids, remediation ids, validation
   ids, record contract ids, requirement ids, input ids, immediate
   predecessor/successor dependency ids, missing backend work, work refs,
@@ -632,16 +635,17 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4281-4300`.
+- Active autonomous range: `4301-4320`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: add blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
-  claim-trace clearance-step review-input store requirements and a
-  store-requirement summary under the existing live-adapter construction
-  contract in active phases `4281-4300` so future backend work can see the
-  missing backend-owned store, writer, record key, validation gate, and replay
-  gate required before any blocked claim-trace clearance-step review input
-  could ever be recorded. The store-requirement rows expose source input ids,
+  claim-trace clearance-step review-input store record contracts and a
+  record-contract summary under the existing live-adapter construction
+  contract in active phases `4301-4320` so future backend work can see the
+  missing backend-owned record schema, append-only log, payload fields,
+  idempotency key, validation gate, and replay gate required before any
+  blocked claim-trace clearance-step review input evidence can be accepted or
+  recorded. The record-contract rows expose source input ids,
   source review ids, clearance step ids, claim-trace ids, upstream plan ids,
   work-item/dependency/remediation/record-validation context, required backend
   refs, store gates, input gates, review gates, and inherited blockers while
@@ -1259,6 +1263,15 @@ Keep it short. Keep it factual.
   materialized/detail fields describe the capped detail rows, and all rows
   remain blocked, no-store, no-writer, no-record-write, no-adapter, no-live,
   display-only, and forward-only.
+- What is active for M55 4301-4320: backend and frontend expose bounded
+  readback-only claim-trace clearance-step review-input store record contracts
+  and record-contract summaries derived from those blocked store requirements.
+  Summary totals retain the full logical scope, materialized/detail fields
+  describe capped detail rows, and all rows remain blocked, no-record-contract,
+  no-schema, no-log, no-idempotency-binding, no-payload-validation,
+  no-replay-protection, no-record-write, no-adapter, no-live, display-only,
+  and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: pause for the requested restart after phase 4281-4300.
-  Do not advance to the next phase until the user resumes.
+- Exact next command: continue phase 4301-4320 through focused gates, full
+  regression/release gates, blind/contextless review, live UI smoke, commit,
+  and push.
