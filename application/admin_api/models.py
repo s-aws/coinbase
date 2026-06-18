@@ -8034,6 +8034,263 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearan
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan(
+    BaseModel
+):
+    """Blocked clearance plan for one dependency work-item claim trace."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces_no_execution"
+    )
+    plan_index: int = Field(ge=1)
+    plan_id: str
+    claim_trace_id: str
+    upstream_claim_trace_id: str
+    upstream_plan_id: str
+    claim_id: str
+    claim: str = "producer_route_contract_available"
+    clearance_target: str = "producer_route_contract_available"
+    work_item_id: str
+    dependency_id: str
+    remediation_id: str
+    record_validation_id: str
+    record_contract_id: str
+    requirement_id: str
+    input_id: str
+    review_id: str
+    step_id: str
+    step_name: str
+    input_name: str
+    required_review_input: str
+    required_store_ref: str
+    required_writer_ref: str
+    required_record_key: str
+    required_record_schema_ref: str
+    required_append_only_log_ref: str
+    required_payload_fields: list[str] = Field(default_factory=list)
+    required_idempotency_key: str
+    required_validation_gate: str
+    required_replay_gate: str
+    validation_checks: list[str] = Field(default_factory=list)
+    required_backend_work: list[str] = Field(default_factory=list)
+    required_backend_refs: list[str] = Field(default_factory=list)
+    validation_gate: str
+    replay_gate: str
+    remediation_gate: str
+    work_stage: str = "record_validation_remediation_dependency"
+    work_queue_order: int = Field(ge=1)
+    dependency_stage: str = "record_validation_remediation"
+    dependency_order: int = Field(ge=1)
+    predecessor_dependency_ids: list[str] = Field(default_factory=list)
+    successor_dependency_ids: list[str] = Field(default_factory=list)
+    predecessor_remediation_ids: list[str] = Field(default_factory=list)
+    successor_remediation_ids: list[str] = Field(default_factory=list)
+    predecessor_record_validation_ids: list[str] = Field(default_factory=list)
+    successor_record_validation_ids: list[str] = Field(default_factory=list)
+    handoff_blockers: list[str] = Field(default_factory=list)
+    first_handoff_blocker: str
+    planned_backend_sequence: list[str] = Field(default_factory=list)
+    required_verification_gates: list[str] = Field(default_factory=list)
+    required_before_claim_resolved: bool = True
+    required_before_work_item_ready: bool = True
+    required_before_record_validation_ready: bool = True
+    required_before_remediation_performed: bool = True
+    verification_gate: str
+    blocker: str
+    claim_trace_blocker: str
+    work_item_blocker: str
+    dependency_blocker: str
+    remediation_blocker: str
+    validation_blocker: str
+    record_contract_blocker: str
+    store_requirement_blocker: str
+    input_blocker: str
+    plan_ready: bool = False
+    sequence_ready: bool = False
+    all_dependencies_ready: bool = False
+    all_predecessors_ready: bool = False
+    all_verification_gates_passed: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    clears_claim_trace: bool = False
+    clears_work_item: bool = False
+    clears_dependency: bool = False
+    clears_remediation: bool = False
+    clears_record_validation: bool = False
+    work_item_ready: bool = False
+    work_queue_ready: bool = False
+    handoff_ready: bool = False
+    dependency_ready: bool = False
+    dependency_graph_ready: bool = False
+    action_ready: bool = False
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    record_validation_ready: bool = False
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_completed: bool = False
+    step_ready: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanSummary(
+    BaseModel
+):
+    """Aggregate over blocked dependency work-item claim-trace clearance plans."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+    )
+    total_plan_count: int = Field(default=0, ge=0)
+    blocked_plan_count: int = Field(default=0, ge=0)
+    ready_plan_count: int = Field(default=0, ge=0)
+    plan_ids: list[str] = Field(default_factory=list)
+    claim_trace_ids: list[str] = Field(default_factory=list)
+    upstream_claim_trace_ids: list[str] = Field(default_factory=list)
+    upstream_plan_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    claims: list[str] = Field(default_factory=list)
+    clearance_targets: list[str] = Field(default_factory=list)
+    work_item_ids: list[str] = Field(default_factory=list)
+    dependency_ids: list[str] = Field(default_factory=list)
+    remediation_ids: list[str] = Field(default_factory=list)
+    record_validation_ids: list[str] = Field(default_factory=list)
+    record_contract_ids: list[str] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+    input_ids: list[str] = Field(default_factory=list)
+    review_ids: list[str] = Field(default_factory=list)
+    step_ids: list[str] = Field(default_factory=list)
+    required_backend_work: list[str] = Field(default_factory=list)
+    required_backend_refs: list[str] = Field(default_factory=list)
+    validation_gates: list[str] = Field(default_factory=list)
+    replay_gates: list[str] = Field(default_factory=list)
+    remediation_gates: list[str] = Field(default_factory=list)
+    work_stages: list[str] = Field(default_factory=list)
+    dependency_stages: list[str] = Field(default_factory=list)
+    planned_backend_sequence: list[str] = Field(default_factory=list)
+    required_verification_gates: list[str] = Field(default_factory=list)
+    verification_gates: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    claim_trace_blockers: list[str] = Field(default_factory=list)
+    work_item_blockers: list[str] = Field(default_factory=list)
+    dependency_blockers: list[str] = Field(default_factory=list)
+    remediation_blockers: list[str] = Field(default_factory=list)
+    validation_blockers: list[str] = Field(default_factory=list)
+    record_contract_blockers: list[str] = Field(default_factory=list)
+    store_requirement_blockers: list[str] = Field(default_factory=list)
+    input_blockers: list[str] = Field(default_factory=list)
+    predecessor_edge_count: int = Field(default=0, ge=0)
+    successor_edge_count: int = Field(default=0, ge=0)
+    first_plan_id: str | None = None
+    first_claim_trace_id: str | None = None
+    first_work_item_id: str | None = None
+    first_dependency_id: str | None = None
+    first_record_validation_id: str | None = None
+    first_blocker: str | None = None
+    all_plans_ready: bool = False
+    clearance_plan_ready: bool = False
+    sequence_ready: bool = False
+    all_dependencies_ready: bool = False
+    all_predecessors_ready: bool = False
+    all_verification_gates_passed: bool = False
+    all_claims_resolved: bool = False
+    all_work_items_ready: bool = False
+    work_queue_ready: bool = False
+    handoff_ready: bool = False
+    dependency_graph_ready: bool = False
+    any_action_ready: bool = False
+    all_remediations_ready: bool = False
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    all_record_validations_ready: bool = False
+    record_validation_ready: bool = False
+    all_record_contracts_available: bool = False
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-route contract clearance-step review-input store "
+        "record-validation remediation dependency work-item claim-trace "
+        "clearance plan summary is backend-derived from blocked claim-trace "
+        "clearance plans. It aggregates the backend-owned sequence required "
+        "before a claim trace could ever be reviewed, but cannot resolve "
+        "claims, clear work items or dependencies, perform remediation, "
+        "validate records, construct adapters, call Coinbase, or enable live "
+        "execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -8362,6 +8619,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceSummary
+        )
+    )
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(

@@ -203,11 +203,16 @@ validators, writing evidence, accepting records, completing reviews, resolving
 claims, constructing adapters, or executing live paths. Completed phases
 4161-4180 add blocked dependency work items and a work-queue summary derived
 from those dependency rows, without performing remediation, accepting records,
-resolving claims, constructing adapters, or executing live paths. Active
+resolving claims, constructing adapters, or executing live paths. Completed
 phases 4181-4200 add blocked dependency work-item claim traces and a
 claim-trace summary derived from those work items, without resolving claims,
 clearing work items or dependencies, performing remediation, accepting
-records, constructing adapters, or executing live paths.
+records, constructing adapters, or executing live paths. Active phases
+4201-4220 add blocked dependency work-item claim-trace clearance plans and a
+clearance-plan summary derived from those claim traces, without resolving
+claims, clearing claim traces, clearing work items or dependencies, performing
+remediation, accepting records, constructing adapters, or executing live
+paths.
 These layers
 do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,

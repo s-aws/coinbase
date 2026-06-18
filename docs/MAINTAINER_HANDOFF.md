@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4161-4180` under M55.
-- Active autonomous range: `4181-4200` under M55.
+- Latest completed autonomous range: `4181-4200` under M55.
+- Active autonomous range: `4201-4220` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -282,11 +282,16 @@ notional, retained inventory, reconciliation result, and audit ids.
   work-queue summary over those dependency rows while preserving
   no-work-item-readiness, no-handoff, no-remediation execution,
   no-record-acceptance, no-claim-resolution, no-construction, no-execution,
-  and no-live authority. Active 4181-4200 work adds record-validation
+  and no-live authority. Completed 4181-4200 work adds record-validation
   remediation dependency work-item claim traces and a claim-trace summary over
   those work items while preserving no-claim-resolution, no-work-item-
   clearance, no-dependency-clearance, no-remediation execution,
   no-record-acceptance, no-construction, no-execution, and no-live authority.
+  Active 4201-4220 work adds claim-trace clearance plans and a
+  clearance-plan summary over those blocked claim traces while preserving
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation execution, no-record-acceptance, no-construction,
+  no-execution, and no-live authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through

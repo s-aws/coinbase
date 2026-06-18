@@ -211,6 +211,12 @@ from application.admin_api.live_execution import (
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_QUEUE_SUMMARY_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_QUEUE_SUMMARY_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SEQUENCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SUMMARY_AUTHORITY,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SUMMARY_SOURCE,
+    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_VERIFICATION_GATES,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SOURCE,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SUMMARY_AUTHORITY,
     LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_SUMMARY_SOURCE,
@@ -3431,6 +3437,14 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         in construction_contract_schema["properties"]
     )
     assert (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+        in construction_contract_schema["properties"]
+    )
+    assert (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary"
+        in construction_contract_schema["properties"]
+    )
+    assert (
         "acceptance_evidence_producer_route_contract_remediation_work_item_claim_traces"
         in construction_contract_schema["properties"]
     )
@@ -4645,6 +4659,208 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         assert (
             property_name
             in record_validation_remediation_dependency_work_item_claim_trace_summary_schema[
+                "properties"
+            ]
+        )
+    assert (
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan"
+        in written["components"]["schemas"]
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_schema = written[
+        "components"
+    ][
+        "schemas"
+    ][
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan"
+    ]
+    for property_name in (
+        "source_ref",
+        "source",
+        "authority",
+        "plan_index",
+        "plan_id",
+        "claim_trace_id",
+        "upstream_claim_trace_id",
+        "upstream_plan_id",
+        "claim_id",
+        "claim",
+        "clearance_target",
+        "work_item_id",
+        "dependency_id",
+        "remediation_id",
+        "record_validation_id",
+        "record_contract_id",
+        "requirement_id",
+        "input_id",
+        "review_id",
+        "step_id",
+        "required_backend_work",
+        "required_backend_refs",
+        "planned_backend_sequence",
+        "required_verification_gates",
+        "required_before_claim_resolved",
+        "required_before_work_item_ready",
+        "required_before_record_validation_ready",
+        "required_before_remediation_performed",
+        "verification_gate",
+        "blocker",
+        "claim_trace_blocker",
+        "work_item_blocker",
+        "dependency_blocker",
+        "remediation_blocker",
+        "validation_blocker",
+        "record_contract_blocker",
+        "store_requirement_blocker",
+        "input_blocker",
+        "plan_ready",
+        "sequence_ready",
+        "all_dependencies_ready",
+        "all_predecessors_ready",
+        "all_verification_gates_passed",
+        "claim_allowed",
+        "claim_resolved",
+        "clears_claim_trace",
+        "clears_work_item",
+        "clears_dependency",
+        "clears_remediation",
+        "clears_record_validation",
+        "work_item_ready",
+        "work_queue_ready",
+        "handoff_ready",
+        "dependency_ready",
+        "dependency_graph_ready",
+        "action_ready",
+        "remediation_ready",
+        "remediation_performed",
+        "record_validation_ready",
+        "record_contract_available",
+        "record_schema_available",
+        "append_only_log_available",
+        "idempotency_key_bound",
+        "payload_schema_validated",
+        "replay_protected",
+        "store_available",
+        "writer_allowed",
+        "write_allowed",
+        "validation_configured",
+        "replay_protection_configured",
+        "record_present",
+        "record_accepted",
+        "record_validated",
+        "input_present",
+        "input_accepted",
+        "input_validated",
+        "review_ready",
+        "review_completed",
+        "step_ready",
+        "construction_allowed",
+        "adapter_constructed",
+        "live_execution_allowed",
+        "execution_allowed",
+        "executed",
+    ):
+        assert (
+            property_name
+            in record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_schema[
+                "properties"
+            ]
+        )
+    assert (
+        "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanSummary"
+        in written["components"]["schemas"]
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary_schema = (
+        written["components"]["schemas"][
+            "AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanSummary"
+        ]
+    )
+    for property_name in (
+        "source_ref",
+        "source",
+        "authority",
+        "total_plan_count",
+        "blocked_plan_count",
+        "ready_plan_count",
+        "plan_ids",
+        "claim_trace_ids",
+        "upstream_claim_trace_ids",
+        "upstream_plan_ids",
+        "claim_ids",
+        "claims",
+        "clearance_targets",
+        "work_item_ids",
+        "dependency_ids",
+        "remediation_ids",
+        "record_validation_ids",
+        "record_contract_ids",
+        "requirement_ids",
+        "input_ids",
+        "review_ids",
+        "step_ids",
+        "required_backend_work",
+        "required_backend_refs",
+        "planned_backend_sequence",
+        "required_verification_gates",
+        "validation_gates",
+        "replay_gates",
+        "remediation_gates",
+        "verification_gates",
+        "blockers",
+        "claim_trace_blockers",
+        "work_item_blockers",
+        "dependency_blockers",
+        "remediation_blockers",
+        "validation_blockers",
+        "record_contract_blockers",
+        "store_requirement_blockers",
+        "input_blockers",
+        "predecessor_edge_count",
+        "successor_edge_count",
+        "first_plan_id",
+        "first_claim_trace_id",
+        "first_work_item_id",
+        "first_dependency_id",
+        "first_record_validation_id",
+        "first_blocker",
+        "all_plans_ready",
+        "clearance_plan_ready",
+        "sequence_ready",
+        "all_dependencies_ready",
+        "all_predecessors_ready",
+        "all_verification_gates_passed",
+        "all_claims_resolved",
+        "all_work_items_ready",
+        "work_queue_ready",
+        "handoff_ready",
+        "dependency_graph_ready",
+        "any_action_ready",
+        "all_remediations_ready",
+        "remediation_ready",
+        "remediation_performed",
+        "all_record_validations_ready",
+        "record_validation_ready",
+        "all_record_contracts_available",
+        "record_contract_available",
+        "record_schema_available",
+        "append_only_log_available",
+        "idempotency_key_bound",
+        "payload_schema_validated",
+        "replay_protected",
+        "store_available",
+        "writer_allowed",
+        "write_allowed",
+        "validation_configured",
+        "replay_protection_configured",
+        "construction_allowed",
+        "adapter_constructed",
+        "live_execution_allowed",
+        "executable",
+        "execution_allowed",
+        "executed",
+    ):
+        assert (
+            property_name
+            in record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary_schema[
                 "properties"
             ]
         )
@@ -13657,6 +13873,445 @@ def _assert_live_adapter_construction_contract(
         ]
         == "forward_only_no_execution"
     )
+    route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans = contract[
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+    ]
+    expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ids = [
+        f"{claim_trace_id}_clearance_plan"
+        for claim_trace_id in (
+            expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ids
+        )
+    ]
+    assert [
+        plan["plan_id"]
+        for plan in route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+    ] == expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ids
+    assert len(
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+    ) == len(
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+    )
+    for plan_index, plan in enumerate(
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans,
+        start=1,
+    ):
+        trace = route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces[
+            plan_index - 1
+        ]
+        assert plan["source_ref"] == (
+            "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+        )
+        assert plan["status"] == AdminApiGateStatus.BLOCKED
+        assert plan["source"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SOURCE
+        )
+        assert plan["authority"] == (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_AUTHORITY
+        )
+        assert plan["plan_index"] == plan_index
+        assert plan["plan_id"] == f"{trace['claim_trace_id']}_clearance_plan"
+        assert plan["claim_trace_id"] == trace["claim_trace_id"]
+        assert plan["upstream_claim_trace_id"] == trace["upstream_claim_trace_id"]
+        assert plan["upstream_plan_id"] == trace["plan_id"]
+        for copied_key in (
+            "claim_id",
+            "claim",
+            "clearance_target",
+            "work_item_id",
+            "dependency_id",
+            "remediation_id",
+            "record_validation_id",
+            "record_contract_id",
+            "requirement_id",
+            "input_id",
+            "review_id",
+            "step_id",
+            "step_name",
+            "input_name",
+            "required_review_input",
+            "required_store_ref",
+            "required_writer_ref",
+            "required_record_key",
+            "required_record_schema_ref",
+            "required_append_only_log_ref",
+            "required_payload_fields",
+            "required_idempotency_key",
+            "required_validation_gate",
+            "required_replay_gate",
+            "validation_checks",
+            "required_backend_work",
+            "required_backend_refs",
+            "validation_gate",
+            "replay_gate",
+            "remediation_gate",
+            "work_stage",
+            "work_queue_order",
+            "dependency_stage",
+            "dependency_order",
+            "predecessor_dependency_ids",
+            "successor_dependency_ids",
+            "predecessor_remediation_ids",
+            "successor_remediation_ids",
+            "predecessor_record_validation_ids",
+            "successor_record_validation_ids",
+            "handoff_blockers",
+            "first_handoff_blocker",
+        ):
+            assert plan[copied_key] == trace[copied_key]
+        assert plan["planned_backend_sequence"] == list(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SEQUENCE
+        )
+        assert plan["required_verification_gates"] == list(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_VERIFICATION_GATES
+        )
+        assert plan["required_before_claim_resolved"] is True
+        assert plan["required_before_work_item_ready"] is True
+        assert plan["required_before_record_validation_ready"] is True
+        assert plan["required_before_remediation_performed"] is True
+        assert plan["verification_gate"] == (
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans_remain_fail_closed"
+        )
+        assert plan["blocker"] == f"{trace['claim_trace_id']}_clearance_plan_blocked"
+        assert plan["claim_trace_blocker"] == trace["blocker"]
+        assert plan["work_item_blocker"] == trace["work_item_blocker"]
+        assert plan["dependency_blocker"] == trace["dependency_blocker"]
+        assert plan["remediation_blocker"] == trace["remediation_blocker"]
+        assert plan["validation_blocker"] == trace["validation_blocker"]
+        assert plan["record_contract_blocker"] == trace["record_contract_blocker"]
+        assert plan["store_requirement_blocker"] == trace["store_requirement_blocker"]
+        assert plan["input_blocker"] == trace["input_blocker"]
+        for false_flag in (
+            "plan_ready",
+            "sequence_ready",
+            "all_dependencies_ready",
+            "all_predecessors_ready",
+            "all_verification_gates_passed",
+            "claim_allowed",
+            "claim_resolved",
+            "clears_claim_trace",
+            "clears_work_item",
+            "clears_dependency",
+            "clears_remediation",
+            "clears_record_validation",
+            "work_item_ready",
+            "work_queue_ready",
+            "handoff_ready",
+            "dependency_ready",
+            "dependency_graph_ready",
+            "action_ready",
+            "remediation_ready",
+            "remediation_performed",
+            "record_validation_ready",
+            "record_contract_available",
+            "record_schema_available",
+            "append_only_log_available",
+            "idempotency_key_bound",
+            "payload_schema_validated",
+            "replay_protected",
+            "store_available",
+            "writer_allowed",
+            "write_allowed",
+            "validation_configured",
+            "replay_protection_configured",
+            "record_present",
+            "record_accepted",
+            "record_validated",
+            "input_present",
+            "input_accepted",
+            "input_validated",
+            "review_ready",
+            "review_completed",
+            "step_ready",
+            "writes_acceptance_evidence",
+            "accepts_evidence",
+            "satisfies_construction",
+            "construction_allowed",
+            "adapter_constructed",
+            "live_execution_allowed",
+            "execution_allowed",
+            "executed",
+        ):
+            assert plan[false_flag] is False
+        assert plan["no_live_execution"] is True
+        assert plan["backend_owned"] is True
+        assert plan["route_bound"] is True
+        assert plan["command_context_bound"] is True
+        assert plan["browser_authority"] == "display_only"
+        assert plan["bff_authority"] == "forward_only_no_execution"
+    route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary = contract[
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary"
+    ]
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "source_ref"
+        ]
+        == "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "status"
+        ]
+        == AdminApiGateStatus.BLOCKED
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "source"
+        ]
+        == LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SUMMARY_SOURCE
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "authority"
+        ]
+        == LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SUMMARY_AUTHORITY
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "total_plan_count"
+        ]
+        == len(
+            route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+        )
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "blocked_plan_count"
+        ]
+        == len(
+            route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+        )
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "ready_plan_count"
+        ]
+        == 0
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "plan_ids"
+        ]
+        == expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ids
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "claim_trace_ids"
+        ]
+        == expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ids
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "upstream_claim_trace_ids"
+        ]
+        == [
+            trace["upstream_claim_trace_id"]
+            for trace in route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+        ]
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "upstream_plan_ids"
+        ]
+        == [
+            trace["plan_id"]
+            for trace in route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+        ]
+    )
+    for summary_key, plan_key in (
+        ("claim_ids", "claim_id"),
+        ("work_item_ids", "work_item_id"),
+        ("dependency_ids", "dependency_id"),
+        ("remediation_ids", "remediation_id"),
+        ("record_validation_ids", "record_validation_id"),
+        ("record_contract_ids", "record_contract_id"),
+        ("requirement_ids", "requirement_id"),
+        ("input_ids", "input_id"),
+        ("review_ids", "review_id"),
+        ("step_ids", "step_id"),
+        ("validation_gates", "validation_gate"),
+        ("replay_gates", "replay_gate"),
+        ("remediation_gates", "remediation_gate"),
+    ):
+        assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            summary_key
+        ] == [
+            plan[plan_key]
+            for plan in route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+        ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "claims"
+    ] == [
+        "producer_route_contract_available"
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "clearance_targets"
+    ] == [
+        "producer_route_contract_available"
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "required_backend_work"
+    ] == expected_clearance_step_review_input_record_validation_checks
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "required_backend_refs"
+    ] == [
+        *dict.fromkeys(
+            ref
+            for plan in route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+            for ref in plan["required_backend_refs"]
+        )
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "planned_backend_sequence"
+    ] == list(
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SEQUENCE
+    )
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "required_verification_gates"
+    ] == list(
+        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_VERIFICATION_GATES
+    )
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "verification_gates"
+    ] == [
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans_remain_fail_closed"
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "blockers"
+    ] == [
+        f"{claim_trace_id}_clearance_plan_blocked"
+        for claim_trace_id in expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ids
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "claim_trace_blockers"
+    ] == route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_summary[
+        "blockers"
+    ]
+    for key in (
+        "work_item_blockers",
+        "dependency_blockers",
+        "remediation_blockers",
+        "validation_blockers",
+        "record_contract_blockers",
+        "store_requirement_blockers",
+        "input_blockers",
+        "predecessor_edge_count",
+        "successor_edge_count",
+    ):
+        assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            key
+        ] == route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_summary[
+            key
+        ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "first_plan_id"
+    ] == expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ids[
+        0
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "first_claim_trace_id"
+    ] == expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ids[
+        0
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "first_work_item_id"
+    ] == expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ids[
+        0
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "first_dependency_id"
+    ] == expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_ids[
+        0
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "first_record_validation_id"
+    ] == expected_route_contract_clearance_step_review_input_store_record_validation_ids[
+        0
+    ]
+    assert route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+        "first_blocker"
+    ] == f"{expected_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ids[0]}_clearance_plan_blocked"
+    for false_flag in (
+        "all_plans_ready",
+        "clearance_plan_ready",
+        "sequence_ready",
+        "all_dependencies_ready",
+        "all_predecessors_ready",
+        "all_verification_gates_passed",
+        "all_claims_resolved",
+        "all_work_items_ready",
+        "work_queue_ready",
+        "handoff_ready",
+        "dependency_graph_ready",
+        "any_action_ready",
+        "all_remediations_ready",
+        "remediation_ready",
+        "remediation_performed",
+        "all_record_validations_ready",
+        "record_validation_ready",
+        "all_record_contracts_available",
+        "record_contract_available",
+        "record_schema_available",
+        "append_only_log_available",
+        "idempotency_key_bound",
+        "payload_schema_validated",
+        "replay_protected",
+        "store_available",
+        "writer_allowed",
+        "write_allowed",
+        "validation_configured",
+        "replay_protection_configured",
+        "writes_acceptance_evidence",
+        "accepts_evidence",
+        "satisfies_construction",
+        "construction_allowed",
+        "adapter_constructed",
+        "live_execution_allowed",
+        "executable",
+        "execution_allowed",
+        "executed",
+    ):
+        assert (
+            route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+                false_flag
+            ]
+            is False
+        )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "no_live_execution"
+        ]
+        is True
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "backend_owned"
+        ]
+        is True
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "route_bound"
+        ]
+        is True
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "command_context_bound"
+        ]
+        is True
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "browser_authority"
+        ]
+        == "display_only"
+    )
+    assert (
+        route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary[
+            "bff_authority"
+        ]
+        == "forward_only_no_execution"
+    )
     assert contract["required_artifacts"] == list(
         LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
     )
@@ -18349,7 +19004,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -18576,7 +19231,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -18816,7 +19471,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -19075,7 +19730,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -19300,7 +19955,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -20205,7 +20860,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -23395,7 +24050,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -23610,7 +24265,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4181-4200"
+    assert readback_payload["approved_phase_range"] == "4201-4220"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26689,7 +27344,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "4181-4200"
+    assert payload["approved_phase_range"] == "4201-4220"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -28517,7 +29172,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "4181-4200"
+    assert live_payload["approved_phase_range"] == "4201-4220"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -29080,7 +29735,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "4181-4200"
+    assert enterprise_payload["approved_phase_range"] == "4201-4220"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -29855,7 +30510,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "4181-4200"
+    assert recovery_preview_payload["approved_phase_range"] == "4201-4220"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
