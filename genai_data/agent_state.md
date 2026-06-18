@@ -38,7 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `4321-4340`; pause after phase close for
+- Latest completed autonomous range before current work: `4321-4340`.
+- Active autonomous range: `4341-4360`; pause after this phase closes for
   user restart before advancing to another range.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
@@ -639,11 +640,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: none; pause after completed `4321-4340` for user
-  restart.
+- Active autonomous range: `4341-4360`; pause after this phase closes because
+  the user requested a restart after the current phase.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: do not advance to the next range until the user restarts
-  the session. Completed `4321-4340` added blocked producer-route contract clearance-step
+- Current direction: complete phases `4341-4360`, then pause for restart.
+  Completed `4321-4340` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record validations and a
   record-validation summary under the existing live-adapter construction

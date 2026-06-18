@@ -243,15 +243,15 @@ protecting replay, creating stores, allowing writers, writing or accepting
 records, validating records, accepting inputs, validating inputs, completing
 reviews, completing steps, resolving claims, clearing claim traces, clearing
 work items or dependencies, performing remediation, constructing adapters, or
-executing live paths. Active phases 4321-4340 add blocked dependency work-item
-claim-trace clearance-step review-input store record validations and a
-record-validation summary derived from those record contracts, without making
-validations ready, making record contracts available, making schemas available,
-making append-only logs available, binding idempotency, validating payloads,
-protecting replay, writing or accepting records, validating records, accepting
-inputs, validating inputs, completing reviews, completing steps, resolving
-claims, clearing claim traces, clearing work items or dependencies, performing
-remediation, constructing adapters, or executing live paths.
+executing live paths. Completed phases 4321-4340 add blocked dependency
+work-item claim-trace clearance-step review-input store record validations and
+a record-validation summary derived from those record contracts, without
+making validations ready or enabling live paths. Active phases 4341-4360 add
+blocked dependency work-item claim-trace clearance-step review-input store
+record-validation remediation items and a remediation summary derived from
+those validation rows, without making remediation ready, performing
+remediation, recording remediation, making validations ready, writing or
+accepting records, constructing adapters, or executing live paths.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their
