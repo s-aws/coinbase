@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4081-4100` under M55.
-- Active autonomous range: `4101-4120` under M55.
+- Latest completed autonomous range: `4101-4120` under M55.
+- Active autonomous range: `4121-4140` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -257,7 +257,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   no-replay-protection, no-record-creation, no-record-acceptance,
   no-input-completion, no-review-completion, no-step-readiness,
   no-claim-resolution, no-construction, no-execution, and no-live authority.
-  Active 4101-4120 work adds clearance-step review-input store
+  Completed 4101-4120 work adds clearance-step review-input store
   record-validation rows and a record-validation summary that list the missing
   backend-owned schema/log/idempotency/validation/replay readiness required
   before any record could become acceptable while preserving
@@ -266,7 +266,12 @@ notional, retained inventory, reconciliation result, and audit ids.
   no-payload validation, no-replay-protection, no-record-creation,
   no-record-acceptance, no-input-completion, no-review-completion,
   no-step-readiness, no-claim-resolution, no-construction, no-execution, and
-  no-live authority.
+  no-live authority. Active 4121-4140 work adds record-validation remediation
+  rows and a remediation summary that list the missing backend work required
+  before any validation could become ready while preserving no-remediation
+  execution, no-validation-readiness, no-record-acceptance,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through

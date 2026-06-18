@@ -7164,6 +7164,185 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearan
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationItem(
+    BaseModel
+):
+    """Blocked backend work item for one review-input store record validation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validations"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_items"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validations_no_remediation"
+    )
+    remediation_index: int = Field(ge=1)
+    record_validation_index: int = Field(ge=1)
+    record_contract_index: int = Field(ge=1)
+    requirement_index: int = Field(ge=1)
+    input_index: int = Field(ge=1)
+    review_index: int = Field(ge=1)
+    step_index: int = Field(ge=1)
+    plan_index: int = Field(ge=1)
+    remediation_id: str
+    record_validation_id: str
+    record_contract_id: str
+    requirement_id: str
+    input_id: str
+    review_id: str
+    step_id: str
+    plan_id: str
+    claim_trace_id: str
+    claim_id: str
+    claim: str = "producer_route_contract_available"
+    clearance_target: str = "producer_route_contract_available"
+    step_name: str
+    input_name: str
+    required_review_input: str
+    required_store_ref: str
+    required_writer_ref: str
+    required_record_key: str
+    required_record_schema_ref: str
+    required_append_only_log_ref: str
+    required_payload_fields: list[str] = Field(default_factory=list)
+    required_idempotency_key: str
+    required_validation_gate: str
+    required_replay_gate: str
+    validation_checks: list[str] = Field(default_factory=list)
+    missing_backend_work: list[str] = Field(default_factory=list)
+    missing_backend_work_refs: list[str] = Field(default_factory=list)
+    validation_gate: str
+    replay_gate: str
+    remediation_gate: str
+    blocker: str
+    validation_blocker: str
+    record_contract_blocker: str
+    store_requirement_blocker: str
+    input_blocker: str
+    remediation_required: bool = True
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    record_validation_ready: bool = False
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_completed: bool = False
+    step_ready: bool = False
+    claim_resolved: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationSummary(
+    BaseModel
+):
+    """Aggregate over blocked review-input store record-validation remediation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_items"
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_summary"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_items"
+    )
+    total_remediation_item_count: int = Field(default=0, ge=0)
+    missing_remediation_item_count: int = Field(default=0, ge=0)
+    ready_remediation_item_count: int = Field(default=0, ge=0)
+    record_validation_count: int = Field(default=0, ge=0)
+    remediation_ids: list[str] = Field(default_factory=list)
+    record_validation_ids: list[str] = Field(default_factory=list)
+    record_contract_ids: list[str] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+    input_ids: list[str] = Field(default_factory=list)
+    missing_backend_work: list[str] = Field(default_factory=list)
+    missing_backend_work_refs: list[str] = Field(default_factory=list)
+    validation_gates: list[str] = Field(default_factory=list)
+    replay_gates: list[str] = Field(default_factory=list)
+    remediation_gates: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    validation_blockers: list[str] = Field(default_factory=list)
+    first_remediation_id: str | None = None
+    first_record_validation_id: str | None = None
+    first_blocker: str | None = None
+    all_remediations_ready: bool = False
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    record_validation_ready: bool = False
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    writes_acceptance_evidence: bool = False
+    accepts_evidence: bool = False
+    satisfies_construction: bool = False
+    construction_allowed: bool = False
+    adapter_constructed: bool = False
+    live_execution_allowed: bool = False
+    executable: bool = False
+    execution_allowed: bool = False
+    executed: bool = False
+    no_live_execution: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str = (
+        "Producer-route contract clearance-step review-input store "
+        "record-validation remediation summary is backend-derived from "
+        "blocked validation rows. It aggregates missing backend work and "
+        "remediation gates, but cannot perform remediation, create "
+        "validators, bind idempotency, validate payloads, protect replay, "
+        "write or accept evidence, construct adapters, or enable live "
+        "execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -7452,6 +7631,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationSummary
+        )
+    )
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_items: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationItem
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(

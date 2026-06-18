@@ -2914,7 +2914,7 @@ Current backend evidence:
   no-idempotency binding, no-payload validation, no-replay protection,
   no-record-creation, no-record-acceptance, no-input-completion,
   no-review-completion, no-step-readiness, no-claim-resolution,
-  no-construction, no-execution, and no-live authority. Active phases
+  no-construction, no-execution, and no-live authority. Completed phases
   4101-4120 add clearance-step review-input store record-validation rows and
   a record-validation summary derived from the completed 4081-4100 record
   contracts while preserving no-validation-readiness, no-record-contract
@@ -2922,7 +2922,12 @@ Current backend evidence:
   no-idempotency binding, no-payload validation, no-replay protection,
   no-record-creation, no-record-acceptance, no-input-completion,
   no-review-completion, no-step-readiness, no-claim-resolution,
-  no-construction, no-execution, and no-live authority.
+  no-construction, no-execution, and no-live authority. Active phases
+  4121-4140 add record-validation remediation rows and a remediation summary
+  derived from the completed 4101-4120 validation rows while preserving
+  no-remediation-execution, no-validation-readiness, no-record-acceptance,
+  no-input-completion, no-review-completion, no-step-readiness,
+  no-claim-resolution, no-construction, no-execution, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

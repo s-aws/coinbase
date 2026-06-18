@@ -38,45 +38,115 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Validation Batch - Phases 4101-4120
+## Active M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Validation Remediation Batch - Phases 4121-4140
 
 These phases add backend-owned producer-route contract clearance-step
+review-input store record-validation remediation rows and a blocked
+remediation summary over the existing record-validation rows while keeping
+adapter construction disabled. Each remediation row is derived from one
+blocked validation row and names the missing backend work required before that
+input evidence record validation could ever become ready. It remains readback
+evidence only. It cannot perform remediation, create validators, configure
+validation or replay, bind idempotency, validate payloads, protect replay,
+write evidence, accept records, validate records, complete inputs, complete
+reviews, make steps ready, resolve claims, clear work items, register producer
+routes, bind route inventory, bind shared command services, create handlers,
+construct adapters, record or accept evidence, mark artifacts satisfied,
+enable adapters, enable service, call Coinbase, invoke managers, execute
+reconciliation, cancel/replace active placements, mutate lifecycle/order/
+exchange state, clear M55 blockers, grant browser authority, or grant BFF
+execution authority.
+
+### Phase 4121 - Prior Range Completion Evidence
+
+- Record completed phases 4101-4120 with backend commit `686df56f`, frontend commit `f186e03`, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+
+### Phase 4122 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 4101-4120 to active phases 4121-4140 while preserving no-live defaults and cap policy.
+
+### Phase 4123 - Backend Remediation Model
+
+- Add typed blocked producer-route contract clearance-step review-input store record-validation remediation item and remediation summary models to the existing live-adapter construction contract path.
+
+### Phase 4124 - Backend Remediation Projection
+
+- Add typed blocked clearance-step review-input store record-validation remediation rows and populate one row per record validation, preserving remediation id, record validation id, record contract id, requirement id, input id, review id, step id, plan id, claim trace id, missing backend work, work refs, gates, blockers, and disabled authority flags.
+
+### Phase 4125 - Missing Backend Work Evidence
+
+- Preserve the missing backend work list and work refs from each validation row so future implementation can see the exact record contract, schema, log, idempotency, payload, replay, store, writer, write, record presence, acceptance, and validation gaps.
+
+### Phase 4126 - No-Remediation Authority Evidence
+
+- Keep each remediation row blocked with `remediation_ready=false`, `remediation_performed=false`, `record_validation_ready=false`, all record/store/review/step/claim flags false, and all construction/execution authority disabled.
+
+### Phase 4127 - Backend Remediation Summary
+
+- Add a blocked remediation summary aggregating remediation ids, validation ids, record contract ids, requirement ids, input ids, missing backend work, work refs, validation gates, replay gates, remediation gates, blockers, counts, and disabled authority flags.
+
+### Phase 4128 - Backend Schema And Coverage
+
+- Regenerate backend OpenAPI and add focused assertions proving remediation rows and summary are blocked, derived from record validations, no-remediation, no-write, no-acceptance, no-review-completion, no-step-readiness, no-claim-resolution, no-construction, no-execution, and no-live.
+
+### Phase 4129 - Frontend Schema And Mock Sync
+
+- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract clearance-step review-input store record-validation remediation and remediation summary readback.
+
+### Phase 4130 - Frontend Display Sync
+
+- Render producer-route contract clearance-step review-input store record-validation remediation rows and remediation summary separately from validation rows through the existing adapter evidence display.
+
+### Phase 4131 - Frontend Focused Coverage
+
+- Update focused mock and dry-submit tests so remediation readback cannot imply remediation execution, validation availability, idempotency binding, payload validation, replay protection, record acceptance, input validation, review completion, step readiness, claim resolution, construction, or execution authority.
+
+### Phase 4132 - Documentation Sync
+
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, expanded context, contextless review logs, and agent-state docs for route-contract clearance-step review-input store record-validation remediation readback.
+
+### Phase 4133 - Autonomous Validator Sync
+
+- Update backend/frontend autonomous validators and active-range metadata for phases 4121-4140.
+
+### Phase 4134 - Stale Authority Scan
+
+- Search backend/frontend code and docs for stale active-range wording or text implying remediation rows can perform remediation, create validators, bind idempotency, validate payloads, protect replay, write or accept evidence, complete inputs or reviews, make steps ready, resolve claims, construct adapters, execute, or enable live trading.
+
+### Phase 4135 - Backend Focused Gates
+
+- Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
+
+### Phase 4136 - Frontend Focused Gates
+
+- Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
+
+### Phase 4137 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short`.
+
+### Phase 4138 - Full Frontend Release Gate
+
+- Run `npm run release:gate` in `C:\coinbase-frontend`.
+
+### Phase 4139 - Blind Contextless Review And Live UI Smoke
+
+- Run blind/contextless review proving a fresh agent can explain that remediation rows are missing-backend-work evidence only, then verify `http://127.0.0.1:3000` renders the current phase range and no-live posture without browser console errors.
+
+### Phase 4140 - Completion Evidence, Commit, Push
+
+- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `0` USDC live Coinbase submitted/executed notional.
+
+## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Validation Batch - Phases 4101-4120
+
+These phases added backend-owned producer-route contract clearance-step
 review-input store record-validation rows and a blocked record-validation
 summary over the existing record-contract rows while keeping adapter
 construction disabled. Each validation row is derived from one blocked record
 contract and names the missing record schema, append-only log, payload fields,
 idempotency key, validation gate, replay gate, validation checks, and blockers
-required before that input evidence record could ever be accepted. It remains
-readback evidence only. It cannot create validators, configure validation or
-replay, bind idempotency, validate payloads, protect replay, write evidence,
-accept records, validate records, complete inputs, complete reviews, make
-steps ready, resolve claims, clear work items, perform remediation, register
-producer routes, bind route inventory, bind shared command services, create
-handlers, construct adapters, record or accept evidence, mark artifacts
-satisfied, enable adapters, enable service, call Coinbase, invoke managers,
-execute reconciliation, cancel/replace active placements, mutate lifecycle/
-order/exchange state, clear M55 blockers, grant browser authority, or grant
-BFF execution authority.
-
-### Phase 4101 - Prior Range Completion Evidence
-
-- Record completed phases 4081-4100 with backend commit `a3013784`, frontend commit `8763ead`, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
-
-### Phase 4102 - Backend Record Validation Rows
-
-- Add typed blocked clearance-step review-input store record-validation rows and populate one row per record contract, preserving record validation id, record contract id, requirement id, input id, review id, step id, plan id, claim trace id, schema ref, append-only log ref, payload fields, idempotency key, validation gate, replay gate, validation checks, blockers, and disabled authority flags.
-
-### Phase 4103 - Backend Record Validation Summary
-
-- Add a blocked record-validation summary aggregating validation ids, record contract ids, requirement ids, input ids, schema refs, append-only log refs, payload fields, idempotency keys, validation gates, replay gates, validation checks, blockers, counts, and disabled authority flags.
-
-### Phase 4104 - Frontend Contract Sync
-
-- Regenerate frontend schema and sync mocks, runtime snapshots, display rows, quality metadata, and focused tests for route-contract clearance-step review-input store record-validation and record-validation summary readback.
-
-### Phase 4105 - Validators, Gates, Review, Commit, And No-Live Report
-
-- Update backend/frontend validators and roadmap state, run focused/full gates, run blind/contextless review, smoke the live-updated UI, commit and push both repos, and report `0` USDC live Coinbase submitted/executed notional.
+required before that input evidence record could ever be accepted. Backend
+commit `686df56f` and frontend commit `f186e03` contain the pushed range.
 
 ## Completed M55 Live-Adapter Acceptance Evidence Producer Route Contract Clearance-Step Review Input Store Record Contract Batch - Phases 4081-4100
 
