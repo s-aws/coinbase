@@ -374,6 +374,14 @@ Current behavior:
   They are display-only backend evidence and must not be treated as a
   resolver, writer, live switch, Coinbase path, reconciliation executor,
   browser authority, or BFF execution path.
+  Live-adapter construction evidence also exposes
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_items`
+  and
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_queue_summary`
+  as display-only work-queue readback over blocked record-validation
+  remediation dependency rows. They may name missing backend work and refs but
+  must not perform remediation, accept records, resolve claims, construct
+  adapters, call Coinbase, or grant browser/BFF execution authority.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`

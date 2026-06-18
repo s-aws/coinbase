@@ -195,12 +195,15 @@ adapters, or executing live paths. Completed phases 4121-4140 add blocked
 record-validation remediation rows and a remediation summary derived from
 those validation rows without performing remediation, creating validators,
 writing evidence, accepting records, completing reviews, resolving claims,
-constructing adapters, or executing live paths. Active phases 4141-4160 add
+constructing adapters, or executing live paths. Completed phases 4141-4160 add
 blocked record-validation remediation dependency rows and a dependency summary
 derived from those remediation rows with immediate predecessor/successor links
 only, without resolving dependencies, performing remediation, creating
 validators, writing evidence, accepting records, completing reviews, resolving
-claims, constructing adapters, or executing live paths.
+claims, constructing adapters, or executing live paths. Active phases
+4161-4180 add blocked dependency work items and a work-queue summary derived
+from those dependency rows, without performing remediation, accepting records,
+resolving claims, constructing adapters, or executing live paths.
 These layers
 do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,

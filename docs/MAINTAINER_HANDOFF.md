@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4121-4140` under M55.
-- Active autonomous range: `4141-4160` under M55.
+- Latest completed autonomous range: `4141-4160` under M55.
+- Active autonomous range: `4161-4180` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -271,13 +271,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   work required before any validation could become ready while preserving
   no-remediation execution, no-validation-readiness, no-record-acceptance,
   no-review-completion, no-step-readiness, no-claim-resolution,
-  no-construction, no-execution, and no-live authority. Active 4141-4160 work
-  adds record-validation remediation dependency rows and a dependency summary
-  that order those remediation rows with immediate predecessor/successor
-  links while preserving no-dependency-resolution, no-remediation execution,
-  no-validation-readiness, no-record-acceptance, no-review-completion,
-  no-step-readiness, no-claim-resolution, no-construction, no-execution, and
-  no-live authority.
+  no-construction, no-execution, and no-live authority. Completed 4141-4160
+  work adds record-validation remediation dependency rows and a dependency
+  summary that order those remediation rows with immediate predecessor/
+  successor links while preserving no-dependency-resolution, no-remediation
+  execution, no-validation-readiness, no-record-acceptance,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority. Active 4161-4180 work
+  adds record-validation remediation dependency work items and a work-queue
+  summary over those dependency rows while preserving no-work-item-readiness,
+  no-handoff, no-remediation execution, no-record-acceptance,
+  no-claim-resolution, no-construction, no-execution, and no-live authority.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through

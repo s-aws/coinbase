@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "4141-4160",
+  "approved_phase_range": "4161-4180",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "4141-4160",
+  "approved_phase_range": "4161-4180",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1376,17 +1376,84 @@ only, and do not perform remediation.
         "no_live_execution": true,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution"
+      },
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_items": [
+        {
+          "source_ref": "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependencies",
+          "status": "blocked",
+          "work_item_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_dependency_work_item",
+          "dependency_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_dependency",
+          "remediation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation",
+          "record_validation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation",
+          "work_stage": "record_validation_remediation_dependency",
+          "work_queue_order": 1,
+          "predecessor_dependency_ids": [],
+          "successor_dependency_ids": [
+            "define_backend_route_contract_step_review_backend_owner_review_evidence_store_requirement_record_contract_record_validation_remediation_dependency"
+          ],
+          "required_backend_work": [
+            "record_contract_available",
+            "record_schema_available",
+            "append_only_log_available",
+            "idempotency_key_bound",
+            "payload_schema_validated",
+            "replay_protected",
+            "store_available",
+            "writer_allowed",
+            "write_allowed",
+            "record_present",
+            "record_accepted",
+            "record_validated"
+          ],
+          "work_item_ready": false,
+          "work_queue_ready": false,
+          "handoff_ready": false,
+          "dependency_ready": false,
+          "remediation_performed": false,
+          "record_validation_ready": false,
+          "construction_allowed": false,
+          "adapter_constructed": false,
+          "live_execution_allowed": false,
+          "executed": false,
+          "no_live_execution": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        }
+      ],
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_queue_summary": {
+        "status": "blocked",
+        "total_work_item_count": 1152,
+        "blocked_work_item_count": 1152,
+        "ready_work_item_count": 0,
+        "dependency_count": 1152,
+        "remediation_item_count": 1152,
+        "record_validation_count": 1152,
+        "work_queue_ready": false,
+        "all_work_items_ready": false,
+        "handoff_ready": false,
+        "dependency_graph_ready": false,
+        "all_dependencies_ready": false,
+        "remediation_performed": false,
+        "all_record_validations_ready": false,
+        "construction_allowed": false,
+        "adapter_constructed": false,
+        "live_execution_allowed": false,
+        "execution_allowed": false,
+        "executed": false,
+        "no_live_execution": true,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution"
       }
     }
   }
 }
 ```
 
-These remediation and dependency fields are diagnostic readback only. They
-name and order missing backend work; they do not resolve dependencies, perform
-remediation, create validators, bind idempotency, validate payloads, protect
-replay, write or accept evidence, construct adapters, call Coinbase, or grant
-browser/BFF execution authority.
+These remediation, dependency, and dependency work-queue fields are diagnostic
+readback only. They name and order missing backend work; they do not resolve
+dependencies, perform remediation, create validators, bind idempotency,
+validate payloads, protect replay, write or accept evidence, construct
+adapters, call Coinbase, or grant browser/BFF execution authority.
 
 ## Cancel By Client Order ID
 

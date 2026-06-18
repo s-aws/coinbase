@@ -2922,19 +2922,23 @@ Current backend evidence:
   no-idempotency binding, no-payload validation, no-replay protection,
   no-record-creation, no-record-acceptance, no-input-completion,
   no-review-completion, no-step-readiness, no-claim-resolution,
-  no-construction, no-execution, and no-live authority. Active phases
+  no-construction, no-execution, and no-live authority. Completed phases
   4121-4140 add record-validation remediation rows and a remediation summary
   derived from the completed 4101-4120 validation rows while preserving
   no-remediation-execution, no-validation-readiness, no-record-acceptance,
   no-input-completion, no-review-completion, no-step-readiness,
   no-claim-resolution, no-construction, no-execution, and no-live authority.
-  Active phases 4141-4160 add record-validation remediation dependency rows
+  Completed phases 4141-4160 add record-validation remediation dependency rows
   and a dependency summary derived from the completed 4121-4140 remediation
   rows with immediate predecessor/successor links only while preserving
   no-dependency-resolution, no-remediation-execution, no-validation-readiness,
   no-record-acceptance, no-input-completion, no-review-completion,
   no-step-readiness, no-claim-resolution, no-construction, no-execution, and
-  no-live authority.
+  no-live authority. Active phases 4161-4180 add record-validation
+  remediation dependency work items and a work-queue summary derived from
+  those dependency rows while preserving no-work-item-readiness, no-handoff,
+  no-remediation-execution, no-record-acceptance, no-claim-resolution,
+  no-construction, no-execution, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.
