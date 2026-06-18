@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "4121-4140",
+  "approved_phase_range": "4141-4160",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "4121-4140",
+  "approved_phase_range": "4141-4160",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1262,9 +1262,11 @@ This route is module and release-candidate evidence only. Warning release
 checks mean the external gate still has to be run; they are not browser-side
 approval or live execution authority.
 
-Live-enablement construction evidence may include the active M55
-record-validation remediation readback. Use this as a compact shape example;
-the full response contains many rows.
+Live-enablement construction evidence may include active M55
+record-validation remediation dependency readback. Use this as a compact shape
+example; the full response contains many rows. The dependency rows derive from
+the remediation rows shown here, expose immediate predecessor/successor links
+only, and do not perform remediation.
 
 ```json
 {
@@ -1323,16 +1325,68 @@ the full response contains many rows.
         "no_live_execution": true,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution"
+      },
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependencies": [
+        {
+          "source_ref": "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_items",
+          "status": "blocked",
+          "dependency_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_dependency",
+          "remediation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation",
+          "record_validation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation",
+          "dependency_stage": "record_validation_remediation",
+          "dependency_order": 1,
+          "predecessor_remediation_ids": [],
+          "successor_remediation_ids": [
+            "define_backend_route_contract_step_review_backend_owner_review_evidence_store_requirement_record_contract_record_validation_remediation"
+          ],
+          "dependency_ready": false,
+          "all_predecessors_ready": false,
+          "dependency_graph_ready": false,
+          "remediation_ready": false,
+          "remediation_performed": false,
+          "record_validation_ready": false,
+          "construction_allowed": false,
+          "adapter_constructed": false,
+          "live_execution_allowed": false,
+          "executed": false,
+          "no_live_execution": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        }
+      ],
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_summary": {
+        "status": "blocked",
+        "total_dependency_count": 1152,
+        "blocked_dependency_count": 1152,
+        "ready_dependency_count": 0,
+        "remediation_item_count": 1152,
+        "record_validation_count": 1152,
+        "dependency_graph_ready": false,
+        "all_dependencies_ready": false,
+        "all_predecessors_ready": false,
+        "any_action_ready": false,
+        "all_remediations_ready": false,
+        "remediation_performed": false,
+        "record_validation_ready": false,
+        "construction_allowed": false,
+        "adapter_constructed": false,
+        "live_execution_allowed": false,
+        "execution_allowed": false,
+        "executed": false,
+        "no_live_execution": true,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution"
       }
     }
   }
 }
 ```
 
-These remediation fields are diagnostic readback only. They name missing
-backend work; they do not perform remediation, create validators, bind
-idempotency, validate payloads, protect replay, write or accept evidence,
-construct adapters, call Coinbase, or grant browser/BFF execution authority.
+These remediation and dependency fields are diagnostic readback only. They
+name and order missing backend work; they do not resolve dependencies, perform
+remediation, create validators, bind idempotency, validate payloads, protect
+replay, write or accept evidence, construct adapters, call Coinbase, or grant
+browser/BFF execution authority.
 
 ## Cancel By Client Order ID
 

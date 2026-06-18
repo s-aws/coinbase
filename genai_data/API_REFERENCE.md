@@ -194,6 +194,24 @@ Current behavior:
   claims, clear work items, write or accept evidence, satisfy producer
   contracts, construct adapters, invoke managers, call Coinbase, mutate
   state, or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependencies`
+  and
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_summary`
+  as backend-derived dependency evidence over blocked review-input store
+  record-validation remediation rows. These fields name dependency ids,
+  remediation ids, record validation ids, immediate predecessor/successor
+  remediation ids, immediate predecessor/successor record-validation ids,
+  dependency blockers, edge counts, missing backend work, gates, false
+  dependency readiness, false remediation execution, false validation
+  readiness, and disabled record/store/review/step/claim/acceptance/
+  construction/execution authority. The dependency rows intentionally carry
+  immediate-neighbor links only, not an all-pairs graph. They do not resolve
+  dependencies, perform remediation, create validators, bind idempotency,
+  validate payloads, protect replay, create or accept records, validate records, complete inputs or
+  reviews, make steps ready, resolve claims, clear work items, write or accept
+  evidence, satisfy producer contracts, construct adapters, invoke managers,
+  call Coinbase, mutate state, or grant browser/BFF execution authority.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   exposes read-only persisted active-placement exchange-truth evidence keyed
   by `stealth_order_id`; it does not read Coinbase, verify exchange truth,

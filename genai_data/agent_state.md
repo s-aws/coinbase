@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-17
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4101-4120` is backend `686df56f`
-  and frontend `f186e03`; active range is `4121-4140`.
+- Commit (optional): completed range `4121-4140` is backend `a8ad34c7`
+  and frontend `28cf401`; active range is `4141-4160`.
 
 ## Current Objective
 
@@ -37,7 +37,7 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `4101-4120`; active range is `4121-4140`.
+- Latest completed autonomous range: `4121-4140`; active range is `4141-4160`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -425,19 +425,24 @@ Keep it short. Keep it factual.
   satisfy artifacts, construct adapters, or create live execution authority.
 - Completed `4101-4120` work added blocked producer-route contract
   clearance-step review-input store record-validation rows and a
-  record-validation summary derived from record-contract rows. Active
-  `4121-4140` work adds blocked record-validation remediation rows and a
-  remediation summary derived from those validation rows. The remediation rows
-  and summary may list remediation ids, validation ids, record contract ids,
-  requirement ids, input ids, missing backend work, work refs, validation
-  gates, replay gates, remediation gates, blockers, and disabled remediation/
-  validation/idempotency/payload/replay/store/record/writer/input/review/
-  step/claim/construction/execution flags, but they must not perform
-  remediation, create validators, bind idempotency, validate payloads, protect
-  replay, accept records, complete inputs, complete reviews, make steps ready,
-  resolve claims, clear work items, register routes, bind route inventory,
-  bind shared command services, register handlers, write or accept evidence,
-  satisfy artifacts, construct adapters, or create live execution authority.
+  record-validation summary derived from record-contract rows. Completed
+  `4121-4140` work added blocked record-validation remediation rows and a
+  remediation summary derived from those validation rows. Active `4141-4160`
+  work adds blocked record-validation remediation dependency rows and a
+  dependency summary derived from those remediation rows with immediate
+  predecessor/successor links only. The dependency rows and summary may list
+  dependency ids, remediation ids, validation ids, record contract ids,
+  requirement ids, input ids, immediate predecessor/successor ids,
+  missing backend work, work refs, validation gates, replay gates,
+  remediation gates, dependency blockers, edge counts, and disabled
+  dependency/remediation/validation/idempotency/payload/replay/store/record/
+  writer/input/review/step/claim/construction/execution flags, but they must
+  not resolve dependencies, perform remediation, create validators, bind
+  idempotency, validate payloads, protect replay, accept records, complete
+  inputs, complete reviews, make steps ready, resolve claims, clear work
+  items, register routes, bind route inventory, bind shared command services,
+  register handlers, write or accept evidence, satisfy artifacts, construct
+  adapters, or create live execution authority.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
@@ -611,29 +616,30 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4121-4140`.
+- Active autonomous range: `4141-4160`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
 - Current direction: add blocked producer-route contract clearance-step
-  review-input store record-validation remediation rows and a remediation summary under
-  the existing live-adapter construction contract in active phases
-  `4121-4140` so future backend work can see the missing backend work that
-  still blocks a review-input record validation from becoming ready. The rows
-  and summary may list false remediation/
+  review-input store record-validation remediation dependency rows and a
+  dependency summary under the existing live-adapter construction contract in
+  active phases `4141-4160` so future backend work can see the ordered
+  missing backend work that still blocks a review-input record validation from
+  becoming ready. The rows expose immediate predecessor/successor links only,
+  and the summary carries edge counts. The rows and summary may list false dependency/remediation/
   validation/record-contract/schema/log/idempotency/payload/replay/store/
-  record/writer/input/review/step/claim/
-  work-item/remediation/dependency/action readiness, route-registration,
-  route-inventory, shared-service, handler, acceptance, construction,
-  clearance, and execution flags and false producer satisfaction. They must
-  not enable live service, create stores, create records, bind idempotency,
-  validate payloads, accept records, validate records, create writers,
-  complete inputs, complete reviews, make steps ready, resolve claims, clear
-  work items, perform remediation, register routes, bind route inventory,
-  bind shared command services, register handlers, construct adapters,
-  satisfy construction artifacts, write or
-  accept evidence, create a second adapter path, call Coinbase, invoke
-  managers, execute reconciliation, cancel/replace active placements, mutate
-  lifecycle/order/exchange state, grant browser authority, or grant BFF
-  execution authority unless a future approved phase explicitly authorizes it.
+  record/writer/input/review/step/claim/work-item/action readiness,
+  route-registration, route-inventory, shared-service, handler, acceptance,
+  construction, clearance, and execution flags and false producer
+  satisfaction. They must not enable live service, create stores, create
+  records, bind idempotency, validate payloads, accept records, validate
+  records, create writers, complete inputs, complete reviews, make steps
+  ready, resolve claims, clear work items, resolve dependencies, perform
+  remediation, register routes, bind route inventory, bind shared command
+  services, register handlers, construct adapters, satisfy construction
+  artifacts, write or accept evidence, create a second adapter path, call
+  Coinbase, invoke managers, execute reconciliation, cancel/replace active
+  placements, mutate lifecycle/order/exchange state, grant browser authority,
+  or grant BFF execution authority unless a future approved phase explicitly
+  authorizes it.
 
 ## Decisions (Durable)
 
@@ -1228,8 +1234,8 @@ Keep it short. Keep it factual.
   evidence for stealth create and non-create command contracts while keeping
   live-readiness decisions blocked and no-live/no-mutation.
 - What is blocked: Nothing currently known.
-- Exact next command: complete the active 4121-4140 backend live-adapter
+- Exact next command: complete the active 4141-4160 backend live-adapter
   acceptance-evidence producer-route contract clearance-step review-input
-  store record-validation remediation implementation, sync frontend generated schema/display,
+  store record-validation remediation dependency implementation, sync frontend generated schema/display,
   run focused gates, blind/contextless review, full gates, then commit and
   push both repositories with `0` USDC live Coinbase execution.

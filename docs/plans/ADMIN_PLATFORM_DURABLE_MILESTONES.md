@@ -2928,6 +2928,13 @@ Current backend evidence:
   no-remediation-execution, no-validation-readiness, no-record-acceptance,
   no-input-completion, no-review-completion, no-step-readiness,
   no-claim-resolution, no-construction, no-execution, and no-live authority.
+  Active phases 4141-4160 add record-validation remediation dependency rows
+  and a dependency summary derived from the completed 4121-4140 remediation
+  rows with immediate predecessor/successor links only while preserving
+  no-dependency-resolution, no-remediation-execution, no-validation-readiness,
+  no-record-acceptance, no-input-completion, no-review-completion,
+  no-step-readiness, no-claim-resolution, no-construction, no-execution, and
+  no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

@@ -191,11 +191,16 @@ add blocked clearance-step review-input store record-validation rows and a
 record-validation summary derived from those record contracts without creating
 validators, binding idempotency, validating payloads, protecting replay,
 accepting records, completing reviews, resolving claims, constructing
-adapters, or executing live paths. Active phases 4121-4140 add blocked
+adapters, or executing live paths. Completed phases 4121-4140 add blocked
 record-validation remediation rows and a remediation summary derived from
 those validation rows without performing remediation, creating validators,
 writing evidence, accepting records, completing reviews, resolving claims,
-constructing adapters, or executing live paths.
+constructing adapters, or executing live paths. Active phases 4141-4160 add
+blocked record-validation remediation dependency rows and a dependency summary
+derived from those remediation rows with immediate predecessor/successor links
+only, without resolving dependencies, performing remediation, creating
+validators, writing evidence, accepting records, completing reviews, resolving
+claims, constructing adapters, or executing live paths.
 These layers
 do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,
