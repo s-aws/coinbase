@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4201-4220` under M55.
-- Active autonomous range: `4221-4240` under M55.
+- Latest completed autonomous range: `4221-4240` under M55.
+- Active autonomous range: `4241-4260` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -291,9 +291,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   clearance-plan summary over those blocked claim traces while preserving
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation execution, no-record-acceptance, no-construction,
-  no-execution, and no-live authority. Active 4221-4240 work adds ordered
+  no-execution, and no-live authority. Completed 4221-4240 work adds ordered
   claim-trace clearance steps and a clearance-step summary over those blocked
   clearance plans while preserving no-step-completion,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation execution, no-record-acceptance, no-construction,
+  no-execution, and no-live authority. Active 4241-4260 work adds
+  claim-trace clearance-step reviews and a clearance-step review summary over
+  those blocked steps while preserving no-review-completion,
+  no-review-input-presence, no-gate-passage, no-step-completion,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation execution, no-record-acceptance, no-construction,
   no-execution, and no-live authority.

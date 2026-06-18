@@ -2948,12 +2948,19 @@ Current backend evidence:
   derived from those blocked claim traces while preserving no-plan-readiness,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
   no-remediation-execution, no-record-acceptance, no-construction,
-  no-execution, and no-live authority. Active phases 4221-4240 add ordered
+  no-execution, and no-live authority. Completed phases 4221-4240 add ordered
   claim-trace clearance steps and a clearance-step summary derived from those
   blocked clearance plans while preserving no-step-completion,
   no-step-allowance, no-claim-resolution, no-claim-trace-clearance,
   no-work-item-clearance, no-dependency-clearance, no-remediation-execution,
   no-record-acceptance, no-construction, no-execution, and no-live authority.
+  Active phases 4241-4260 add claim-trace clearance-step reviews and a
+  clearance-step review summary derived from those blocked steps while
+  preserving no-review-completion, no-review-input-presence, no-gate-passage,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation-execution, no-record-acceptance, no-construction,
+  no-execution, and no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.
