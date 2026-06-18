@@ -207,12 +207,16 @@ resolving claims, constructing adapters, or executing live paths. Completed
 phases 4181-4200 add blocked dependency work-item claim traces and a
 claim-trace summary derived from those work items, without resolving claims,
 clearing work items or dependencies, performing remediation, accepting
-records, constructing adapters, or executing live paths. Active phases
+records, constructing adapters, or executing live paths. Completed phases
 4201-4220 add blocked dependency work-item claim-trace clearance plans and a
 clearance-plan summary derived from those claim traces, without resolving
 claims, clearing claim traces, clearing work items or dependencies, performing
 remediation, accepting records, constructing adapters, or executing live
-paths.
+paths. Active phases 4221-4240 add blocked dependency work-item claim-trace
+clearance steps and a clearance-step summary derived from those plans, without
+completing steps, resolving claims, clearing claim traces, clearing work items
+or dependencies, performing remediation, accepting records, constructing
+adapters, or executing live paths.
 These layers
 do not create or accept review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,
@@ -1065,6 +1069,12 @@ The platform/module split is documented in
   return backend evidence. It does not mean Coinbase live execution, and it may
   still produce audit/idempotency records before the live-disabled or
   prerequisite-rejected response is returned.
+- Idempotency replay stores normal command responses inline in JSONL. If a
+  response is large enough to make the JSONL store unsafe, the same store
+  writes the response body to a sibling gzip blob, records the blob hash and
+  relative path, and hydrates that response only for a same-hash replay. The
+  replay behavior stays on the same idempotency path; the gzip blob is storage
+  compaction, not a second command or audit implementation.
 - Movement repricing command draft:
   `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
   is live-disabled and keyed by `stealth_order_id`. It does not clear

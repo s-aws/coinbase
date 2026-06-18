@@ -835,6 +835,13 @@ class AdminApiIdempotencyDecision(str, Enum):
     CONFLICT = "conflict"
 
 
+class AdminApiIdempotencyResponseStorage(str, Enum):
+    """Storage mode for durable Admin API idempotency response evidence."""
+
+    INLINE = "inline"
+    GZIP_FILE = "gzip_file"
+
+
 class AdminApiCompatibilityMode(str, Enum):
     """How legacy dashboard live messages relate to enterprise API gates."""
 

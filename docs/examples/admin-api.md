@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "4201-4220",
+  "approved_phase_range": "4221-4240",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "4201-4220",
+  "approved_phase_range": "4221-4240",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1449,11 +1449,59 @@ only, and do not perform remediation.
 }
 ```
 
-These remediation, dependency, and dependency work-queue fields are diagnostic
-readback only. They name and order missing backend work; they do not resolve
-dependencies, perform remediation, create validators, bind idempotency,
-validate payloads, protect replay, write or accept evidence, construct
-adapters, call Coinbase, or grant browser/BFF execution authority.
+The same construction contract also exposes blocked claim-trace clearance
+plans and ordered clearance steps:
+
+```json
+{
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps": [
+    {
+      "status": "blocked",
+      "step_order": 1,
+      "step_name": "inspect_dependency_work_item_claim_trace",
+      "required_ref_kind": "claim_trace_id",
+      "depends_on_prior_step_ids": [],
+      "blocks_next_step_ids": [
+        "claim-trace-001_clearance_plan_define_record_validation_remediation_plan_step"
+      ],
+      "step_ready": false,
+      "step_completed": false,
+      "claim_resolved": false,
+      "construction_allowed": false,
+      "live_execution_allowed": false,
+      "execution_allowed": false,
+      "executed": false,
+      "no_live_execution": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ],
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_summary": {
+    "status": "blocked",
+    "total_step_count": 9216,
+    "blocked_step_count": 9216,
+    "ready_step_count": 0,
+    "completed_step_count": 0,
+    "plan_count": 1152,
+    "prerequisite_edge_count": 32256,
+    "successor_edge_count": 8064,
+    "all_steps_ready": false,
+    "all_steps_completed": false,
+    "execution_allowed": false,
+    "executed": false,
+    "no_live_execution": true,
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution"
+  }
+}
+```
+
+These remediation, dependency, dependency work-queue, clearance-plan, and
+clearance-step fields are diagnostic readback only. They name and order
+missing backend work; they do not complete steps, resolve claims, clear work
+items or dependencies, perform remediation, create validators, bind
+idempotency, validate payloads, protect replay, write or accept evidence,
+construct adapters, call Coinbase, or grant browser/BFF execution authority.
 
 ## Cancel By Client Order ID
 
