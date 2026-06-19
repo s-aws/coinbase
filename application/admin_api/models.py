@@ -13970,6 +13970,34 @@ class StealthCommandSuiteBlockerClosureItem(BaseModel):
     )
     command_routes: list[str] = Field(default_factory=list)
     source_evidence_refs: list[str] = Field(default_factory=list)
+    partial_evidence_present: bool = Field(
+        default=False,
+        description=(
+            "True only when non-executable route-bound dry-run/readback evidence "
+            "exists; it does not resolve the blocker or grant live execution authority."
+        ),
+    )
+    partial_evidence_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Non-executable dry-run/readback evidence references associated with "
+            "this blocker. These references do not satisfy missing contracts."
+        ),
+    )
+    partial_evidence_contracts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Backend contracts that produced partial dry-run/readback evidence; "
+            "presence here is not live service, adapter, or exchange authority."
+        ),
+    )
+    partial_evidence_detail: str | None = Field(
+        default=None,
+        description=(
+            "Human-readable explanation of the partial dry-run/readback evidence "
+            "and why the M55 blocker remains unresolved."
+        ),
+    )
     required_backend_contracts: list[str] = Field(default_factory=list)
     missing_backend_contracts: list[str] = Field(default_factory=list)
     required_proof_routes: list[str] = Field(default_factory=list)
@@ -14011,6 +14039,27 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
     closure_ids: list[str]
     blocker_names: list[AdminApiStealthCommandSuiteBlockerClosure]
     categories: list[AdminApiLivePreflightCategory]
+    partial_evidence_count: int = Field(
+        ge=0,
+        description=(
+            "Number of blocker rows with non-executable dry-run/readback evidence; "
+            "this count does not reduce blocked_blocker_count."
+        ),
+    )
+    partial_evidence_closure_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Closure ids that have partial dry-run/readback evidence while still "
+            "remaining blocked until required backend contracts are present."
+        ),
+    )
+    partial_evidence_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Aggregate non-executable dry-run/readback evidence references. These "
+            "references are not proof of live execution readiness."
+        ),
+    )
     missing_backend_contracts: list[str]
     first_blocker: AdminApiStealthCommandSuiteBlockerClosure | None = None
     closure_authority: str = "backend_contract_only_no_execution"

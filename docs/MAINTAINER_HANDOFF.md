@@ -72,21 +72,27 @@ Passing answer requirements:
   `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md`
 - keeps backend authority over trading behavior and live execution
 - sends frontend work through OpenAPI generation and canonical wrappers
-- lists backend regression, frontend release gate, autonomous validation, and
-  blind/contextless review
+- lists focused backend/frontend checks, autonomous validation, and
+  blind/contextless review for ordinary phases
+- reserves full backend regression and frontend release gate for durable
+  milestone closeout, public/release-candidate handoff, or explicit request
 - reports live Coinbase execution as not run unless an explicit live phase is
   approved
 
 ## Required Gates
 
-Backend changes must pass:
+Backend changes must pass focused tests and validators for the changed
+behavior. Full regression is a durable milestone-closeout, public/release-
+candidate handoff, or explicit-request gate:
 
 ```powershell
 pytest tests\regression\ -v --tb=short
 python tools\run_autonomous_work_queue_check.py --summary-only
 ```
 
-Frontend/API association changes must also pass in `C:\coinbase-frontend`:
+Frontend/API association changes must pass focused frontend checks for the
+changed behavior. Full release gate is a durable milestone-closeout,
+public/release-candidate handoff, or explicit-request gate:
 
 ```powershell
 npm run release:gate
@@ -100,8 +106,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4521-4540` under M55.
-- Active autonomous range: `4541-4560` under M55.
+- Latest completed autonomous range: `4541-4560` under M55.
+- Active autonomous range: `4561-4580` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -407,10 +413,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   blockers without enabling Coinbase, manager, repair, rollback,
   reconciliation, state mutation, browser, or BFF authority. Completed
   4521-4540 work adds one backend-owned, route-bound, non-executable stealth
-  reveal dry-run adapter. Active 4541-4560 work adds one backend-owned,
-  route-bound, non-executable stealth reveal dry-run live-service contract
-  while keeping exact proof, manager, Coinbase, reconciliation, state mutation,
-  browser, and BFF execution authority blocked.
+  reveal dry-run adapter. Completed 4541-4560 work adds one backend-owned,
+  route-bound, non-executable stealth reveal dry-run live-service contract.
+  Active 4561-4580 work classifies both dry-run surfaces as partial blocker
+  evidence while keeping exact proof, manager, Coinbase, reconciliation,
+  state mutation, browser, and BFF execution authority blocked.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

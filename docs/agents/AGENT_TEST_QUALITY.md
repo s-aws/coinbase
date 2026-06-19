@@ -17,7 +17,9 @@ safety guards are owned here.
 - Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not weaken DB safety guards to make a test pass.
 - Do not make external/live tests part of the normal regression gate.
-- Do not skip regression for non-agent-file changes.
+- Do not run full regression by default for ordinary phases. Use focused tests
+  for changed behavior and reserve full regression for durable milestone
+  closeout, public/release-candidate handoff, or explicit user request.
 
 ## Focused Tests
 

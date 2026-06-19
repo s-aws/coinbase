@@ -57655,6 +57655,34 @@ components:
             type: string
           type: array
           title: Source Evidence Refs
+        partial_evidence_present:
+          type: boolean
+          title: Partial Evidence Present
+          description: True only when non-executable route-bound dry-run/readback
+            evidence exists; it does not resolve the blocker or grant live execution
+            authority.
+          default: false
+        partial_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Partial Evidence Refs
+          description: Non-executable dry-run/readback evidence references associated
+            with this blocker. These references do not satisfy missing contracts.
+        partial_evidence_contracts:
+          items:
+            type: string
+          type: array
+          title: Partial Evidence Contracts
+          description: Backend contracts that produced partial dry-run/readback evidence;
+            presence here is not live service, adapter, or exchange authority.
+        partial_evidence_detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Partial Evidence Detail
+          description: Human-readable explanation of the partial dry-run/readback
+            evidence and why the M55 blocker remains unresolved.
         required_backend_contracts:
           items:
             type: string
@@ -57808,6 +57836,26 @@ components:
             $ref: '#/components/schemas/AdminApiLivePreflightCategory'
           type: array
           title: Categories
+        partial_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Partial Evidence Count
+          description: Number of blocker rows with non-executable dry-run/readback
+            evidence; this count does not reduce blocked_blocker_count.
+        partial_evidence_closure_ids:
+          items:
+            type: string
+          type: array
+          title: Partial Evidence Closure Ids
+          description: Closure ids that have partial dry-run/readback evidence while
+            still remaining blocked until required backend contracts are present.
+        partial_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Partial Evidence Refs
+          description: Aggregate non-executable dry-run/readback evidence references.
+            These references are not proof of live execution readiness.
         missing_backend_contracts:
           items:
             type: string
@@ -57867,6 +57915,7 @@ components:
       - closure_ids
       - blocker_names
       - categories
+      - partial_evidence_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary

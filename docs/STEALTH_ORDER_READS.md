@@ -20,6 +20,11 @@ The list/detail routes read local stealth lifecycle rows and report active
 placement evidence, mutation-claim evidence, and reveal-trigger evidence when
 present. The command-suite route reports M55 readiness for stealth create,
 cancel, reveal, move, reprice, recovery, and reconciliation workflows.
+For phases 4561-4580, the M55 blocker-closure ledger also reports partial
+dry-run evidence for the exact stealth reveal service/adapter rows. Partial
+evidence is readback only: it does not change blocker status, missing backend
+contracts, live-service or live-adapter flags, Coinbase/manager authority, or
+state-mutation authority.
 
 ## Identity Rules
 

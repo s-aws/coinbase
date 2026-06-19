@@ -211,6 +211,11 @@ cancel, recovery, reconciliation, and movement/repricing reprice by
 cancel exchange-handling, move revealed, reprice completion, recovery, and
 reconciliation contracts. Gap rows identify current read evidence, missing
 backend contracts, required gate chains, and browser/BFF boundaries.
+The M55 concrete blocker-closure ledger may also report partial dry-run
+evidence for the exact stealth reveal service and adapter rows. Those fields
+separate existing non-executable readback evidence from still-missing backend
+contracts; they do not close blockers, enable live execution, call Coinbase,
+invoke managers, execute reconciliation, or mutate local/exchange state.
 
 Stealth command rows require command-specific proof evidence in addition to
 the normal approval, cap/guard, admission audit, reconciliation, idempotency,

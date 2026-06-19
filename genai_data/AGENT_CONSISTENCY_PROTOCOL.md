@@ -40,8 +40,13 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 4. Prune context every 20-30 minutes or after each milestone.
 5. Do not carry unresolved assumptions forward. Convert them to explicit risks in `agent_state.md`.
 6. Use one code path per behavior. Do not implement parallel logic.
-7. Run `pytest tests/regression/ -v` before marking work complete for non-agent-file changes.
-   Exception: if the change set is limited to agent-instruction/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
+7. Run focused tests and validators for the changed behavior before marking
+   ordinary phase work complete. Reserve full `pytest tests/regression/ -v`
+   for durable milestone closeout, public/release-candidate handoff, or
+   explicit user request. If the change set is limited to
+   agent-instruction/context files only (`AGENTS.md`, `agent.md`,
+   `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`,
+   `genai_data/agent_state.md`), regression tests may be skipped.
 
 ## Session Start Checklist
 
@@ -81,5 +86,6 @@ Start a new session when any of these happens:
 
 1. Do not rely on raw chat history as the source of truth.
 2. Do not store long reasoning dumps in the state file.
-3. Do not skip the regression suite for "small" changes.
+3. Do not skip focused validation for "small" behavior changes; choose the
+   narrowest test or validator that proves the changed path.
 4. Do not leave assumptions undocumented.

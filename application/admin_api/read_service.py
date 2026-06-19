@@ -288,7 +288,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4541-4560"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4561-4580"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12903,6 +12903,9 @@ class AdminApiReadService:
             affected_mutation_families: list[AdminApiMutationFamilyType],
             command_routes: list[str],
             source_evidence_refs: list[str],
+            partial_evidence_refs: list[str] | None = None,
+            partial_evidence_contracts: list[str] | None = None,
+            partial_evidence_detail: str | None = None,
             required_backend_contracts: list[str],
             required_proof_routes: list[str],
             required_gate_chain: list[str],
@@ -12920,6 +12923,10 @@ class AdminApiReadService:
                 affected_mutation_families=affected_mutation_families,
                 command_routes=command_routes,
                 source_evidence_refs=source_evidence_refs,
+                partial_evidence_present=bool(partial_evidence_refs),
+                partial_evidence_refs=partial_evidence_refs or [],
+                partial_evidence_contracts=partial_evidence_contracts or [],
+                partial_evidence_detail=partial_evidence_detail,
                 required_backend_contracts=required_backend_contracts,
                 missing_backend_contracts=required_backend_contracts,
                 required_proof_routes=required_proof_routes,
@@ -12984,7 +12991,24 @@ class AdminApiReadService:
                     "live_enablement.paths",
                     "commands.live_execution_status",
                     "admission_readiness.live_enabled",
+                    "execution_contract.prerequisite_resolution.live_execution_service",
                 ],
+                partial_evidence_refs=[
+                    "m55_stealth_reveal_service_dry_run",
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/reveal::live_execution_service",
+                    "live_enablement.paths[/api/v1/stealth/orders/{stealth_order_id}/reveal].live_execution_service",
+                ],
+                partial_evidence_contracts=[
+                    "application/admin_api/live_execution.py::build_live_execution_service_contract",
+                    "application/admin_api/stealth_command_execution.py::live_execution_service resolver",
+                ],
+                partial_evidence_detail=(
+                    "The reveal route has backend-owned dry-run live-service "
+                    "readback evidence associated with the exact route's "
+                    "readiness prerequisite. It is non-executable, does not "
+                    "satisfy the M55 blocker ledger, and does not enable the "
+                    "live service."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/live_execution.py::evaluate_live_execution_gate",
                     "application/admin_api/live_service_decision_service.py",
@@ -13026,7 +13050,24 @@ class AdminApiReadService:
                     "live_enablement.paths[/api/v1/stealth/orders/{stealth_order_id}/reveal].live_execution_adapter",
                     "coverage_gaps.missing_contracts",
                     "create_lifecycle_write_audit.execution_contract",
+                    "execution_contract.prerequisite_resolution.live_execution_adapter",
                 ],
+                partial_evidence_refs=[
+                    "m55_stealth_reveal_backend_dry_run",
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/reveal::live_execution_adapter",
+                    "live_enablement.paths[/api/v1/stealth/orders/{stealth_order_id}/reveal].live_execution_adapter",
+                ],
+                partial_evidence_contracts=[
+                    "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+                    "application/admin_api/stealth_command_execution.py::live_execution_adapter resolver",
+                ],
+                partial_evidence_detail=(
+                    "The reveal route has backend-owned dry-run adapter "
+                    "readback evidence associated with the exact route's "
+                    "readiness prerequisite. It is non-executable, does not "
+                    "satisfy the M55 blocker ledger, and does not construct "
+                    "a live adapter."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
                     "application/admin_api/live_execution.py::build_live_adapter_construction_contract",
@@ -13271,6 +13312,21 @@ class AdminApiReadService:
             closure_ids=[item.closure_id for item in blocker_closures],
             blocker_names=[item.blocker for item in blocker_closures],
             categories=[item.category for item in blocker_closures],
+            partial_evidence_count=sum(
+                1 for item in blocker_closures if item.partial_evidence_present
+            ),
+            partial_evidence_closure_ids=[
+                item.closure_id
+                for item in blocker_closures
+                if item.partial_evidence_present
+            ],
+            partial_evidence_refs=sorted(
+                {
+                    evidence_ref
+                    for item in blocker_closures
+                    for evidence_ref in item.partial_evidence_refs
+                }
+            ),
             missing_backend_contracts=sorted(
                 {
                     contract

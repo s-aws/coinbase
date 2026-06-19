@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4541-4560",
+  "approved_phase_range": "4561-4580",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -50,7 +50,7 @@ The same read-only response includes an M55 blocker-closure ledger. It names
 the concrete backend blockers that still prevent future live stealth
 execution, but it does not enable any of them:
 
-In the current 4541-4560 range, the reveal route may show both a configured
+In the current 4561-4580 range, the reveal route may show both a configured
 dry-run adapter and a configured dry-run live-service contract with
 `live_execution_status="approval_required"`. That is readback evidence only;
 `live_enabled`, `executable`, manager invocation, Coinbase submission/cancel/read,
@@ -63,6 +63,15 @@ reconciliation execution, and state mutation all remain false.
     "blocker_count": 6,
     "blocking_count": 6,
     "resolved_count": 0,
+    "partial_evidence_count": 2,
+    "partial_evidence_closure_ids": [
+      "m55_live_service_enablement",
+      "m55_live_adapter_construction"
+    ],
+    "partial_evidence_refs": [
+      "m55_stealth_reveal_backend_dry_run",
+      "m55_stealth_reveal_service_dry_run"
+    ],
     "execution_allowed": false,
     "live_coinbase_orders_ran": false,
     "submitted_notional_usdc": "0",
@@ -95,6 +104,16 @@ reconciliation execution, and state mutation all remain false.
       "missing_contracts": [
         "application/admin_api/live_execution.py::build_live_execution_adapter_contract"
       ],
+      "partial_evidence_present": true,
+      "partial_evidence_refs": [
+        "m55_stealth_reveal_backend_dry_run",
+        "POST /api/v1/stealth/orders/{stealth_order_id}/reveal::live_execution_adapter"
+      ],
+      "partial_evidence_contracts": [
+        "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+        "application/admin_api/stealth_command_execution.py::live_execution_adapter resolver"
+      ],
+      "partial_evidence_detail": "The reveal route has backend-owned dry-run adapter readback evidence, but no live adapter has been constructed.",
       "next_backend_step": "Build the route-bound live execution adapter contract in backend code.",
       "live_service_enabled": false,
       "live_adapter_constructed": false,

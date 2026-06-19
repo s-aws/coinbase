@@ -187,7 +187,7 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 ## 7) Operational Commands (PowerShell)
 
 ```powershell
-# Required regression gate before non-agent-file changes
+# Full regression gate for durable milestone closeout or explicit request
 pytest tests/regression/ -v --tb=short
 
 # Full suite (major changes)

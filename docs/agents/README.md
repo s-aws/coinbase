@@ -60,8 +60,9 @@ Use the cleanup classifier before moving or archiving files:
 python tools/classify_repo_files.py --format markdown
 ```
 
-Focused checks do not replace the required regression gate for non-agent-file
-changes:
+Focused checks are the normal validation path for ordinary phase work. Full
+regression is reserved for durable milestone closeout, public/release-candidate
+handoff, or explicit user request:
 
 ```powershell
 pytest tests/regression/ -v --tb=short

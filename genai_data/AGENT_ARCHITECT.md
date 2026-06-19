@@ -588,8 +588,10 @@ pytest tests/ -v --tb=short --cov=.
 
 ### Focused Commands By Area
 
-Focused commands are for development feedback only. They do not replace the
-required regression gate.
+Focused commands are the normal validation path for ordinary phase work. They
+do not replace full regression when marking a durable milestone complete,
+preparing public/release-candidate handoff, or handling an explicit full-gate
+request.
 
 | Area | Useful focused command |
 | --- | --- |

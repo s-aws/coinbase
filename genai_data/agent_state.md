@@ -33,13 +33,19 @@ Keep it short. Keep it factual.
 - Single code path per behavior.
 - Use enums from `core/enums.py`.
 - Respect locks and thread-safety invariants.
-- Must pass `pytest tests/regression/ -v --tb=short` for non-agent-file changes.
-- Exception: if only agent-instruction/context files changed (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
+- Ordinary phase work must run focused tests and validators that cover the
+  changed behavior.
+- Full `pytest tests/regression/ -v --tb=short` is reserved for durable
+  milestone closeout, public/release-candidate handoff, or explicit user
+  request.
+- If only agent-instruction/context files changed (`AGENTS.md`, `agent.md`,
+  `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`,
+  `genai_data/agent_state.md`), regression tests may be skipped.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4521-4540`.
-- Active autonomous range: `4541-4560`.
+- Latest completed autonomous range before current work: `4541-4560`.
+- Active autonomous range: `4561-4580`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -639,9 +645,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4541-4560`.
+- Active autonomous range: `4561-4580`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4541-4560`.
+- Current direction: complete phases `4561-4580`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -724,10 +730,10 @@ Keep it short. Keep it factual.
   naming live-service, live-adapter, active-placement cancel/replace, reveal
   submission, recovery repair/rollback, and post-write reconciliation blockers.
   Completed `4521-4540` adds one backend-owned, route-bound, non-executable
-  dry-run adapter for stealth reveal. Active `4541-4560` adds one
+  dry-run adapter for stealth reveal. Completed `4541-4560` adds one
   backend-owned, route-bound, non-executable dry-run live-service contract for
-  stealth reveal. It may mark only the reveal route service evidence
-  present/`approval_required`; it must not call Coinbase, invoke managers,
+  stealth reveal. Active `4561-4580` classifies those dry-run surfaces as
+  partial blocker evidence; it must not call Coinbase, invoke managers,
   execute reveal, cancel or replace active placements, execute reconciliation,
   mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
   authority, or grant BFF execution authority.
@@ -1023,7 +1029,8 @@ Keep it short. Keep it factual.
   `python tools\run_autonomous_work_queue_check.py --summary-only`
 - Result: M55 range `3301-3320` passed. Live Coinbase
   execution `not_run`, submitted/executed notional `0` USDC.
-- Last backend full regression: 2026-06-16
+- Last backend full regression: 2026-06-16; full regression is now a
+  milestone-closeout gate, not an ordinary phase gate.
   `python -m pytest tests\regression\ -v --tb=short`
 - Result: Passed, 855 tests, 1 warning.
 - Last frontend focused run: 2026-06-16

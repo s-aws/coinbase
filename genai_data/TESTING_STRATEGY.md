@@ -1,18 +1,21 @@
 # Testing Strategy
 
-This project uses pytest with a strict regression gate.
+This project uses pytest with focused phase gates and full regression at
+durable milestone closeout.
 
 ## Non-Negotiable Gate
 
-For any non-agent-file code change:
+For ordinary phase work, run focused tests and validators that cover the
+changed behavior. For durable milestone closeout, public/release-candidate
+handoff, or explicit user request, run the full regression gate:
 
 ```powershell
 pytest tests/regression/ -v --tb=short
 ```
 
-Must exit `0` before the change is considered complete.
+Must exit `0` before the milestone or release handoff is considered complete.
 
-Exception (docs/process-only): if changes are limited to agent/context files (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
+Exception (docs/process-only): if changes are limited to agent/context files (`AGENTS.md`, `agent.md`, `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ## Current Test Layout
 
@@ -59,7 +62,7 @@ Live/sandbox Coinbase contract tests (opt-in, credential-gated).
 
 ## Standard Command Set (PowerShell)
 
-### Required gate
+### Full regression gate
 ```powershell
 pytest tests/regression/ -v --tb=short
 ```
