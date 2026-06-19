@@ -11163,6 +11163,106 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearan
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput(
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReview
+):
+    """Missing input evidence for one derived claim-trace clearance-step review."""
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews"
+    )
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews_no_input_acceptance"
+    )
+    depends_on_prior_step_ids: list[str] = Field(default_factory=list)
+    blocks_next_step_ids: list[str] = Field(default_factory=list)
+    source_clearance_step_review_id: str
+    source_clearance_step_id: str
+    review_blocker: str
+    source_input_blocker: str
+    required_before_review_ready: bool = True
+    required_before_review_completed: bool = True
+    required_before_step_ready: bool = True
+    required_before_claim_resolved: bool = True
+    required_before_work_item_ready: bool = True
+    required_before_record_validation_ready: bool = True
+    required_before_remediation_performed: bool = True
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    claim_allowed: bool = False
+    clears_claim_trace: bool = False
+    clears_dependency: bool = False
+    clears_remediation: bool = False
+    clears_record_validation: bool = False
+    all_dependencies_ready: bool = False
+    detail: str = (
+        "This producer-route contract clearance-step review-input store "
+        "record-validation remediation dependency work-item claim-trace "
+        "clearance-step review-input store record-validation remediation "
+        "dependency work-item claim-trace clearance-step review input is "
+        "backend-derived missing-input evidence from one blocked "
+        "clearance-step review. It names the input required before that "
+        "review could become ready, but cannot create, accept, validate, or "
+        "complete the input, complete the review, complete the step, resolve "
+        "claims, write acceptance evidence, construct adapters, call "
+        "Coinbase, or enable live execution."
+    )
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputSummary(
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewSummary
+):
+    """Aggregate over missing inputs for derived claim-trace clearance-step reviews."""
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"
+    )
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_summary"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"
+    )
+    total_input_count: int = Field(default=0, ge=0)
+    materialized_input_count: int = Field(default=0, ge=0)
+    missing_input_count: int = Field(default=0, ge=0)
+    accepted_input_count: int = Field(default=0, ge=0)
+    review_count: int = Field(default=0, ge=0)
+    step_count: int = Field(default=0, ge=0)
+    input_ids: list[str] = Field(default_factory=list)
+    review_ids: list[str] = Field(default_factory=list)
+    step_ids: list[str] = Field(default_factory=list)
+    clearance_step_ids: list[str] = Field(default_factory=list)
+    input_names: list[str] = Field(default_factory=list)
+    input_gates: list[str] = Field(default_factory=list)
+    first_input_id: str | None = None
+    first_review_id: str | None = None
+    first_step_id: str | None = None
+    first_blocker: str | None = None
+    all_inputs_present: bool = False
+    all_inputs_accepted: bool = False
+    all_inputs_validated: bool = False
+    all_reviews_ready: bool = False
+    all_reviews_completed: bool = False
+    any_review_allowed: bool = False
+    detail: str = (
+        "Producer-route contract clearance-step review-input store "
+        "record-validation remediation dependency work-item claim-trace "
+        "clearance-step review-input store record-validation remediation "
+        "dependency work-item claim-trace clearance-step review input summary "
+        "is backend-derived missing-input evidence over blocked clearance-step "
+        "reviews. It aggregates required inputs that would be needed before "
+        "reviews could become ready, but cannot create, accept, validate, or "
+        "complete inputs, complete reviews, perform steps, resolve claims, "
+        "write acceptance evidence, construct adapters, call Coinbase, or "
+        "enable live execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -11633,6 +11733,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewSummary
         )
     )
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputSummary
+        )
+    )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(
         default_factory=list
     )
@@ -11692,7 +11802,7 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     construction_contract_available: bool = True
     construction_contract_ref: str = "backend_live_adapter_construction_contract"
     construction_contract_satisfies_construction: bool = False
-    construction_contract: AdminLiveAdapterConstructionContractEvidence
+    construction_contract: AdminLiveAdapterConstructionContractEvidence | None = None
     route_mapping_satisfies_construction: bool = False
     adapter_configuration_satisfies_construction: bool = False
     construction_satisfaction_authority: str = (

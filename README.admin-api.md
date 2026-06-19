@@ -275,11 +275,16 @@ clearance-step summary derived from those clearance plans, without making
 steps ready, completing steps, allowing next steps, completing prior steps,
 making plans ready, resolving claims, clearing claim traces or work items,
 writing or accepting records, constructing adapters, or executing live paths.
-Active phases 4461-4480 add blocked dependency work-item claim-trace
+Completed phases 4461-4480 add blocked dependency work-item claim-trace
 clearance-step reviews and a review summary derived from those clearance
 steps, without making reviews ready, completing reviews, accepting inputs,
 passing review gates, completing steps, resolving claims, clearing work
-items, constructing adapters, or executing live paths.
+items, constructing adapters, or executing live paths. Active phases
+4481-4500 add blocked dependency work-item claim-trace clearance-step review
+inputs and a review-input summary derived from those reviews, without making
+inputs present, accepting inputs, validating inputs, completing reviews,
+passing gates, completing steps, resolving claims, clearing work items,
+constructing adapters, or executing live paths.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

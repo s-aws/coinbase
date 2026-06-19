@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "4461-4480",
+  "approved_phase_range": "4481-4500",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "4461-4480",
+  "approved_phase_range": "4481-4500",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1262,11 +1262,17 @@ This route is module and release-candidate evidence only. Warning release
 checks mean the external gate still has to be run; they are not browser-side
 approval or live execution authority.
 
-Live-enablement construction evidence may include active M55
-record-validation remediation dependency readback. Use this as a compact shape
-example; the full response contains many rows. The dependency rows derive from
-the remediation rows shown here, expose immediate predecessor/successor links
-only, and do not perform remediation.
+`GET /api/v1/admin/live-enablement` returns compact adapter evidence for
+operator reads. In that read summary, `construction_contract` may be `null`
+while `construction_contract_ref` still points at
+`backend_live_adapter_construction_contract`; this keeps the live-enablement
+read usable without hiding that full construction evidence is still required.
+
+Command responses and dedicated adapter-contract evidence may include active
+M55 record-validation remediation dependency readback. The following JSON is a
+full construction-contract excerpt, not the compact live-enablement read shape.
+The dependency rows derive from the remediation rows shown here, expose
+immediate predecessor/successor links only, and do not perform remediation.
 
 ```json
 {

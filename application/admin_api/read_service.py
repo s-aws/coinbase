@@ -284,7 +284,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4461-4480"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4481-4500"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -9862,6 +9862,7 @@ class AdminApiReadService:
                 module_id=item.module_id,
                 service_method=item.shared_method,
                 action_class=item.action_class,
+                include_construction_contract=False,
             )
             path_live_status = live_execution_adapter.get(
                 "status",
