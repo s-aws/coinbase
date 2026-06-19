@@ -41,6 +41,7 @@ from core.enums import (
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
+    AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     OrderSide,
@@ -181,6 +182,8 @@ from .models import (
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
+    StealthCommandSuiteBlockerClosureItem,
+    StealthCommandSuiteBlockerClosureSummary,
     StealthCommandSuiteCancelReplaceBoundaryItem,
     StealthCommandSuiteCoverageGapEvidenceRouteItem,
     StealthCommandSuiteCoverageGapItem,
@@ -284,7 +287,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4481-4500"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4501-4520"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12838,6 +12841,405 @@ class AdminApiReadService:
             ),
         ]
 
+        def blocker_closure(
+            *,
+            closure_id: str,
+            blocker: AdminApiStealthCommandSuiteBlockerClosure,
+            category: AdminApiLivePreflightCategory,
+            affected_families: list[AdminApiStealthCommandSuiteGapFamily],
+            affected_mutation_families: list[AdminApiMutationFamilyType],
+            command_routes: list[str],
+            source_evidence_refs: list[str],
+            required_backend_contracts: list[str],
+            required_proof_routes: list[str],
+            required_gate_chain: list[str],
+            next_backend_step: str,
+            detail: str,
+        ) -> StealthCommandSuiteBlockerClosureItem:
+            return StealthCommandSuiteBlockerClosureItem(
+                closure_id=closure_id,
+                blocker=blocker,
+                category=category,
+                status=AdminApiGateStatus.BLOCKED,
+                blocking=True,
+                resolved=False,
+                affected_families=affected_families,
+                affected_mutation_families=affected_mutation_families,
+                command_routes=command_routes,
+                source_evidence_refs=source_evidence_refs,
+                required_backend_contracts=required_backend_contracts,
+                missing_backend_contracts=required_backend_contracts,
+                required_proof_routes=required_proof_routes,
+                required_gate_chain=required_gate_chain,
+                next_backend_step=next_backend_step,
+                closure_authority="backend_contract_only_no_execution",
+                backend_owned=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_service_enabled=False,
+                live_adapter_constructed=False,
+                manager_invocation_allowed=False,
+                coinbase_submit_allowed=False,
+                coinbase_cancel_allowed=False,
+                coinbase_read_allowed=False,
+                active_placement_cancel_replace_allowed=False,
+                repair_execution_allowed=False,
+                rollback_execution_allowed=False,
+                reconciliation_execution_allowed=False,
+                state_mutation_allowed=False,
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "README.stealth-command-suite.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=detail,
+            )
+
+        all_stealth_families = [
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW,
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING,
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW,
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW,
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW,
+        ]
+        all_stealth_mutations = [
+            AdminApiMutationFamilyType.STEALTH_CREATE,
+            AdminApiMutationFamilyType.STEALTH_REVEAL,
+            AdminApiMutationFamilyType.STEALTH_CANCEL,
+            AdminApiMutationFamilyType.STEALTH_MOVE,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+            AdminApiMutationFamilyType.STEALTH_RECOVERY,
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+        ]
+        all_stealth_command_routes = [str(command.route) for command in commands]
+        blocker_closures = [
+            blocker_closure(
+                closure_id="m55_live_service_enablement",
+                blocker=(
+                    AdminApiStealthCommandSuiteBlockerClosure.LIVE_SERVICE_ENABLEMENT_MISSING
+                ),
+                category=AdminApiLivePreflightCategory.LIVE_EXECUTION_SERVICE,
+                affected_families=all_stealth_families,
+                affected_mutation_families=all_stealth_mutations,
+                command_routes=all_stealth_command_routes,
+                source_evidence_refs=[
+                    "live_enablement.paths",
+                    "commands.live_execution_status",
+                    "admission_readiness.live_enabled",
+                ],
+                required_backend_contracts=[
+                    "application/admin_api/live_execution.py::evaluate_live_execution_gate",
+                    "application/admin_api/live_service_decision_service.py",
+                    "api/v1/routes/live_execution.py::record_live_service_decision",
+                ],
+                required_proof_routes=[
+                    "/api/v1/admin/live-execution/service-decisions",
+                ],
+                required_gate_chain=[
+                    "explicit_live_enablement_decision",
+                    "backend_live_service_configuration",
+                    "approval_snapshot",
+                    "admission_audit",
+                    "cap_guard_decision",
+                    "reconciliation_plan",
+                ],
+                next_backend_step=(
+                    "Define a backend-owned live-service enablement contract "
+                    "that can be verified independently of browser state."
+                ),
+                detail=(
+                    "Every M55 command remains blocked until the backend live "
+                    "service is explicitly configured and verified. This row "
+                    "is read-only closure planning and does not enable the "
+                    "service."
+                ),
+            ),
+            blocker_closure(
+                closure_id="m55_live_adapter_construction",
+                blocker=(
+                    AdminApiStealthCommandSuiteBlockerClosure.LIVE_ADAPTER_CONSTRUCTION_MISSING
+                ),
+                category=AdminApiLivePreflightCategory.LIVE_EXECUTION_ADAPTER,
+                affected_families=all_stealth_families,
+                affected_mutation_families=all_stealth_mutations,
+                command_routes=all_stealth_command_routes,
+                source_evidence_refs=[
+                    "commands.live_adapter_configured",
+                    "coverage_gaps.missing_contracts",
+                    "create_lifecycle_write_audit.execution_contract",
+                ],
+                required_backend_contracts=[
+                    "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+                    "application/admin_api/live_execution.py::build_live_adapter_construction_contract",
+                    "application/admin_api/live_adapter_decision_service.py",
+                ],
+                required_proof_routes=[
+                    "/api/v1/admin/live-execution/adapter-decisions",
+                ],
+                required_gate_chain=[
+                    "route_inventory_execution_binding",
+                    "shared_command_service_adapter",
+                    "route_bound_stealth_live_execution_adapter",
+                    "adapter_verification",
+                    "live_service_enablement",
+                ],
+                next_backend_step=(
+                    "Construct route-specific backend adapters through the "
+                    "shared command service after live-service verification."
+                ),
+                detail=(
+                    "The Admin API already exposes disabled adapter decision "
+                    "evidence, but no executable stealth adapter has been "
+                    "constructed. Browser and BFF layers cannot satisfy this."
+                ),
+            ),
+            blocker_closure(
+                closure_id="m55_active_placement_cancel_replace",
+                blocker=(
+                    AdminApiStealthCommandSuiteBlockerClosure.ACTIVE_PLACEMENT_CANCEL_REPLACE_EXECUTION_DISABLED
+                ),
+                category=AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
+                affected_families=[
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING,
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW,
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW,
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW,
+                ],
+                affected_mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_CANCEL,
+                    AdminApiMutationFamilyType.STEALTH_MOVE,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                    AdminApiMutationFamilyType.STEALTH_RECOVERY,
+                    AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+                ],
+                command_routes=[
+                    "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+                    "/api/v1/stealth/orders/{stealth_order_id}/move",
+                    "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+                    "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+                    "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+                ],
+                source_evidence_refs=[
+                    "cancel_replace_boundaries",
+                    "exchange_truth_checks",
+                    "admission_readiness.active_placement_cancel_replace_ran",
+                ],
+                required_backend_contracts=[
+                    "application/admin_api/stealth_cancel_replace_boundary.py",
+                    "application/admin_api/stealth_cancel_replace_proof_service.py",
+                    "core/stealth_order_manager.py",
+                ],
+                required_proof_routes=[
+                    "/api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs",
+                    "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs",
+                ],
+                required_gate_chain=[
+                    "active_placement_exchange_truth",
+                    "cancel_replace_proof",
+                    "manager_invocation_policy",
+                    "coinbase_exchange_submission_policy",
+                    "post_write_reconciliation",
+                ],
+                next_backend_step=(
+                    "Bind active-placement cancel/replace execution to the "
+                    "existing manager and exchange paths with post-write "
+                    "reconciliation proof."
+                ),
+                detail=(
+                    "Revealed stealth placements cannot be locally cancelled, "
+                    "moved, repriced, recovered, or reconciled until live "
+                    "Coinbase placement handling is performed through the "
+                    "existing backend path and proven afterward."
+                ),
+            ),
+            blocker_closure(
+                closure_id="m55_reveal_exchange_submission",
+                blocker=(
+                    AdminApiStealthCommandSuiteBlockerClosure.LIVE_REVEAL_EXCHANGE_SUBMISSION_DISABLED
+                ),
+                category=AdminApiLivePreflightCategory.COINBASE_EXCHANGE,
+                affected_families=[
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW,
+                ],
+                affected_mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_REVEAL,
+                ],
+                command_routes=[
+                    "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+                ],
+                source_evidence_refs=[
+                    "coverage_gaps[stealth_reveal_workflow]",
+                    "admission_readiness.coinbase_order_submitted",
+                    "commands.backend_contract_refs",
+                ],
+                required_backend_contracts=[
+                    "core/stealth_order_manager.py::reveal_order_slice",
+                    "application/admin_api/stealth_reveal_trigger_proof_service.py",
+                    "application/admin_api/stealth_coinbase_exchange_submission_policy_service.py",
+                ],
+                required_proof_routes=[
+                    "/api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs",
+                    "/api/v1/stealth/orders/{stealth_order_id}/coinbase-exchange-submission-policy",
+                    "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs",
+                ],
+                required_gate_chain=[
+                    "reveal_trigger_evidence",
+                    "coinbase_exchange_submission_policy",
+                    "live_execution_adapter",
+                    "post_write_reconciliation",
+                ],
+                next_backend_step=(
+                    "Prove reveal trigger and exchange-submission policy before "
+                    "binding reveal_order_slice to any live adapter."
+                ),
+                detail=(
+                    "The reveal command route remains a fail-closed admission "
+                    "surface. It does not call reveal_order_slice or submit a "
+                    "Coinbase order."
+                ),
+            ),
+            blocker_closure(
+                closure_id="m55_recovery_repair_rollback",
+                blocker=(
+                    AdminApiStealthCommandSuiteBlockerClosure.LIVE_REPAIR_ROLLBACK_EXECUTION_DISABLED
+                ),
+                category=AdminApiLivePreflightCategory.RECOVERY_PROOF,
+                affected_families=[
+                    AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
+                ],
+                affected_mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_RECOVERY,
+                ],
+                command_routes=[
+                    "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+                ],
+                source_evidence_refs=[
+                    "coverage_gaps[stealth_recovery_workflow]",
+                    "admission_readiness.state_mutation_allowed",
+                    "commands.backend_contract_refs",
+                ],
+                required_backend_contracts=[
+                    "application/admin_api/stealth_recovery_proof_service.py",
+                    "bridges/stealth_order_bridge.py",
+                    "core/stealth_order_manager.py",
+                ],
+                required_proof_routes=[
+                    "/api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
+                    "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs",
+                    "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs",
+                ],
+                required_gate_chain=[
+                    "recovery_proof",
+                    "repair_preview",
+                    "rollback_plan",
+                    "state_mutation_policy",
+                    "post_write_reconciliation",
+                ],
+                next_backend_step=(
+                    "Define stealth recovery repair and rollback execution "
+                    "contracts with preview, proof, and post-write verification."
+                ),
+                detail=(
+                    "Recovery remains proof/readback only. No repair, rollback, "
+                    "Coinbase read, reconciliation execution, or lifecycle "
+                    "mutation is allowed by this ledger."
+                ),
+            ),
+            blocker_closure(
+                closure_id="m55_post_write_reconciliation_execution",
+                blocker=(
+                    AdminApiStealthCommandSuiteBlockerClosure.POST_WRITE_RECONCILIATION_EXECUTION_DISABLED
+                ),
+                category=AdminApiLivePreflightCategory.RECONCILIATION,
+                affected_families=all_stealth_families,
+                affected_mutation_families=all_stealth_mutations,
+                command_routes=all_stealth_command_routes,
+                source_evidence_refs=[
+                    "admission_readiness.reconciliation_executed",
+                    "create_lifecycle_write_audit.execution_contract",
+                    "coverage_gaps.missing_contracts",
+                ],
+                required_backend_contracts=[
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                    "application/admin_api/stealth_post_write_reconciliation_service.py",
+                    "application/admin_api/reconciliation.py",
+                ],
+                required_proof_routes=[
+                    "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs",
+                    "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals",
+                    "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications",
+                ],
+                required_gate_chain=[
+                    "post_write_reconciliation_execution_policy",
+                    "post_write_reconciliation_proof",
+                    "post_write_execution_journal",
+                    "post_write_reconciliation_verification",
+                    "completion_verifier",
+                ],
+                next_backend_step=(
+                    "Implement a backend reconciliation executor only after "
+                    "proof, journal, and verification records match for the "
+                    "exact command context."
+                ),
+                detail=(
+                    "Post-write reconciliation is required before M55 can claim "
+                    "completion, but this ledger is read-only and does not "
+                    "execute reconciliation or mutate state."
+                ),
+            ),
+        ]
+        blocker_closure_summary = StealthCommandSuiteBlockerClosureSummary(
+            total_blocker_count=len(blocker_closures),
+            blocked_blocker_count=sum(1 for item in blocker_closures if item.blocking),
+            resolved_blocker_count=sum(1 for item in blocker_closures if item.resolved),
+            affected_family_count=len(
+                {
+                    family
+                    for item in blocker_closures
+                    for family in item.affected_families
+                }
+            ),
+            affected_mutation_family_count=len(
+                {
+                    family
+                    for item in blocker_closures
+                    for family in item.affected_mutation_families
+                }
+            ),
+            closure_ids=[item.closure_id for item in blocker_closures],
+            blocker_names=[item.blocker for item in blocker_closures],
+            categories=[item.category for item in blocker_closures],
+            missing_backend_contracts=sorted(
+                {
+                    contract
+                    for item in blocker_closures
+                    for contract in item.missing_backend_contracts
+                }
+            ),
+            first_blocker=blocker_closures[0].blocker if blocker_closures else None,
+            closure_authority="backend_contract_only_no_execution",
+            backend_owned=True,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            live_service_enabled=False,
+            live_adapter_constructed=False,
+            execution_allowed=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            detail=(
+                "Concrete M55 blocker closures are intentionally separate from "
+                "recursive evidence-chain rows. They identify the backend "
+                "contracts that must be completed before stealth command-suite "
+                "execution can advance."
+            ),
+        )
+
         return StealthCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             status=AdminApiGateStatus.BLOCKED,
@@ -12885,6 +13287,12 @@ class AdminApiReadService:
             commands=commands,
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,
+            blocker_closure_count=len(blocker_closures),
+            blocking_blocker_closure_count=sum(
+                1 for item in blocker_closures if item.status == AdminApiGateStatus.BLOCKED
+            ),
+            blocker_closures=blocker_closures,
+            blocker_closure_summary=blocker_closure_summary,
             create_lifecycle_write_audit=_stealth_create_lifecycle_write_audit(
                 required_gate_chain=stealth_create_gate_chain,
                 missing_gate_chain=stealth_create_missing_gate_chain,
@@ -12898,6 +13306,7 @@ class AdminApiReadService:
                 "M55 starts with read-only stealth command-suite coverage before execution.",
                 "Stealth create, reveal, cancel, move, reprice, recovery, and reconciliation remain backend-owned workflows.",
                 "Revealed stealth orders cannot be marked hidden, cancelled, or moved by local mutation alone.",
+                "M55 blocker-closure rows name concrete backend execution blockers instead of extending recursive evidence chains.",
                 "No browser, BFF, route-local, or Coinbase execution authority is added.",
                 "Live Coinbase execution and live Coinbase reads were not run for this evidence route.",
             ],

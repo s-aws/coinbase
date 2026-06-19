@@ -70,6 +70,15 @@ The route requires Admin API authentication and `analytics:read`. It returns
   owner, required artifact, missing reason, and blocked no-live/no-write
   proof while remaining backend-owned, no-live, browser `display_only`, and
   BFF `forward_only_no_execution`
+- `blocker_closures` and `blocker_closure_summary` on the read-only
+  command-suite response. These M55 rows name the concrete backend blockers
+  that still prevent live stealth execution: live service enablement, live
+  adapter construction, active-placement cancel/replace execution, reveal
+  exchange submission, recovery repair/rollback execution, and post-write
+  reconciliation execution. Every row is backend-owned evidence only with
+  `resolved=false`, `blocking=true`, browser `display_only`, BFF
+  `forward_only_no_execution`, all manager/Coinbase/reconciliation/state
+  execution flags false, and submitted/executed notional `0`
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -188,6 +197,15 @@ execution blocked while proving that manager invocation, Coinbase
 submit/cancel/read, active-placement cancel/replace, reconciliation
 execution, state mutation, browser approval, and BFF execution authority did
 not run.
+The command-suite response also exposes `blocker_closures` as the current M55
+backend blocker-closure ledger. This is a route-level, read-only summary over
+the concrete blockers that still prevent the future executable stealth path.
+It is not a replacement for the exact command-response
+`execution_live_readiness` ledger and it is not a command gate. It names the
+missing backend contracts and next backend steps, but it keeps live service
+enablement, live adapter construction, manager invocation, Coinbase
+submit/cancel/read, active-placement cancel/replace, repair/rollback,
+reconciliation execution, and state mutation disabled.
 
 ## Safety Constraints
 
@@ -242,6 +260,12 @@ not run.
   Coinbase reads/submits/cancels, active-placement cancel/replace behavior,
   reconciliation execution, lifecycle/order/exchange mutation, browser
   approval, M55 completion claims, or BFF execution authority.
+- `blocker_closures` is a read-only M55 blocker ledger on
+  `GET /api/v1/stealth/command-suite`. It must not be converted into backend
+  live-service enablement, adapter construction, manager invocation, Coinbase
+  reads/submits/cancels, active-placement cancel/replace behavior, recovery
+  repair/rollback, reconciliation execution, lifecycle/order/exchange
+  mutation, browser approval, or BFF execution authority.
 - `admission_readiness.context_requirements` is not proof lookup. Missing
   command-envelope context must keep resolver lookup and proof resolution
   disabled until the backend mutating command path supplies an exact envelope.

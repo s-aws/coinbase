@@ -279,12 +279,16 @@ Completed phases 4461-4480 add blocked dependency work-item claim-trace
 clearance-step reviews and a review summary derived from those clearance
 steps, without making reviews ready, completing reviews, accepting inputs,
 passing review gates, completing steps, resolving claims, clearing work
-items, constructing adapters, or executing live paths. Active phases
+items, constructing adapters, or executing live paths. Completed phases
 4481-4500 add blocked dependency work-item claim-trace clearance-step review
 inputs and a review-input summary derived from those reviews, without making
 inputs present, accepting inputs, validating inputs, completing reviews,
 passing gates, completing steps, resolving claims, clearing work items,
-constructing adapters, or executing live paths.
+constructing adapters, or executing live paths. Active phases 4501-4520 add
+a concrete M55 blocker-closure ledger naming live-service, live-adapter,
+active-placement cancel/replace, reveal submission, recovery repair/rollback,
+and post-write reconciliation blockers without enabling Coinbase, managers,
+repair, rollback, reconciliation, state mutation, browser, or BFF authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

@@ -10324,6 +10324,17 @@ components:
       - post_live_reconciliation
       title: AdminApiStealthAdmissionEvidence
       description: Evidence names required before a stealth admin command may execute.
+    AdminApiStealthCommandSuiteBlockerClosure:
+      type: string
+      enum:
+      - live_service_enablement_missing
+      - live_adapter_construction_missing
+      - active_placement_cancel_replace_execution_disabled
+      - live_reveal_exchange_submission_disabled
+      - live_repair_rollback_execution_disabled
+      - post_write_reconciliation_execution_disabled
+      title: AdminApiStealthCommandSuiteBlockerClosure
+      description: Concrete M55 blocker closures required before stealth live execution.
     AdminApiStealthCommandSuiteGapFamily:
       type: string
       enum:
@@ -57604,6 +57615,262 @@ components:
       - detail
       title: StealthCommandSuiteAdmissionRequirementItem
       description: One backend-owned evidence requirement for a stealth command admission.
+    StealthCommandSuiteBlockerClosureItem:
+      properties:
+        closure_id:
+          type: string
+          title: Closure Id
+        blocker:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteBlockerClosure'
+        category:
+          $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        affected_families:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+          type: array
+          title: Affected Families
+        affected_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Affected Mutation Families
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        source_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Source Evidence Refs
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        missing_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Backend Contracts
+        required_proof_routes:
+          items:
+            type: string
+          type: array
+          title: Required Proof Routes
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        next_backend_step:
+          type: string
+          title: Next Backend Step
+        closure_authority:
+          type: string
+          title: Closure Authority
+          default: backend_contract_only_no_execution
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_service_enabled:
+          type: boolean
+          title: Live Service Enabled
+          default: false
+        live_adapter_constructed:
+          type: boolean
+          title: Live Adapter Constructed
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        active_placement_cancel_replace_allowed:
+          type: boolean
+          title: Active Placement Cancel Replace Allowed
+          default: false
+        repair_execution_allowed:
+          type: boolean
+          title: Repair Execution Allowed
+          default: false
+        rollback_execution_allowed:
+          type: boolean
+          title: Rollback Execution Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - closure_id
+      - blocker
+      - category
+      - next_backend_step
+      - detail
+      title: StealthCommandSuiteBlockerClosureItem
+      description: Concrete M55 blocker and the backend closure evidence still required.
+    StealthCommandSuiteBlockerClosureSummary:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: m55_concrete_blocker_ledger
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        total_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Total Blocker Count
+        blocked_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Blocker Count
+        resolved_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Blocker Count
+        affected_family_count:
+          type: integer
+          minimum: 0.0
+          title: Affected Family Count
+        affected_mutation_family_count:
+          type: integer
+          minimum: 0.0
+          title: Affected Mutation Family Count
+        closure_ids:
+          items:
+            type: string
+          type: array
+          title: Closure Ids
+        blocker_names:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthCommandSuiteBlockerClosure'
+          type: array
+          title: Blocker Names
+        categories:
+          items:
+            $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+          type: array
+          title: Categories
+        missing_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Backend Contracts
+        first_blocker:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiStealthCommandSuiteBlockerClosure'
+          - type: 'null'
+        closure_authority:
+          type: string
+          title: Closure Authority
+          default: backend_contract_only_no_execution
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_service_enabled:
+          type: boolean
+          title: Live Service Enabled
+          default: false
+        live_adapter_constructed:
+          type: boolean
+          title: Live Adapter Constructed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - total_blocker_count
+      - blocked_blocker_count
+      - resolved_blocker_count
+      - affected_family_count
+      - affected_mutation_family_count
+      - closure_ids
+      - blocker_names
+      - categories
+      - missing_backend_contracts
+      - detail
+      title: StealthCommandSuiteBlockerClosureSummary
+      description: Aggregate over concrete M55 blocker-closure rows.
     StealthCommandSuiteCancelReplaceBoundaryItem:
       properties:
         mutation_family:
@@ -58390,6 +58657,23 @@ components:
             $ref: '#/components/schemas/StealthCommandSuiteCoverageGapItem'
           type: array
           title: Coverage Gaps
+        blocker_closure_count:
+          type: integer
+          title: Blocker Closure Count
+          default: 0
+        blocking_blocker_closure_count:
+          type: integer
+          title: Blocking Blocker Closure Count
+          default: 0
+        blocker_closures:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteBlockerClosureItem'
+          type: array
+          title: Blocker Closures
+        blocker_closure_summary:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteBlockerClosureSummary'
+          - type: 'null'
         create_lifecycle_write_audit:
           anyOf:
           - $ref: '#/components/schemas/StealthCreateLifecycleWriteAuditEvidence'

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "3301-3320",
+  "approved_phase_range": "4501-4520",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -35,6 +35,8 @@ Expected posture:
   "blocking_cancel_replace_boundary_count": 3,
   "admission_readiness_count": 7,
   "blocking_admission_readiness_count": 7,
+  "blocker_closure_count": 6,
+  "blocking_blocker_closure_count": 6,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
   "submitted_notional_usdc": "0",
@@ -43,6 +45,76 @@ Expected posture:
   "live_coinbase_read_ran": false
 }
 ```
+
+The same read-only response includes an M55 blocker-closure ledger. It names
+the concrete backend blockers that still prevent future live stealth
+execution, but it does not enable any of them:
+
+```json
+{
+  "blocker_closure_summary": {
+    "status": "blocked",
+    "blocker_count": 6,
+    "blocking_count": 6,
+    "resolved_count": 0,
+    "execution_allowed": false,
+    "live_coinbase_orders_ran": false,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution",
+    "blocker_names": [
+      "live_service_enablement_missing",
+      "live_adapter_construction_missing",
+      "active_placement_cancel_replace_execution_disabled",
+      "live_reveal_exchange_submission_disabled",
+      "live_repair_rollback_execution_disabled",
+      "post_write_reconciliation_execution_disabled"
+    ]
+  },
+  "blocker_closures": [
+    {
+      "closure_id": "m55_live_adapter_construction",
+      "blocker": "live_adapter_construction_missing",
+      "category": "live_execution_adapter",
+      "status": "blocked",
+      "blocking": true,
+      "resolved": false,
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "required_contracts": [
+        "application/admin_api/live_execution.py::build_live_execution_adapter_contract"
+      ],
+      "missing_contracts": [
+        "application/admin_api/live_execution.py::build_live_execution_adapter_contract"
+      ],
+      "next_backend_step": "Build the route-bound live execution adapter contract in backend code.",
+      "live_service_enabled": false,
+      "live_adapter_constructed": false,
+      "manager_invocation_allowed": false,
+      "coinbase_submit_allowed": false,
+      "coinbase_cancel_allowed": false,
+      "coinbase_read_allowed": false,
+      "active_placement_cancel_replace_allowed": false,
+      "repair_execution_allowed": false,
+      "rollback_execution_allowed": false,
+      "reconciliation_execution_allowed": false,
+      "state_mutation_allowed": false,
+      "live_coinbase_orders_ran": false,
+      "submitted_notional_usdc": "0",
+      "executed_notional_usdc": "0"
+    }
+  ]
+}
+```
+
+All six `blocker_closures` rows follow that same authority model. They are
+backend-owned evidence for missing implementation work only. They do not call
+`StealthOrderManager`, construct live adapters, submit/cancel/read Coinbase
+orders, cancel/replace active placements, execute repair or rollback, execute
+reconciliation, mutate lifecycle/order/exchange state, or grant browser/BFF
+execution authority.
 
 Live-disabled non-create stealth command responses now also include
 `stealth_command_execution_contract`. For example, a cancel dry-submit remains

@@ -45,6 +45,7 @@ from core.enums import (
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
+    AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthDecisionResolutionEvidenceType,
@@ -13950,6 +13951,80 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteBlockerClosureItem(BaseModel):
+    """Concrete M55 blocker and the backend closure evidence still required."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    closure_id: str
+    blocker: AdminApiStealthCommandSuiteBlockerClosure
+    category: AdminApiLivePreflightCategory
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    resolved: bool = False
+    affected_families: list[AdminApiStealthCommandSuiteGapFamily] = Field(
+        default_factory=list
+    )
+    affected_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    command_routes: list[str] = Field(default_factory=list)
+    source_evidence_refs: list[str] = Field(default_factory=list)
+    required_backend_contracts: list[str] = Field(default_factory=list)
+    missing_backend_contracts: list[str] = Field(default_factory=list)
+    required_proof_routes: list[str] = Field(default_factory=list)
+    required_gate_chain: list[str] = Field(default_factory=list)
+    next_backend_step: str
+    closure_authority: str = "backend_contract_only_no_execution"
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_service_enabled: bool = False
+    live_adapter_constructed: bool = False
+    manager_invocation_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    repair_execution_allowed: bool = False
+    rollback_execution_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    state_mutation_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteBlockerClosureSummary(BaseModel):
+    """Aggregate over concrete M55 blocker-closure rows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = "m55_concrete_blocker_ledger"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    total_blocker_count: int = Field(ge=0)
+    blocked_blocker_count: int = Field(ge=0)
+    resolved_blocker_count: int = Field(ge=0)
+    affected_family_count: int = Field(ge=0)
+    affected_mutation_family_count: int = Field(ge=0)
+    closure_ids: list[str]
+    blocker_names: list[AdminApiStealthCommandSuiteBlockerClosure]
+    categories: list[AdminApiLivePreflightCategory]
+    missing_backend_contracts: list[str]
+    first_blocker: AdminApiStealthCommandSuiteBlockerClosure | None = None
+    closure_authority: str = "backend_contract_only_no_execution"
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_service_enabled: bool = False
+    live_adapter_constructed: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteExchangeTruthItem(BaseModel):
     """Backend-owned exchange-truth prerequisite for a stealth command."""
 
@@ -15639,6 +15714,12 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     commands: list[StealthCommandSuiteCommandItem] = Field(default_factory=list)
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)
+    blocker_closure_count: int = 0
+    blocking_blocker_closure_count: int = 0
+    blocker_closures: list[StealthCommandSuiteBlockerClosureItem] = Field(
+        default_factory=list
+    )
+    blocker_closure_summary: StealthCommandSuiteBlockerClosureSummary | None = None
     create_lifecycle_write_audit: StealthCreateLifecycleWriteAuditEvidence | None = None
     read_routes: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)

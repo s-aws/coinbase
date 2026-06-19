@@ -498,6 +498,25 @@ class AdminApiStealthCommandSuiteGapFamily(str, Enum):
     STEALTH_RECONCILIATION_WORKFLOW = "stealth_reconciliation_workflow"
 
 
+class AdminApiStealthCommandSuiteBlockerClosure(str, Enum):
+    """Concrete M55 blocker closures required before stealth live execution."""
+
+    LIVE_SERVICE_ENABLEMENT_MISSING = "live_service_enablement_missing"
+    LIVE_ADAPTER_CONSTRUCTION_MISSING = "live_adapter_construction_missing"
+    ACTIVE_PLACEMENT_CANCEL_REPLACE_EXECUTION_DISABLED = (
+        "active_placement_cancel_replace_execution_disabled"
+    )
+    LIVE_REVEAL_EXCHANGE_SUBMISSION_DISABLED = (
+        "live_reveal_exchange_submission_disabled"
+    )
+    LIVE_REPAIR_ROLLBACK_EXECUTION_DISABLED = (
+        "live_repair_rollback_execution_disabled"
+    )
+    POST_WRITE_RECONCILIATION_EXECUTION_DISABLED = (
+        "post_write_reconciliation_execution_disabled"
+    )
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 

@@ -8,9 +8,9 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-19
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4461-4480` is backend `2e88e744` and
-  frontend `db30c3d`; previous completed range `4441-4460` is backend
-  `6cfc67ab` and frontend `0b40962`.
+- Commit (optional): completed range `4481-4500` is backend `772b18a1` and
+  frontend `0e3e6d9`; previous completed range `4461-4480` is backend
+  `2e88e744` and frontend `db30c3d`.
 
 ## Current Objective
 
@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4461-4480`.
-- Active autonomous range: `4481-4500`.
+- Latest completed autonomous range before current work: `4481-4500`.
+- Active autonomous range: `4501-4520`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -639,9 +639,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4481-4500`.
+- Active autonomous range: `4501-4520`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4481-4500`.
+- Current direction: complete phases `4501-4520`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -715,21 +715,19 @@ Keep it short. Keep it factual.
   managers, execute reconciliation, cancel/replace active placements, mutate
   lifecycle/order/exchange state, grant browser authority, or grant BFF
   execution authority unless a future approved phase explicitly authorizes it.
-  Active `4481-4500` adds blocked clearance-step review input rows and a
-  review-input summary over those clearance-step reviews so future backend
-  work can see missing backend-owned input evidence before any review can
-  become ready. The review-input rows expose input ids, input names, source
-  review ids, source clearance-step ids, required review inputs, input gates,
-  blockers, and inherited review/step/trace/work-item/dependency/remediation
-  blockers while keeping input presence, input acceptance, input validation,
-  review readiness, review completion, gate passing, step readiness, step
-  completion, claim resolution, work-item clearance, construction, and live
-  execution flags false. They must not make inputs present, accept inputs,
-  validate inputs, complete reviews or steps, pass gates, resolve claims,
-  clear claim traces, clear work items, write or accept evidence, construct
-  adapters, call Coinbase, invoke managers, execute reconciliation, mutate
-  lifecycle/order/exchange state, grant browser authority, or grant BFF
-  execution authority.
+  Completed `4481-4500` adds blocked clearance-step review input rows and a
+  review-input summary over those clearance-step reviews while keeping input
+  presence, input acceptance, input validation, review readiness, review
+  completion, gate passing, step readiness, step completion, claim
+  resolution, work-item clearance, construction, and live execution flags
+  false. Active `4501-4520` adds a concrete M55 blocker-closure ledger naming
+  live-service, live-adapter, active-placement cancel/replace, reveal
+  submission, recovery repair/rollback, and post-write reconciliation blockers.
+  The ledger must not construct adapters, call Coinbase, invoke managers,
+  cancel or replace active placements, execute reveal, execute repair or
+  rollback, execute reconciliation, mutate lifecycle/order/exchange state,
+  clear M55 blockers, grant browser authority, or grant BFF execution
+  authority.
 
 ## Decisions (Durable)
 
