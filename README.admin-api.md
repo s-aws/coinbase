@@ -257,11 +257,15 @@ review-input store record-validation remediation dependency rows and a
 dependency summary derived from those remediation rows, without making
 dependency graphs ready, making predecessors ready, making remediation ready,
 writing or accepting records, constructing adapters, or executing live paths.
-Active phases 4381-4400 add blocked dependency work items and a work-queue
+Completed phases 4381-4400 add blocked dependency work items and a work-queue
 summary derived from those dependency rows, without making work items ready,
 handoffs ready, dependency graphs ready, predecessors ready, remediation
 ready, writing or accepting records, constructing adapters, or executing live
-paths.
+paths. Active phases 4401-4420 add blocked dependency work-item claim traces
+and a claim-trace summary derived from those dependency work items, without
+making claim traces ready, resolving claims, clearing work items or
+dependencies, writing or accepting records, constructing adapters, or
+executing live paths.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

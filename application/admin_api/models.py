@@ -10785,6 +10785,96 @@ class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearan
     )
 
 
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace(
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItem
+):
+    """Blocked claim trace derived from one claim-trace remediation dependency work item."""
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_items"
+    )
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_items_no_claim_resolution"
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_index: int = Field(
+        ge=1
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_id: str
+    upstream_record_validation_remediation_dependency_work_item_id: str
+    upstream_claim_trace_id: str
+    claim_trace_stage: str = "record_validation_remediation_dependency_work_item_claim_trace"
+    claim_trace_gate: str
+    claim_trace_blockers: list[str] = Field(default_factory=list)
+    first_claim_trace_blocker: str
+    required_before_claim_resolved: bool = True
+    required_before_work_item_ready: bool = True
+    claim_trace_ready: bool = False
+    work_item_cleared: bool = False
+    claim_resolution_ready: bool = False
+    detail: str = (
+        "This producer-route contract clearance-step review-input store "
+        "record-validation remediation dependency work-item claim trace is "
+        "backend-derived from one blocked dependency work item. It maps the "
+        "unresolved route-contract claim to the queued work item, but cannot "
+        "resolve claims, clear work items or dependencies, perform "
+        "remediation, write or accept evidence, complete reviews or steps, "
+        "construct adapters, call Coinbase, or enable live execution."
+    )
+
+
+class AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceSummary(
+    AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkQueueSummary
+):
+    """Aggregate over blocked claim traces for dependency work items."""
+
+    source_ref: str = (
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+    )
+    source: str = (
+        "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_summary"
+    )
+    authority: str = (
+        "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+    )
+    total_claim_trace_count: int = Field(default=0, ge=0)
+    blocked_claim_trace_count: int = Field(default=0, ge=0)
+    resolved_claim_trace_count: int = Field(default=0, ge=0)
+    record_validation_remediation_dependency_work_item_claim_trace_ids: list[
+        str
+    ] = Field(default_factory=list)
+    upstream_record_validation_remediation_dependency_work_item_ids: list[
+        str
+    ] = Field(default_factory=list)
+    upstream_claim_trace_ids: list[str] = Field(default_factory=list)
+    claim_ids: list[str] = Field(default_factory=list)
+    claims: list[str] = Field(default_factory=list)
+    claim_trace_stages: list[str] = Field(default_factory=list)
+    claim_trace_gates: list[str] = Field(default_factory=list)
+    claim_trace_blockers: list[str] = Field(default_factory=list)
+    first_record_validation_remediation_dependency_work_item_claim_trace_id: (
+        str | None
+    ) = None
+    first_upstream_record_validation_remediation_dependency_work_item_id: (
+        str | None
+    ) = None
+    first_claim_trace_blocker: str | None = None
+    all_claim_traces_ready: bool = False
+    all_work_items_cleared: bool = False
+    claim_resolution_ready: bool = False
+    detail: str = (
+        "Producer-route contract clearance-step review-input store "
+        "record-validation remediation dependency work-item claim trace "
+        "summary is backend-derived from blocked dependency work-item claim "
+        "traces. It names unresolved claims, queued work items, blockers, "
+        "and no-live gates, but cannot resolve claims, clear work items or "
+        "dependencies, perform remediation, construct adapters, call "
+        "Coinbase, or enable live execution."
+    )
+
+
 class AdminLiveAdapterConstructionArtifactItem(BaseModel):
     """One backend artifact required for live-adapter construction."""
 
@@ -11213,6 +11303,16 @@ class AdminLiveAdapterConstructionContractEvidence(BaseModel):
     ) = Field(
         default_factory=(
             AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkQueueSummary
+        )
+    )
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces: list[
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace
+    ] = Field(default_factory=list)
+    acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_summary: (
+        AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceSummary
+    ) = Field(
+        default_factory=(
+            AdminLiveAdapterConstructionAcceptanceEvidenceProducerRouteContractClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceSummary
         )
     )
     artifacts: list[AdminLiveAdapterConstructionArtifactItem] = Field(

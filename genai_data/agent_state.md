@@ -39,7 +39,7 @@ Keep it short. Keep it factual.
 ## Latest Completed Scope
 
 - Latest completed autonomous range before current work: `4361-4380`.
-- Active autonomous range: `4381-4400`.
+- Active autonomous range: `4401-4420`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -639,9 +639,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4381-4400`.
+- Active autonomous range: `4401-4420`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4381-4400`.
+- Current direction: complete phases `4401-4420`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -662,21 +662,27 @@ Keep it short. Keep it factual.
   store availability, writer authority, write permission, record presence,
   record acceptance, record validation, input presence, input acceptance, input
   validation, review completion, step completion, construction, and live
-  execution flags false. Active `4381-4400` adds blocked dependency work-item
-  rows and a work-queue summary over those dependency rows so future backend
-  work can see missing backend-owned work-queue and handoff readiness before
-  dependencies can be cleared. The work-item rows expose work item ids,
-  dependency ids, remediation ids, validation ids, required backend work,
-  required backend refs, work-item gates, handoff blockers, predecessor and
-  successor dependency evidence, queue order, and inherited blockers while
-  keeping work-item readiness, work-queue readiness, handoff readiness,
-  dependency readiness, graph readiness, predecessor readiness, action
-  readiness, remediation readiness, validation readiness, record-contract
-  availability, schema availability, append-only log availability, idempotency
-  binding, payload validation, replay protection, store availability, writer
-  authority, write permission, record presence, record acceptance, record
-  validation, input presence, input acceptance, input validation, review
-  completion, step completion, construction, and live execution flags false.
+  execution flags false. Completed `4381-4400` adds blocked dependency
+  work-item rows and a work-queue summary over those dependency rows so future
+  backend work can see missing backend-owned work-queue and handoff readiness
+  before dependencies can be cleared. Active `4401-4420` adds blocked
+  dependency work-item claim traces and a claim-trace summary over those
+  dependency work items so future backend work can see missing
+  claim-resolution and work-item-clearance readiness before any work item or
+  dependency can be cleared. The claim-trace rows expose claim-trace ids,
+  upstream work-item ids, upstream claim-trace ids, dependency ids,
+  remediation ids, validation ids, required backend work, required backend
+  refs, claim-trace gates, claim-trace blockers, predecessor and successor
+  dependency evidence, queue order, and inherited blockers while keeping
+  claim-trace readiness, claim resolution, work-item clearance, work-item
+  readiness, work-queue readiness, handoff readiness, dependency readiness,
+  graph readiness, predecessor readiness, action readiness, remediation
+  readiness, validation readiness, record-contract availability, schema
+  availability, append-only log availability, idempotency binding, payload
+  validation, replay protection, store availability, writer authority, write
+  permission, record presence, record acceptance, record validation, input
+  presence, input acceptance, input validation, review completion, step
+  completion, construction, and live execution flags false.
   They must not perform remediation, create validators,
   bind idempotency, validate payloads, protect replay, create records, allow
   writers, allow writes, make inputs present, accept inputs, validate inputs,
