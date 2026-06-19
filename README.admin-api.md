@@ -269,12 +269,17 @@ executing live paths. Completed phases 4421-4440 add blocked dependency
 work-item claim-trace clearance plans and a clearance-plan summary derived
 from those claim traces, without making plans ready, making sequences ready,
 resolving claims, clearing claim traces or work items, writing or accepting
-records, constructing adapters, or executing live paths. Active phases
+records, constructing adapters, or executing live paths. Completed phases
 4441-4460 add blocked dependency work-item claim-trace clearance steps and a
 clearance-step summary derived from those clearance plans, without making
 steps ready, completing steps, allowing next steps, completing prior steps,
 making plans ready, resolving claims, clearing claim traces or work items,
 writing or accepting records, constructing adapters, or executing live paths.
+Active phases 4461-4480 add blocked dependency work-item claim-trace
+clearance-step reviews and a review summary derived from those clearance
+steps, without making reviews ready, completing reviews, accepting inputs,
+passing review gates, completing steps, resolving claims, clearing work
+items, constructing adapters, or executing live paths.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their
