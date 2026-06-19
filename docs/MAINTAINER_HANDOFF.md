@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4401-4420` under M55.
-- Active autonomous range: `4421-4440` under M55.
+- Latest completed autonomous range: `4421-4440` under M55.
+- Active autonomous range: `4441-4460` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -373,9 +373,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   no-record-presence, no-record-acceptance, no-record-validation,
   no-input-presence, no-input-acceptance, no-input-validation,
   no-review-completion, no-step-completion, no-construction, no-execution, and
-  no-live authority. Active 4421-4440 work adds dependency work-item
+  no-live authority. Completed 4421-4440 work adds dependency work-item
   claim-trace clearance plans and a clearance-plan summary over those blocked
   claim traces while preserving no-plan-readiness, no-sequence-readiness,
+  no-claim-trace-readiness, no-claim-resolution, no-work-item-clearance,
+  no-queue-readiness, no-handoff-readiness, no-dependency-readiness,
+  no-remediation, no-validation-readiness, no-record-contract, no-store,
+  no-writer, no-write, no-construction, no-execution, and no-live authority.
+  Active 4441-4460 work adds dependency work-item claim-trace clearance-step
+  rows and a clearance-step summary over those blocked clearance plans while
+  preserving no-step-readiness, no-step-completion, no-next-step-allowance,
+  no-prior-step-completion, no-plan-readiness, no-sequence-readiness,
   no-claim-trace-readiness, no-claim-resolution, no-work-item-clearance,
   no-queue-readiness, no-handoff-readiness, no-dependency-readiness,
   no-remediation, no-validation-readiness, no-record-contract, no-store,

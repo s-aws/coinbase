@@ -541,6 +541,18 @@ LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SUMMARY_AUTHORITY = (
     "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
 )
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_AUTHORITY = (
+    "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans_no_execution"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_SUMMARY_SOURCE = (
+    "backend_acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_summary"
+)
+LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_SUMMARY_AUTHORITY = (
+    "backend_derived_from_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"
+)
 LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SEQUENCE = (
     "inspect_dependency_work_item_claim_trace",
     "define_record_validation_remediation_plan",
@@ -13962,6 +13974,291 @@ def build_live_adapter_construction_contract(
             "construct adapters, call Coinbase, or enable live execution."
         ),
     }
+    claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps = []
+    required_ref_key_by_clearance_step_name = {
+        "inspect_dependency_work_item_claim_trace": (
+            "record_validation_remediation_dependency_work_item_claim_trace_id"
+        ),
+        "define_record_validation_remediation_plan": "clearance_plan_id",
+        "provide_record_validation_contract_evidence": "record_contract_id",
+        "provide_review_input_store_record_evidence": "input_id",
+        "review_remediation_dependency_handoff": "first_handoff_blocker",
+        "verify_dependency_graph_and_predecessors": (
+            "record_validation_remediation_dependency_id"
+        ),
+        "accept_backend_owned_record_validation": "record_validation_id",
+        "complete_claim_resolution_review": "claim_id",
+    }
+    for plan in (
+        claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+    ):
+        prior_clearance_step_ids: list[str] = []
+        for step_order, (step_name, _legacy_required_ref_kind, step_label) in enumerate(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_DEFINITIONS,
+            start=1,
+        ):
+            clearance_step_id = f"{plan['clearance_plan_id']}_{step_name}_step"
+            required_ref_kind = required_ref_key_by_clearance_step_name[step_name]
+            blocks_next_clearance_step_ids = []
+            if step_order < len(
+                LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_DEFINITIONS
+            ):
+                next_step_name = (
+                    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_DEFINITIONS[
+                        step_order
+                    ][
+                        0
+                    ]
+                )
+                blocks_next_clearance_step_ids.append(
+                    f"{plan['clearance_plan_id']}_{next_step_name}_step"
+                )
+            clearance_step_blockers = list(
+                dict.fromkeys(
+                    plan["clearance_plan_blockers"]
+                    + [plan["blocker"], f"{clearance_step_id}_blocked"]
+                )
+            )
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps.append(
+                {
+                    **plan,
+                    "source_ref": (
+                        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+                    ),
+                    "status": AdminApiGateStatus.BLOCKED,
+                    "source": (
+                        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_SOURCE
+                    ),
+                    "authority": (
+                        LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_AUTHORITY
+                    ),
+                    "clearance_step_index": (
+                        len(
+                            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                        )
+                        + 1
+                    ),
+                    "clearance_step_id": clearance_step_id,
+                    "upstream_clearance_plan_id": plan["clearance_plan_id"],
+                    "clearance_step_order": step_order,
+                    "clearance_step_name": step_name,
+                    "clearance_step_label": step_label,
+                    "required_ref_kind": required_ref_kind,
+                    "required_ref": plan[required_ref_kind],
+                    "depends_on_prior_clearance_step_ids": list(
+                        prior_clearance_step_ids
+                    ),
+                    "blocks_next_clearance_step_ids": (
+                        blocks_next_clearance_step_ids
+                    ),
+                    "clearance_step_blockers": clearance_step_blockers,
+                    "first_clearance_step_blocker": clearance_step_blockers[0],
+                    "required_before_next_step_allowed": True,
+                    "required_before_step_completed": True,
+                    "verification_gate": (
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_"
+                        f"step_{step_name}_remains_fail_closed"
+                    ),
+                    "blocker": f"{clearance_step_id}_blocked",
+                    "step_ready": False,
+                    "step_completed": False,
+                    "step_allowed": False,
+                    "step_sequence_ready": False,
+                    "prior_steps_completed": False,
+                    "next_step_allowed": False,
+                    "all_clearance_steps_ready": False,
+                    "all_clearance_steps_completed": False,
+                    "clearance_plan_ready": False,
+                    "plan_ready": False,
+                    "sequence_ready": False,
+                    "all_verification_gates_passed": False,
+                    "claim_allowed": False,
+                    "claim_resolved": False,
+                    "clears_claim_trace": False,
+                    "clears_work_item": False,
+                    "claim_trace_ready": False,
+                    "work_item_cleared": False,
+                    "claim_resolution_ready": False,
+                    "detail": (
+                        "This producer-route contract clearance-step "
+                        "review-input store record-validation remediation "
+                        "dependency work-item claim-trace clearance-step "
+                        "review-input store record-validation remediation "
+                        "dependency work-item claim-trace clearance step is "
+                        "backend-derived from one blocked clearance plan. It "
+                        "names ordered backend work and required references, "
+                        "but cannot complete steps, allow next steps, mark "
+                        "plans ready, resolve claims, clear work items or "
+                        "dependencies, perform remediation, construct "
+                        "adapters, call Coinbase, or enable live execution."
+                    ),
+                }
+            )
+            prior_clearance_step_ids.append(clearance_step_id)
+    ready_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps = [
+        step
+        for step in (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        )
+        if step["step_ready"]
+    ]
+    completed_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps = [
+        step
+        for step in (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        )
+        if step["step_completed"]
+    ]
+    blocked_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps = [
+        step
+        for step in (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        )
+        if not step["step_ready"]
+    ]
+    claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_summary = {
+        **claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary,
+        "source_ref": (
+            "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"
+        ),
+        "status": AdminApiGateStatus.BLOCKED,
+        "source": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_SUMMARY_SOURCE
+        ),
+        "authority": (
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_SUMMARY_AUTHORITY
+        ),
+        "total_clearance_step_count": len(
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        ),
+        "blocked_clearance_step_count": len(
+            blocked_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        ),
+        "ready_clearance_step_count": len(
+            ready_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        ),
+        "completed_clearance_step_count": len(
+            completed_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        ),
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ids": [
+            step["clearance_step_id"]
+            for step in (
+                claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+            )
+        ],
+        "upstream_clearance_plan_ids": list(
+            dict.fromkeys(
+                step["upstream_clearance_plan_id"]
+                for step in (
+                    claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                )
+            )
+        ),
+        "clearance_step_names": list(
+            LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SEQUENCE
+        ),
+        "clearance_step_orders": list(
+            range(
+                1,
+                len(
+                    LIVE_ADAPTER_CONSTRUCTION_ACCEPTANCE_EVIDENCE_PRODUCER_ROUTE_CONTRACT_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN_SEQUENCE
+                )
+                + 1,
+            )
+        ),
+        "required_ref_kinds": list(
+            dict.fromkeys(
+                step["required_ref_kind"]
+                for step in (
+                    claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                )
+            )
+        ),
+        "required_refs": list(
+            dict.fromkeys(
+                step["required_ref"]
+                for step in (
+                    claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                )
+            )
+        ),
+        "clearance_step_blockers": list(
+            dict.fromkeys(
+                blocker
+                for step in (
+                    claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                )
+                for blocker in step["clearance_step_blockers"]
+            )
+        ),
+        "first_clearance_step_id": (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps[
+                0
+            ][
+                "clearance_step_id"
+            ]
+            if claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+            else None
+        ),
+        "first_upstream_clearance_plan_id": (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps[
+                0
+            ][
+                "upstream_clearance_plan_id"
+            ]
+            if claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+            else None
+        ),
+        "first_clearance_step_blocker": (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps[
+                0
+            ][
+                "first_clearance_step_blocker"
+            ]
+            if claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+            else None
+        ),
+        "prerequisite_edge_count": sum(
+            len(step["depends_on_prior_clearance_step_ids"])
+            for step in (
+                claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+            )
+        ),
+        "successor_edge_count": sum(
+            len(step["blocks_next_clearance_step_ids"])
+            for step in (
+                claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+            )
+        ),
+        "all_clearance_steps_ready": False,
+        "all_clearance_steps_completed": False,
+        "any_clearance_step_allowed": False,
+        "step_ready": False,
+        "step_completed": False,
+        "step_allowed": False,
+        "step_sequence_ready": False,
+        "prior_steps_completed": False,
+        "next_step_allowed": False,
+        "all_clearance_plans_ready": False,
+        "clearance_plan_ready": False,
+        "sequence_ready": False,
+        "all_verification_gates_passed": False,
+        "all_claim_traces_ready": False,
+        "all_claims_resolved": False,
+        "all_work_items_cleared": False,
+        "claim_resolution_ready": False,
+        "detail": (
+            "Producer-route contract clearance-step review-input store "
+            "record-validation remediation dependency work-item claim-trace "
+            "clearance-step review-input store record-validation remediation "
+            "dependency work-item claim-trace clearance-step summary is "
+            "backend-derived from blocked clearance plans. It expands each "
+            "plan into ordered backend steps, but cannot complete steps, "
+            "allow next steps, mark plans ready, resolve claims, clear work "
+            "items or dependencies, perform remediation, construct adapters, "
+            "call Coinbase, or enable live execution."
+        ),
+    }
     return {
         "contract_id": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
         "status": AdminApiGateStatus.BLOCKED,
@@ -14240,6 +14537,12 @@ def build_live_adapter_construction_contract(
         ),
         "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary": (
             claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_summary
+        ),
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps": (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+        ),
+        "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_summary": (
+            claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_summary
         ),
         "artifacts": artifacts,
         "required_artifacts": list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS),
