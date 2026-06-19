@@ -3025,7 +3025,7 @@ Current backend evidence:
   no-input-acceptance, no-input-validation, no-review-completion,
   no-step-completion, no-step-allowance, no-claim-resolution,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
-  no-construction, no-execution, and no-live authority. Active phases
+  no-construction, no-execution, and no-live authority. Completed phases
   4401-4420 add dependency work-item claim-trace rows and a claim-trace
   summary derived from those blocked dependency work items while preserving
   no-claim-trace-readiness, no-claim-resolution, no-work-item-clearance,
@@ -3037,6 +3037,14 @@ Current backend evidence:
   no-record-acceptance, no-record-validation, no-input-presence,
   no-input-acceptance, no-input-validation, no-review-completion,
   no-step-completion, no-step-allowance, no-construction, no-execution, and
+  no-live authority. Active phases 4421-4440 add dependency work-item
+  claim-trace clearance-plan rows and a clearance-plan summary derived from
+  those blocked claim traces while preserving no-plan-readiness,
+  no-sequence-readiness, no-claim-trace-readiness, no-claim-resolution,
+  no-work-item-clearance, no-queue-readiness, no-handoff-readiness,
+  no-dependency-readiness, no-remediation-readiness, no-validation-readiness,
+  no-record-contract, no-store, no-writer, no-write, no-construction,
+  no-execution, and
   no-live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
