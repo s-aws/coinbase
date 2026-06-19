@@ -40,7 +40,8 @@ The route requires Admin API authentication and `analytics:read`. It returns
   audit, cap/guard decision, reconciliation plan, active-placement exchange
   truth or lifecycle-write guard, live adapter evidence, and post-live
   reconciliation. The stealth reveal route may show one configured dry-run
-  adapter as present evidence, but admission and execution remain blocked.
+  adapter and one configured dry-run live-service contract as present
+  evidence, but admission and execution remain blocked.
 - admission context requirements showing which static route fields are present
   and which exact command-envelope fields are still missing before proof
   resolver lookup is allowed

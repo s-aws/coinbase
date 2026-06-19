@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from core.enums import (
     AdminApiGateStatus,
+    AdminApiLiveExecutionStatus,
     AdminApiMutationFamilyType,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthCommandSuiteGapFamily,
@@ -524,6 +525,30 @@ def build_stealth_command_execution_contract(
         service_method=metadata.service_method,
         action_class=admission_decision.action_class,
     )
+    live_execution_service_contract = build_live_execution_service_contract(
+        method=admission_decision.method,
+        route=metadata.route,
+        module_id=admission_decision.module_id,
+        service_method=metadata.service_method,
+        action_class=admission_decision.action_class,
+    )
+    live_execution_service_resolved = (
+        StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
+        in resolved
+    )
+    live_execution_service_source = (
+        str(
+            live_execution_service_contract.get(
+                "source",
+                DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+            )
+        )
+        if live_execution_service_resolved
+        else (
+            admission_decision.live_execution_service_source
+            or DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
+        )
+    )
     live_execution_adapter_configured = bool(
         live_execution_adapter_contract.get("configured")
     )
@@ -713,21 +738,17 @@ def build_stealth_command_execution_contract(
                 ),
             )
         ),
-        live_execution_service_source=(
-            admission_decision.live_execution_service_source
-            or DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
-        ),
+        live_execution_service_resolved=live_execution_service_resolved,
+        live_execution_service_source=live_execution_service_source,
         live_execution_service_missing_reason=(
-            admission_decision.live_execution_service_missing_reason
-            or "live_execution_disabled"
+            None
+            if live_execution_service_resolved
+            else (
+                admission_decision.live_execution_service_missing_reason
+                or "live_execution_disabled"
+            )
         ),
-        live_execution_service_contract=build_live_execution_service_contract(
-            method=admission_decision.method,
-            route=metadata.route,
-            module_id=admission_decision.module_id,
-            service_method=metadata.service_method,
-            action_class=admission_decision.action_class,
-        ),
+        live_execution_service_contract=live_execution_service_contract,
         live_execution_intent_contract=admission_decision.live_execution_intent,
         live_execution_adapter_resolved=(
             StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value
@@ -1243,6 +1264,46 @@ def _command_specific_prerequisite(
     ),
 ) -> StealthCommandExecutionPrerequisiteResolverItem:
     if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE:
+        live_execution_service_contract = build_live_execution_service_contract(
+            method=admission_decision.method,
+            route=metadata.route,
+            module_id=admission_decision.module_id,
+            service_method=metadata.service_method,
+            action_class=admission_decision.action_class,
+        )
+        if (
+            live_execution_service_contract.get("status")
+            == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+            or live_execution_service_contract.get("status")
+            == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+        ):
+            return _resolver_item(
+                prerequisite=prerequisite,
+                metadata=metadata,
+                admission_decision=admission_decision,
+                source=str(
+                    live_execution_service_contract.get(
+                        "source",
+                        DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+                    )
+                ),
+                lookup_status=(
+                    StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+                ),
+                lookup_ran=True,
+                resolved=True,
+                resolved_evidence_id=str(
+                    live_execution_service_contract.get(
+                        "service_reference",
+                        "live_execution_service_contract",
+                    )
+                ),
+                detail=(
+                    "Route-bound dry-run live-service evidence is configured "
+                    "for this stealth command, but the service is "
+                    "non-executable and does not call managers or Coinbase."
+                ),
+            )
         return _resolver_item(
             prerequisite=prerequisite,
             metadata=metadata,

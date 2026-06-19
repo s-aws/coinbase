@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4501-4520`.
-- Active autonomous range: `4521-4540`.
+- Latest completed autonomous range before current work: `4521-4540`.
+- Active autonomous range: `4541-4560`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -639,9 +639,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4521-4540`.
+- Active autonomous range: `4541-4560`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4521-4540`.
+- Current direction: complete phases `4541-4560`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -723,8 +723,10 @@ Keep it short. Keep it factual.
   false. Completed `4501-4520` adds a concrete M55 blocker-closure ledger
   naming live-service, live-adapter, active-placement cancel/replace, reveal
   submission, recovery repair/rollback, and post-write reconciliation blockers.
-  Active `4521-4540` adds one backend-owned, route-bound, non-executable dry-run
-  adapter for stealth reveal. It may mark only the reveal route adapter evidence
+  Completed `4521-4540` adds one backend-owned, route-bound, non-executable
+  dry-run adapter for stealth reveal. Active `4541-4560` adds one
+  backend-owned, route-bound, non-executable dry-run live-service contract for
+  stealth reveal. It may mark only the reveal route service evidence
   present/`approval_required`; it must not call Coinbase, invoke managers,
   execute reveal, cancel or replace active placements, execute reconciliation,
   mutate lifecycle/order/exchange state, clear M55 blockers, grant browser

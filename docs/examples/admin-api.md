@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "4521-4540",
+  "approved_phase_range": "4541-4560",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -205,8 +205,8 @@ Expected current live-enablement posture:
   "live_execution_adapter_configured_count": 2,
   "live_execution_adapter_missing_count": 6,
   "readiness_precondition_count": 72,
-  "blocking_readiness_precondition_count": 46,
-  "passed_readiness_precondition_count": 26,
+  "blocking_readiness_precondition_count": 45,
+  "passed_readiness_precondition_count": 27,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "4521-4540",
+  "approved_phase_range": "4541-4560",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

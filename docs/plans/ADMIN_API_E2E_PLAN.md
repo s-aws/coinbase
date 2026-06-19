@@ -38,96 +38,108 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Stealth Reveal Dry-Run Adapter Batch - Phases 4521-4540
+## Active M55 Stealth Reveal Dry-Run Service Batch - Phases 4541-4560
 
-These phases close the first concrete M55 blocker gap by adding a backend-owned,
-route-bound, non-executable dry-run live adapter for
-`POST /api/v1/stealth/orders/{stealth_order_id}/reveal`. The adapter is
-contract evidence only. It may change readback status from `live_disabled` to
-`approval_required` for that exact route, but it must not call Coinbase, invoke
-the stealth manager, reveal an order, submit a slice, cancel/replace active
-placements, execute reconciliation, mutate state, grant browser authority, or
-grant BFF execution authority.
+These phases close the next concrete M55 blocker gap by adding backend-owned,
+route-bound, non-executable dry-run live-service evidence for
+`POST /api/v1/stealth/orders/{stealth_order_id}/reveal`. The service evidence
+is contract readback only. It may resolve the `live_execution_service`
+prerequisite and show `approval_required` for that exact route, but it must
+not enable the service, call Coinbase, invoke the stealth manager, reveal an
+order, submit a slice, cancel/replace active placements, execute
+reconciliation, mutate state, grant browser authority, or grant BFF execution
+authority.
 
-### Phase 4521 - Prior Range Completion Evidence
+### Phase 4541 - Prior Range Completion Evidence
 
-- Record completed phases 4501-4520 with backend commit `840776df`, frontend commit `31ad60a`, passing backend regression, frontend release gate, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+- Record completed phases 4521-4540 with backend commit `66e72af8`, frontend commit `f147d5f`, passing backend regression, frontend release gate, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 4522 - Advance Active Queue Range
+### Phase 4542 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4501-4520 to active phases 4521-4540 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4521-4540 to active phases 4541-4560 while preserving no-live defaults and cap policy.
 
-### Phase 4523 - Reveal Adapter Route Binding
+### Phase 4543 - Reveal Service Route Binding
 
-- Add one route-bound dry-run adapter contract for `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` through the existing `build_live_execution_adapter_contract` path.
+- Add one route-bound dry-run service contract for `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` through the existing `build_live_execution_service_contract` path.
 
-### Phase 4524 - Exact Execution Resolver Evidence
+### Phase 4544 - Exact Execution Resolver Evidence
 
-- Let the exact stealth reveal execution contract resolve only the `live_execution_adapter` prerequisite from backend adapter evidence while keeping live service, approvals, caps, manager policy, Coinbase submission policy, reveal trigger proof, and reconciliation unresolved.
+- Let the exact stealth reveal execution contract resolve the `live_execution_service` prerequisite from backend service evidence alongside existing adapter evidence, while keeping approvals, caps, manager policy, Coinbase submission policy, reveal trigger proof, and reconciliation unresolved.
 
-### Phase 4525 - Suite Admission Readiness Evidence
+### Phase 4545 - Suite Admission Readiness Evidence
 
-- Update the stealth command-suite readback so the reveal command shows the configured adapter as present evidence without making admission allowed, executable, live enabled, or manager/Coinbase capable.
+- Update the stealth command-suite readback so the reveal command shows the service dry-run as present evidence without making admission allowed, executable, live enabled, or manager/Coinbase capable.
 
-### Phase 4526 - Admin Live Enablement Rollup
+### Phase 4546 - Admin Live Enablement Rollup
 
-- Update `GET /api/v1/admin/live-enablement` counts and route rows so the reveal route is the second configured dry-run adapter path, with `approval_required` status and zero live-enabled paths.
+- Update `GET /api/v1/admin/live-enablement` counts and route rows so the reveal route has both adapter and service dry-run evidence, with `approval_required` service status and zero live-enabled paths.
 
-### Phase 4527 - No-Execution Safety Assertions
+### Phase 4547 - No-Execution Safety Assertions
 
-- Add regression assertions proving reveal adapter evidence is non-executable, browser display-only, BFF forward-only no-execution, and still blocked by live service, approvals, caps, exact proofs, and post-write reconciliation.
+- Add regression assertions proving reveal service evidence is non-executable, browser display-only, BFF forward-only no-execution, and still blocked by approvals, caps, exact proofs, manager/Coinbase policy, and post-write reconciliation.
 
-### Phase 4528 - Blocker Ledger Clarity Sync
+### Phase 4548 - Blocker Ledger Clarity Sync
 
-- Update blocker-closure wording so contextless readers understand one non-executable reveal dry-run adapter exists, while full M55 adapter construction and executable stealth live paths remain blocked.
+- Update blocker-closure wording so contextless readers understand the reveal route now has non-executable service and adapter dry-run evidence, while full M55 execution and executable stealth live paths remain blocked.
 
-### Phase 4529 - Backend Schema And Examples
+### Phase 4549 - Backend Schema And Examples
 
-- Regenerate or verify backend OpenAPI and examples so the reveal dry-run adapter fields, active phase range, and no-live posture are documented.
+- Regenerate or verify backend OpenAPI and examples so the reveal dry-run service fields, active phase range, and no-live posture are documented.
 
-### Phase 4530 - Frontend Schema Sync
+### Phase 4550 - Frontend Schema Sync
 
-- Regenerate frontend OpenAPI TypeScript schema when needed and sync mocks to show the reveal route as adapter-configured but non-executable.
+- Regenerate frontend OpenAPI TypeScript schema when needed and sync mocks to show the reveal route as service-configured but non-executable.
 
-### Phase 4531 - Frontend Live Enablement Display Sync
+### Phase 4551 - Frontend Live Enablement Display Sync
 
-- Ensure the enterprise admin frontend displays the reveal route as `approval_required` dry-run evidence while keeping live-enabled count `0` and not adding trading controls.
+- Ensure the enterprise admin frontend displays the reveal service as `approval_required` dry-run evidence while keeping live-enabled count `0` and not adding trading controls.
 
-### Phase 4532 - Frontend Stealth Command Suite Sync
+### Phase 4552 - Frontend Stealth Command Suite Sync
 
-- Ensure the stealth command-suite UI renders reveal adapter evidence as backend-owned present evidence while preserving all disabled execution flags.
+- Ensure the stealth command-suite UI renders reveal service evidence as backend-owned present evidence while preserving all disabled execution flags.
 
-### Phase 4533 - Quality Metadata Sync
+### Phase 4553 - Quality Metadata Sync
 
-- Update autonomous queue, release-readiness, deployment-readiness, artifact contract, runtime evidence, and active range metadata to phases 4521-4540.
+- Update autonomous queue, release-readiness, deployment-readiness, artifact contract, runtime evidence, and active range metadata to phases 4541-4560.
 
-### Phase 4534 - Documentation Sync
+### Phase 4554 - Documentation Sync
 
-- Update Admin API, frontend API, testing, roadmap, maintainer handoff, durable milestones, examples, expanded context, and agent-state docs so contextless readers see 4521-4540 as active and 4501-4520 as completed.
+- Update Admin API, frontend API, testing, roadmap, maintainer handoff, durable milestones, examples, expanded context, and agent-state docs so contextless readers see 4541-4560 as active and 4521-4540 as completed.
 
-### Phase 4535 - Stale Authority Scan
+### Phase 4555 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale wording implying the reveal dry-run adapter can execute reveal, submit Coinbase orders, invoke managers, clear M55 blockers, or enable live trading.
+- Search backend/frontend code and docs for stale wording implying the reveal dry-run service can execute reveal, submit Coinbase orders, invoke managers, clear M55 blockers, or enable live trading.
 
-### Phase 4536 - Backend Focused Gates
+### Phase 4556 - Backend Focused Gates
 
-- Run backend autonomous queue validation, OpenAPI freshness checks, and focused Admin API contract regressions for live adapter, reveal execution, command-suite, and live-enablement readbacks.
+- Run backend autonomous queue validation, OpenAPI freshness checks, and focused Admin API contract regressions for live service, reveal execution, command-suite, and live-enablement readbacks.
 
-### Phase 4537 - Frontend Focused Gates
+### Phase 4557 - Frontend Focused Gates
 
 - Run frontend API freshness, autonomous check, typecheck, and focused tests for mocks, runtime, quality gates, admin shell, live enablement, and stealth command-suite display.
 
-### Phase 4538 - Full Backend Regression
+### Phase 4558 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short` and the documented Bash-form regression when available.
 
-### Phase 4539 - Full Frontend Release Gate
+### Phase 4559 - Full Frontend Release Gate
 
 - Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 4540 - Blind Contextless Review, Live UI Smoke, Commit And Push
+### Phase 4560 - Blind Contextless Review, Live UI Smoke, Commit And Push
 
-- Run blind/contextless review proving a fresh agent can explain the reveal dry-run adapter and no-live authority, verify the local admin frontend renders the current phase range and no-live posture without browser console errors, record a No-Live Report with `0` USDC submitted/executed, then commit and push backend and frontend repositories.
+- Run blind/contextless review proving a fresh agent can explain the reveal dry-run service and no-live authority, verify the local admin frontend renders the current phase range and no-live posture without browser console errors, record a No-Live Report with `0` USDC submitted/executed, then commit and push backend and frontend repositories.
+
+## Completed M55 Stealth Reveal Dry-Run Adapter Batch - Phases 4521-4540
+
+These phases added one backend-owned, route-bound, non-executable dry-run live
+adapter for `POST /api/v1/stealth/orders/{stealth_order_id}/reveal`. Backend
+commit `66e72af8` and frontend commit `f147d5f` contain the pushed range.
+Backend regression passed with `868 passed, 1 warning`; frontend
+`npm run release:gate` passed with `264` unit tests and `3` Playwright tests;
+blind/contextless review and live UI smoke passed at
+`http://127.0.0.1:3001/?phaseSmoke=4521-4540`. Live Coinbase execution was
+not run; submitted notional `0` USDC and executed notional `0` USDC.
 
 ## Completed M55 Concrete Blocker Closure Ledger Batch - Phases 4501-4520
 

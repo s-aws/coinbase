@@ -3069,10 +3069,12 @@ Current backend evidence:
   ledger naming live-service, live-adapter, active-placement cancel/replace,
   reveal submission, recovery repair/rollback, and post-write reconciliation
   blockers without enabling Coinbase, managers, repair, rollback,
-  reconciliation, state mutation, browser, or BFF authority. Active phases
+  reconciliation, state mutation, browser, or BFF authority. Completed phases
   4521-4540 add one backend-owned, route-bound, non-executable stealth reveal
-  dry-run adapter while keeping live service, exact proof, manager, Coinbase,
-  reconciliation, state mutation, browser, and BFF execution authority blocked.
+  dry-run adapter. Active phases 4541-4560 add one backend-owned, route-bound,
+  non-executable stealth reveal dry-run live-service contract while keeping
+  exact proof, manager, Coinbase, reconciliation, state mutation, browser, and
+  BFF execution authority blocked.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

@@ -66,6 +66,7 @@ from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
     build_live_execution_adapter_contract,
+    build_live_execution_service_contract,
 )
 from .models import (
     AdminApiActor,
@@ -287,7 +288,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4521-4540"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4541-4560"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1112,10 +1113,28 @@ def _live_readiness_preconditions(
     admission_audit_trail: AdminLiveAdmissionAuditTrailEvidence,
     cap_guard_contract: AdminLiveCapGuardContractEvidence,
     live_execution_adapter: dict[str, Any],
+    live_execution_service: dict[str, Any],
 ) -> list[AdminLiveReadinessPreconditionItem]:
     adapter_configured = bool(live_execution_adapter.get("configured"))
     adapter_source = str(live_execution_adapter.get("source") or "not_configured")
     adapter_status = AdminApiGateStatus.PASSED if adapter_configured else AdminApiGateStatus.BLOCKED
+    service_status_value = live_execution_service.get(
+        "status",
+        AdminApiLiveExecutionStatus.LIVE_DISABLED,
+    )
+    service_configured = (
+        service_status_value == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+        or service_status_value == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+    )
+    service_source = str(
+        live_execution_service.get("source")
+        or DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
+    )
+    service_status = (
+        AdminApiGateStatus.PASSED
+        if service_configured
+        else AdminApiGateStatus.BLOCKED
+    )
     return [
         _live_readiness_precondition(
             precondition=AdminApiLiveReadinessPrecondition.APPROVAL_STORE_CONTRACT,
@@ -1228,18 +1247,23 @@ def _live_readiness_preconditions(
         ),
         _live_readiness_precondition(
             precondition=AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE,
-            status=AdminApiGateStatus.BLOCKED,
-            configured=False,
-            source=DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+            status=service_status,
+            configured=service_configured,
+            source=service_source,
             expected_source="admin_api_live_execution_service",
-            detail=(
-                f"{method} {route} is still bound to the disabled backend "
-                "live execution service; no Coinbase adapter may run."
+            detail=str(live_execution_service.get("detail") or ""),
+            blocker=(
+                None
+                if service_configured
+                else AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED
             ),
-            blocker=AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
             evidence=[
                 "The backend live execution service is intentionally disabled.",
                 "No create, cancel, submit, execute, or Coinbase client method is exposed.",
+                *[
+                    str(item)
+                    for item in live_execution_service.get("evidence", [])
+                ],
             ],
         ),
     ]
@@ -9867,6 +9891,13 @@ class AdminApiReadService:
                 action_class=item.action_class,
                 include_construction_contract=False,
             )
+            live_execution_service = build_live_execution_service_contract(
+                method=method,
+                route=path,
+                module_id=item.module_id,
+                service_method=item.shared_method,
+                action_class=item.action_class,
+            )
             path_live_status = live_execution_adapter.get(
                 "status",
                 AdminApiLiveExecutionStatus.LIVE_DISABLED,
@@ -9880,6 +9911,7 @@ class AdminApiReadService:
                 admission_audit_trail=admission_audit_trail,
                 cap_guard_contract=cap_guard_contract,
                 live_execution_adapter=live_execution_adapter,
+                live_execution_service=live_execution_service,
             )
             paths.append(
                 AdminLiveEnablementPathItem(
@@ -13016,9 +13048,10 @@ class AdminApiReadService:
                 ),
                 detail=(
                     "The Admin API exposes one non-executable stealth reveal "
-                    "dry-run adapter, but full M55 executable adapter "
-                    "construction remains blocked for stealth live paths. "
-                    "Browser and BFF layers cannot satisfy this."
+                    "dry-run adapter and one non-executable stealth reveal "
+                    "dry-run live-service contract, but full M55 executable "
+                    "service/adapter construction remains blocked for stealth "
+                    "live paths. Browser and BFF layers cannot satisfy this."
                 ),
             ),
             blocker_closure(

@@ -772,6 +772,10 @@ M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_SERVICE_METHOD = (
 )
 M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_SOURCE = "m55_stealth_reveal_backend_dry_run"
 M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_MISSING_REASON = "stealth_reveal_dry_run_only"
+M55_STEALTH_REVEAL_DRY_RUN_SERVICE_SOURCE = "m55_stealth_reveal_service_dry_run"
+M55_STEALTH_REVEAL_DRY_RUN_SERVICE_MISSING_REASON = (
+    "stealth_reveal_service_dry_run_only"
+)
 
 
 @contextmanager
@@ -15319,6 +15323,113 @@ def build_live_execution_service_contract(
     This is a projection of the backend-owned live execution service state,
     not a live service implementation or adapter factory.
     """
+
+    if (
+        method == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_METHOD
+        and route == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_ROUTE
+        and module_id == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_MODULE_ID
+        and service_method == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_SERVICE_METHOD
+    ):
+        latest_decision = read_latest_live_service_decision(live_service_decision_store)
+        latest_decision_available = latest_decision is not None
+        latest_decision_recorded_artifacts = (
+            ["explicit_backend_live_enablement_decision"]
+            if latest_decision_available
+            else []
+        )
+        return {
+            "required": True,
+            "present": True,
+            "enabled": False,
+            "backend_owned": True,
+            "route_bound": True,
+            "final_boundary": True,
+            "status": AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            "source": M55_STEALTH_REVEAL_DRY_RUN_SERVICE_SOURCE,
+            "missing_reason": M55_STEALTH_REVEAL_DRY_RUN_SERVICE_MISSING_REASON,
+            "module_id": module_id,
+            "route": route,
+            "method": method,
+            "service_method": service_method,
+            "service_reference": "AdminApiCommandService.reveal_stealth_order_by_stealth_order_id",
+            "action_class": action_class,
+            "executable": False,
+            "live_exchange_submission_allowed": False,
+            "live_exchange_submitted": False,
+            "enablement_precondition_required": True,
+            "enablement_precondition_resolved": False,
+            "enablement_precondition_authority": (
+                LIVE_EXECUTION_SERVICE_ENABLEMENT_AUTHORITY
+            ),
+            "required_enablement_artifacts": list(
+                LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS
+            ),
+            "missing_enablement_artifacts": list(
+                LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS
+            ),
+            "enablement_contract_refs": list(
+                LIVE_EXECUTION_SERVICE_ENABLEMENT_CONTRACT_REFS
+            ),
+            "enablement_verification_gates": list(
+                LIVE_EXECUTION_SERVICE_ENABLEMENT_VERIFICATION_GATES
+            ),
+            "enablement_blockers": list(LIVE_EXECUTION_SERVICE_ENABLEMENT_BLOCKERS),
+            "latest_service_decision_available": latest_decision_available,
+            "latest_service_decision_id": (
+                latest_decision.decision_id if latest_decision is not None else None
+            ),
+            "latest_service_decision_recorded_at": (
+                latest_decision.recorded_at if latest_decision is not None else None
+            ),
+            "latest_service_decision_status": (
+                latest_decision.status if latest_decision is not None else None
+            ),
+            "latest_service_decision_requested_status": (
+                latest_decision.requested_service_status
+                if latest_decision is not None
+                else None
+            ),
+            "latest_service_decision_source": (
+                latest_decision.source if latest_decision is not None else None
+            ),
+            "latest_service_decision_service_enabled": (
+                latest_decision.service_enabled if latest_decision is not None else False
+            ),
+            "latest_service_decision_live_coinbase_execution_approved": (
+                latest_decision.live_coinbase_execution_approved
+                if latest_decision is not None
+                else False
+            ),
+            "latest_service_decision_recorded_artifacts": (
+                latest_decision_recorded_artifacts
+            ),
+            "latest_service_decision_recorded_artifacts_satisfy_enablement": False,
+            "latest_service_decision_satisfaction_authority": (
+                "readback_only_no_enablement_satisfaction"
+            ),
+            "latest_service_decision_satisfied_enablement_artifacts": [],
+            "latest_service_decision_unsatisfied_enablement_artifacts": (
+                list(LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS)
+                if latest_decision_available
+                else []
+            ),
+            "latest_service_decision_resolver_eligible": False,
+            "latest_service_decision_resolves_enablement": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
+            "evidence": [
+                "Route-bound stealth reveal live-service evidence is configured for dry-run admission only.",
+                "The service remains disabled, non-executable, and unable to submit Coinbase orders.",
+                "Backend live enablement preconditions remain unresolved.",
+                "Browser and BFF layers may display this boundary but cannot enable it.",
+            ],
+            "detail": (
+                f"{method} {route} has route-bound dry-run live-service evidence "
+                f"for {service_method}; it remains non-executable and cannot "
+                "call managers, Coinbase, or reconciliation."
+            ),
+        }
 
     service = live_execution_service or get_disabled_live_execution_service()
     state = service.admission_state()
