@@ -455,7 +455,20 @@ def build_stealth_command_execution_contract(
         for prerequisite in required
         if prerequisite not in resolved
     ]
-    blockers = list(BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS)
+    blockers = [
+        blocker
+        for blocker in BASE_STEALTH_COMMAND_EXECUTION_BLOCKERS
+        if not (
+            blocker == StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED.value
+            and StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value
+            in resolved
+        )
+        and not (
+            blocker == StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED.value
+            and StealthCommandExecutionPrerequisite.LIVE_EXECUTION_SERVICE.value
+            in resolved
+        )
+    ]
     blockers.extend(f"{prerequisite}_missing" for prerequisite in missing)
     execution_readiness_stages = _build_execution_readiness_stages(
         metadata=metadata,
@@ -503,6 +516,26 @@ def build_stealth_command_execution_contract(
     execution_preflight = build_stealth_execution_preflight(execution_candidate)
     execution_transition_barrier = build_stealth_execution_transition_barrier(
         execution_preflight
+    )
+    live_execution_adapter_contract = build_live_execution_adapter_contract(
+        method=admission_decision.method,
+        route=metadata.route,
+        module_id=admission_decision.module_id,
+        service_method=metadata.service_method,
+        action_class=admission_decision.action_class,
+    )
+    live_execution_adapter_configured = bool(
+        live_execution_adapter_contract.get("configured")
+    )
+    live_execution_adapter_source = (
+        str(
+            live_execution_adapter_contract.get(
+                "source",
+                DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+            )
+        )
+        if live_execution_adapter_configured
+        else DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE
     )
 
     return StealthCommandExecutionContractEvidence(
@@ -696,15 +729,19 @@ def build_stealth_command_execution_contract(
             action_class=admission_decision.action_class,
         ),
         live_execution_intent_contract=admission_decision.live_execution_intent,
-        live_execution_adapter_source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
-        live_execution_adapter_missing_reason="live_execution_adapter_disabled",
-        live_execution_adapter_contract=build_live_execution_adapter_contract(
-            method=admission_decision.method,
-            route=metadata.route,
-            module_id=admission_decision.module_id,
-            service_method=metadata.service_method,
-            action_class=admission_decision.action_class,
+        live_execution_adapter_resolved=(
+            StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value
+            in resolved
         ),
+        live_execution_adapter_source=live_execution_adapter_source,
+        live_execution_adapter_status=live_execution_adapter_contract.get("status"),
+        live_execution_adapter_missing_reason=(
+            None
+            if StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER.value
+            in resolved
+            else "live_execution_adapter_disabled"
+        ),
+        live_execution_adapter_contract=live_execution_adapter_contract,
         post_write_reconciliation_resolved=(
             StealthCommandExecutionPrerequisite.POST_WRITE_RECONCILIATION.value
             in resolved
@@ -1089,16 +1126,19 @@ def _build_remaining_execution_blockers(
         )
 
     items: list[StealthCommandExecutionBlockerChainItem] = []
-    for blocker_order, (
+    for (
         blocker,
         prerequisite,
         next_contract,
         detail,
         trace,
-    ) in enumerate(
-        blockers,
-        start=1,
-    ):
+    ) in blockers:
+        if prerequisite in resolved and blocker in {
+            StealthCommandExecutionBlocker.LIVE_EXECUTION_DISABLED,
+            StealthCommandExecutionBlocker.LIVE_EXECUTION_ADAPTER_DISABLED,
+        }:
+            continue
+        blocker_order = len(items) + 1
         source_item = by_prerequisite.get(prerequisite) if prerequisite else None
         items.append(
             StealthCommandExecutionBlockerChainItem(
@@ -1220,6 +1260,41 @@ def _command_specific_prerequisite(
             detail="Live execution service remains disabled for this stealth command.",
         )
     if prerequisite == StealthCommandExecutionPrerequisite.LIVE_EXECUTION_ADAPTER:
+        live_execution_adapter_contract = build_live_execution_adapter_contract(
+            method=admission_decision.method,
+            route=metadata.route,
+            module_id=admission_decision.module_id,
+            service_method=metadata.service_method,
+            action_class=admission_decision.action_class,
+        )
+        if bool(live_execution_adapter_contract.get("configured")):
+            return _resolver_item(
+                prerequisite=prerequisite,
+                metadata=metadata,
+                admission_decision=admission_decision,
+                source=str(
+                    live_execution_adapter_contract.get(
+                        "source",
+                        "route_bound_live_execution_adapter",
+                    )
+                ),
+                lookup_status=(
+                    StealthCommandExecutionPrerequisiteLookupStatus.RESOLVED
+                ),
+                lookup_ran=True,
+                resolved=True,
+                resolved_evidence_id=str(
+                    live_execution_adapter_contract.get(
+                        "adapter_reference",
+                        "live_execution_adapter_contract",
+                    )
+                ),
+                detail=(
+                    "Route-bound dry-run live execution adapter evidence is "
+                    "configured for this stealth command, but the adapter is "
+                    "non-executable and does not call managers or Coinbase."
+                ),
+            )
         return _resolver_item(
             prerequisite=prerequisite,
             metadata=metadata,

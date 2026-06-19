@@ -287,7 +287,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4501-4520"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4521-4540"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12486,10 +12486,25 @@ class AdminApiReadService:
                         ),
                     )
                 )
+            live_adapter_contract = build_live_execution_adapter_contract(
+                method=command.method,
+                route=command.route,
+                module_id="stealth_orders",
+                service_method=command.shared_method,
+                action_class=command.action_class,
+                include_construction_contract=False,
+            )
+            live_adapter_present = bool(live_adapter_contract.get("configured"))
+            live_adapter_source = str(
+                live_adapter_contract.get(
+                    "source",
+                    DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+                )
+            )
             requirements.append(
                 StealthCommandSuiteAdmissionRequirementItem(
                     evidence_name=AdminApiStealthAdmissionEvidence.LIVE_EXECUTION_ADAPTER,
-                    source=DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+                    source=live_adapter_source,
                     route=command.route,
                     method=command.method,
                     action_class=command.action_class,
@@ -12497,18 +12512,22 @@ class AdminApiReadService:
                     shared_method=command.shared_method,
                     identity_key=command.identity_key,
                     command_identity_key="stealth_order_id",
-                    status=AdminApiGateStatus.BLOCKED,
+                    status=(
+                        AdminApiGateStatus.PASSED
+                        if live_adapter_present
+                        else AdminApiGateStatus.BLOCKED
+                    ),
                     required=True,
-                    present=False,
-                    blocking=True,
+                    present=live_adapter_present,
+                    blocking=not live_adapter_present,
                     backend_owned=True,
                     route_bound=True,
                     browser_authority="display_only",
                     bff_authority="forward_only_no_execution",
                     detail=(
-                        "A backend live adapter must remain disabled until all "
-                        "route-bound approval, audit, cap/guard, reconciliation, "
-                        "and exchange-truth evidence is present."
+                        "A backend live adapter must remain non-executable until "
+                        "all route-bound approval, audit, cap/guard, "
+                        "reconciliation, and exchange-truth evidence is present."
                     ),
                 )
             )
@@ -12581,7 +12600,9 @@ class AdminApiReadService:
                         "order_id",
                     ],
                     required_evidence_count=len(requirements),
-                    present_evidence_count=0,
+                    present_evidence_count=sum(
+                        1 for requirement in requirements if requirement.present
+                    ),
                     missing_evidence_count=len(missing_evidence),
                     missing_evidence=missing_evidence,
                     requirements=requirements,
@@ -12970,6 +12991,7 @@ class AdminApiReadService:
                 command_routes=all_stealth_command_routes,
                 source_evidence_refs=[
                     "commands.live_adapter_configured",
+                    "live_enablement.paths[/api/v1/stealth/orders/{stealth_order_id}/reveal].live_execution_adapter",
                     "coverage_gaps.missing_contracts",
                     "create_lifecycle_write_audit.execution_contract",
                 ],
@@ -12993,9 +13015,10 @@ class AdminApiReadService:
                     "shared command service after live-service verification."
                 ),
                 detail=(
-                    "The Admin API already exposes disabled adapter decision "
-                    "evidence, but no executable stealth adapter has been "
-                    "constructed. Browser and BFF layers cannot satisfy this."
+                    "The Admin API exposes one non-executable stealth reveal "
+                    "dry-run adapter, but full M55 executable adapter "
+                    "construction remains blocked for stealth live paths. "
+                    "Browser and BFF layers cannot satisfy this."
                 ),
             ),
             blocker_closure(

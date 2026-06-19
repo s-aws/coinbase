@@ -38,8 +38,9 @@ The route requires Admin API authentication and `analytics:read`. It returns
 - `admission_readiness` rows that bind each command route to required
   backend proof evidence: approval request, approval decision, admission
   audit, cap/guard decision, reconciliation plan, active-placement exchange
-  truth or lifecycle-write guard, disabled live adapter, and post-live
-  reconciliation
+  truth or lifecycle-write guard, live adapter evidence, and post-live
+  reconciliation. The stealth reveal route may show one configured dry-run
+  adapter as present evidence, but admission and execution remain blocked.
 - admission context requirements showing which static route fields are present
   and which exact command-envelope fields are still missing before proof
   resolver lookup is allowed
@@ -78,7 +79,9 @@ The route requires Admin API authentication and `analytics:read`. It returns
   reconciliation execution. Every row is backend-owned evidence only with
   `resolved=false`, `blocking=true`, browser `display_only`, BFF
   `forward_only_no_execution`, all manager/Coinbase/reconciliation/state
-  execution flags false, and submitted/executed notional `0`
+  execution flags false, and submitted/executed notional `0`. A configured
+  reveal dry-run adapter does not clear full M55 adapter construction or make
+  stealth live paths executable.
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only

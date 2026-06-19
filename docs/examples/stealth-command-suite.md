@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4501-4520",
+  "approved_phase_range": "4521-4540",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -49,6 +49,12 @@ Expected posture:
 The same read-only response includes an M55 blocker-closure ledger. It names
 the concrete backend blockers that still prevent future live stealth
 execution, but it does not enable any of them:
+
+In the current 4521-4540 range, the reveal route may also show
+`live_adapter_configured=true` and `live_execution_status="approval_required"`.
+That is dry-run adapter evidence only; `live_enabled`, `executable`, manager
+invocation, Coinbase submission/cancel/read, reconciliation execution, and
+state mutation all remain false.
 
 ```json
 {

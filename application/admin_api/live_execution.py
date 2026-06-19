@@ -762,6 +762,16 @@ M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
 M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD = "place_manual_order"
 M53_PILOT_LIVE_ADAPTER_SOURCE = "m53_backend_pilot_dry_run"
 M53_PILOT_LIVE_ADAPTER_MISSING_REASON = "pilot_dry_run_only"
+M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_ROUTE = (
+    "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+)
+M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_METHOD = "POST"
+M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_MODULE_ID = "stealth_orders"
+M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_SERVICE_METHOD = (
+    "reveal_stealth_order_by_stealth_order_id"
+)
+M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_SOURCE = "m55_stealth_reveal_backend_dry_run"
+M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_MISSING_REASON = "stealth_reveal_dry_run_only"
 
 
 @contextmanager
@@ -15605,6 +15615,96 @@ def build_m53_pilot_live_execution_adapter_contract(
     }
 
 
+def build_m55_stealth_reveal_live_execution_adapter_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
+    include_construction_contract: bool = True,
+) -> dict[str, Any]:
+    """Return the M55 stealth reveal route-bound dry-run adapter evidence."""
+
+    adapter_reference = f"AdminApiCommandService.{service_method}"
+    return {
+        "required": True,
+        "configured": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "status": AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+        "source": M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_SOURCE,
+        "missing_reason": M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_MISSING_REASON,
+        "module_id": module_id,
+        "route": route,
+        "method": method,
+        "service_method": service_method,
+        "adapter_reference": adapter_reference,
+        "action_class": action_class,
+        "executable": False,
+        "construction_precondition_required": True,
+        "construction_precondition_resolved": False,
+        "construction_precondition_authority": (
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY
+        ),
+        "required_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "missing_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "construction_contract_refs": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS
+        ),
+        "construction_verification_gates": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
+        ),
+        "construction_blockers": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
+        ),
+        "construction_contract_available": True,
+        "construction_contract_ref": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
+        "construction_contract_satisfies_construction": False,
+        "construction_contract": (
+            build_live_adapter_construction_contract(
+                method=method,
+                route=route,
+                module_id=module_id,
+                service_method=service_method,
+                action_class=action_class,
+            )
+            if include_construction_contract
+            else None
+        ),
+        **build_live_execution_adapter_construction_satisfaction(),
+        **build_live_execution_adapter_decision_readback(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            live_adapter_decision_store=live_adapter_decision_store,
+        ),
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
+        "evidence": [
+            "M55 stealth reveal maps one route to the shared backend command service.",
+            "The reveal adapter is dry-run admission evidence only and exposes no submit method.",
+            "Live execution service admission remains required before reveal_order_slice or Coinbase submission.",
+            "Backend live adapter construction preconditions remain unresolved.",
+            "Browser and BFF layers cannot make the reveal adapter executable.",
+        ],
+        "detail": (
+            f"{method} {route} is configured as the M55 stealth reveal dry-run "
+            f"adapter for {adapter_reference}; it remains non-executable until "
+            "backend live execution service admission, exact stealth proof "
+            "prerequisites, cap/guard, admission audit, reconciliation proof, "
+            "and live caps all pass."
+        ),
+    }
+
+
 def build_live_execution_adapter_contract(
     *,
     method: str,
@@ -15624,6 +15724,21 @@ def build_live_execution_adapter_contract(
         and service_method == M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD
     ):
         return build_m53_pilot_live_execution_adapter_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            action_class=action_class,
+            live_adapter_decision_store=live_adapter_decision_store,
+            include_construction_contract=include_construction_contract,
+        )
+    if (
+        method == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_METHOD
+        and route == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_ROUTE
+        and module_id == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_MODULE_ID
+        and service_method == M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_SERVICE_METHOD
+    ):
+        return build_m55_stealth_reveal_live_execution_adapter_contract(
             method=method,
             route=route,
             module_id=module_id,

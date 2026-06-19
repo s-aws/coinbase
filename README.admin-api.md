@@ -284,11 +284,16 @@ items, constructing adapters, or executing live paths. Completed phases
 inputs and a review-input summary derived from those reviews, without making
 inputs present, accepting inputs, validating inputs, completing reviews,
 passing gates, completing steps, resolving claims, clearing work items,
-constructing adapters, or executing live paths. Active phases 4501-4520 add
+constructing adapters, or executing live paths. Completed phases 4501-4520 add
 a concrete M55 blocker-closure ledger naming live-service, live-adapter,
 active-placement cancel/replace, reveal submission, recovery repair/rollback,
 and post-write reconciliation blockers without enabling Coinbase, managers,
 repair, rollback, reconciliation, state mutation, browser, or BFF authority.
+Active phases 4521-4540 add one route-bound, non-executable dry-run adapter for
+stealth reveal so readbacks can show `approval_required` adapter evidence for
+`POST /api/v1/stealth/orders/{stealth_order_id}/reveal` while keeping live
+service, exact proof, manager, Coinbase, reconciliation, browser, and BFF
+execution authority blocked.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their
