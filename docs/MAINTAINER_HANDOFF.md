@@ -100,8 +100,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4341-4360` under M55.
-- Active autonomous range: `4361-4380` under M55.
+- Latest completed autonomous range: `4361-4380` under M55.
+- Active autonomous range: `4381-4400` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -339,7 +339,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   no-input-validation, no-review-completion, no-step-completion,
   no-claim-resolution, no-claim-trace-clearance, no-work-item-clearance,
   no-dependency-clearance, no-construction, no-execution, and no-live
-  authority. Active 4361-4380 work adds claim-trace clearance-step
+  authority. Completed 4361-4380 work adds claim-trace clearance-step
   review-input store record-validation remediation dependency rows and a
   dependency summary over those blocked remediation rows while preserving
   no-dependency-readiness, no-graph-readiness, no-predecessor-readiness,
@@ -350,7 +350,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   no-input-presence, no-input-acceptance, no-input-validation,
   no-review-completion, no-step-completion, no-claim-resolution,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
-  no-construction, no-execution, and no-live
+  no-construction, no-execution, and no-live authority. Active 4381-4400 work
+  adds dependency work-item rows and a work-queue summary over those blocked
+  dependency rows while preserving no-work-item-readiness,
+  no-queue-readiness, no-handoff-readiness, no-dependency-readiness,
+  no-graph-readiness, no-predecessor-readiness, no-action-readiness,
+  no-remediation, no-validation-readiness, no-record-contract, no-schema,
+  no-log, no-idempotency-binding, no-payload-validation, no-replay-protection,
+  no-store, no-writer, no-write, no-record-presence, no-record-acceptance,
+  no-record-validation, no-input-presence, no-input-acceptance,
+  no-input-validation, no-review-completion, no-step-completion,
+  no-claim-resolution, no-claim-trace-clearance, no-work-item-clearance,
+  no-dependency-clearance, no-construction, no-execution, and no-live
   authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail

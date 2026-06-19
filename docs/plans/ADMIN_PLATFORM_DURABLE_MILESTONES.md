@@ -3000,13 +3000,25 @@ Current backend evidence:
   no-input-acceptance, no-input-validation, no-review-completion,
   no-step-completion, no-step-allowance, no-claim-resolution,
   no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
-  no-construction, no-execution, and no-live authority. Active phases
+  no-construction, no-execution, and no-live authority. Completed phases
   4361-4380 add claim-trace clearance-step review-input store
   record-validation remediation dependency rows and a dependency summary
   derived from those blocked remediation rows while preserving
   no-dependency-readiness, no-graph-readiness, no-predecessor-readiness,
   no-action-readiness, no-remediation-readiness, no-remediation-performance,
   no-remediation-recording, no-validation-readiness, no-record-contract,
+  no-schema, no-log, no-idempotency-binding, no-payload-validation,
+  no-replay-protection, no-store, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-construction, no-execution, and no-live authority. Active phases
+  4381-4400 add dependency work-item rows and a work-queue summary derived
+  from those blocked dependency rows while preserving no-work-item-readiness,
+  no-queue-readiness, no-handoff-readiness, no-dependency-readiness,
+  no-graph-readiness, no-predecessor-readiness, no-action-readiness,
+  no-remediation-readiness, no-validation-readiness, no-record-contract,
   no-schema, no-log, no-idempotency-binding, no-payload-validation,
   no-replay-protection, no-store, no-writer, no-write, no-record-presence,
   no-record-acceptance, no-record-validation, no-input-presence,

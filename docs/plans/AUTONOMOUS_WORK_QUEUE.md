@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **4361-4380**.
+- Approved phase range: **4381-4400**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4341-4360`.
+- Previous completed range: `4361-4380`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -23,105 +23,109 @@ without relying on chat history.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Active Phases 4361-4380
+## Active Phases 4381-4400
 
-These phases continue M55 after claim-trace clearance-step review-input store
-record-validation remediation rows by adding backend-owned blocked remediation
-dependency rows and a remediation dependency summary under the same
-live-adapter construction acceptance evidence path. Each dependency row is
-derived from one bounded blocked remediation row, preserves the upstream
-validation/remediation identifiers, and adds immediate predecessor/successor
-links, dependency gates, dependency blockers, verification gates, and disabled
-authority flags. This remains readback evidence only. It must not perform
-remediation, create validators, validate payloads, bind idempotency, protect
-replay, write or accept evidence, make records present, accept records,
-validate records, make inputs present, accept inputs, validate inputs, complete
-reviews, complete steps, resolve claims, clear claim traces, clear work items
-or dependencies, configure validation/replay, mark steps ready, register
-routes, bind route inventory, bind shared command services, register handlers,
-construct adapters, call Coinbase, invoke managers, execute reconciliation,
-cancel/replace active placements, mutate lifecycle/order/exchange state, grant
-browser authority, or grant BFF execution authority.
+These phases continue M55 by adding backend-owned blocked work-item queue
+evidence for the producer-route contract clearance-step review-input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review-input store record-validation remediation dependency rows completed in
+phases 4361-4380. Each new work item is derived from one blocked remediation
+dependency row and names the dependency id, required backend work, backend refs,
+handoff blockers, work-item gate, queue order, and disabled authority flags.
+This remains readback evidence only. It must not perform remediation, create
+validators, validate payloads, bind idempotency, protect replay, write or
+accept evidence, make records present, accept records, validate records, make
+inputs present, accept inputs, validate inputs, complete reviews, complete
+steps, resolve claims, clear claim traces, clear work items or dependencies,
+configure validation/replay, mark steps ready, register routes, bind route
+inventory, bind shared command services, register handlers, construct adapters,
+call Coinbase, invoke managers, execute reconciliation, cancel/replace active
+placements, mutate lifecycle/order/exchange state, grant browser authority, or
+grant BFF execution authority.
 
-### Phase 4361 - Prior Range Completion Evidence
+### Phase 4381 - Prior Range Completion Evidence
 
-- Record completed phases 4341-4360 with pushed backend/frontend commits, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+- Record completed phases 4361-4380 with backend commit `603a17bc`, frontend commit `2d0e181`, passing gates, blind/contextless review, live UI smoke, and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 4362 - Advance Active Queue Range
+### Phase 4382 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4341-4360 to active phases 4361-4380 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4361-4380 to active phases 4381-4400 while preserving no-live defaults and cap policy.
 
-### Phase 4363 - Backend Claim-Trace Store Record-Validation Remediation Dependency Models
+### Phase 4383 - Backend Dependency Work-Item Models
 
-- Add typed blocked producer-route contract clearance-step review-input store record-validation remediation dependency work-item claim-trace clearance-step review-input store record-validation remediation dependency and dependency summary models to the existing live-adapter construction contract path.
+- Add typed blocked producer-route contract clearance-step review-input store record-validation remediation dependency work-item claim-trace clearance-step review-input store record-validation remediation dependency work-item and work-queue summary models to the existing live-adapter construction contract path.
 
-### Phase 4364 - Backend Remediation Dependency Projection
+### Phase 4384 - Backend Dependency Work-Item Projection
 
-- Derive one remediation dependency row from every bounded blocked dependency work-item claim-trace clearance-step review-input store record-validation remediation item and preserve remediation dependency id, remediation id, record validation id, record contract id, requirement id, input id, review id, clearance step id, plan id, claim-trace ids, upstream ids, work item id, upstream dependency/remediation ids, source input/review ids, schema/log refs, store/writer refs, record key, gates, blockers, and disabled authority flags.
+- Derive one dependency work-item row from every bounded blocked claim-trace clearance-step review-input store record-validation remediation dependency row while preserving upstream dependency, remediation, validation, record-contract, input, review, step, plan, claim, gate, blocker, schema, log, store, writer, and disabled-authority fields.
 
-### Phase 4365 - Dependency Graph Evidence
+### Phase 4385 - Work Queue Handoff Evidence
 
-- Expose immediate predecessor and successor remediation ids, predecessor and successor record validation ids, dependency blockers, first dependency blocker, dependency stage, dependency order, verification gate, and fail-closed dependency gate for each remediation dependency row.
+- Expose required backend work, backend refs, handoff blockers, first handoff blocker, dependency work-item gate, work-item stage, work-queue order, verification gate, and fail-closed blocker for each dependency work item.
 
-### Phase 4366 - No-Dependency-Readiness Authority Evidence
+### Phase 4386 - No-Work-Item-Readiness Authority Evidence
 
-- Keep each remediation dependency blocked with `record_validation_remediation_dependency_ready=false`, `all_predecessors_ready=false`, `dependency_graph_ready=false`, `action_ready=false`, `record_validation_remediation_ready=false`, `record_validation_remediation_performed=false`, `record_validation_remediation_recorded=false`, `record_validation_ready=false`, `record_contract_available=false`, `record_schema_available=false`, `append_only_log_available=false`, `idempotency_key_bound=false`, `payload_schema_validated=false`, `replay_protected=false`, `store_available=false`, `writer_allowed=false`, `write_allowed=false`, `record_present=false`, `record_accepted=false`, `record_validated=false`, and all construction/execution authority disabled.
+- Keep each dependency work item blocked with `work_item_ready=false`, `work_queue_ready=false`, `handoff_ready=false`, `record_validation_remediation_dependency_ready=false`, `dependency_graph_ready=false`, `all_predecessors_ready=false`, `action_ready=false`, all validation/remediation/record/input/review/step/claim readiness false, and all construction/execution authority disabled.
 
-### Phase 4367 - Backend Remediation Dependency Summary
+### Phase 4387 - Backend Dependency Work Queue Summary
 
-- Add a blocked remediation dependency summary aggregating dependency ids, remediation ids, record validation ids, record contract ids, requirement ids, input ids, missing backend work, validation gates, replay gates, remediation dependency gates, verification gates, blockers, predecessor/successor edge counts, counts, first ids, and disabled authority flags.
+- Add a blocked dependency work-queue summary aggregating work item ids, dependency ids, remediation ids, validation ids, gates, blockers, required backend work, backend refs, edge counts, first ids, and disabled authority flags.
 
-### Phase 4368 - Backend Schema And Coverage
+### Phase 4388 - Backend Schema And Coverage
 
-- Regenerate backend OpenAPI and add focused assertions proving remediation dependency rows and summary are blocked, derived from dependency work-item claim-trace clearance-step review-input store record-validation remediation rows, no-dependency-readiness, no-graph-readiness, no-predecessor-readiness, no-action-readiness, no-remediation-readiness, no-remediation-performance, no-remediation-recording, no-validation-readiness, no-record-contract, no-schema, no-log, no-idempotency-binding, no-payload-validation, no-replay-protection, no-store, no-writer, no-write, no-record, no-record-acceptance, no-record-validation, no-input-presence, no-input-acceptance, no-input-validation, no-review-completion, no-step-completion, no-claim-resolution, no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance, no-acceptance, no-construction, no-execution, and no-live.
+- Regenerate backend OpenAPI and add focused assertions proving dependency work-item rows and summary are blocked, derived from dependency rows, no-work-item-readiness, no-queue-readiness, no-handoff-readiness, no-dependency-readiness, no-graph-readiness, no-predecessor-readiness, no-action-readiness, no-remediation-readiness, no-validation-readiness, no-record-contract, no-schema, no-log, no-idempotency-binding, no-payload-validation, no-replay-protection, no-store, no-writer, no-write, no-record, no-input, no-review, no-step, no-claim, no-acceptance, no-construction, no-execution, and no-live.
 
-### Phase 4369 - Frontend Schema And Mock Sync
+### Phase 4389 - Frontend Schema And Mock Sync
 
-- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures for remediation dependency items and remediation dependency summary without hand-editing generated files.
+- Regenerate frontend OpenAPI TypeScript schema and sync mock disabled and pilot adapter fixtures for dependency work-item rows and dependency work-queue summary without hand-editing generated files.
 
-### Phase 4370 - Frontend Display Sync
+### Phase 4390 - Frontend Display Sync
 
-- Render producer-route contract clearance-step review-input store record-validation remediation dependency work-item claim-trace clearance-step review-input store record-validation remediation dependencies and summary separately from remediation rows through the existing adapter evidence display.
+- Render producer-route contract clearance-step review-input store record-validation remediation dependency work items and dependency work-queue summary separately from dependency rows through the existing adapter evidence display.
 
-### Phase 4371 - Frontend Focused Coverage
+### Phase 4391 - Frontend Focused Coverage
 
-- Update focused mock and dry-submit tests so remediation dependency readback cannot imply dependency readiness, graph readiness, predecessor readiness, action readiness, remediation readiness, remediation performance, remediation recording, validation readiness, record-contract availability, schema availability, append-only log availability, idempotency binding, payload validation, replay protection, store availability, writer authority, write permission, record presence, record acceptance, record validation, input presence, input acceptance, input validation, review completion, gate passage, step completion, claim resolution, claim-trace clearance, work-item clearance, dependency clearance, construction, or execution authority.
+- Update focused mock and dry-submit tests so dependency work-item readback cannot imply work-item readiness, queue readiness, handoff readiness, dependency readiness, graph readiness, predecessor readiness, action readiness, remediation readiness, validation readiness, record-contract availability, schema availability, append-only log availability, idempotency binding, payload validation, replay protection, store availability, writer authority, write permission, record presence, input presence, review completion, step completion, claim resolution, construction, or execution authority.
 
-### Phase 4372 - Documentation Sync
+### Phase 4392 - Documentation Sync
 
-- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, expanded context, contextless review logs, and agent-state docs for route-contract clearance-step review-input store record-validation remediation dependency readback.
+- Update Admin API, frontend API, examples, testing, roadmap, maintainer handoff, durable milestones, expanded context, contextless review logs, and agent-state docs for dependency work-item queue readback.
 
-### Phase 4373 - Autonomous Validator Sync
+### Phase 4393 - Autonomous Validator Sync
 
-- Update backend/frontend autonomous validators and active-range metadata for phases 4361-4380.
+- Update backend/frontend autonomous validators and active-range metadata for phases 4381-4400.
 
-### Phase 4374 - Stale Authority Scan
+### Phase 4394 - Stale Authority Scan
 
-- Search backend/frontend code and docs for stale active-range wording or text implying claim-trace clearance-step review-input store record-validation remediation dependencies can make dependency graphs ready, make predecessors ready, perform remediation, create validators, validate payloads, bind idempotency, protect replay, write or accept records, validate records, accept inputs, validate inputs, complete reviews, complete steps, resolve claims, clear claim traces, clear work items or dependencies, write or accept evidence, make steps ready, construct adapters, execute, or enable live trading.
+- Search backend/frontend code and docs for stale active-range wording or text implying dependency work items can make queues ready, handoff ready, dependency graphs ready, predecessors ready, perform remediation, create validators, validate payloads, bind idempotency, protect replay, write or accept records, complete reviews, complete steps, resolve claims, clear claim traces, write or accept evidence, make steps ready, construct adapters, execute, or enable live trading.
 
-### Phase 4375 - Backend Focused Gates
+### Phase 4395 - Backend Focused Gates
 
 - Run focused Admin API/live-adapter construction tests, ownership checks, autonomous queue validation, and OpenAPI freshness checks.
 
-### Phase 4376 - Frontend Focused Gates
+### Phase 4396 - Frontend Focused Gates
 
 - Run frontend generated API freshness, route coverage, typecheck, autonomous check, and focused unit tests.
 
-### Phase 4377 - Full Backend Regression
+### Phase 4397 - Full Backend Regression
 
 - Run `pytest tests\regression\ -v --tb=short` and `python3 -m pytest tests/regression/ -v` as the documented cross-shell regression form when available.
 
-### Phase 4378 - Full Frontend Release Gate
+### Phase 4398 - Full Frontend Release Gate
 
 - Run `npm run release:gate` in `C:\coinbase-frontend`.
 
-### Phase 4379 - Blind Contextless Review And Live UI Smoke
+### Phase 4399 - Blind Contextless Review And Live UI Smoke
 
-- Run blind/contextless review proving a fresh agent can explain that dependency work-item claim-trace clearance-step review-input store record-validation remediation dependency rows are missing dependency graph readiness over blocked remediation rows only, then verify the local admin frontend renders the current phase range and no-live posture without browser console errors.
+- Run blind/contextless review proving a fresh agent can explain that dependency work-item rows are missing work-queue and handoff readiness over blocked dependency rows only, then verify the local admin frontend renders the current phase range and no-live posture without browser console errors.
 
-### Phase 4380 - Completion Evidence, Commit, Push
+### Phase 4400 - Completion Evidence, Commit, Push
 
 - Record gate evidence, review outcome, UI smoke result, and `0` USDC live Coinbase submitted/executed notional; commit and push backend and frontend repositories; verify clean worktrees.
+
+## Completed Phases 4361-4380
+
+Phases 4361-4380 added backend-owned blocked producer-route contract clearance-step review-input store record-validation remediation dependency work-item claim-trace clearance-step review-input store record-validation remediation dependency rows and a blocked dependency summary under the live-adapter construction acceptance evidence path. Each dependency row is derived from one bounded blocked remediation row and names predecessor/successor links, dependency gates, dependency blockers, validation gates, replay gates, remediation gates, backend refs, and disabled authority required before dependency graph readiness could ever be considered. Backend commit `603a17bc` and frontend commit `2d0e181` contain the pushed range. Backend regression passed with `868 passed, 1 warning`. Frontend `npm run release:gate` passed with 261 unit tests and 3 Playwright tests. Live UI smoke passed at `http://127.0.0.1:3001/?phaseSmoke=4361`. Blind/contextless reviews passed. Live Coinbase execution was not run; submitted notional `0` USDC and executed notional `0` USDC.
 
 ## Completed Phases 4341-4360
 

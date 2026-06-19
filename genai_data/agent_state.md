@@ -8,9 +8,9 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-18
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4341-4360` is backend `2978bd9c` and
-  frontend `50d3315`; previous completed range `4321-4340` is backend
-  `1b81b2ff` and frontend `a3e123e`.
+- Commit (optional): completed range `4361-4380` is backend `603a17bc` and
+  frontend `2d0e181`; previous completed range `4341-4360` is backend
+  `2978bd9c` and frontend `50d3315`.
 
 ## Current Objective
 
@@ -38,9 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4341-4360`.
-- Active autonomous range: `4361-4380`; pause after this phase closes for
-  user restart before advancing to another range.
+- Latest completed autonomous range before current work: `4361-4380`.
+- Active autonomous range: `4381-4400`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -640,15 +639,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4361-4380`; pause after this phase closes because
-  the user requested a restart after the current phase.
+- Active autonomous range: `4381-4400`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4361-4380`, then pause for restart.
+- Current direction: complete phases `4381-4400`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
   items and a remediation summary under the existing live-adapter construction
-  contract. Active `4361-4380` adds blocked remediation dependency rows and a
+  contract. Completed `4361-4380` added blocked remediation dependency rows and a
   dependency summary over those remediation rows so future backend work can see
   the missing backend-owned dependency graph readiness required before any
   blocked claim-trace clearance-step review input evidence can be accepted or
@@ -664,7 +662,22 @@ Keep it short. Keep it factual.
   store availability, writer authority, write permission, record presence,
   record acceptance, record validation, input presence, input acceptance, input
   validation, review completion, step completion, construction, and live
-  execution flags false. They must not perform remediation, create validators,
+  execution flags false. Active `4381-4400` adds blocked dependency work-item
+  rows and a work-queue summary over those dependency rows so future backend
+  work can see missing backend-owned work-queue and handoff readiness before
+  dependencies can be cleared. The work-item rows expose work item ids,
+  dependency ids, remediation ids, validation ids, required backend work,
+  required backend refs, work-item gates, handoff blockers, predecessor and
+  successor dependency evidence, queue order, and inherited blockers while
+  keeping work-item readiness, work-queue readiness, handoff readiness,
+  dependency readiness, graph readiness, predecessor readiness, action
+  readiness, remediation readiness, validation readiness, record-contract
+  availability, schema availability, append-only log availability, idempotency
+  binding, payload validation, replay protection, store availability, writer
+  authority, write permission, record presence, record acceptance, record
+  validation, input presence, input acceptance, input validation, review
+  completion, step completion, construction, and live execution flags false.
+  They must not perform remediation, create validators,
   bind idempotency, validate payloads, protect replay, create records, allow
   writers, allow writes, make inputs present, accept inputs, validate inputs,
   complete reviews or steps, resolve claims, clear claim traces, clear work
