@@ -4879,3 +4879,55 @@ Status:
   Playwright tests after the cleanup assertion.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M55 Remediation Dependency Readback Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewer was not given chat history.
+
+Reviewer tasks:
+
+- trace active phases `4361-4380` for live-adapter construction remediation
+  dependency rows and dependency summary evidence
+- verify backend evidence, OpenAPI models, frontend generated schema, mocks,
+  dry-submit display rows, docs, and queue metadata remain read-only/readback
+  evidence
+- confirm no browser/BFF execution authority, Coinbase call, manager
+  invocation, reconciliation, or order/lifecycle/exchange-state mutation was
+  introduced
+- identify stale docs or metadata that could mislead a contextless maintainer
+
+Findings and resolution:
+
+- PASS: blind/contextless review found no blockers. It identified active range
+  `4361-4380`, the backend start points in `README.admin-api.md`,
+  `application/admin_api/live_execution.py`, `application/admin_api/models.py`,
+  and `tests/regression/test_admin_api_contract.py`, and the frontend start
+  points in `docs/plans/AUTONOMOUS_WORK_QUEUE.md`, `docs/API_CONTRACT.md`,
+  generated schema, mock backend, and dry-submit renderer.
+- PASS: the reviewer confirmed the new remediation dependency fields keep
+  dependency/action/remediation/write/accept/construction/live/execution flags
+  false, with browser authority `display_only` and BFF authority
+  `forward_only_no_execution`.
+- PASS: no stale docs, tests, or metadata were found that imply the phase is
+  live-enabled or executable.
+
+Status:
+
+- Backend focused contract checks passed with `3` selected tests and `1`
+  warning.
+- Backend autonomous work queue check passed for approved phases `4361-4380`.
+- Backend full regression passed with `868 passed, 1 warning`.
+- Frontend `npm run typecheck`, `npm run api:check`, and `npm run
+  autonomous:check` passed.
+- Frontend focused mock/dry-submit/runtime/read-model/AdminShell checks passed
+  with `91` selected tests.
+- Frontend full `npm run release:gate` passed with `261` unit tests and `3`
+  Playwright tests.
+- UI smoke screenshot captured at
+  `C:\coinbase-frontend\artifacts\ui-smoke-4361-4380.png`.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

@@ -8,9 +8,9 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-18
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `4321-4340` is in the current backend
-  phase-close commit and frontend commit `a3e123e`; previous completed range
-  `4301-4320` is backend `3d9bb178` and frontend `3d41094`.
+- Commit (optional): completed range `4341-4360` is backend `2978bd9c` and
+  frontend `50d3315`; previous completed range `4321-4340` is backend
+  `1b81b2ff` and frontend `a3e123e`.
 
 ## Current Objective
 
@@ -38,8 +38,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4321-4340`.
-- Active autonomous range: `4341-4360`; pause after this phase closes for
+- Latest completed autonomous range before current work: `4341-4360`.
+- Active autonomous range: `4361-4380`; pause after this phase closes for
   user restart before advancing to another range.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
@@ -640,37 +640,38 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4341-4360`; pause after this phase closes because
+- Active autonomous range: `4361-4380`; pause after this phase closes because
   the user requested a restart after the current phase.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4341-4360`, then pause for restart.
-  Completed `4321-4340` added blocked producer-route contract clearance-step
+- Current direction: complete phases `4361-4380`, then pause for restart.
+  Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
-  claim-trace clearance-step review-input store record validations and a
-  record-validation summary under the existing live-adapter construction
-  contract so future backend work can see the
-  missing backend-owned validation readiness required before any blocked
-  claim-trace clearance-step review input evidence can be accepted or
-  recorded. The validation rows expose record validation ids, record contract
-  ids, source input ids, source review ids, clearance step ids, claim-trace
-  ids, upstream plan ids, work-item/dependency/remediation context, required
-  backend refs, schema refs, append-only log refs, payload fields,
-  idempotency keys, validation checks, validation gates, replay gates, store
-  gates, input gates, review gates, and inherited blockers while keeping all
-  validation readiness, record-contract availability, schema availability,
-  append-only log availability, idempotency binding, payload validation,
-  replay protection, store availability, writer authority, write permission,
-  record presence, record acceptance, record validation, input presence, input
-  acceptance, input validation, review completion, step completion,
-  construction, and live execution flags false. They must not create
-  validators, bind idempotency, validate payloads, protect replay, create
-  records, allow writers, allow writes, make inputs present, accept inputs,
-  validate inputs, complete reviews or steps, resolve claims, clear claim
-  traces, clear work items, resolve dependencies, perform remediation, accept
-  records, validate records, complete inputs, make steps ready, register
-  routes, bind route inventory, bind shared command services, register
-  handlers, construct adapters, satisfy construction artifacts, write or
-  accept evidence, create a second adapter path, call Coinbase, invoke
+  claim-trace clearance-step review-input store record-validation remediation
+  items and a remediation summary under the existing live-adapter construction
+  contract. Active `4361-4380` adds blocked remediation dependency rows and a
+  dependency summary over those remediation rows so future backend work can see
+  the missing backend-owned dependency graph readiness required before any
+  blocked claim-trace clearance-step review input evidence can be accepted or
+  recorded. The dependency rows expose remediation dependency ids, upstream
+  remediation ids, upstream dependency ids, predecessor/successor remediation
+  ids, predecessor/successor record-validation ids, dependency gates,
+  dependency blockers, verification gates, required backend refs, schema refs,
+  append-only log refs, payload fields, idempotency keys, validation checks,
+  and inherited blockers while keeping dependency readiness, graph readiness,
+  predecessor readiness, action readiness, remediation readiness, validation
+  readiness, record-contract availability, schema availability, append-only log
+  availability, idempotency binding, payload validation, replay protection,
+  store availability, writer authority, write permission, record presence,
+  record acceptance, record validation, input presence, input acceptance, input
+  validation, review completion, step completion, construction, and live
+  execution flags false. They must not perform remediation, create validators,
+  bind idempotency, validate payloads, protect replay, create records, allow
+  writers, allow writes, make inputs present, accept inputs, validate inputs,
+  complete reviews or steps, resolve claims, clear claim traces, clear work
+  items, resolve dependencies, accept records, validate records, make steps
+  ready, register routes, bind route inventory, bind shared command services,
+  register handlers, construct adapters, satisfy construction artifacts, write
+  or accept evidence, create a second adapter path, call Coinbase, invoke
   managers, execute reconciliation, cancel/replace active placements, mutate
   lifecycle/order/exchange state, grant browser authority, or grant BFF
   execution authority unless a future approved phase explicitly authorizes it.
