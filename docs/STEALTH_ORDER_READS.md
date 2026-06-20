@@ -86,6 +86,16 @@ For active phases 5121-5140, the selected `stealth_create` candidate is the
 only planning target. The work is pre-execution contract evidence for the
 create route and still cannot invoke managers, write lifecycle/order rows,
 execute reconciliation, call Coinbase, or grant browser/BFF authority.
+`GET /api/v1/stealth/command-suite` exposes this as
+`selected_create_pre_execution_contract`. That object is scoped only to
+`POST /api/v1/stealth/orders`; it lists the selected route identity, payload
+contract fields, approval/admission requirements, lifecycle-write boundary,
+manager path, idempotency/audit boundary, action-condition guard and account
+cap references, reconciliation requirements, and Coinbase non-interaction
+proof. The object remains blocked evidence: it does not create a stealth
+order, call `StealthOrderManager`, write `stealth_orders` or `order_parent`,
+submit/cancel/read Coinbase orders, execute reconciliation, mutate state, or
+grant browser/BFF authority.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store

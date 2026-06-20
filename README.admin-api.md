@@ -404,6 +404,13 @@ into exact backend-owned pre-execution contract evidence for
 `POST /api/v1/stealth/orders` while keeping manager invocation, lifecycle
 writes, reconciliation execution, Coinbase interaction, and browser/BFF
 authority blocked.
+The command-suite response exposes that work as
+`selected_create_pre_execution_contract`. It is a read-only contract object
+for the selected create route only; it lists route identity, payload,
+approval/admission, guard, lifecycle-write, manager, idempotency/audit,
+reconciliation, and Coinbase non-interaction boundaries, but it does not call
+`StealthOrderManager`, write `stealth_orders` or `order_parent`, execute
+reconciliation, call Coinbase, or allow browser/BFF execution.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their

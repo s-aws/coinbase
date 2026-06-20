@@ -116,6 +116,14 @@ lookup posture. The echo is not a guard result or approval source; command
 workflow surfaces may display it only and must not use it to execute, call
 Coinbase, cancel/replace placements, reconcile, mutate state, or broaden BFF
 authority.
+The read-only stealth command-suite may also expose
+`selected_create_pre_execution_contract` for active phases 5121-5140. That
+object is a selected-create review aid only. It names the backend route,
+payload, approval/admission, lifecycle-write, manager, idempotency/audit,
+guard/account-condition, reconciliation, and Coinbase non-interaction
+boundaries required before future create execution. It must not become a
+browser create control, BFF executor, proof input writer, manager invocation,
+Coinbase call, reconciliation executor, or lifecycle/order state mutation.
 
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires

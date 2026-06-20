@@ -1477,7 +1477,10 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5121-5140` by adding
-  selected-`stealth_create` pre-execution contract evidence across
-  backend/frontend, running focused gates, keeping live Coinbase execution not
-  run, and preserving the UI smoke URL.
+- Exact next command: complete active phases `5121-5140` by committing and
+  pushing the validated backend/frontend changes.
+  Selected-`stealth_create` pre-execution contract evidence is implemented
+  across backend/frontend, focused gates and blind/contextless review passed,
+  live Coinbase execution was not run, and the monitoring UI is
+  `http://127.0.0.1:3002/#stealth-orders` with screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5121-5140-selected-create-preexecution.png`.

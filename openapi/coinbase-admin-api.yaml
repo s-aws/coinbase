@@ -70184,6 +70184,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandSuiteEnablementCandidateReviewSummary'
           - type: 'null'
+        selected_create_pre_execution_contract:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCreatePreExecutionContractEvidence'
+          - type: 'null'
         create_lifecycle_write_audit:
           anyOf:
           - $ref: '#/components/schemas/StealthCreateLifecycleWriteAuditEvidence'
@@ -71756,6 +71760,454 @@ components:
       - detail
       title: StealthCreateLifecycleWriteGuardReadResponse
       description: Read-only stealth create lifecycle-write guard proof readback.
+    StealthCreatePreExecutionContractEvidence:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_create_pre_execution_contract
+        source:
+          type: string
+          title: Source
+          default: m55_selected_create_pre_execution_contract
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        candidate_id:
+          type: string
+          title: Candidate Id
+        selected_first_candidate:
+          type: boolean
+          title: Selected First Candidate
+          default: true
+        selected_candidate_scope_only:
+          type: boolean
+          title: Selected Candidate Scope Only
+          default: true
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          default: stealth_create
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+          default: stealth_create_workflow
+        route:
+          type: string
+          title: Route
+          default: /api/v1/stealth/orders
+        method:
+          type: string
+          title: Method
+          default: POST
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        service_method:
+          type: string
+          title: Service Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        command_context_required:
+          type: boolean
+          title: Command Context Required
+          default: true
+        exact_command_context_present:
+          type: boolean
+          title: Exact Command Context Present
+          default: false
+        payload_contract_authority:
+          type: string
+          title: Payload Contract Authority
+          default: backend_contract_only
+        payload_required_fields:
+          items:
+            type: string
+          type: array
+          title: Payload Required Fields
+        payload_optional_fields:
+          items:
+            type: string
+          type: array
+          title: Payload Optional Fields
+        required_approval_fields:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveApprovalSnapshotField'
+          type: array
+          title: Required Approval Fields
+        required_admission_refs:
+          items:
+            type: string
+          type: array
+          title: Required Admission Refs
+        required_lifecycle_writes:
+          items:
+            type: string
+          type: array
+          title: Required Lifecycle Writes
+        manager_path:
+          items:
+            type: string
+          type: array
+          title: Manager Path
+        guard_condition_refs:
+          items:
+            type: string
+          type: array
+          title: Guard Condition Refs
+        reconciliation_refs:
+          items:
+            type: string
+          type: array
+          title: Reconciliation Refs
+        excluded_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Excluded Mutation Families
+        section_count:
+          type: integer
+          minimum: 0.0
+          title: Section Count
+          default: 0
+        blocking_section_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Section Count
+          default: 0
+        passed_section_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Section Count
+          default: 0
+        sections:
+          items:
+            $ref: '#/components/schemas/StealthCreatePreExecutionContractSectionItem'
+          type: array
+          title: Sections
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        live_service_enabled:
+          type: boolean
+          title: Live Service Enabled
+          default: false
+        live_adapter_constructed:
+          type: boolean
+          title: Live Adapter Constructed
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        stealth_row_write_allowed:
+          type: boolean
+          title: Stealth Row Write Allowed
+          default: false
+        stealth_row_write_ran:
+          type: boolean
+          title: Stealth Row Write Ran
+          default: false
+        order_parent_write_allowed:
+          type: boolean
+          title: Order Parent Write Allowed
+          default: false
+        order_parent_write_ran:
+          type: boolean
+          title: Order Parent Write Ran
+          default: false
+        lifecycle_event_dispatch_allowed:
+          type: boolean
+          title: Lifecycle Event Dispatch Allowed
+          default: false
+        lifecycle_event_dispatch_ran:
+          type: boolean
+          title: Lifecycle Event Dispatch Ran
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        state_mutated:
+          type: boolean
+          title: State Mutated
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - candidate_id
+      - service_method
+      - action_class
+      - required_permission
+      - detail
+      title: StealthCreatePreExecutionContractEvidence
+      description: Read-only selected-create contract evidence before execution exists.
+    StealthCreatePreExecutionContractSection:
+      type: string
+      enum:
+      - selected_candidate_scope
+      - route_identity_contract
+      - payload_contract
+      - approval_admission_preconditions
+      - lifecycle_write_boundary
+      - manager_invocation_boundary
+      - idempotency_audit_boundary
+      - guard_account_condition_boundary
+      - reconciliation_planning_boundary
+      - coinbase_non_interaction_proof
+      - frontend_bff_authority_boundary
+      title: StealthCreatePreExecutionContractSection
+      description: Selected stealth-create pre-execution contract sections.
+    StealthCreatePreExecutionContractSectionItem:
+      properties:
+        section:
+          $ref: '#/components/schemas/StealthCreatePreExecutionContractSection'
+        category:
+          $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        source_ref:
+          type: string
+          title: Source Ref
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        required_fields:
+          items:
+            type: string
+          type: array
+          title: Required Fields
+        missing_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Backend Contracts
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: true
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        stealth_row_write_allowed:
+          type: boolean
+          title: Stealth Row Write Allowed
+          default: false
+        stealth_row_write_ran:
+          type: boolean
+          title: Stealth Row Write Ran
+          default: false
+        order_parent_write_allowed:
+          type: boolean
+          title: Order Parent Write Allowed
+          default: false
+        order_parent_write_ran:
+          type: boolean
+          title: Order Parent Write Ran
+          default: false
+        lifecycle_event_dispatch_allowed:
+          type: boolean
+          title: Lifecycle Event Dispatch Allowed
+          default: false
+        lifecycle_event_dispatch_ran:
+          type: boolean
+          title: Lifecycle Event Dispatch Ran
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        state_mutated:
+          type: boolean
+          title: State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - section
+      - category
+      - source_ref
+      - detail
+      title: StealthCreatePreExecutionContractSectionItem
+      description: One selected-create pre-execution contract boundary.
     StealthCreateRequest:
       properties:
         stealth_order_id:

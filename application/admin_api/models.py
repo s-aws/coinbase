@@ -76,6 +76,7 @@ from core.enums import (
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
     StealthCommandExecutionPrerequisiteLookupStatus,
+    StealthCreatePreExecutionContractSection,
     StealthCreateLifecycleExecutionBlocker,
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
@@ -19680,6 +19681,129 @@ class StealthCommandSuiteEnablementCandidateReviewSummary(BaseModel):
     detail: str
 
 
+class StealthCreatePreExecutionContractSectionItem(BaseModel):
+    """One selected-create pre-execution contract boundary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    section: StealthCreatePreExecutionContractSection
+    category: AdminApiLivePreflightCategory
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    blocking: bool = True
+    resolved: bool = False
+    source_ref: str
+    required_backend_contracts: list[str] = Field(default_factory=list)
+    required_fields: list[str] = Field(default_factory=list)
+    missing_backend_contracts: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = True
+    execution_allowed: bool = False
+    executable: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    stealth_row_write_allowed: bool = False
+    stealth_row_write_ran: bool = False
+    order_parent_write_allowed: bool = False
+    order_parent_write_ran: bool = False
+    lifecycle_event_dispatch_allowed: bool = False
+    lifecycle_event_dispatch_ran: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    state_mutation_allowed: bool = False
+    state_mutated: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class StealthCreatePreExecutionContractEvidence(BaseModel):
+    """Read-only selected-create contract evidence before execution exists."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_create_pre_execution_contract"
+    source: str = "m55_selected_create_pre_execution_contract"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    candidate_id: str
+    selected_first_candidate: bool = True
+    selected_candidate_scope_only: bool = True
+    mutation_family: AdminApiMutationFamilyType = (
+        AdminApiMutationFamilyType.STEALTH_CREATE
+    )
+    workflow_family: AdminApiStealthCommandSuiteGapFamily = (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW
+    )
+    route: str = "/api/v1/stealth/orders"
+    method: str = "POST"
+    module_id: str = "stealth_orders"
+    identity_key: str = "stealth_order_id"
+    service_method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    command_context_required: bool = True
+    exact_command_context_present: bool = False
+    payload_contract_authority: str = "backend_contract_only"
+    payload_required_fields: list[str] = Field(default_factory=list)
+    payload_optional_fields: list[str] = Field(default_factory=list)
+    required_approval_fields: list[AdminApiLiveApprovalSnapshotField] = (
+        Field(default_factory=list)
+    )
+    required_admission_refs: list[str] = Field(default_factory=list)
+    required_lifecycle_writes: list[str] = Field(default_factory=list)
+    manager_path: list[str] = Field(default_factory=list)
+    guard_condition_refs: list[str] = Field(default_factory=list)
+    reconciliation_refs: list[str] = Field(default_factory=list)
+    excluded_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    section_count: int = Field(default=0, ge=0)
+    blocking_section_count: int = Field(default=0, ge=0)
+    passed_section_count: int = Field(default=0, ge=0)
+    sections: list[StealthCreatePreExecutionContractSectionItem] = (
+        Field(default_factory=list)
+    )
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = False
+    execution_allowed: bool = False
+    executable: bool = False
+    live_service_enabled: bool = False
+    live_adapter_constructed: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    stealth_row_write_allowed: bool = False
+    stealth_row_write_ran: bool = False
+    order_parent_write_allowed: bool = False
+    order_parent_write_ran: bool = False
+    lifecycle_event_dispatch_allowed: bool = False
+    lifecycle_event_dispatch_ran: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    state_mutation_allowed: bool = False
+    state_mutated: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class StealthCommandSuiteResponse(AdminApiReadPayload):
     """Read-only M55 stealth command-suite readiness evidence."""
 
@@ -19731,6 +19855,9 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     ] = Field(default_factory=list)
     enablement_candidate_review_summary: (
         StealthCommandSuiteEnablementCandidateReviewSummary | None
+    ) = None
+    selected_create_pre_execution_contract: (
+        StealthCreatePreExecutionContractEvidence | None
     ) = None
     create_lifecycle_write_audit: StealthCreateLifecycleWriteAuditEvidence | None = None
     read_routes: list[str] = Field(default_factory=list)

@@ -395,6 +395,7 @@ from core.enums import (
     AdminApiLiveAdmissionBlocker,
     AdminApiLiveAdapterConstructionArtifact,
     AdminApiLiveAdapterDecisionResolutionStatus,
+    AdminApiLiveApprovalSnapshotField,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
@@ -436,6 +437,7 @@ from core.enums import (
     StealthReconciliationProofEvidenceSource,
     StealthRecoveryProofEvidenceSource,
     StealthCreateLifecycleExecutionBlocker,
+    StealthCreatePreExecutionContractSection,
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
     SpotRecoveryExchangeStateSnapshotSource,
@@ -7227,6 +7229,24 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "cancel_replace_boundary_count" in stealth_command_suite_schema["properties"]
     assert "enablement_candidate_reviews" in stealth_command_suite_schema["properties"]
     assert "enablement_candidate_review_summary" in stealth_command_suite_schema["properties"]
+    assert "selected_create_pre_execution_contract" in (
+        stealth_command_suite_schema["properties"]
+    )
+    assert "StealthCreatePreExecutionContractEvidence" in written["components"][
+        "schemas"
+    ]
+    assert "StealthCreatePreExecutionContractSectionItem" in written["components"][
+        "schemas"
+    ]
+    selected_create_contract_schema = written["components"]["schemas"][
+        "StealthCreatePreExecutionContractEvidence"
+    ]
+    assert "payload_required_fields" in selected_create_contract_schema["properties"]
+    assert "required_approval_fields" in selected_create_contract_schema["properties"]
+    assert "sections" in selected_create_contract_schema["properties"]
+    assert "manager_invocation_ran" in selected_create_contract_schema["properties"]
+    assert "coinbase_order_submitted" in selected_create_contract_schema["properties"]
+    assert "reconciliation_executed" in selected_create_contract_schema["properties"]
     assert (
         "StealthCommandSuiteEnablementCandidateReviewItem"
         in written["components"]["schemas"]
@@ -34350,6 +34370,147 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert candidate_summary["first_candidate_executable"] is False
     assert candidate_summary["live_coinbase_orders_ran"] is False
     assert candidate_summary["live_coinbase_read_ran"] is False
+    selected_create_contract = payload["selected_create_pre_execution_contract"]
+    assert selected_create_contract["type"] == "stealth_create_pre_execution_contract"
+    assert selected_create_contract["source"] == (
+        "m55_selected_create_pre_execution_contract"
+    )
+    assert selected_create_contract["status"] == AdminApiGateStatus.BLOCKED.value
+    assert selected_create_contract["candidate_id"] == first_candidate["candidate_id"]
+    assert selected_create_contract["selected_first_candidate"] is True
+    assert selected_create_contract["selected_candidate_scope_only"] is True
+    assert selected_create_contract["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_CREATE.value
+    )
+    assert selected_create_contract["workflow_family"] == (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW.value
+    )
+    assert selected_create_contract["route"] == "/api/v1/stealth/orders"
+    assert selected_create_contract["method"] == "POST"
+    assert selected_create_contract["module_id"] == "stealth_orders"
+    assert selected_create_contract["identity_key"] == "stealth_order_id"
+    assert selected_create_contract["service_method"] == "create_stealth_order"
+    assert selected_create_contract["command_context_required"] is True
+    assert selected_create_contract["exact_command_context_present"] is False
+    assert selected_create_contract["payload_contract_authority"] == (
+        "backend_contract_only"
+    )
+    assert set(selected_create_contract["payload_required_fields"]) == {
+        "stealth_order_id",
+        "product_id",
+        "side",
+        "total_size",
+        "limit_price",
+        "reveal_condition",
+    }
+    assert "manual_live_acknowledgement" in (
+        selected_create_contract["payload_optional_fields"]
+    )
+    assert set(selected_create_contract["required_approval_fields"]) >= {
+        AdminApiLiveApprovalSnapshotField.ROUTE.value,
+        AdminApiLiveApprovalSnapshotField.METHOD.value,
+        AdminApiLiveApprovalSnapshotField.MODULE_ID.value,
+        AdminApiLiveApprovalSnapshotField.IDENTITY_KEY.value,
+        AdminApiLiveApprovalSnapshotField.IDENTITY_VALUE.value,
+        AdminApiLiveApprovalSnapshotField.OPERATOR_INTENT.value,
+        AdminApiLiveApprovalSnapshotField.IDEMPOTENCY_KEY.value,
+        AdminApiLiveApprovalSnapshotField.PAYLOAD_HASH.value,
+    }
+    assert set(selected_create_contract["required_lifecycle_writes"]) == {
+        "stealth_orders.insert",
+        "order_parent.insert",
+        "stealth_lifecycle_event.dispatch",
+        "anchor_repricing_state.initialize",
+    }
+    assert selected_create_contract["manager_path"] == [
+        "api/v1/routes/stealth.py::create_stealth_order",
+        "application/admin_api/command_service.py::create_stealth_order",
+        "bridges/stealth_order_bridge.py",
+        "core/stealth_order_manager.py::create_stealth_order",
+    ]
+    assert {
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+        AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+        AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
+    } == set(selected_create_contract["excluded_mutation_families"])
+    assert selected_create_contract["section_count"] == 11
+    assert selected_create_contract["blocking_section_count"] == 7
+    assert selected_create_contract["passed_section_count"] == 4
+    assert selected_create_contract["backend_owned"] is True
+    assert selected_create_contract["route_bound"] is True
+    assert selected_create_contract["command_context_bound"] is False
+    assert selected_create_contract["execution_allowed"] is False
+    assert selected_create_contract["executable"] is False
+    assert selected_create_contract["live_service_enabled"] is False
+    assert selected_create_contract["live_adapter_constructed"] is False
+    assert selected_create_contract["manager_invocation_allowed"] is False
+    assert selected_create_contract["manager_invocation_ran"] is False
+    assert selected_create_contract["stealth_row_write_allowed"] is False
+    assert selected_create_contract["stealth_row_write_ran"] is False
+    assert selected_create_contract["order_parent_write_allowed"] is False
+    assert selected_create_contract["order_parent_write_ran"] is False
+    assert selected_create_contract["lifecycle_event_dispatch_allowed"] is False
+    assert selected_create_contract["lifecycle_event_dispatch_ran"] is False
+    assert selected_create_contract["coinbase_submit_allowed"] is False
+    assert selected_create_contract["coinbase_order_submitted"] is False
+    assert selected_create_contract["coinbase_cancel_allowed"] is False
+    assert selected_create_contract["coinbase_order_cancel_submitted"] is False
+    assert selected_create_contract["coinbase_read_allowed"] is False
+    assert selected_create_contract["live_coinbase_read_ran"] is False
+    assert selected_create_contract["reconciliation_execution_allowed"] is False
+    assert selected_create_contract["reconciliation_executed"] is False
+    assert selected_create_contract["state_mutation_allowed"] is False
+    assert selected_create_contract["state_mutated"] is False
+    assert selected_create_contract["submitted_notional_usdc"] == "0"
+    assert selected_create_contract["executed_notional_usdc"] == "0"
+    assert selected_create_contract["live_coinbase_orders_ran"] is False
+    assert selected_create_contract["browser_authority"] == "display_only"
+    assert selected_create_contract["bff_authority"] == "forward_only_no_execution"
+    sections = {
+        item["section"]: item for item in selected_create_contract["sections"]
+    }
+    assert set(sections) == {
+        section.value for section in StealthCreatePreExecutionContractSection
+    }
+    assert sections[
+        StealthCreatePreExecutionContractSection.SELECTED_CANDIDATE_SCOPE.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    assert sections[
+        StealthCreatePreExecutionContractSection.ROUTE_IDENTITY_CONTRACT.value
+    ]["resolved"] is True
+    assert sections[
+        StealthCreatePreExecutionContractSection.PAYLOAD_CONTRACT.value
+    ]["status"] == AdminApiGateStatus.BLOCKED.value
+    assert sections[
+        StealthCreatePreExecutionContractSection.GUARD_ACCOUNT_CONDITION_BOUNDARY.value
+    ]["category"] == AdminApiLivePreflightCategory.CAP_GUARD.value
+    assert sections[
+        StealthCreatePreExecutionContractSection.COINBASE_NON_INTERACTION_PROOF.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    for section in sections.values():
+        assert section["backend_owned"] is True
+        assert section["route_bound"] is True
+        assert section["command_context_bound"] is True
+        assert section["execution_allowed"] is False
+        assert section["executable"] is False
+        assert section["manager_invocation_allowed"] is False
+        assert section["manager_invocation_ran"] is False
+        assert section["coinbase_submit_allowed"] is False
+        assert section["coinbase_order_submitted"] is False
+        assert section["coinbase_cancel_allowed"] is False
+        assert section["coinbase_order_cancel_submitted"] is False
+        assert section["coinbase_read_allowed"] is False
+        assert section["live_coinbase_read_ran"] is False
+        assert section["reconciliation_execution_allowed"] is False
+        assert section["reconciliation_executed"] is False
+        assert section["state_mutation_allowed"] is False
+        assert section["state_mutated"] is False
+        assert section["browser_authority"] == "display_only"
+        assert section["bff_authority"] == "forward_only_no_execution"
+        assert section["detail"]
     blocker_closures = {
         item["closure_id"]: item for item in payload["blocker_closures"]
     }

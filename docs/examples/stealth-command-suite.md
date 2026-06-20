@@ -192,6 +192,51 @@ In the active 5121-5140 range, the stealth create candidate pre-execution contra
     "bff_authority": "forward_only_no_execution",
     "live_coinbase_orders_ran": false,
     "live_coinbase_read_ran": false
+  },
+  "selected_create_pre_execution_contract": {
+    "type": "stealth_create_pre_execution_contract",
+    "source": "m55_selected_create_pre_execution_contract",
+    "status": "blocked",
+    "candidate_id": "m55_enablement_candidate::stealth_create",
+    "selected_candidate_scope_only": true,
+    "mutation_family": "stealth_create",
+    "workflow_family": "stealth_create_workflow",
+    "route": "/api/v1/stealth/orders",
+    "method": "POST",
+    "module_id": "stealth_orders",
+    "identity_key": "stealth_order_id",
+    "service_method": "create_stealth_order",
+    "payload_contract_authority": "backend_contract_only",
+    "payload_required_fields": [
+      "stealth_order_id",
+      "product_id",
+      "side",
+      "total_size",
+      "limit_price",
+      "reveal_condition"
+    ],
+    "required_lifecycle_writes": [
+      "stealth_orders.insert",
+      "order_parent.insert",
+      "stealth_lifecycle_event.dispatch",
+      "anchor_repricing_state.initialize"
+    ],
+    "section_count": 11,
+    "blocking_section_count": 7,
+    "passed_section_count": 4,
+    "execution_allowed": false,
+    "manager_invocation_ran": false,
+    "stealth_row_write_ran": false,
+    "order_parent_write_ran": false,
+    "coinbase_order_submitted": false,
+    "coinbase_order_cancel_submitted": false,
+    "live_coinbase_read_ran": false,
+    "reconciliation_executed": false,
+    "state_mutated": false,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution"
   }
 }
 ```
@@ -199,7 +244,9 @@ In the active 5121-5140 range, the stealth create candidate pre-execution contra
 The selected candidate is a backend work-sequencing target only. It does not
 authorize create execution, lifecycle writes, proof lookup, manager
 invocation, Coinbase reads/submits/cancels, reconciliation execution, or state
-mutation.
+mutation. The `selected_create_pre_execution_contract` object makes the
+selected create route easier to review by humans and contextless agents, but
+it remains evidence only and cannot be used as an execution adapter.
 
 ```json
 {

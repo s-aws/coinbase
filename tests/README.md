@@ -216,7 +216,8 @@ candidate handoff, deployment approval, or explicit user request.
 **Characteristics:**
 - Representative of actual user workflows
 - Must pass 100% before milestone closeout or release/deployment handoff
-- Fast (run in < 30 seconds total)
+- Process-parallel closeout is faster than the sequential fallback, but
+  duration depends on local machine capacity and current suite size
 - No external API calls (all mocked)
 - Cover high-value functionality that users depend on
 

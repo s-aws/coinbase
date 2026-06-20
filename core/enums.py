@@ -798,6 +798,22 @@ class AdminApiLivePreflightCategory(str, Enum):
     BROWSER_AUTHORITY = "browser_authority"
 
 
+class StealthCreatePreExecutionContractSection(str, Enum):
+    """Selected stealth-create pre-execution contract sections."""
+
+    SELECTED_CANDIDATE_SCOPE = "selected_candidate_scope"
+    ROUTE_IDENTITY_CONTRACT = "route_identity_contract"
+    PAYLOAD_CONTRACT = "payload_contract"
+    APPROVAL_ADMISSION_PRECONDITIONS = "approval_admission_preconditions"
+    LIFECYCLE_WRITE_BOUNDARY = "lifecycle_write_boundary"
+    MANAGER_INVOCATION_BOUNDARY = "manager_invocation_boundary"
+    IDEMPOTENCY_AUDIT_BOUNDARY = "idempotency_audit_boundary"
+    GUARD_ACCOUNT_CONDITION_BOUNDARY = "guard_account_condition_boundary"
+    RECONCILIATION_PLANNING_BOUNDARY = "reconciliation_planning_boundary"
+    COINBASE_NON_INTERACTION_PROOF = "coinbase_non_interaction_proof"
+    FRONTEND_BFF_AUTHORITY_BOUNDARY = "frontend_bff_authority_boundary"
+
+
 class AdminApiStealthLiveReadinessDecision(str, Enum):
     """Backend decisions required before stealth live execution can exist."""
 
