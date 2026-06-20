@@ -49,125 +49,139 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review-Input Batch - Phases 4941-4960
+## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review-Input Store-Requirement Batch - Phases 4961-4980
 
 This batch derives blocked backend-owned claim-trace clearance-step
-review-input rows from the existing remediation dependency work-item
-claim-trace clearance-step review rows. It preserves the current no-live
-posture and does not accept inputs, validate inputs, complete reviews,
-complete steps, execute plan steps, resolve claims, clear claim traces, claim
-or perform work items, clear dependencies, remediate records, validate
-records, create stores/contracts/schemas/logs, bind idempotency, validate
-payloads, protect replay, write records, reconcile, call Coinbase, invoke
-managers, mutate state, grant browser authority, or grant BFF execution
-authority.
+review-input store-requirement rows from the existing remediation dependency
+work-item claim-trace clearance-step review-input rows. It preserves the
+current no-live posture and does not create stores, allow writers, write
+records, accept inputs, validate inputs, complete reviews, complete steps,
+execute plan steps, resolve claims, clear claim traces, claim or perform work
+items, clear dependencies, remediate records, validate records, create
+contracts/schemas/logs, bind idempotency, validate payloads, protect replay,
+reconcile, call Coinbase, invoke managers, mutate state, grant browser
+authority, or grant BFF execution authority.
 
-### Phase 4941 - Prior Range Completion Evidence
+### Phase 4961 - Prior Range Completion Evidence
 
-- Record completed phases 4921-4940 with synchronized backend/frontend
-  commits `23fc924a` and `b05759b`, focused gates, blind/contextless review,
-  UI smoke at `http://127.0.0.1:3001/?phaseSmoke=4921-4940`, and `0` USDC
-  live Coinbase submitted/executed notional.
+- Record completed phases 4941-4960 with synchronized backend/frontend
+  commits `126048b8` and `7bf8b4c`, focused gates, blind/contextless review,
+  UI smoke at `http://127.0.0.1:3001/?phaseSmoke=4941-4960`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-4941-4960.png`, and `0`
+  USDC live Coinbase submitted/executed notional.
 
-### Phase 4942 - Advance Active Queue Range
+### Phase 4962 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 4921-4940 to active phases
-  4941-4960 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 4941-4960 to active phases
+  4961-4980 while preserving no-live defaults and cap policy.
 
-### Phase 4943 - Clearance-Step Review-Input Scope
+### Phase 4963 - Clearance-Step Review-Input Store-Requirement Scope
 
-- Add blocked clearance-step review inputs under existing claim-trace
-  clearance-step review rows without changing input, review, step, claim,
-  work-item, dependency, remediation, validation, record, store, write,
+- Add blocked store requirements under existing claim-trace clearance-step
+  review-input rows without changing store, writer, write, input, review,
+  step, claim, work-item, dependency, remediation, validation, record,
   manager, reconciliation, Coinbase, browser, or BFF authority.
 
-### Phase 4944 - Backend Review-Input Model
+### Phase 4964 - Backend Store-Requirement Model
 
-- Add the nested claim-trace clearance-step review-input model and summary
-  fields.
+- Add the nested claim-trace clearance-step review-input store-requirement
+  model and summary fields.
 
-### Phase 4945 - Backend Review-Input Derivation
+### Phase 4965 - Backend Store-Requirement Derivation
 
-- Derive each clearance-step review input from one existing clearance-step
-  review and its source clearance-step/clearance-plan/claim-trace/work-item/
+- Derive each store requirement from one existing clearance-step review input
+  and its source review/clearance-step/clearance-plan/claim-trace/work-item/
   dependency/remediation/validation chain.
 
-### Phase 4946 - Review-Input Ordering Links
+### Phase 4966 - Store-Requirement Ordering Links
 
-- Link predecessor and successor clearance-step review-input refs from the
-  required plan-step and input ordering.
+- Link predecessor and successor store-requirement refs from the source
+  review-input ordering.
 
-### Phase 4947 - Blocked Authority Flags
+### Phase 4967 - Blocked Authority Flags
 
-- Record blocked status, false input presence, false input acceptance, false
-  input validation, false review readiness, false review completion, false
-  step readiness, false step completion, false claim resolution, false
-  clear/write/execute state, and no-live authority.
+- Record blocked status, false store availability, false writer/write
+  authority, false record presence, false input acceptance/validation, false
+  review completion, false step completion, false claim resolution, false
+  clear/execute state, and no-live authority.
 
-### Phase 4948 - Summary Aggregation
+### Phase 4968 - Summary Aggregation
 
-- Aggregate counts, refs, statuses, source review refs, source step refs,
-  plan refs, input names, review names, step names, claims, targets, required
-  refs, required inputs, input gates, blockers, predecessors, and successors.
+- Aggregate counts, refs, statuses, source input/review/step/plan refs,
+  requirement names, required store refs, writer refs, record keys, gates,
+  blockers, predecessors, and successors.
 
-### Phase 4949 - Backend Assertions
+### Phase 4969 - Backend Assertions
 
-- Extend focused Admin API regression assertions for nested review-input rows
-  and summary no-authority invariants.
+- Extend focused Admin API regression assertions for nested store-requirement
+  rows and summary no-authority invariants.
 
-### Phase 4950 - OpenAPI Regeneration
+### Phase 4970 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4951 - Frontend Schema Sync
+### Phase 4971 - Frontend Schema Sync
 
 - Regenerate frontend TypeScript schema from backend OpenAPI.
 
-### Phase 4952 - Frontend Adapter Review-Input Mapping
+### Phase 4972 - Frontend Adapter Store-Requirement Mapping
 
-- Map nested clearance-step review-input rows and summary fields through the
-  existing command-suite adapter.
+- Map nested clearance-step review-input store-requirement rows and summary
+  fields through the existing command-suite adapter.
 
-### Phase 4953 - Frontend Mock Review-Input Sync
+### Phase 4973 - Frontend Mock Store-Requirement Sync
 
 - Sync frontend mock command-suite evidence and summary totals.
 
-### Phase 4954 - UI Review-Input Summary
+### Phase 4974 - UI Store-Requirement Summary
 
-- Render clearance-step review-input summary evidence in the M55 ledger.
+- Render clearance-step review-input store-requirement summary evidence in
+  the M55 ledger.
 
-### Phase 4955 - UI Review-Input Rows
+### Phase 4975 - UI Store-Requirement Rows
 
-- Render row-level clearance-step review-input evidence and no-authority flags.
+- Render row-level clearance-step review-input store-requirement evidence and
+  no-authority flags.
 
-### Phase 4956 - Quality Metadata And Regression-Policy Guard
+### Phase 4976 - Quality Metadata And Regression-Policy Guard
 
-- Update active range metadata to phases 4941-4960 and strengthen active
+- Update active range metadata to phases 4961-4980 and strengthen active
   policy validation so `python tools/run_parallel_regression.py --workers 4`
   is the canonical closeout gate and sequential full regression is fallback
   only.
 
-### Phase 4957 - Documentation
+### Phase 4977 - Documentation
 
 - Update Admin API, frontend, testing, examples, milestones, handoff, and
-  expanded context so contextless readers see 4941-4960 as active and
-  4921-4940 as completed.
+  expanded context so contextless readers see 4961-4980 as active and
+  4941-4960 as completed.
 
-### Phase 4958 - Contextless Review
+### Phase 4978 - Contextless Review
 
 - Run blind/contextless review for discoverability, no-execution posture, and
   regression-policy clarity.
 
-### Phase 4959 - Focused Gates And UI Smoke
+### Phase 4979 - Focused Gates And UI Smoke
 
 - Run focused backend/frontend gates and browser smoke for
-  `http://127.0.0.1:3001/?phaseSmoke=4941-4960`.
+  `http://127.0.0.1:3001/?phaseSmoke=4961-4980`.
 
-### Phase 4960 - No-Live Report, Commit, And Push
+### Phase 4980 - No-Live Report, Commit, And Push
 
 - Commit and push both repositories with `0` USDC submitted/executed notional
   and note full regression remains deferred unless this closes a durable
   milestone.
+
+## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review-Input Batch - Phases 4941-4960
+
+This batch derived blocked backend-owned claim-trace clearance-step
+review-input rows from the existing remediation dependency work-item
+claim-trace clearance-step review rows. It completed with backend commit
+`126048b8`, frontend commit `7bf8b4c`, focused gates, blind/contextless
+review, UI smoke at `http://127.0.0.1:3001/?phaseSmoke=4941-4960`,
+screenshot `C:\coinbase-frontend\output\playwright\ui-smoke-4941-4960.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Batch - Phases 4921-4940
 
@@ -14553,4 +14567,3 @@ Completion evidence:
   tests passed.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
-

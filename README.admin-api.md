@@ -356,12 +356,12 @@ claim-trace clearance-step review rows from those clearance steps without
 completing reviews, executing plan steps, resolving claims, clearing claim
 traces, clearing work items or dependencies, writing evidence, reconciling,
 calling Coinbase, invoking managers, or changing execution authority. Active
-phases 4941-4960 derive blocked backend claim-trace clearance-step
-review-input rows from those reviews without accepting inputs, validating
-inputs, completing reviews, executing plan steps, resolving claims, clearing
-claim traces, clearing work items or dependencies, writing evidence,
-reconciling, calling Coinbase, invoking managers, or changing execution
-authority.
+phases 4961-4980 derive blocked backend claim-trace clearance-step
+review-input store-requirement rows from those review inputs without creating
+stores, allowing writers, writing records, accepting inputs, validating inputs,
+completing reviews, executing plan steps, resolving claims, clearing claim
+traces, clearing work items or dependencies, writing evidence, reconciling,
+calling Coinbase, invoking managers, or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their
