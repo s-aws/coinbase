@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5061-5080` under M55.
-- Active autonomous range: `5081-5100` under M55.
+- Latest completed autonomous range: `5081-5100` under M55.
+- Active autonomous range: `5101-5120` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -524,13 +524,16 @@ notional, retained inventory, reconciliation result, and audit ids.
   review-input store record-validation remediation dependency work-item rows
   from those dependency rows without claiming work items, performing work
   items, resolving dependencies, validating records, writing evidence, calling
-  Coinbase, invoking managers, or changing execution authority. Active
+  Coinbase, invoking managers, or changing execution authority. Completed
   5081-5100 work derives blocked backend claim-trace clearance-step
   review-input store record-validation remediation dependency work-item claim
   traces from those dependency work-item rows without resolving claims,
   claiming or performing work items, clearing dependencies, performing
   remediation, validating records, writing evidence, calling Coinbase,
-  invoking managers, or changing execution authority.
+  invoking managers, or changing execution authority. Active 5101-5120 work
+  reconciles route-level stealth command enablement candidates without
+  enabling commands, invoking managers, mutating state, reconciling, calling
+  Coinbase, or granting browser/BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "5081-5100",
+  "approved_phase_range": "5101-5120",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -121,13 +121,21 @@ authority, or BFF execution authority. In the completed 5061-5080 range, each
 dependency row exposes one blocked dependency work-item row without claiming
 or performing work items, resolving dependencies, validating records, writing
 evidence, reconciling, calling Coinbase, invoking managers, mutating state, or
-granting browser/BFF execution authority. In the active 5081-5100 range, each
+granting browser/BFF execution authority. In the completed 5081-5100 range, each
 dependency work-item row exposes one blocked dependency work-item claim trace
 without resolving claims, claiming or performing work items, clearing
 dependencies, performing remediation, validating records, writing evidence,
 reconciling, calling Coinbase, invoking managers, mutating state, or granting
 browser/BFF execution authority. Nested dependency work-item rows include
 `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_rows`.
+
+In the active 5101-5120 range, the command-suite review moves from recursive
+evidence-row expansion to route-level enablement candidate review. The
+canonical evidence remains the backend-owned `"commands"`,
+`"admission_readiness"`, `"coverage_gaps"`, and `"blocker_closures"` arrays.
+This route-level enablement candidate review is still no-live and cannot make
+stealth create, reveal, move, cancel, recovery, reconciliation, or movement
+reprice executable.
 
 ```json
 {
