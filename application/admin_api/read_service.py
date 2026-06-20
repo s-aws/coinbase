@@ -288,7 +288,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4581-4600"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4601-4620"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12906,6 +12906,10 @@ class AdminApiReadService:
             partial_evidence_refs: list[str] | None = None,
             partial_evidence_contracts: list[str] | None = None,
             partial_evidence_detail: str | None = None,
+            closure_readiness_criteria: list[str] | None = None,
+            closure_readiness_verification_gates: list[str] | None = None,
+            closure_readiness_blockers: list[str] | None = None,
+            closure_readiness_detail: str | None = None,
             required_backend_contracts: list[str],
             required_proof_routes: list[str],
             required_gate_chain: list[str],
@@ -12927,6 +12931,17 @@ class AdminApiReadService:
                 partial_evidence_refs=partial_evidence_refs or [],
                 partial_evidence_contracts=partial_evidence_contracts or [],
                 partial_evidence_detail=partial_evidence_detail,
+                closure_readiness_required=True,
+                closure_ready=False,
+                closure_evidence_complete=False,
+                closure_readiness_criteria=closure_readiness_criteria or [],
+                missing_closure_readiness_criteria=closure_readiness_criteria or [],
+                closure_readiness_verification_gates=(
+                    closure_readiness_verification_gates or []
+                ),
+                closure_readiness_blockers=closure_readiness_blockers or [],
+                closure_readiness_detail=closure_readiness_detail
+                or "Closure-readiness criteria remain unsatisfied.",
                 required_backend_contracts=required_backend_contracts,
                 missing_backend_contracts=required_backend_contracts,
                 required_proof_routes=required_proof_routes,
@@ -13009,6 +13024,30 @@ class AdminApiReadService:
                     "satisfy the M55 blocker ledger, and does not enable the "
                     "live service."
                 ),
+                closure_readiness_criteria=[
+                    "Persist backend-owned live-service enablement decisions for every stealth command route.",
+                    "Evaluate approval, admission audit, cap/guard, and reconciliation prerequisites for the exact route context.",
+                    "Reject browser and BFF evidence as live-service enablement authority.",
+                ],
+                closure_readiness_verification_gates=[
+                    "live_service_decision_readback",
+                    "live_execution_gate_evaluation",
+                    "no_browser_or_bff_enablement_authority",
+                ],
+                closure_readiness_blockers=[
+                    "live_service_decision_missing",
+                    "backend_live_service_configuration_missing",
+                    "approval_snapshot_missing",
+                    "admission_audit_missing",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                ],
+                closure_readiness_detail=(
+                    "This blocker can close only after a backend-owned live-service "
+                    "decision and prerequisite evaluation prove service enablement "
+                    "for the exact stealth command routes without browser or BFF "
+                    "authority."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/live_execution.py::evaluate_live_execution_gate",
                     "application/admin_api/live_service_decision_service.py",
@@ -13067,6 +13106,28 @@ class AdminApiReadService:
                     "readiness prerequisite. It is non-executable, does not "
                     "satisfy the M55 blocker ledger, and does not construct "
                     "a live adapter."
+                ),
+                closure_readiness_criteria=[
+                    "Construct route-bound backend live adapters through the shared command service for every stealth mutation family.",
+                    "Bind each adapter to route inventory, idempotency, approval, audit, cap/guard, and reconciliation evidence.",
+                    "Prove no route-local executor, browser executor, or BFF executor can bypass the shared command service.",
+                ],
+                closure_readiness_verification_gates=[
+                    "route_inventory_execution_binding",
+                    "shared_command_service_adapter_verification",
+                    "no_route_local_executor_scan",
+                ],
+                closure_readiness_blockers=[
+                    "route_bound_live_adapter_missing",
+                    "shared_command_service_adapter_missing",
+                    "adapter_verification_missing",
+                    "live_service_enablement_missing",
+                ],
+                closure_readiness_detail=(
+                    "This blocker can close only when every stealth command route "
+                    "has a backend-owned adapter bound to the shared command "
+                    "service and verified against route-local, browser, and BFF "
+                    "execution bypasses."
                 ),
                 required_backend_contracts=[
                     "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
@@ -13144,6 +13205,28 @@ class AdminApiReadService:
                     "not cancel active placements, invoke managers, call "
                     "Coinbase, or satisfy the blocker ledger."
                 ),
+                closure_readiness_criteria=[
+                    "Resolve active-placement exchange truth from backend-owned client_order_id submission evidence.",
+                    "Cancel or replace the live placement through the existing StealthOrderManager and Coinbase wrapper path.",
+                    "Run post-write reconciliation before local lifecycle, order, or exchange state can stop reflecting REVEALED reality.",
+                ],
+                closure_readiness_verification_gates=[
+                    "active_placement_exchange_truth",
+                    "manager_cancel_replace_invocation",
+                    "post_write_reconciliation_verification",
+                ],
+                closure_readiness_blockers=[
+                    "active_placement_exchange_truth_missing",
+                    "manager_cancel_replace_invocation_disabled",
+                    "coinbase_cancel_or_replace_disabled",
+                    "post_write_reconciliation_missing",
+                ],
+                closure_readiness_detail=(
+                    "This blocker can close only when active placement handling "
+                    "runs through the existing manager/exchange path, uses local "
+                    "client_order_id ownership evidence, and reconciles before "
+                    "any local state stops matching Coinbase reality."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/stealth_cancel_replace_boundary.py",
                     "application/admin_api/stealth_cancel_replace_proof_service.py",
@@ -13208,6 +13291,29 @@ class AdminApiReadService:
                     "Admin API still does not call reveal_order_slice or "
                     "submit a Coinbase order."
                 ),
+                closure_readiness_criteria=[
+                    "Prove reveal-trigger eligibility for the exact stealth_order_id and command context.",
+                    "Invoke reveal_order_slice only through the backend live adapter and existing manager path.",
+                    "Capture Coinbase submission evidence and post-write reconciliation before marking reveal execution complete.",
+                ],
+                closure_readiness_verification_gates=[
+                    "reveal_trigger_proof",
+                    "live_adapter_manager_invocation",
+                    "coinbase_submission_and_reconciliation_proof",
+                ],
+                closure_readiness_blockers=[
+                    "reveal_trigger_evidence_missing",
+                    "live_adapter_missing",
+                    "reveal_order_slice_invocation_disabled",
+                    "coinbase_order_submit_disabled",
+                    "post_write_reconciliation_missing",
+                ],
+                closure_readiness_detail=(
+                    "This blocker can close only when the backend proves trigger "
+                    "eligibility, submits the reveal through the existing manager "
+                    "and Coinbase path, and records post-write reconciliation for "
+                    "the exact command context."
+                ),
                 required_backend_contracts=[
                     "core/stealth_order_manager.py::reveal_order_slice",
                     "application/admin_api/stealth_reveal_trigger_proof_service.py",
@@ -13271,6 +13377,29 @@ class AdminApiReadService:
                     "not perform repair, rollback, reconciliation execution, "
                     "Coinbase reads, or lifecycle mutation."
                 ),
+                closure_readiness_criteria=[
+                    "Build a recovery preview that identifies exact local and exchange-state drift for the stealth_order_id.",
+                    "Execute repair or rollback only through backend-owned manager/bridge paths with before-and-after proof.",
+                    "Verify rollback availability and post-write reconciliation before accepting any lifecycle repair as complete.",
+                ],
+                closure_readiness_verification_gates=[
+                    "recovery_preview_proof",
+                    "repair_or_rollback_execution_journal",
+                    "post_write_reconciliation_verification",
+                ],
+                closure_readiness_blockers=[
+                    "recovery_preview_missing",
+                    "repair_execution_disabled",
+                    "rollback_execution_disabled",
+                    "post_write_reconciliation_missing",
+                    "coinbase_read_disabled",
+                ],
+                closure_readiness_detail=(
+                    "This blocker can close only after recovery repair and "
+                    "rollback use backend-owned execution paths with snapshots, "
+                    "journals, and post-write reconciliation; readback proof alone "
+                    "is not enough."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/stealth_recovery_proof_service.py",
                     "bridges/stealth_order_bridge.py",
@@ -13327,6 +13456,27 @@ class AdminApiReadService:
                     "be matched as backend-owned readback evidence, but this "
                     "row still does not execute reconciliation or mutate "
                     "state."
+                ),
+                closure_readiness_criteria=[
+                    "Execute reconciliation through a backend-owned executor after an exact stealth command write candidate.",
+                    "Match proof, execution journal, and verification records for the same command context.",
+                    "Block M55 completion unless reconciliation proves local lifecycle, order, and exchange state match after the write.",
+                ],
+                closure_readiness_verification_gates=[
+                    "post_write_reconciliation_executor",
+                    "proof_journal_verification_match",
+                    "completion_verifier",
+                ],
+                closure_readiness_blockers=[
+                    "post_write_reconciliation_executor_missing",
+                    "proof_journal_verification_mismatch",
+                    "state_consistency_verification_missing",
+                    "completion_verifier_missing",
+                ],
+                closure_readiness_detail=(
+                    "This blocker can close only when post-write reconciliation "
+                    "executes after the exact command path and proves local and "
+                    "exchange state consistency before M55 completion is allowed."
                 ),
                 required_backend_contracts=[
                     "application/admin_api/stealth_post_write_reconciliation.py",
@@ -13391,6 +13541,27 @@ class AdminApiReadService:
                     evidence_ref
                     for item in blocker_closures
                     for evidence_ref in item.partial_evidence_refs
+                }
+            ),
+            closure_readiness_required_count=sum(
+                1 for item in blocker_closures if item.closure_readiness_required
+            ),
+            closure_ready_count=sum(1 for item in blocker_closures if item.closure_ready),
+            closure_evidence_complete_count=sum(
+                1 for item in blocker_closures if item.closure_evidence_complete
+            ),
+            closure_readiness_blockers=sorted(
+                {
+                    blocker
+                    for item in blocker_closures
+                    for blocker in item.closure_readiness_blockers
+                }
+            ),
+            closure_readiness_verification_gates=sorted(
+                {
+                    gate
+                    for item in blocker_closures
+                    for gate in item.closure_readiness_verification_gates
                 }
             ),
             missing_backend_contracts=sorted(

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4581-4600",
+  "approved_phase_range": "4601-4620",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -50,11 +50,14 @@ The same read-only response includes an M55 blocker-closure ledger. It names
 the concrete backend blockers that still prevent future live stealth
 execution, but it does not enable any of them:
 
-In the current 4581-4600 range, all concrete M55 blocker rows may show partial
+In the completed 4581-4600 range, all concrete M55 blocker rows may show partial
 proof/readback evidence. That evidence is readback only; `live_enabled`,
 `executable`, manager invocation, Coinbase submission/cancel/read,
 repair/rollback, reconciliation execution, and state mutation all remain
-false.
+false. In the current 4601-4620 range, the same rows also expose
+closure-readiness criteria, missing criteria, verification gates, readiness
+blockers, and readiness counts. Those fields describe what remains required;
+they do not close blockers or grant live authority.
 
 ```json
 {
@@ -64,6 +67,14 @@ false.
     "blocking_count": 6,
     "resolved_count": 0,
     "partial_evidence_count": 6,
+    "closure_readiness_required_count": 6,
+    "closure_ready_count": 0,
+    "closure_evidence_complete_count": 0,
+    "closure_readiness_blockers": [
+      "live_service_decision_missing",
+      "route_bound_live_adapter_missing",
+      "post_write_reconciliation_executor_missing"
+    ],
     "partial_evidence_closure_ids": [
       "m55_live_service_enablement",
       "m55_live_adapter_construction",

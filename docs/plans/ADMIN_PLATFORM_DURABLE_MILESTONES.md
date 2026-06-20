@@ -3074,10 +3074,13 @@ Current backend evidence:
   dry-run adapter. Completed phases 4541-4560 add one backend-owned,
   route-bound, non-executable stealth reveal dry-run live-service contract.
   Completed phases 4561-4580 classify those dry-run surfaces as partial
-  blocker evidence. Active phases 4581-4600 expand partial evidence to the
+  blocker evidence. Completed phases 4581-4600 expand partial evidence to the
   remaining concrete M55 blocker rows while keeping exact proof, manager,
   Coinbase, reconciliation, repair/rollback, state mutation, browser, and BFF
-  execution authority blocked.
+  execution authority blocked. Active phases 4601-4620 add structured
+  closure-readiness criteria, missing criteria, verification gates, readiness
+  blockers, and summary counts to those same rows without closing blockers or
+  granting live authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

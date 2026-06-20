@@ -25,7 +25,11 @@ proof/readback evidence for all concrete blocker rows. Partial evidence is
 readback only: it does not change blocker status, missing backend contracts,
 live-service or live-adapter flags, Coinbase/manager authority,
 repair/rollback authority, reconciliation execution, or state-mutation
-authority.
+authority. For phases 4601-4620, the same rows also report closure-readiness
+criteria, missing criteria, verification gates, blockers, and readiness
+counts. Readiness criteria are planning evidence only: they do not close
+blockers, satisfy missing contracts, enable live execution, call Coinbase,
+invoke managers, execute reconciliation, or mutate state.
 
 ## Identity Rules
 

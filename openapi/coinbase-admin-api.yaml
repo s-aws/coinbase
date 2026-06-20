@@ -57683,6 +57683,55 @@ components:
           title: Partial Evidence Detail
           description: Human-readable explanation of the partial dry-run/readback
             evidence and why the M55 blocker remains unresolved.
+        closure_readiness_required:
+          type: boolean
+          title: Closure Readiness Required
+          description: True when the blocker still needs backend-owned closure-readiness
+            criteria before it can be marked resolved.
+          default: true
+        closure_ready:
+          type: boolean
+          title: Closure Ready
+          description: False until every closure-readiness criterion is satisfied
+            by backend-owned proof. This is not browser or BFF authority.
+          default: false
+        closure_evidence_complete:
+          type: boolean
+          title: Closure Evidence Complete
+          description: False until the required backend contracts, proof routes, and
+            verification gates have complete evidence for this blocker.
+          default: false
+        closure_readiness_criteria:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Criteria
+          description: Backend-owned criteria that must be satisfied before this blocker
+            can be considered ready for closure.
+        missing_closure_readiness_criteria:
+          items:
+            type: string
+          type: array
+          title: Missing Closure Readiness Criteria
+          description: Closure-readiness criteria that remain unsatisfied. For blocked
+            rows this intentionally mirrors closure_readiness_criteria.
+        closure_readiness_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Verification Gates
+          description: Verification gates required before the blocker can be closed.
+            These gates are read-only evidence in the current no-live posture.
+        closure_readiness_blockers:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Blockers
+          description: Named reasons this blocker cannot be closed yet. These are
+            planning evidence only and do not grant execution authority.
+        closure_readiness_detail:
+          type: string
+          title: Closure Readiness Detail
         required_backend_contracts:
           items:
             type: string
@@ -57788,6 +57837,7 @@ components:
       - closure_id
       - blocker
       - category
+      - closure_readiness_detail
       - next_backend_step
       - detail
       title: StealthCommandSuiteBlockerClosureItem
@@ -57856,6 +57906,28 @@ components:
           title: Partial Evidence Refs
           description: Aggregate non-executable dry-run/readback evidence references.
             These references are not proof of live execution readiness.
+        closure_readiness_required_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Required Count
+        closure_ready_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Ready Count
+        closure_evidence_complete_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Evidence Complete Count
+        closure_readiness_blockers:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Blockers
+        closure_readiness_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Verification Gates
         missing_backend_contracts:
           items:
             type: string
@@ -57916,6 +57988,9 @@ components:
       - blocker_names
       - categories
       - partial_evidence_count
+      - closure_readiness_required_count
+      - closure_ready_count
+      - closure_evidence_complete_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary

@@ -13998,6 +13998,56 @@ class StealthCommandSuiteBlockerClosureItem(BaseModel):
             "and why the M55 blocker remains unresolved."
         ),
     )
+    closure_readiness_required: bool = Field(
+        default=True,
+        description=(
+            "True when the blocker still needs backend-owned closure-readiness "
+            "criteria before it can be marked resolved."
+        ),
+    )
+    closure_ready: bool = Field(
+        default=False,
+        description=(
+            "False until every closure-readiness criterion is satisfied by "
+            "backend-owned proof. This is not browser or BFF authority."
+        ),
+    )
+    closure_evidence_complete: bool = Field(
+        default=False,
+        description=(
+            "False until the required backend contracts, proof routes, and "
+            "verification gates have complete evidence for this blocker."
+        ),
+    )
+    closure_readiness_criteria: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Backend-owned criteria that must be satisfied before this blocker "
+            "can be considered ready for closure."
+        ),
+    )
+    missing_closure_readiness_criteria: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Closure-readiness criteria that remain unsatisfied. For blocked "
+            "rows this intentionally mirrors closure_readiness_criteria."
+        ),
+    )
+    closure_readiness_verification_gates: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Verification gates required before the blocker can be closed. These "
+            "gates are read-only evidence in the current no-live posture."
+        ),
+    )
+    closure_readiness_blockers: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Named reasons this blocker cannot be closed yet. These are "
+            "planning evidence only and do not grant execution authority."
+        ),
+    )
+    closure_readiness_detail: str
     required_backend_contracts: list[str] = Field(default_factory=list)
     missing_backend_contracts: list[str] = Field(default_factory=list)
     required_proof_routes: list[str] = Field(default_factory=list)
@@ -14060,6 +14110,11 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
             "references are not proof of live execution readiness."
         ),
     )
+    closure_readiness_required_count: int = Field(ge=0)
+    closure_ready_count: int = Field(ge=0)
+    closure_evidence_complete_count: int = Field(ge=0)
+    closure_readiness_blockers: list[str] = Field(default_factory=list)
+    closure_readiness_verification_gates: list[str] = Field(default_factory=list)
     missing_backend_contracts: list[str]
     first_blocker: AdminApiStealthCommandSuiteBlockerClosure | None = None
     closure_authority: str = "backend_contract_only_no_execution"

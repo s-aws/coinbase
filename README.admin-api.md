@@ -294,11 +294,15 @@ adapter for stealth reveal. Completed phases 4541-4560 added route-bound,
 non-executable dry-run live-service evidence for the same reveal route.
 Completed phases 4561-4580 classify those reveal dry-run service and adapter
 surfaces as partial blocker evidence while keeping exact proof, manager,
-Coinbase, reconciliation, browser, and BFF execution authority blocked. Active
-phases 4581-4600 expand partial evidence to the remaining concrete M55
+Coinbase, reconciliation, browser, and BFF execution authority blocked.
+Completed phases 4581-4600 expand partial evidence to the remaining concrete M55
 blocker rows for active-placement cancel/replace, reveal exchange submission,
 recovery repair/rollback, and post-write reconciliation execution while
-keeping every blocker unresolved and no-live.
+keeping every blocker unresolved and no-live. Active phases 4601-4620 add
+structured closure-readiness criteria, missing criteria, verification gates,
+and readiness blockers to the same six rows while keeping every blocker
+unresolved and every live/manager/Coinbase/reconciliation/state-mutation flag
+false.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their
