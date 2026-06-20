@@ -50,6 +50,7 @@ owners:
       - tools/run_spot_direct_order_audit.py
       - tools/run_spot_readiness_regression.py
       - tools/run_spot_release_gate.py
+      - tools/run_parallel_regression.py
       - tools/run_autonomous_work_queue_check.py
       - ai-context.md
       - AGENTS.md
@@ -85,11 +86,13 @@ owners:
       - genai_data/ARCHITECTURE.md
       - genai_data/API_REFERENCE.md
       - genai_data/CONFIGURATION.md
+      - genai_data/TESTING_STRATEGY.md
       - genai_data/ORDER_ID_HANDLING.md
       - genai_data/agent_state.md
     test_owns:
       - tests/regression/test_codebase_intelligence.py
       - tests/regression/test_live_spot_usdc_smoke_runner.py
+      - tests/regression/test_parallel_regression_runner.py
       - tests/regression/test_spot_contextless_agent_checklist.py
       - tests/regression/test_spot_readiness_gate.py
     tests:

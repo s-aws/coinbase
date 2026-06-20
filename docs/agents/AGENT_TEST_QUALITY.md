@@ -20,10 +20,23 @@ safety guards are owned here.
 - Do not run full regression by default for ordinary phases. Use focused tests
   for changed behavior and reserve full regression for durable milestone
   closeout, public/release-candidate handoff, or explicit user request.
+- Do not parallelize the regression suite with threads. Use process workers
+  through `tools/run_parallel_regression.py`, and mark shared-state tests
+  `serial`.
 
 ## Focused Tests
 
 ```powershell
 pytest tests/regression/test_db_prod_guard.py -v --tb=short
 ```
+
+## Milestone Closeout Acceleration
+
+```powershell
+python tools/run_parallel_regression.py --workers 4
+```
+
+Increase workers only after the split lane has passed locally. Tests that
+create fixed database tables, touch fixed files, or depend on process-global
+state must carry the `serial` marker.
 

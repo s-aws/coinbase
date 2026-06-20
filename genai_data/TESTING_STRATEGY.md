@@ -17,6 +17,28 @@ Must exit `0` before the milestone or release handoff is considered complete.
 
 Exception (docs/process-only): if changes are limited to agent/context files (`AGENTS.md`, `agent.md`, `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
+## Parallel Milestone Closeout
+
+Do not run the regression suite with Python threads. Tests frequently monkeypatch
+process globals and several tests touch shared files or the test database. The
+approved acceleration path is process-based pytest-xdist with a separate serial
+lane:
+
+```powershell
+python -m pip install -e ".[test]"
+python tools/run_parallel_regression.py --workers 4
+```
+
+The helper runs `tests/regression -m "not serial"` with xdist process workers
+and then runs `tests/regression -m serial` sequentially. Start at 4 workers.
+Higher counts are allowed for milestone closeout after the split lane passes
+reliably on the local machine. Tests that create fixed database tables, touch
+fixed paths, depend on process-global state, or validate timing-sensitive
+concurrency must be marked `serial`. The helper also creates a unique
+`genai_tools/pytest-tmp/parallel-regression/<run-id>/` basetemp for each run;
+this avoids Windows default-temp permission failures and prevents concurrent
+closeout runs from sharing pytest temp directories.
+
 ## Current Test Layout
 
 As of 2026-05-16:
@@ -65,6 +87,11 @@ Live/sandbox Coinbase contract tests (opt-in, credential-gated).
 ### Full regression gate
 ```powershell
 pytest tests/regression/ -v --tb=short
+```
+
+### Process-parallel full regression gate
+```powershell
+python tools/run_parallel_regression.py --workers 4
 ```
 
 ### Full validation

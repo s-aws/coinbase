@@ -143,6 +143,10 @@ Exception: if changes are limited to agent/context files only (`AGENTS.md`, `age
 # Full regression - major milestone closeout only unless explicitly requested
 pytest tests/regression/ -v --tb=short
 
+# Process-parallel full regression closeout helper. Runs non-serial tests
+# through pytest-xdist and tests marked serial in a separate sequential lane.
+python tools/run_parallel_regression.py --workers 4
+
 # Full suite - recommended for major or cross-module changes
 pytest tests/ -v --tb=short --cov=.
 

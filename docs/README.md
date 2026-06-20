@@ -79,6 +79,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   and `python tools\run_spot_campaign.py --pnl-delta-report --summary-only`
 - Local Admin API runner:
   `python tools\run_admin_api.py --dev-token local-admin-token`
+- Process-parallel regression closeout:
+  `python tools\run_parallel_regression.py --workers 4`
 - Admin API OIDC readiness smoke:
   `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
 - Admin API route inventory export:

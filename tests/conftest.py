@@ -82,6 +82,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "integration: mark test as integration test (touches real DB / external services)"
     )
+    config.addinivalue_line(
+        "markers", "serial: mark test as requiring the serial regression lane"
+    )
 
 
 # ===================== FIXTURES =====================
