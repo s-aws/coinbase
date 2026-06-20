@@ -49,113 +49,126 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Dependency Clearance Step Review Batch - Phases 4701-4720
+## Active M55 Closure-Readiness Dependency Clearance Step Review Input Batch - Phases 4721-4740
 
-These phases derive blocked backend-owned clearance-step review rows from the
-existing closure-readiness dependency clearance steps. The review rows remain
-blocked and unresolved. The range must not enable service, construct adapters,
-invoke managers, call Coinbase, cancel or submit orders, repair or roll back
-state, execute reconciliation, mutate state, grant browser authority, grant BFF
-execution authority, complete reviews, make steps ready, or clear
-dependencies.
+These phases derive blocked backend-owned clearance-step review input rows from
+the existing closure-readiness dependency clearance-step reviews. The input
+rows remain blocked and unresolved. The range must not enable service,
+construct adapters, invoke managers, call Coinbase, cancel or submit orders,
+repair or roll back state, execute reconciliation, mutate state, grant browser
+authority, grant BFF execution authority, accept inputs, validate inputs,
+complete reviews, make steps ready, or clear dependencies.
 
-### Phase 4701 - Prior Range Completion Evidence
+### Phase 4721 - Prior Range Completion Evidence
 
-- Record completed phases 4681-4700 with backend commit `cbd85c38`, frontend
-  commit `cc6215b`, focused gates, blind/contextless review, UI smoke, and
+- Record completed phases 4701-4720 with backend commit `3411b54a`, frontend
+  commit `96c4ba4`, focused gates, blind/contextless review, UI smoke, and
   `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 4702 - Advance Active Queue Range
+### Phase 4722 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4681-4700 to active
-  phases 4701-4720 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4701-4720 to active
+  phases 4721-4740 while preserving no-live defaults and cap policy.
 
-### Phase 4703 - Clearance Step Review Scope
+### Phase 4723 - Clearance Step Review Input Scope
 
-- Add review fields to existing clearance step rows without changing blocker
-  status, step readiness/completion, clearance allowance, resolution allowance,
-  or execution flags.
+- Add review-input fields to existing clearance-step review rows without
+  changing blocker status, review readiness/completion, review allowance, step
+  readiness/completion, clearance allowance, resolution allowance, or execution
+  flags.
 
-### Phase 4704 - Backend Review Model
+### Phase 4724 - Backend Review Input Model
 
-- Extend the Admin API step and summary schemas with typed review name, review
-  ref, step ref, required artifact, order, status, allowed flags, and authority
-  evidence fields.
+- Extend the Admin API review and summary schemas with typed input name, input
+  ref, review ref, step ref, required artifact, order, status, present/
+  accepted/validated flags, allowed flags, and authority evidence fields.
 
-### Phase 4705 - Backend Review Derivation
+### Phase 4725 - Backend Review Input Derivation
 
-- Derive review rows from the existing clearance step refs only.
+- Derive review-input rows from the existing clearance-step review refs only.
 
-### Phase 4706 - Review Name Mapping
+### Phase 4726 - Input Name Mapping
 
-- Map backend contract, proof-route, and gate-chain step names to their
-  corresponding backend-owned review names.
+- Map backend contract, proof-route, and gate-chain review names to their
+  corresponding backend-owned input names.
 
-### Phase 4707 - Review Artifact And Ordering
+### Phase 4727 - Input Artifact And Ordering
 
 - Record each dependency ref as the required artifact ref and assign
-  deterministic clearance, step, and review order.
+  deterministic clearance, step, review, and input order.
 
-### Phase 4708 - Review Status Evidence
+### Phase 4728 - Input Status Evidence
 
-- Report blocked review status, `review_allowed=false`, `review_ready=false`,
-  `review_complete=false`, `clearance_allowed=false`, and
-  `resolution_allowed=false` for every review.
+- Report blocked input status, `input_present=false`, `input_accepted=false`,
+  `input_validated=false`, `review_allowed=false`, `review_ready=false`,
+  `review_complete=false`, `step_ready=false`, `clearance_allowed=false`, and
+  `resolution_allowed=false` for every input.
 
-### Phase 4709 - Backend Review Assertions
+### Phase 4729 - Backend Review Input Assertions
 
-- Extend Admin API regression coverage proving review rows mirror clearance
-  steps and do not close blockers or grant live, manager, Coinbase,
+- Extend Admin API regression coverage proving review-input rows mirror review
+  rows and do not close blockers or grant live, manager, Coinbase,
   reconciliation, or state mutation authority.
 
-### Phase 4710 - OpenAPI Regeneration
+### Phase 4730 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4711 - Frontend Generated Schema Sync
+### Phase 4731 - Frontend Generated Schema Sync
 
 - Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4712 - Frontend Adapter Review Mapping
+### Phase 4732 - Frontend Adapter Review Input Mapping
 
-- Map review rows and summary fields through the existing command-suite
+- Map review-input rows and summary fields through the existing command-suite
   adapter.
 
-### Phase 4713 - Frontend Mock Review Evidence
+### Phase 4733 - Frontend Mock Review Input Evidence
 
 - Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4714 - Frontend UI Review Summary
+### Phase 4734 - Frontend UI Review Input Summary
 
-- Render review counts, blocked counts, names, statuses, artifacts, and classes
+- Render input counts, blocked counts, names, statuses, artifacts, and classes
   as read-only evidence.
 
-### Phase 4715 - Frontend UI Review Rows
+### Phase 4735 - Frontend UI Review Input Rows
 
-- Render row-level review ref, step ref, dependency ref, review name, owner,
-  artifact, order, status, allowed flags, authority flags, and no-live evidence.
+- Render row-level input ref, review ref, step ref, dependency ref, input name,
+  owner, artifact, order, status, input flags, allowed flags, authority flags,
+  and no-live evidence.
 
-### Phase 4716 - Quality Metadata Sync
+### Phase 4736 - Quality Metadata Sync
 
-- Update active range metadata to phases 4701-4720.
+- Update active range metadata to phases 4721-4740.
 
-### Phase 4717 - Documentation Sync
+### Phase 4737 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   examples, expanded context, and agent-state docs.
 
-### Phase 4718 - Contextless Review
+### Phase 4738 - Contextless Review
 
-- Record contextless review evidence for the clearance-step review boundary.
+- Record contextless review evidence for the clearance-step review-input
+  boundary.
 
-### Phase 4719 - Focused Gates And Browser Smoke
+### Phase 4739 - Focused Gates And Browser Smoke
 
-- Run focused backend/frontend validators and browser smoke for rendered review
-  evidence.
+- Run focused backend/frontend validators and browser smoke for rendered
+  review-input evidence.
 
-### Phase 4720 - Commit And Push
+### Phase 4740 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Dependency Clearance Step Review Batch - Phases 4701-4720
+
+Backend commit `3411b54a` and frontend commit `96c4ba4` derived blocked
+backend-owned clearance-step review rows from existing closure-readiness
+dependency clearance steps. Focused backend/frontend gates, blind/contextless
+review, and UI smoke passed at
+`http://127.0.0.1:3124/?phaseSmoke=4701-4720`. Live Coinbase execution was not
+run; submitted and executed notional were `0` USDC.
 
 ## Completed M55 Closure-Readiness Dependency Clearance Step Batch - Phases 4681-4700
 
@@ -10531,7 +10544,9 @@ with a notional cap.
 Exit criteria:
 
 - CI/local checks still require backend OpenAPI freshness and do not bypass
-  backend regression when backend files change.
+  focused backend checks for ordinary backend changes or the full backend
+  regression gate when a milestone, release/deployment, association closeout,
+  or explicit user request requires it.
 
 ### Phase 392 - Machine-Readable Release Evidence Manifest
 

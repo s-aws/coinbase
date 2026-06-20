@@ -3090,10 +3090,13 @@ Current backend evidence:
   clearance plan row with owner, required artifact, clearance order, blocked
   status, and no-live authority evidence. Completed phases 4681-4700 derive
   blocked backend clearance-step rows from those plans without clearing
-  dependencies or changing execution authority. Active phases 4701-4720 derive
-  blocked backend clearance-step review rows from those steps without
+  dependencies or changing execution authority. Completed phases 4701-4720
+  derive blocked backend clearance-step review rows from those steps without
   completing reviews, making steps ready, clearing dependencies, or changing
-  execution authority.
+  execution authority. Active phases 4721-4740 derive blocked backend
+  clearance-step review input rows from those reviews without accepting inputs,
+  validating inputs, completing reviews, making steps ready, clearing
+  dependencies, or changing execution authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

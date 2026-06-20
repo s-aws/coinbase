@@ -36,11 +36,12 @@ classified dependency also has a backend-owned clearance plan row with owner,
 required artifact, clearance order, blocked status, and no-resolution/no-live
 authority evidence. For phases 4681-4700, each clearance plan also has blocked
 backend clearance-step rows. For phases 4701-4720, each clearance step also has
-blocked backend review rows. Readiness criteria, traces, clearance rows, steps,
-and step reviews are planning evidence only: they do not close blockers,
-satisfy missing contracts, make steps ready, complete reviews, enable live
-execution, call Coinbase, invoke managers, execute reconciliation, or mutate
-state.
+blocked backend review rows. For phases 4721-4740, each clearance-step review
+also has blocked backend review-input rows. Readiness criteria, traces,
+clearance rows, steps, step reviews, and review inputs are planning evidence
+only: they do not close blockers, satisfy missing contracts, accept or validate
+inputs, make steps ready, complete reviews, enable live execution, call
+Coinbase, invoke managers, execute reconciliation, or mutate state.
 
 ## Identity Rules
 

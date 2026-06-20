@@ -17,10 +17,34 @@ ADMIN_API_README = PROJECT_ROOT / "README.admin-api.md"
 ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
+REGRESSION_GATE_POLICY_DOCS = (
+    PROJECT_ROOT / "AGENTS.md",
+    PROJECT_ROOT / "agent.md",
+    PROJECT_ROOT / "README.admin-api.md",
+    PROJECT_ROOT / "docs" / "FRONTEND_ASSOCIATION.md",
+    PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md",
+    PROJECT_ROOT / "docs" / "SPOT_READINESS_TEST_GATE.md",
+    PROJECT_ROOT / "docs" / "STEALTH_ORDER_READS.md",
+    PROJECT_ROOT / "docs" / "agents" / "README.md",
+    PROJECT_ROOT / "docs" / "agents" / "AGENT_TEST_QUALITY.md",
+    PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_CONTEXTLESS_REVIEW_LOG.md",
+    PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md",
+    PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md",
+    PROJECT_ROOT / "tests" / "DEPLOYMENT_CHECKLIST.md",
+    PROJECT_ROOT / "tests" / "README.md",
+    PROJECT_ROOT / "tests" / "SETUP_SUMMARY.md",
+)
+STALE_REGRESSION_POLICY_TEXT = (
+    "required backend regression gate when backend files change",
+    "backend regression gate when backend files changed",
+    "Backend regression remains required when backend files change",
+    "backend regression when backend files change",
+    "Backend regression is required only when backend files change",
+)
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "4701-4720"
-APPROVED_PHASES = tuple(range(4701, 4721))
-PREVIOUS_COMPLETED_PHASE_RANGE = "4681-4700"
+APPROVED_PHASE_RANGE = "4721-4740"
+APPROVED_PHASES = tuple(range(4721, 4741))
+PREVIOUS_COMPLETED_PHASE_RANGE = "4701-4720"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -63,6 +87,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_live_caps(body),
         _check_stop_conditions(body),
         _check_required_gates(body),
+        _check_regression_gate_policy_docs(),
         _check_frontend_release_docs(),
         _check_maintainer_handoff_docs(),
     ]
@@ -154,6 +179,33 @@ def _check_required_gates(body: str) -> QueueCheck:
         name="required_final_gates",
         passed=not missing,
         evidence={"missing_gate_text": missing},
+    )
+
+
+def _check_regression_gate_policy_docs() -> QueueCheck:
+    stale_matches: dict[str, list[str]] = {}
+    missing_policy: dict[str, list[str]] = {}
+    required_policy_text = [
+        "focused",
+        "ordinary",
+        "milestone",
+    ]
+    for path in REGRESSION_GATE_POLICY_DOCS:
+        body = path.read_text(encoding="utf-8") if path.exists() else ""
+        stale = [text for text in STALE_REGRESSION_POLICY_TEXT if text in body]
+        if stale:
+            stale_matches[str(path.relative_to(PROJECT_ROOT))] = stale
+        if "regression" in body.lower():
+            missing = [text for text in required_policy_text if text not in body.lower()]
+            if missing:
+                missing_policy[str(path.relative_to(PROJECT_ROOT))] = missing
+    return QueueCheck(
+        name="regression_gate_policy_docs",
+        passed=not stale_matches and not missing_policy,
+        evidence={
+            "stale_policy_text": stale_matches,
+            "missing_policy_terms": missing_policy,
+        },
     )
 
 

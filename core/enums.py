@@ -548,6 +548,14 @@ class AdminApiStealthClosureClearanceStepReviewName(str, Enum):
     REVIEW_GATE_CHAIN = "review_gate_chain"
 
 
+class AdminApiStealthClosureClearanceStepReviewInputName(str, Enum):
+    """Backend input required before an M55 clearance-step review can pass."""
+
+    BACKEND_CONTRACT_ARTIFACT = "backend_contract_artifact"
+    PROOF_ROUTE_ARTIFACT = "proof_route_artifact"
+    GATE_CHAIN_EVIDENCE = "gate_chain_evidence"
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 

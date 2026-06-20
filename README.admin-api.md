@@ -312,8 +312,11 @@ classified dependency to a backend-owned clearance plan row with an owner,
 required artifact, clearance order, blocked status, and no-execution authority
 flags. Completed phases 4681-4700 derive blocked backend clearance-step rows
 from those plans without clearing dependencies or changing execution authority.
-Active phases 4701-4720 derive blocked backend clearance-step review rows from
-those steps without completing reviews, making steps ready, clearing
+Completed phases 4701-4720 derive blocked backend clearance-step review rows
+from those steps without completing reviews, making steps ready, clearing
+dependencies, or changing execution authority. Active phases 4721-4740 derive
+blocked backend review-input rows from those reviews without accepting inputs,
+validating inputs, completing reviews, making steps ready, clearing
 dependencies, or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
@@ -1077,8 +1080,10 @@ repository at
 `artifacts/synthetic-probes.json`, and the public release checklist is written
 to `artifacts/public-release-checklist.json`. Runtime/UI evidence is written
 to `artifacts/runtime-evidence.json`. They are uploaded by frontend CI; they
-are not backend approval to trade. These checks do not replace this
-repository's required backend regression gate when backend files change.
+are not backend approval to trade. These checks do not replace focused backend
+checks for ordinary backend changes or the full backend regression gate when a
+durable milestone, release/deployment handoff, release-hardening closeout,
+Admin API/backend association closeout, or explicit user request requires it.
 In short: runtime evidence is saved, and these artifacts are not approval for
 live Coinbase execution.
 No-live release artifacts are not approval for live Coinbase execution.

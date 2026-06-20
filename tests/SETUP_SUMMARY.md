@@ -57,6 +57,7 @@ tests/
 
 ### 3. **Regression Testing**
 - 7 critical tests that verify core functionality
+- Ordinary phase work uses focused tests that cover the changed behavior
 - Must pass 100% before durable milestone closeout, public/release-candidate
   handoff, or deployment approval
 - Marked with `@pytest.mark.regression`

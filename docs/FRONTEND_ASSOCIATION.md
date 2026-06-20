@@ -103,7 +103,9 @@ Any backend API contract change intended for frontend consumption must update:
 - generated OpenAPI schema
 - `README.admin-api.md` or relevant backend feature docs
 - frontend generated client or contract tests
-- backend regression gate when backend files changed
+- focused backend checks for ordinary backend changes
+- full backend regression only for milestone, release/deployment, association
+  closeout, or explicit-request gates
 - frontend quality gate when frontend files changed
 - frontend `npm run release:gate` for release candidates
 
