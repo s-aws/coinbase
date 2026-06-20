@@ -289,7 +289,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4621-4640"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4641-4660"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12925,21 +12925,41 @@ class AdminApiReadService:
                 *(partial_evidence_refs or []),
                 *(partial_evidence_contracts or []),
             ]
+            backend_contract_dependency_refs = required_backend_contracts
+            proof_route_dependency_refs = required_proof_routes
+            gate_chain_dependency_refs = required_gate_chain
             dependency_refs = [
-                *required_backend_contracts,
-                *required_proof_routes,
-                *required_gate_chain,
+                *backend_contract_dependency_refs,
+                *proof_route_dependency_refs,
+                *gate_chain_dependency_refs,
             ]
             criterion_traces = [
                 StealthCommandSuiteClosureReadinessCriterionTrace(
                     criterion=criterion,
                     source_evidence_refs=trace_source_refs,
                     dependency_refs=dependency_refs,
+                    backend_contract_dependency_refs=(
+                        backend_contract_dependency_refs
+                    ),
+                    proof_route_dependency_refs=proof_route_dependency_refs,
+                    gate_chain_dependency_refs=gate_chain_dependency_refs,
                     missing_dependency_refs=dependency_refs,
+                    missing_backend_contract_dependency_refs=(
+                        backend_contract_dependency_refs
+                    ),
+                    missing_proof_route_dependency_refs=proof_route_dependency_refs,
+                    missing_gate_chain_dependency_refs=gate_chain_dependency_refs,
                     verification_gates=verification_gates,
                     blockers=readiness_blockers,
+                    dependency_resolution_required=True,
+                    dependency_resolution_allowed=False,
                     ready=False,
                     evidence_complete=False,
+                    dependency_resolution_detail=(
+                        "Dependency classification is read-only. Backend "
+                        "contracts, proof routes, and gate-chain refs remain "
+                        "unresolved and cannot be satisfied by this response."
+                    ),
                     trace_detail=(
                         "This closure-readiness criterion is derived from "
                         "backend-owned source evidence refs, but every "
@@ -13586,6 +13606,18 @@ class AdminApiReadService:
                 len(item.closure_readiness_criterion_traces)
                 for item in blocker_closures
             ),
+            closure_readiness_dependency_resolution_required_count=sum(
+                1
+                for item in blocker_closures
+                for trace in item.closure_readiness_criterion_traces
+                if trace.dependency_resolution_required
+            ),
+            closure_readiness_dependency_resolution_allowed_count=sum(
+                1
+                for item in blocker_closures
+                for trace in item.closure_readiness_criterion_traces
+                if trace.dependency_resolution_allowed
+            ),
             closure_readiness_blockers=sorted(
                 {
                     blocker
@@ -13614,6 +13646,54 @@ class AdminApiReadService:
                     for item in blocker_closures
                     for trace in item.closure_readiness_criterion_traces
                     for dependency_ref in trace.missing_dependency_refs
+                }
+            ),
+            closure_readiness_backend_contract_dependency_refs=sorted(
+                {
+                    dependency_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for dependency_ref in trace.backend_contract_dependency_refs
+                }
+            ),
+            closure_readiness_proof_route_dependency_refs=sorted(
+                {
+                    dependency_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for dependency_ref in trace.proof_route_dependency_refs
+                }
+            ),
+            closure_readiness_gate_chain_dependency_refs=sorted(
+                {
+                    dependency_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for dependency_ref in trace.gate_chain_dependency_refs
+                }
+            ),
+            closure_readiness_missing_backend_contract_dependency_refs=sorted(
+                {
+                    dependency_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for dependency_ref in trace.missing_backend_contract_dependency_refs
+                }
+            ),
+            closure_readiness_missing_proof_route_dependency_refs=sorted(
+                {
+                    dependency_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for dependency_ref in trace.missing_proof_route_dependency_refs
+                }
+            ),
+            closure_readiness_missing_gate_chain_dependency_refs=sorted(
+                {
+                    dependency_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for dependency_ref in trace.missing_gate_chain_dependency_refs
                 }
             ),
             missing_backend_contracts=sorted(

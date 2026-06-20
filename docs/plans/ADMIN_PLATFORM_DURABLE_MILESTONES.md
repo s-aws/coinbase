@@ -3080,9 +3080,12 @@ Current backend evidence:
   execution authority blocked. Completed phases 4601-4620 add structured
   closure-readiness criteria, missing criteria, verification gates, readiness
   blockers, and summary counts to those same rows without closing blockers or
-  granting live authority. Active phases 4621-4640 add criterion-level
+  granting live authority. Completed phases 4621-4640 add criterion-level
   source/dependency traceability for those readiness criteria while keeping
-  every dependency unresolved and every execution authority flag false.
+  every dependency unresolved and every execution authority flag false. Active
+  phases 4641-4660 classify those trace dependencies as backend contract,
+  proof route, or gate-chain dependencies while keeping every dependency
+  unresolved and every execution authority flag false.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

@@ -2,7 +2,7 @@
 
 ## Project
 
-Trading bot for Coinbase derivatives/spot markets. Python 3.12, pytest for testing.
+Trading bot for Coinbase derivatives/spot markets. Python 3.13, pytest for testing.
 
 ## Testing
 
@@ -60,7 +60,11 @@ Required probes for compatibility refactors:
 - `python -c "from <module> import <changed_symbol>"`
 - one direct probe per old operation type
 - `python tools/check_ownership.py`
-- `pytest tests/regression/ -v --tb=short`
+- focused regression tests and validators that cover the changed compatibility
+  path. Full `pytest tests/regression/ -v --tb=short` remains a durable
+  milestone closeout, public/release-candidate handoff, deployment
+  approval/closeout, release-hardening closeout, Admin API/backend association
+  closeout, or explicit-request gate.
 
 Test quality rules:
 - A singleton test must use a factory that returns a fresh object each call and assert factory call count is 1.
@@ -80,7 +84,7 @@ Review checklist before final response:
 Coinbase repo-specific:
 - `configuration.py` is a compatibility module. Treat `REST_CLIENT`, `ORDERBOOK`, `API_KEY`, `API_SECRET`, `Subscription`, and product helpers as exported public names.
 - `ORDERBOOK` is mutable runtime state. Existing callers may read and write attributes.
-- Any non-agent-file change must pass `pytest tests/regression/ -v --tb=short`.
+- Non-agent-file changes must pass focused tests and validators that cover the changed behavior. Full `pytest tests/regression/ -v --tb=short` is reserved for durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request.
 - Use surgical patches only; do not normalize line endings or run broad formatters.
 
 CRITICAL:

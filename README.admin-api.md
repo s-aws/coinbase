@@ -302,9 +302,12 @@ keeping every blocker unresolved and no-live. Completed phases 4601-4620 add
 structured closure-readiness criteria, missing criteria, verification gates,
 and readiness blockers to the same six rows while keeping every blocker
 unresolved and every live/manager/Coinbase/reconciliation/state-mutation flag
-false. Active phases 4621-4640 add criterion-level source/dependency
+false. Completed phases 4621-4640 add criterion-level source/dependency
 traceability for those readiness criteria while keeping every dependency
-unresolved and every execution authority flag false.
+unresolved and every execution authority flag false. Active phases 4641-4660
+classify those trace dependencies as backend contract, proof route, or
+gate-chain dependencies while keeping every dependency unresolved and every
+execution authority flag false.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

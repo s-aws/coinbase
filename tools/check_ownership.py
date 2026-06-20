@@ -140,7 +140,11 @@ def _print_owner_summary(owner: str, config: Dict[str, List[str] | str | bool]) 
     print(f"{owner}")
     if context:
         print(f"  context: {context}")
-    print(f"  requires_regression: {str(regression).lower()}")
+    print(
+        "  full_regression_closeout_gate: "
+        f"{str(regression).lower()} "
+        "(focused listed tests are the ordinary phase gate)"
+    )
     if isinstance(tests, list) and tests:
         print("  tests:")
         for test in tests:

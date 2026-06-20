@@ -7,7 +7,9 @@ durable milestone closeout.
 
 For ordinary phase work, run focused tests and validators that cover the
 changed behavior. For durable milestone closeout, public/release-candidate
-handoff, or explicit user request, run the full regression gate:
+handoff, deployment approval/closeout, release-hardening closeout, Admin
+API/backend association closeout, or explicit user request, run the full
+regression gate:
 
 ```powershell
 pytest tests/regression/ -v --tb=short
@@ -168,7 +170,9 @@ For same-side post-fill retreat, tests should prove:
 1. Relevant new/updated tests added.
 2. Focused tests and validators for the changed behavior pass.
 3. Full regression passes when this is durable milestone closeout,
-   public/release-candidate handoff, deployment approval, or explicit request.
+   public/release-candidate handoff, deployment approval/closeout,
+   release-hardening closeout, Admin API/backend association closeout, or
+   explicit request.
 4. For broad changes, full suite run completed or explicitly deferred with rationale.
 5. No flaky retries required to pass.
 

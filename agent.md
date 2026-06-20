@@ -136,7 +136,9 @@ When extending UI behavior, update both dashboard handler logic and the correspo
 
 Use focused tests and validators for ordinary phases. Full
 `pytest tests/regression/ -v --tb=short` is reserved for major milestone
-closeout, public/release-candidate handoff, or explicit user request.
+closeout, public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or explicit
+user request.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell

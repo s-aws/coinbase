@@ -57930,6 +57930,14 @@ components:
           type: integer
           minimum: 0.0
           title: Closure Readiness Criterion Trace Count
+        closure_readiness_dependency_resolution_required_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Resolution Required Count
+        closure_readiness_dependency_resolution_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Resolution Allowed Count
         closure_readiness_blockers:
           items:
             type: string
@@ -57950,6 +57958,36 @@ components:
             type: string
           type: array
           title: Closure Readiness Missing Dependency Refs
+        closure_readiness_backend_contract_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Backend Contract Dependency Refs
+        closure_readiness_proof_route_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Proof Route Dependency Refs
+        closure_readiness_gate_chain_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Gate Chain Dependency Refs
+        closure_readiness_missing_backend_contract_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Missing Backend Contract Dependency Refs
+        closure_readiness_missing_proof_route_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Missing Proof Route Dependency Refs
+        closure_readiness_missing_gate_chain_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Missing Gate Chain Dependency Refs
         missing_backend_contracts:
           items:
             type: string
@@ -58014,6 +58052,8 @@ components:
       - closure_ready_count
       - closure_evidence_complete_count
       - closure_readiness_criterion_trace_count
+      - closure_readiness_dependency_resolution_required_count
+      - closure_readiness_dependency_resolution_allowed_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -58204,6 +58244,27 @@ components:
           title: Dependency Refs
           description: Backend contracts, proof routes, and gate-chain refs that must
             resolve before this criterion can be complete.
+        backend_contract_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Dependency Refs
+          description: Dependency refs that are backend contract implementation requirements
+            for this criterion.
+        proof_route_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Proof Route Dependency Refs
+          description: Dependency refs that are backend proof/readback route requirements
+            for this criterion.
+        gate_chain_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Gate Chain Dependency Refs
+          description: Dependency refs that are gate-chain prerequisites for this
+            criterion.
         missing_dependency_refs:
           items:
             type: string
@@ -58211,6 +58272,24 @@ components:
           title: Missing Dependency Refs
           description: Dependency refs still missing for this criterion. For blocked
             M55 rows this intentionally mirrors dependency_refs.
+        missing_backend_contract_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Backend Contract Dependency Refs
+          description: Backend contract dependency refs still missing.
+        missing_proof_route_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Proof Route Dependency Refs
+          description: Proof/readback route dependency refs still missing.
+        missing_gate_chain_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain Dependency Refs
+          description: Gate-chain dependency refs still missing.
         verification_gates:
           items:
             type: string
@@ -58221,6 +58300,14 @@ components:
             type: string
           type: array
           title: Blockers
+        dependency_resolution_required:
+          type: boolean
+          title: Dependency Resolution Required
+          default: true
+        dependency_resolution_allowed:
+          type: boolean
+          title: Dependency Resolution Allowed
+          default: false
         ready:
           type: boolean
           title: Ready
@@ -58229,6 +58316,9 @@ components:
           type: boolean
           title: Evidence Complete
           default: false
+        dependency_resolution_detail:
+          type: string
+          title: Dependency Resolution Detail
         trace_detail:
           type: string
           title: Trace Detail
@@ -58236,6 +58326,7 @@ components:
       type: object
       required:
       - criterion
+      - dependency_resolution_detail
       - trace_detail
       title: StealthCommandSuiteClosureReadinessCriterionTrace
       description: Backend source and dependency trace for one closure-readiness criterion.

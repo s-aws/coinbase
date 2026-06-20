@@ -28,10 +28,13 @@ repair/rollback authority, reconciliation execution, or state-mutation
 authority. For phases 4601-4620, the same rows also report closure-readiness
 criteria, missing criteria, verification gates, blockers, and readiness
 counts. For phases 4621-4640, those criteria include criterion-level source
-refs and missing dependency refs. Readiness criteria and traces are planning
-evidence only: they do not close blockers, satisfy missing contracts, enable
-live execution, call Coinbase, invoke managers, execute reconciliation, or
-mutate state.
+refs and missing dependency refs. For phases 4641-4660, those trace
+dependencies are classified as backend contract, proof route, or gate-chain
+dependencies with matching missing-dependency classifications and explicit
+resolution-required/no-resolution-allowed evidence. Readiness criteria and
+traces are planning evidence only: they do not close blockers, satisfy missing
+contracts, enable live execution, call Coinbase, invoke managers, execute
+reconciliation, or mutate state.
 
 ## Identity Rules
 

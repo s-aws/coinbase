@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4621-4640",
+  "approved_phase_range": "4641-4660",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -58,29 +58,52 @@ false. In the completed 4601-4620 range, the same rows also expose
 closure-readiness criteria, missing criteria, verification gates, readiness
 blockers, and readiness counts. Those fields describe what remains required;
 they do not close blockers or grant live authority.
-In the current 4621-4640 range, the rows also expose criterion-level trace
+In the completed 4621-4640 range, the rows also expose criterion-level trace
 rows and summary trace rollups. Those fields identify backend source refs and
 unresolved dependency refs for each criterion; they do not satisfy dependencies
-or grant live authority.
+or grant live authority. In the current 4641-4660 range, those trace
+dependencies are classified as backend contract, proof route, and gate-chain
+dependencies with matching missing-dependency classifications and explicit
+resolution-required/no-resolution-allowed evidence.
 
 ```json
 {
   "blocker_closure_summary": {
     "status": "blocked",
-    "blocker_count": 6,
-    "blocking_count": 6,
-    "resolved_count": 0,
+    "total_blocker_count": 6,
+    "blocked_blocker_count": 6,
+    "resolved_blocker_count": 0,
     "partial_evidence_count": 6,
     "closure_readiness_required_count": 6,
     "closure_ready_count": 0,
     "closure_evidence_complete_count": 0,
     "closure_readiness_criterion_trace_count": 18,
+    "closure_readiness_dependency_resolution_required_count": 18,
+    "closure_readiness_dependency_resolution_allowed_count": 0,
     "closure_readiness_trace_source_refs": [
       "live_enablement.paths",
       "m55_stealth_reveal_backend_dry_run"
     ],
     "closure_readiness_missing_dependency_refs": [
       "application/admin_api/live_execution.py::evaluate_live_execution_gate",
+      "post_write_reconciliation_execution_policy"
+    ],
+    "closure_readiness_backend_contract_dependency_refs": [
+      "application/admin_api/live_execution.py::evaluate_live_execution_gate"
+    ],
+    "closure_readiness_proof_route_dependency_refs": [
+      "/api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs"
+    ],
+    "closure_readiness_gate_chain_dependency_refs": [
+      "post_write_reconciliation_execution_policy"
+    ],
+    "closure_readiness_missing_backend_contract_dependency_refs": [
+      "application/admin_api/live_execution.py::evaluate_live_execution_gate"
+    ],
+    "closure_readiness_missing_proof_route_dependency_refs": [
+      "/api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs"
+    ],
+    "closure_readiness_missing_gate_chain_dependency_refs": [
       "post_write_reconciliation_execution_policy"
     ],
     "closure_readiness_blockers": [

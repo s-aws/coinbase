@@ -563,8 +563,9 @@ Hard boundary:
 
 Run focused tests and validators that cover the changed behavior before
 ordinary phase completion. Run the full regression gate before durable
-milestone closeout, public/release-candidate handoff, or explicit full-gate
-request:
+milestone closeout, public/release-candidate handoff, deployment
+approval/closeout, release-hardening closeout, Admin API/backend association
+closeout, or explicit full-gate request:
 
 ```powershell
 pytest tests/regression/ -v --tb=short
@@ -595,8 +596,9 @@ pytest tests/ -v --tb=short --cov=.
 
 Focused commands are the normal validation path for ordinary phase work. They
 do not replace full regression when marking a durable milestone complete,
-preparing public/release-candidate handoff, or handling an explicit full-gate
-request.
+preparing public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or handling
+an explicit full-gate request.
 
 | Area | Useful focused command |
 | --- | --- |

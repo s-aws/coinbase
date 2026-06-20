@@ -13973,6 +13973,27 @@ class StealthCommandSuiteClosureReadinessCriterionTrace(BaseModel):
             "resolve before this criterion can be complete."
         ),
     )
+    backend_contract_dependency_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Dependency refs that are backend contract implementation "
+            "requirements for this criterion."
+        ),
+    )
+    proof_route_dependency_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Dependency refs that are backend proof/readback route requirements "
+            "for this criterion."
+        ),
+    )
+    gate_chain_dependency_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Dependency refs that are gate-chain prerequisites for this "
+            "criterion."
+        ),
+    )
     missing_dependency_refs: list[str] = Field(
         default_factory=list,
         description=(
@@ -13980,10 +14001,25 @@ class StealthCommandSuiteClosureReadinessCriterionTrace(BaseModel):
             "rows this intentionally mirrors dependency_refs."
         ),
     )
+    missing_backend_contract_dependency_refs: list[str] = Field(
+        default_factory=list,
+        description="Backend contract dependency refs still missing."
+    )
+    missing_proof_route_dependency_refs: list[str] = Field(
+        default_factory=list,
+        description="Proof/readback route dependency refs still missing."
+    )
+    missing_gate_chain_dependency_refs: list[str] = Field(
+        default_factory=list,
+        description="Gate-chain dependency refs still missing."
+    )
     verification_gates: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
+    dependency_resolution_required: bool = True
+    dependency_resolution_allowed: bool = False
     ready: bool = False
     evidence_complete: bool = False
+    dependency_resolution_detail: str
     trace_detail: str
 
 
@@ -14160,10 +14196,30 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
     closure_ready_count: int = Field(ge=0)
     closure_evidence_complete_count: int = Field(ge=0)
     closure_readiness_criterion_trace_count: int = Field(ge=0)
+    closure_readiness_dependency_resolution_required_count: int = Field(ge=0)
+    closure_readiness_dependency_resolution_allowed_count: int = Field(ge=0)
     closure_readiness_blockers: list[str] = Field(default_factory=list)
     closure_readiness_verification_gates: list[str] = Field(default_factory=list)
     closure_readiness_trace_source_refs: list[str] = Field(default_factory=list)
     closure_readiness_missing_dependency_refs: list[str] = Field(default_factory=list)
+    closure_readiness_backend_contract_dependency_refs: list[str] = Field(
+        default_factory=list
+    )
+    closure_readiness_proof_route_dependency_refs: list[str] = Field(
+        default_factory=list
+    )
+    closure_readiness_gate_chain_dependency_refs: list[str] = Field(
+        default_factory=list
+    )
+    closure_readiness_missing_backend_contract_dependency_refs: list[str] = Field(
+        default_factory=list
+    )
+    closure_readiness_missing_proof_route_dependency_refs: list[str] = Field(
+        default_factory=list
+    )
+    closure_readiness_missing_gate_chain_dependency_refs: list[str] = Field(
+        default_factory=list
+    )
     missing_backend_contracts: list[str]
     first_blocker: AdminApiStealthCommandSuiteBlockerClosure | None = None
     closure_authority: str = "backend_contract_only_no_execution"

@@ -2,6 +2,14 @@
 #
 # This file is intentionally model-agnostic. Private repos may map these owner
 # ids to model names, prompts, budgets, and routing rules.
+#
+# `requires_regression: true` means the owner participates in the full
+# regression gate at durable milestone closeout, public/release-candidate
+# handoff, deployment approval/closeout, release-hardening closeout, Admin
+# API/backend association closeout, or explicit full-gate request. It does not
+# mean ordinary phase work must always run the full regression suite; ordinary
+# phase work runs the focused tests listed under the owner plus relevant
+# validators.
 
 version: 1
 
@@ -54,6 +62,7 @@ owners:
       - tools/run_autonomous_work_queue_check.py
       - ai-context.md
       - AGENTS.md
+      - CLAUDE.md
       - agent.md
       - README.md
       - README.action-condition-guards.md

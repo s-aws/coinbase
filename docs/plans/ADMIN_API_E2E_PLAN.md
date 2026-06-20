@@ -47,94 +47,117 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Traceability Batch - Phases 4621-4640
+## Active M55 Closure-Readiness Dependency Classification Batch - Phases 4641-4660
 
-These phases add criterion-level source/dependency traceability to the existing
-six M55 blocker-closure rows. The rows remain blocked and unresolved. The
-range must not enable service, construct adapters, invoke managers, call
-Coinbase, cancel or submit orders, repair or roll back state, execute
-reconciliation, mutate state, grant browser authority, or grant BFF execution
-authority.
+These phases classify each existing closure-readiness trace dependency as a
+backend contract dependency, proof route dependency, or gate-chain dependency.
+The rows remain blocked and unresolved. The range must not enable service,
+construct adapters, invoke managers, call Coinbase, cancel or submit orders,
+repair or roll back state, execute reconciliation, mutate state, grant browser
+authority, or grant BFF execution authority.
 
-### Phase 4621 - Prior Range Completion Evidence
+### Phase 4641 - Prior Range Completion Evidence
 
-- Record completed phases 4601-4620 with backend commit `307e463a`, frontend commit `69131b0`, focused gates, blind/contextless review, UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+- Record completed phases 4621-4640 with backend commit `4d9c75c1`, frontend
+  commit `3505cfb`, focused gates, blind/contextless review, UI smoke, and
+  `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 4622 - Advance Active Queue Range
+### Phase 4642 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4601-4620 to active phases 4621-4640 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4621-4640 to active
+  phases 4641-4660 while preserving no-live defaults and cap policy.
 
-### Phase 4623 - Traceability Scope
+### Phase 4643 - Dependency Classification Scope
 
-- Add criterion trace fields to existing blocker-closure rows without changing blocker status, missing contracts, readiness flags, or execution flags.
+- Add classified dependency fields to existing trace rows without changing
+  blocker status, readiness flags, missing dependency totals, or execution
+  flags.
 
-### Phase 4624 - Backend Trace Model
+### Phase 4644 - Backend Trace Classification Model
 
-- Extend the Admin API item and summary schemas with criterion trace rows, aggregate trace count, source refs, and missing dependency refs.
+- Extend the Admin API trace and summary schemas with backend contract, proof
+  route, gate-chain, matching missing-dependency, and resolution-flag fields.
 
-### Phase 4625 - Trace Source Derivation
+### Phase 4645 - Backend Contract Dependencies
 
-- Derive trace source refs from existing source evidence refs, partial evidence refs, and partial evidence contracts.
+- Derive backend contract dependency refs from the existing required backend
+  contract list.
 
-### Phase 4626 - Trace Dependency Derivation
+### Phase 4646 - Proof Route Dependencies
 
-- Derive unresolved dependency refs from required backend contracts, proof routes, and gate chains.
+- Derive proof route dependency refs from the existing required proof route
+  list.
 
-### Phase 4627 - Live-Service Criterion Traces
+### Phase 4647 - Gate-Chain Dependencies
 
-- Add live-service criterion traces for `m55_live_service_enablement` while keeping all service-decision dependencies unresolved.
+- Derive gate-chain dependency refs from the existing required gate-chain list.
 
-### Phase 4628 - Live-Adapter Criterion Traces
+### Phase 4648 - Missing Dependency Classification
 
-- Add live-adapter criterion traces for `m55_live_adapter_construction` while keeping all route-bound adapter dependencies unresolved.
+- Mirror unresolved dependencies into classified missing dependency fields.
 
-### Phase 4629 - Active-Placement Criterion Traces
+### Phase 4649 - Dependency Resolution Evidence
 
-- Add active-placement criterion traces for `m55_active_placement_cancel_replace` while keeping manager, Coinbase, and reconciliation dependencies unresolved.
+- Report that dependency resolution is required and not allowed by this
+  read-only response.
 
-### Phase 4630 - Reveal Criterion Traces
+### Phase 4650 - Backend Classification Assertions
 
-- Add reveal criterion traces for `m55_reveal_exchange_submission` while keeping manager invocation, Coinbase submission, and reconciliation dependencies unresolved.
+- Extend Admin API regression coverage proving classified trace dependencies do
+  not close blockers or grant live/manager/Coinbase/reconciliation/state
+  mutation authority.
 
-### Phase 4631 - Recovery Criterion Traces
+### Phase 4651 - OpenAPI Regeneration
 
-- Add recovery criterion traces for `m55_recovery_repair_rollback` while keeping preview, repair, rollback, Coinbase read, and reconciliation dependencies unresolved.
+- Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4632 - Reconciliation Criterion Traces
+### Phase 4652 - Frontend Generated Schema Sync
 
-- Add reconciliation criterion traces for `m55_post_write_reconciliation_execution` while keeping executor, match, state-consistency, and completion-verifier dependencies unresolved.
+- Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4633 - Backend Trace Assertions
+### Phase 4653 - Frontend Adapter Classification Mapping
 
-- Extend Admin API regression coverage proving criterion traces do not close blockers or grant live/manager/Coinbase/reconciliation/state mutation authority.
+- Map classified trace fields through the existing command-suite adapter.
 
-### Phase 4634 - OpenAPI Regeneration
+### Phase 4654 - Frontend Mock Classification Evidence
 
-- Regenerate `openapi/coinbase-admin-api.yaml` and keep generator path ordering pinned to the repo-local package tree.
+- Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4635 - Frontend Generated Schema Sync
+### Phase 4655 - Frontend UI Classification Display
 
-- Regenerate frontend TypeScript schema and map criterion trace fields through the existing command-suite adapter.
+- Render classified dependency and dependency-resolution details as read-only
+  evidence.
 
-### Phase 4636 - Frontend Mock And UI Display
+### Phase 4656 - Quality Metadata Sync
 
-- Sync frontend mocks and render trace count, source refs, and missing dependency refs as read-only evidence.
+- Update active range metadata to phases 4641-4660.
 
-### Phase 4637 - Quality Metadata Sync
+### Phase 4657 - Documentation Sync
 
-- Update active range metadata to phases 4621-4640.
+- Update Admin API, frontend API, testing, roadmap, maintainer handoff,
+  examples, expanded context, and agent-state docs.
 
-### Phase 4638 - Documentation Sync
+### Phase 4658 - Contextless Review
 
-- Update Admin API, frontend API, testing, roadmap, maintainer handoff, examples, expanded context, and agent-state docs.
+- Record contextless review evidence for the classification boundary.
 
-### Phase 4639 - Contextless Review And Focused Gates
+### Phase 4659 - Focused Gates And Browser Smoke
 
-- Record contextless review evidence and run focused backend/frontend validators for the traceability boundary.
+- Run focused backend/frontend validators and browser smoke for rendered
+  classified evidence.
 
-### Phase 4640 - Commit And Push
+### Phase 4660 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Traceability Batch - Phases 4621-4640
+
+Backend commit `4d9c75c1` and frontend commit `3505cfb` added
+criterion-level source and unresolved dependency traceability to the six M55
+closure-readiness blocker rows. Focused backend/frontend gates,
+blind/contextless review, and UI smoke passed at
+`http://127.0.0.1:3001/?phaseSmoke=4621-4640`. Live Coinbase execution was not
+run; submitted notional `0` USDC and executed notional `0` USDC.
 
 ## Completed M55 Closure-Readiness Criteria Batch - Phases 4601-4620
 

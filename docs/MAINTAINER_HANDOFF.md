@@ -75,7 +75,9 @@ Passing answer requirements:
 - lists focused backend/frontend checks, autonomous validation, and
   blind/contextless review for ordinary phases
 - reserves full backend regression and frontend release gate for durable
-  milestone closeout, public/release-candidate handoff, or explicit request
+  milestone closeout, public/release-candidate handoff, deployment
+  approval/closeout, release-hardening closeout, Admin API/backend association
+  closeout, or explicit request
 - reports live Coinbase execution as not run unless an explicit live phase is
   approved
 
@@ -83,7 +85,8 @@ Passing answer requirements:
 
 Backend changes must pass focused tests and validators for the changed
 behavior. Full regression is a durable milestone-closeout, public/release-
-candidate handoff, or explicit-request gate:
+candidate handoff, deployment approval/closeout, release-hardening closeout,
+Admin API/backend association closeout, or explicit-request gate:
 
 ```powershell
 pytest tests\regression\ -v --tb=short
@@ -92,7 +95,9 @@ python tools\run_autonomous_work_queue_check.py --summary-only
 
 Frontend/API association changes must pass focused frontend checks for the
 changed behavior. Full release gate is a durable milestone-closeout,
-public/release-candidate handoff, or explicit-request gate:
+public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or
+explicit-request gate:
 
 ```powershell
 npm run release:gate
@@ -106,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4601-4620` under M55.
-- Active autonomous range: `4621-4640` under M55.
+- Latest completed autonomous range: `4621-4640` under M55.
+- Active autonomous range: `4641-4660` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -422,10 +427,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   execution authority blocked. Completed 4601-4620 work adds structured
   closure-readiness criteria, verification gates, and readiness blockers to
   those same rows while keeping every blocker unresolved and every live,
-  manager, Coinbase, reconciliation, and state-mutation flag false. Active
+  manager, Coinbase, reconciliation, and state-mutation flag false. Completed
   4621-4640 work adds criterion-level source/dependency traceability for those
   readiness criteria while keeping every dependency unresolved and every
-  execution authority flag false.
+  execution authority flag false. Active 4641-4660 work classifies those trace
+  dependencies as backend contract, proof route, or gate-chain dependencies
+  while keeping every dependency unresolved and every execution authority flag
+  false.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary
