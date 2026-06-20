@@ -10339,6 +10339,14 @@ components:
       - verify_gate_chain
       title: AdminApiStealthClosureClearanceStepName
       description: Backend step required before an M55 dependency can be cleared.
+    AdminApiStealthClosureClearanceStepReviewName:
+      type: string
+      enum:
+      - review_backend_contract
+      - review_proof_route
+      - review_gate_chain
+      title: AdminApiStealthClosureClearanceStepReviewName
+      description: Backend review required before an M55 clearance step can complete.
     AdminApiStealthClosureDependencyClass:
       type: string
       enum:
@@ -58062,6 +58070,30 @@ components:
             type: string
           type: array
           title: Closure Readiness Dependency Clearance Step Required Artifact Refs
+        closure_readiness_dependency_clearance_step_review_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Clearance Step Review Count
+        closure_readiness_blocked_dependency_clearance_step_review_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Blocked Dependency Clearance Step Review Count
+        closure_readiness_dependency_clearance_step_review_names:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewName'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Names
+        closure_readiness_dependency_clearance_step_review_statuses:
+          items:
+            $ref: '#/components/schemas/AdminApiGateStatus'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Statuses
+        closure_readiness_dependency_clearance_step_review_required_artifact_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Required Artifact
+            Refs
         missing_backend_contracts:
           items:
             type: string
@@ -58132,6 +58164,8 @@ components:
       - closure_readiness_blocked_dependency_clearance_plan_count
       - closure_readiness_dependency_clearance_step_count
       - closure_readiness_blocked_dependency_clearance_step_count
+      - closure_readiness_dependency_clearance_step_review_count
+      - closure_readiness_blocked_dependency_clearance_step_review_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -58371,6 +58405,112 @@ components:
       - detail
       title: StealthCommandSuiteClosureDependencyClearancePlanRow
       description: Backend-owned plan row for clearing one M55 closure dependency.
+    StealthCommandSuiteClosureDependencyClearanceStepReviewRow:
+      properties:
+        review_ref:
+          type: string
+          title: Review Ref
+        step_ref:
+          type: string
+          title: Step Ref
+        dependency_ref:
+          type: string
+          title: Dependency Ref
+        dependency_class:
+          $ref: '#/components/schemas/AdminApiStealthClosureDependencyClass'
+        review_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewName'
+        clearance_owner:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceOwner'
+        required_artifact_ref:
+          type: string
+          title: Required Artifact Ref
+        clearance_order:
+          type: integer
+          minimum: 1.0
+          title: Clearance Order
+        step_order:
+          type: integer
+          minimum: 1.0
+          title: Step Order
+        review_order:
+          type: integer
+          minimum: 1.0
+          title: Review Order
+        review_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        review_required:
+          type: boolean
+          title: Review Required
+          default: true
+        review_ready:
+          type: boolean
+          title: Review Ready
+          default: false
+        review_complete:
+          type: boolean
+          title: Review Complete
+          default: false
+        review_allowed:
+          type: boolean
+          title: Review Allowed
+          default: false
+        step_ready:
+          type: boolean
+          title: Step Ready
+          default: false
+        step_complete:
+          type: boolean
+          title: Step Complete
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        resolution_allowed:
+          type: boolean
+          title: Resolution Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - review_ref
+      - step_ref
+      - dependency_ref
+      - dependency_class
+      - review_name
+      - clearance_owner
+      - required_artifact_ref
+      - clearance_order
+      - step_order
+      - review_order
+      - detail
+      title: StealthCommandSuiteClosureDependencyClearanceStepReviewRow
+      description: Blocked backend-owned review for a single M55 clearance step.
     StealthCommandSuiteClosureDependencyClearanceStepRow:
       properties:
         step_ref:
@@ -58435,6 +58575,14 @@ components:
           type: boolean
           title: Live Coinbase Read Ran
           default: false
+        clearance_step_review_rows:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteClosureDependencyClearanceStepReviewRow'
+          type: array
+          title: Clearance Step Review Rows
+          description: Read-only backend-owned reviews derived from this clearance
+            step. Reviews remain blocked and cannot complete steps, clear dependencies,
+            or grant execution authority.
         detail:
           type: string
           title: Detail

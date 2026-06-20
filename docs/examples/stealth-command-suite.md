@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4681-4700",
+  "approved_phase_range": "4701-4720",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -67,10 +67,12 @@ dependencies with matching missing-dependency classifications and explicit
 resolution-required/no-resolution-allowed evidence. In the completed
 4661-4680 range, each classified dependency also has a backend-owned clearance
 plan row with owner, required artifact, clearance order, blocked status, and
-no-live authority fields. In the current 4681-4700 range, each clearance plan
+no-live authority fields. In the completed 4681-4700 range, each clearance plan
 also exposes a blocked backend clearance-step row naming the backend contract,
 proof route, or gate-chain work still required before the dependency can be
-cleared.
+cleared. In the current 4701-4720 range, each clearance step also exposes a
+blocked backend review row naming the review still required before the step can
+become ready.
 
 ```json
 {
@@ -93,6 +95,23 @@ cleared.
       "backend_gate_chain"
     ],
     "closure_readiness_dependency_clearance_statuses": [
+      "blocked"
+    ],
+    "closure_readiness_dependency_clearance_step_count": 183,
+    "closure_readiness_blocked_dependency_clearance_step_count": 183,
+    "closure_readiness_dependency_clearance_step_names": [
+      "add_proof_route",
+      "implement_backend_contract",
+      "verify_gate_chain"
+    ],
+    "closure_readiness_dependency_clearance_step_review_count": 183,
+    "closure_readiness_blocked_dependency_clearance_step_review_count": 183,
+    "closure_readiness_dependency_clearance_step_review_names": [
+      "review_backend_contract",
+      "review_gate_chain",
+      "review_proof_route"
+    ],
+    "closure_readiness_dependency_clearance_step_review_statuses": [
       "blocked"
     ],
     "closure_readiness_trace_source_refs": [

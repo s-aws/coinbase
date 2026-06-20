@@ -47,6 +47,7 @@ from core.enums import (
     AdminApiStealthAdmissionContextField,
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
+    AdminApiStealthClosureClearanceStepReviewName,
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionEvidence,
@@ -13954,6 +13955,38 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteClosureDependencyClearanceStepReviewRow(BaseModel):
+    """Blocked backend-owned review for a single M55 clearance step."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    review_ref: str
+    step_ref: str
+    dependency_ref: str
+    dependency_class: AdminApiStealthClosureDependencyClass
+    review_name: AdminApiStealthClosureClearanceStepReviewName
+    clearance_owner: AdminApiStealthClosureClearanceOwner
+    required_artifact_ref: str
+    clearance_order: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    review_order: int = Field(ge=1)
+    review_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    review_required: bool = True
+    review_ready: bool = False
+    review_complete: bool = False
+    review_allowed: bool = False
+    step_ready: bool = False
+    step_complete: bool = False
+    clearance_allowed: bool = False
+    resolution_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteClosureDependencyClearanceStepRow(BaseModel):
     """Blocked backend-owned step for a single M55 closure dependency plan."""
 
@@ -13977,6 +14010,16 @@ class StealthCommandSuiteClosureDependencyClearanceStepRow(BaseModel):
     bff_authority: str = "forward_only_no_execution"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    clearance_step_review_rows: list[
+        StealthCommandSuiteClosureDependencyClearanceStepReviewRow
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Read-only backend-owned reviews derived from this clearance step. "
+            "Reviews remain blocked and cannot complete steps, clear "
+            "dependencies, or grant execution authority."
+        ),
+    )
     detail: str
 
 
@@ -14313,6 +14356,19 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
         AdminApiGateStatus
     ] = Field(default_factory=list)
     closure_readiness_dependency_clearance_step_required_artifact_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_count: int = Field(ge=0)
+    closure_readiness_blocked_dependency_clearance_step_review_count: int = Field(
+        ge=0
+    )
+    closure_readiness_dependency_clearance_step_review_names: list[
+        AdminApiStealthClosureClearanceStepReviewName
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_statuses: list[
+        AdminApiGateStatus
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_required_artifact_refs: list[
         str
     ] = Field(default_factory=list)
     missing_backend_contracts: list[str]

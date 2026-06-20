@@ -43,6 +43,7 @@ from core.enums import (
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
+    AdminApiStealthClosureClearanceStepReviewName,
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
@@ -190,6 +191,7 @@ from .models import (
     StealthCommandSuiteBlockerClosureSummary,
     StealthCommandSuiteCancelReplaceBoundaryItem,
     StealthCommandSuiteClosureDependencyClearanceStepRow,
+    StealthCommandSuiteClosureDependencyClearanceStepReviewRow,
     StealthCommandSuiteClosureDependencyClearancePlanRow,
     StealthCommandSuiteClosureReadinessCriterionTrace,
     StealthCommandSuiteCoverageGapEvidenceRouteItem,
@@ -294,7 +296,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4681-4700"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4701-4720"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12943,6 +12945,17 @@ class AdminApiReadService:
                 StealthCommandSuiteClosureDependencyClearancePlanRow
             ]:
                 rows: list[StealthCommandSuiteClosureDependencyClearancePlanRow] = []
+                clearance_step_review_names = {
+                    AdminApiStealthClosureClearanceStepName.IMPLEMENT_BACKEND_CONTRACT: (
+                        AdminApiStealthClosureClearanceStepReviewName.REVIEW_BACKEND_CONTRACT
+                    ),
+                    AdminApiStealthClosureClearanceStepName.ADD_PROOF_ROUTE: (
+                        AdminApiStealthClosureClearanceStepReviewName.REVIEW_PROOF_ROUTE
+                    ),
+                    AdminApiStealthClosureClearanceStepName.VERIFY_GATE_CHAIN: (
+                        AdminApiStealthClosureClearanceStepReviewName.REVIEW_GATE_CHAIN
+                    ),
+                }
                 dependency_groups = [
                     (
                         AdminApiStealthClosureDependencyClass.BACKEND_CONTRACT,
@@ -12971,9 +12984,47 @@ class AdminApiReadService:
                 ) in dependency_groups:
                     for dependency_ref in refs:
                         clearance_order = len(rows) + 1
+                        step_ref = f"{dependency_ref}::clearance_step"
+                        clearance_step_review_rows = [
+                            StealthCommandSuiteClosureDependencyClearanceStepReviewRow(
+                                review_ref=f"{dependency_ref}::clearance_step_review",
+                                step_ref=step_ref,
+                                dependency_ref=dependency_ref,
+                                dependency_class=dependency_class,
+                                review_name=clearance_step_review_names[
+                                    clearance_step_name
+                                ],
+                                clearance_owner=clearance_owner,
+                                required_artifact_ref=dependency_ref,
+                                clearance_order=clearance_order,
+                                step_order=1,
+                                review_order=1,
+                                review_status=AdminApiGateStatus.BLOCKED,
+                                review_required=True,
+                                review_ready=False,
+                                review_complete=False,
+                                review_allowed=False,
+                                step_ready=False,
+                                step_complete=False,
+                                clearance_allowed=False,
+                                resolution_allowed=False,
+                                backend_owned=True,
+                                browser_authority="display_only",
+                                bff_authority="forward_only_no_execution",
+                                live_coinbase_orders_ran=False,
+                                live_coinbase_read_ran=False,
+                                detail=(
+                                    "Clearance-step review is read-only. The "
+                                    "backend owner must review the required "
+                                    "artifact and focused gate evidence before "
+                                    "a future backend phase can make this step "
+                                    "ready or complete."
+                                ),
+                            )
+                        ]
                         clearance_step_rows = [
                             StealthCommandSuiteClosureDependencyClearanceStepRow(
-                                step_ref=f"{dependency_ref}::clearance_step",
+                                step_ref=step_ref,
                                 dependency_ref=dependency_ref,
                                 dependency_class=dependency_class,
                                 step_name=clearance_step_name,
@@ -12991,6 +13042,9 @@ class AdminApiReadService:
                                 bff_authority="forward_only_no_execution",
                                 live_coinbase_orders_ran=False,
                                 live_coinbase_read_ran=False,
+                                clearance_step_review_rows=(
+                                    clearance_step_review_rows
+                                ),
                                 detail=(
                                     "Dependency clearance step is read-only. "
                                     "The backend owner must complete the "
@@ -13664,6 +13718,11 @@ class AdminApiReadService:
             for row in dependency_clearance_plan_rows
             for step in row.clearance_step_rows
         ]
+        dependency_clearance_step_review_rows = [
+            review
+            for step in dependency_clearance_step_rows
+            for review in step.clearance_step_review_rows
+        ]
         blocker_closure_summary = StealthCommandSuiteBlockerClosureSummary(
             total_blocker_count=len(blocker_closures),
             blocked_blocker_count=sum(1 for item in blocker_closures if item.blocking),
@@ -13847,6 +13906,34 @@ class AdminApiReadService:
                 {
                     step.required_artifact_ref
                     for step in dependency_clearance_step_rows
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_count=len(
+                dependency_clearance_step_review_rows
+            ),
+            closure_readiness_blocked_dependency_clearance_step_review_count=sum(
+                1
+                for review in dependency_clearance_step_review_rows
+                if review.review_status == AdminApiGateStatus.BLOCKED
+            ),
+            closure_readiness_dependency_clearance_step_review_names=sorted(
+                {
+                    review.review_name
+                    for review in dependency_clearance_step_review_rows
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_statuses=sorted(
+                {
+                    review.review_status
+                    for review in dependency_clearance_step_review_rows
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_required_artifact_refs=sorted(
+                {
+                    review.required_artifact_ref
+                    for review in dependency_clearance_step_review_rows
                 }
             ),
             missing_backend_contracts=sorted(
