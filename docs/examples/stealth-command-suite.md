@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "5101-5120",
+  "approved_phase_range": "5121-5140",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -132,13 +132,15 @@ reconciling, calling Coinbase, invoking managers, mutating state, or granting
 browser/BFF execution authority. Nested dependency work-item rows include
 `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_rows`.
 
-In the active 5101-5120 range, the command-suite review moves from recursive
+In the completed 5101-5120 range, the command-suite review moves from recursive
 evidence-row expansion to route-level enablement candidate review. The
 canonical evidence remains the backend-owned `"commands"`,
 `"admission_readiness"`, `"coverage_gaps"`, and `"blocker_closures"` arrays.
 This route-level enablement candidate review is still no-live and cannot make
 stealth create, reveal, move, cancel, recovery, reconciliation, or movement
 reprice executable.
+
+In the active 5121-5140 range, the stealth create candidate pre-execution contract review work starts from the selected first candidate, `stealth_create`, as a pre-execution contract target only. The create route must still prove exact payload, approval, admission, cap/guard, idempotency, audit, lifecycle-write, manager-boundary, and reconciliation contracts before execution authority can exist.
 
 ```json
 {

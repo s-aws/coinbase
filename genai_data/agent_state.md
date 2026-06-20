@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-20
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5081-5100` is backend `cd3d9a9d` and
-  frontend `4d45def`; current active range is `5101-5120`.
+- Commit (optional): completed range `5101-5120` is backend `b3a9bba2` and
+  frontend `65073bd`; current active range is `5121-5140`.
 
 ## Current Objective
 
@@ -47,12 +47,12 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5081-5100`.
-- Active autonomous range: `5101-5120`.
-- Active `5101-5120` derives blocked backend route-level stealth command
-  enablement candidate review evidence from the completed `5081-5100` claim
-  trace history; it must not create command execution or another recursive
-  evidence-row layer.
+- Latest completed autonomous range before current work: `5101-5120`.
+- Active autonomous range: `5121-5140`.
+- Active `5121-5140` turns the selected `stealth_create` planning target into
+  backend-owned pre-execution contract evidence. It must not invoke managers,
+  write lifecycle/order rows, execute reconciliation, call Coinbase, or grant
+  browser/BFF authority.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -652,9 +652,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5101-5120`.
+- Active autonomous range: `5121-5140`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `5101-5120`.
+- Current direction: complete phases `5121-5140`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1477,7 +1477,7 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5101-5120` by reconciling M55
-  route-level stealth command enablement candidates across backend/frontend,
-  running focused gates, keeping live Coinbase execution not run, and
-  preserving the UI smoke URL.
+- Exact next command: complete active phases `5121-5140` by adding
+  selected-`stealth_create` pre-execution contract evidence across
+  backend/frontend, running focused gates, keeping live Coinbase execution not
+  run, and preserving the UI smoke URL.

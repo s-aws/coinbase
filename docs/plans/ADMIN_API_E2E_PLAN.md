@@ -49,135 +49,138 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Phases 5101-5120
+## Active Phases 5121-5140
 
-These phases close the next concrete M55 planning gap after the pushed
-5081-5100 work: the command-suite now exposes the blocked evidence chain, and
-write-shaped stealth routes already exist, but every stealth command route is
-still live-disabled. This batch must reconcile the completed evidence, classify
-remaining blockers per command route, and identify the first possible
-backend-owned enablement candidate without enabling live execution, invoking
-managers, mutating stealth/order/exchange state, reconciling, calling Coinbase,
-or granting browser/BFF execution authority.
+These phases continue M55 after route-level candidate review selected
+`stealth_create` as the first no-live planning target because it has zero
+exchange-facing blockers. The batch turns that selection into exact
+backend-owned pre-execution contract evidence for `POST /api/v1/stealth/orders`
+without enabling execution, invoking `StealthOrderManager`, writing
+`stealth_orders` or `order_parent`, dispatching lifecycle events, executing
+reconciliation, calling Coinbase, or granting browser/BFF authority.
 
-### Phase 5101 - Prior Range Completion Evidence
+### Phase 5121 - Prior Range Completion Evidence
 
-- Record completed phases 5081-5100 with backend commit `cd3d9a9d`, frontend
-  commit `4d45def`, focused backend/frontend gates, browser smoke at
-  `http://127.0.0.1:3001/?phaseSmoke=5081-5100`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5081-5100-current.png`,
+- Record completed phases 5101-5120 with backend commit `b3a9bba2`, frontend
+  commit `65073bd`, focused backend/frontend gates, browser smoke at
+  `http://127.0.0.1:3002/#stealth-orders`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5101-5120-stealth-candidate-review.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5102 - Advance Active Queue Range
+### Phase 5122 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5081-5100 to active phases
-  5101-5120 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5101-5120 to active phases
+  5121-5140 while preserving no-live defaults and cap policy.
 
-### Phase 5103 - Evidence Scope Reconciliation
+### Phase 5123 - Selected Candidate Scope
 
-- Document that nested claim-trace clearance plans, steps, reviews, inputs,
-  stores, contracts, validations, remediations, dependencies, work items, and
-  claim traces already exist in the backend/frontend evidence path, so the
-  next work must not duplicate those layers.
+- Document that only the selected `stealth_create` candidate is in scope for
+  this batch. Reveal, cancel, move, reprice, recovery, and reconciliation
+  remain blocked behind their existing candidate-review evidence.
 
-### Phase 5104 - Command Route Inventory Cross-Check
+### Phase 5124 - Create Route Identity Contract
 
-- Verify every M55 stealth command route maps to exactly one route template,
-  permission, mutation family, service method, module id, and identity key.
+- Verify the create route template, method, module id, mutation family,
+  service method, actor identity, idempotency key, and operator-intent fields
+  are exact and single-sourced.
 
-### Phase 5105 - Command Service Fail-Closed Audit
+### Phase 5125 - Create Payload Contract
 
-- Verify create, reveal, move, cancel, recovery, reconciliation, and movement
-  reprice service methods still return live-disabled/not-implemented posture
-  with no manager invocation, state mutation, reconciliation execution, or
-  Coinbase submission.
+- Define the backend-owned create payload fields and validation boundaries
+  required before a future manager call can exist.
 
-### Phase 5106 - Admission Readiness Blocker Map
+### Phase 5126 - Approval And Admission Preconditions
 
-- Reconcile command-suite `admission_readiness` rows against approval,
-  admission-audit, cap/guard, reconciliation-plan, live-service, and adapter
-  blockers for each stealth command.
+- Map the selected create route to required approval request, approval
+  decision, admission audit, cap/guard decision, and reconciliation-plan
+  evidence without resolving those gates.
 
-### Phase 5107 - Proof Store Coverage Map
+### Phase 5127 - Lifecycle-Write Boundary
 
-- Classify which proof stores are required and present for each route:
-  exchange-truth, mutation-claim, manager-policy, Coinbase-exchange-policy,
-  state-mutation, cancel/replace, reveal-trigger, recovery, reconciliation,
-  post-write reconciliation, execution journal, and verification.
+- Name the exact stealth/order lifecycle writes that a future create execution
+  would perform and keep each write blocked until backend proof and locks are
+  complete.
 
-### Phase 5108 - Active-Placement Exchange-Truth Candidate Review
+### Phase 5128 - Manager Invocation Boundary
 
-- Identify which commands require active-placement exchange truth before they
-  can ever advance and keep those commands blocked until exchange truth is
-  backend-owned and current.
+- Identify the existing manager/bridge path that would own create execution
+  and record why the current Admin API route must not invoke it yet.
 
-### Phase 5109 - Mutation-Claim And Lock Candidate Review
+### Phase 5129 - Idempotency And Audit Boundary
 
-- Identify which commands require existing stealth mutation claims or manager
-  locks and keep those commands blocked unless the existing locked path owns
-  the claim lifecycle.
+- Verify create pre-execution evidence includes request id, correlation id,
+  idempotency key, actor id, audit id, and replay/conflict posture.
 
-### Phase 5110 - Manager Invocation And State-Mutation Candidate Review
+### Phase 5130 - Guard And Account-Condition Boundary
 
-- Identify which commands would invoke `StealthOrderManager` or mutate local
-  stealth/order state and require exact backend proof before enablement.
+- Record how action-condition guards, artificial account caps, spot/futures
+  applicability, and product capability checks are backend-owned for the
+  create route.
 
-### Phase 5111 - Coinbase Submission And Cancel/Replace Candidate Review
+### Phase 5131 - Reconciliation Planning Boundary
 
-- Identify which commands would submit, cancel, or replace Coinbase orders and
-  keep them blocked unless the existing exchange path and reconciliation proof
-  are wired.
+- Define the post-write reconciliation plan and proof prerequisites that must
+  exist before any future create execution can be considered complete.
 
-### Phase 5112 - Post-Write Reconciliation Candidate Review
+### Phase 5132 - Coinbase Non-Interaction Proof
 
-- Identify route-specific post-write reconciliation, execution-journal, and
-  verification blockers before any command can move beyond dry-run evidence.
+- Assert the create pre-execution contract does not read, submit, cancel, or
+  replace Coinbase orders and reports submitted/executed notional as `0`.
 
-### Phase 5113 - Candidate Ranking Rules
+### Phase 5133 - Backend Contract Model
 
-- Define deterministic no-live ranking criteria for the first possible M55
-  enablement candidate, preferring the route with the fewest exchange-facing
-  blockers and no hidden browser/BFF authority.
+- Add or update typed backend response models for selected-create
+  pre-execution contract evidence only if the existing command-suite model is
+  insufficient.
 
-### Phase 5114 - First Candidate Evidence
+### Phase 5134 - Backend Read Service Evidence
 
-- Expose or document the first candidate decision as blocked review evidence
-  only. If no route is eligible, state that explicitly with blocker refs.
+- Expose selected-create pre-execution evidence from the existing Admin API
+  read path without adding a new execution route or parallel behavior path.
 
-### Phase 5115 - Backend Contract Coverage
+### Phase 5135 - Backend Focused Assertions
 
-- Add or update backend assertions for the candidate review and fail-closed
-  route classification without adding command execution.
+- Add focused assertions proving selected-create pre-execution evidence is
+  present, blocked, no-live, no-manager, no-reconciliation, and no-Coinbase.
 
-### Phase 5116 - Frontend Candidate Display Scope
+### Phase 5136 - Frontend Contract Sync
 
-- Sync frontend schema/mock/display only if backend response fields change;
-  otherwise document that existing command/admission tables are the canonical
-  display for the review.
+- Regenerate frontend schema and update the adapter only if the backend
+  response shape changes.
 
-### Phase 5117 - Documentation Sync
+### Phase 5137 - Frontend Display Scope
 
-- Update Admin API, command workflow, maintainer handoff, examples, expanded
-  context, and agent-state docs so contextless readers see 5101-5120 as active
-  and 5081-5100 as completed.
+- Display selected-create pre-execution evidence as read-only backend evidence
+  without adding create controls, proof inputs, or BFF execution authority.
 
-### Phase 5118 - Contextless Review
+### Phase 5138 - Documentation And Examples
 
-- Run blind/contextless review proving a fresh agent can explain why M55 is
-  moving from recursive evidence rows to route-level enablement candidate
-  review, and why no command is executable yet.
+- Update Admin API, stealth command-suite, command workflow, examples,
+  maintainer handoff, expanded context, and roadmap docs for the
+  selected-create pre-execution contract.
 
-### Phase 5119 - Focused Gates
+### Phase 5139 - Contextless Review And Focused Gates
 
-- Run focused backend/frontend validators covering active range metadata,
-  command-suite contract/read-model behavior, no-live posture, and regression
-  policy durability.
+- Run blind/contextless review plus focused backend/frontend validators for
+  selected-create contract clarity, no-live posture, and queue metadata.
 
-### Phase 5120 - Commit And Push
+### Phase 5140 - Commit And Push
 
-- Commit and push synchronized backend/frontend roadmap and implementation
-  work, then summarize verification, live posture, UI URL, and the next M55
-  enablement step.
+- Commit and push synchronized backend/frontend work, summarize verification,
+  live posture, UI URL, and the next M55 enablement step.
+
+## Completed Phases 5101-5120
+
+These phases added backend-owned route-level enablement candidate review
+evidence to the stealth command-suite response and displayed it in the
+frontend M55 ledger. The selected first candidate is `stealth_create` because
+it has zero exchange-facing blockers, but it remains blocked, non-executable,
+and review-only. The range completed with backend commit `b3a9bba2`, frontend
+commit `65073bd`, focused backend/frontend gates, browser smoke at
+`http://127.0.0.1:3002/#stealth-orders`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-5101-5120-stealth-candidate-review.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed Phases 5081-5100
 
