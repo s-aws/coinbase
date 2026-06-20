@@ -3110,12 +3110,16 @@ Current backend evidence:
   review-input store record-validation rows from those record contracts
   without validating records, making schemas/logs/idempotency/payload/replay
   ready, accepting inputs, completing reviews, readying steps, clearing
-  dependencies, or changing execution authority. Active phases 4801-4820
+  dependencies, or changing execution authority. Completed phases 4801-4820
   derive blocked backend clearance-step review-input store record-validation
   remediation rows from those validations without remediating records, making
   validation/contract/schema/log/idempotency/payload/replay ready, accepting
   inputs, completing reviews, readying steps, clearing dependencies, or
-  changing execution authority.
+  changing execution authority. Active phases 4821-4840 derive blocked backend
+  clearance-step review-input store record-validation remediation dependency
+  rows from those remediations without resolving dependency order, performing
+  remediation, readying validations, clearing dependencies, or changing
+  execution authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

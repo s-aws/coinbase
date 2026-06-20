@@ -328,10 +328,14 @@ bindings, payload validation, replay protection, records, stores, accepted
 inputs, completed reviews, ready steps, cleared dependencies, or execution
 authority. Completed phases 4781-4800 derive blocked backend review-input
 store record-validation rows from those record contracts without validating
-records or changing execution authority. Active phases 4801-4820 derive
+records or changing execution authority. Completed phases 4801-4820 derive
 blocked backend review-input store record-validation remediation rows from
 those validations without remediating records, readying validations, clearing
-dependencies, or changing execution authority.
+dependencies, or changing execution authority. Active phases 4821-4840 derive
+blocked backend review-input store record-validation remediation dependency
+rows from those remediations without resolving dependency order, performing
+remediation, readying validations, clearing dependencies, or changing
+execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their

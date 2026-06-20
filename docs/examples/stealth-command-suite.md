@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4801-4820",
+  "approved_phase_range": "4821-4840",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -82,12 +82,15 @@ record-contract row naming the missing record contract, schema, append-only
 log, payload fields, idempotency key, validation gate, and replay gate required
 before records can be accepted. In the completed 4781-4800 range, each record
 contract exposes a blocked record-validation row without validating records or
-changing execution authority. In the active 4801-4820 range, each
+changing execution authority. In the completed 4801-4820 range, each
 record-validation row exposes blocked record-validation remediation evidence
 without remediating records, creating schemas/logs/stores, binding
 idempotency, validating payloads, protecting replay, accepting inputs,
 completing reviews, readying steps, clearing dependencies, or granting
-live/browser/BFF authority.
+live/browser/BFF authority. In the active 4821-4840 range, each remediation
+row exposes blocked record-validation remediation dependency evidence without
+resolving dependency order, performing remediation, readying validations,
+clearing dependencies, or granting live/browser/BFF authority.
 
 ```json
 {

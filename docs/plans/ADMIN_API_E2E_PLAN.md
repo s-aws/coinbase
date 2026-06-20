@@ -49,69 +49,75 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Batch - Phases 4801-4820
+## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Batch - Phases 4821-4840
 
-These phases derive blocked backend-owned record-validation remediation rows
-from the existing closure-readiness clearance-step review-input store
-record-validation rows. The remediation rows remain blocked and unresolved.
-The range must not enable service, construct adapters, invoke managers, call
-Coinbase, cancel or submit orders, repair or roll back state, execute
-reconciliation, mutate state, grant browser authority, grant BFF execution
-authority, perform remediation, validate records, make record validations
-ready, make record contracts available, make schemas available, make
-append-only logs available, bind idempotency, validate payloads, protect
-replay, make stores available, allow writers, write records, accept inputs,
-validate inputs, complete reviews, make steps ready, or clear dependencies.
+These phases derive blocked backend-owned record-validation remediation
+dependency rows from the existing closure-readiness clearance-step review-input
+store record-validation remediation rows. The dependency rows remain blocked
+and unresolved. The range must not enable service, construct adapters, invoke
+managers, call Coinbase, cancel or submit orders, repair or roll back state,
+execute reconciliation, mutate state, grant browser authority, grant BFF
+execution authority, perform remediation, resolve dependency order, validate
+records, make record validations ready, make record contracts available, make
+schemas available, make append-only logs available, bind idempotency, validate
+payloads, protect replay, make stores available, allow writers, write records,
+accept inputs, validate inputs, complete reviews, make steps ready, or clear
+dependencies.
 
-### Phase 4801 - Prior Range Completion Evidence
+### Phase 4821 - Prior Range Completion Evidence
 
-- Record completed phases 4781-4800 with backend commit `78cf7abf`, frontend
-  commit `57bd420`, focused gates, blind/contextless review, UI smoke at
-  `http://127.0.0.1:3001/?phaseSmoke=4781-4800`, and `0` USDC live Coinbase
+- Record completed phases 4801-4820 with backend commit `3415a0ac`, frontend
+  commit `34bee27`, focused gates, blind/contextless review, UI smoke at
+  `http://127.0.0.1:3001/?phaseSmoke=4801-4820`, and `0` USDC live Coinbase
   submitted/executed notional.
 
-### Phase 4802 - Advance Active Queue Range
+### Phase 4822 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4781-4800 to active
-  phases 4801-4820 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4801-4820 to active
+  phases 4821-4840 while preserving no-live defaults and cap policy.
 
-### Phase 4803 - Store Record-Validation Remediation Scope
+### Phase 4823 - Remediation Dependency Scope
 
-- Add remediation fields to existing record-validation rows without changing
-  blocker status, remediation readiness, validation readiness, contract
-  availability, schema availability, log availability, idempotency binding,
-  payload validation, replay protection, store availability, writer allowance,
-  write allowance, record presence/acceptance/validation, input presence/
-  acceptance/validation, review readiness/completion, step readiness/
-  completion, clearance allowance, resolution allowance, or execution flags.
+- Add dependency fields to existing remediation rows without changing blocker
+  status, dependency order resolution, remediation readiness, validation
+  readiness, contract availability, schema availability, log availability,
+  idempotency binding, payload validation, replay protection, store
+  availability, writer allowance, write allowance, record presence/
+  acceptance/validation, input presence/acceptance/validation, review
+  readiness/completion, step readiness/completion, clearance allowance,
+  resolution allowance, or execution flags.
 
-### Phase 4804 - Backend Record-Validation Remediation Model
+### Phase 4824 - Backend Remediation Dependency Model
 
-- Extend the Admin API record-validation and summary schemas with typed
-  remediation name, remediation ref, parent validation ref, record-contract/
-  store/input/review/step/dependency refs, required remediation work,
-  remediation refs, validation gate, replay-protection gate, remediation gate,
-  order, blocked status, and authority evidence fields.
+- Extend the Admin API remediation and summary schemas with dependency ref,
+  parent remediation ref, validation/record-contract/store/input/review/step/
+  dependency refs, predecessor/successor remediation refs, required
+  remediation work, validation gate, replay-protection gate, remediation gate,
+  dependency gate, order, blocked status, and authority evidence fields.
 
-### Phase 4805 - Backend Remediation Derivation
+### Phase 4825 - Backend Dependency Derivation
 
-- Derive one remediation row from each existing record-validation ref only.
+- Derive one remediation dependency row from each existing remediation ref
+  only.
 
-### Phase 4806 - Remediation Work Mapping
+### Phase 4826 - Dependency Ordering Mapping
 
-- Map every record validation to backend-owned
-  `input_evidence_record_validation_remediation` work.
+- Map every remediation row to backend-owned unresolved dependency ordering
+  evidence with predecessor and successor remediation refs.
 
-### Phase 4807 - Remediation Gates And Ordering
+### Phase 4827 - Dependency Gates And Ordering
 
 - Record deterministic required remediation work, remediation refs,
-  remediation gates, validation gates, replay-protection gates, schema refs,
-  append-only log refs, payload fields, idempotency keys, and
-  clearance/step/review/input/store/record-validation/remediation order.
+  dependency gates, remediation gates, validation gates, replay-protection
+  gates, schema refs, append-only log refs, payload fields, idempotency keys,
+  and clearance/step/review/input/store/record-validation/remediation/
+  dependency order.
 
-### Phase 4808 - Remediation Status Evidence
+### Phase 4828 - Dependency Status Evidence
 
-- Report blocked remediation status,
+- Report blocked dependency status,
+  `record_validation_remediation_dependency_ready=false`,
+  `dependency_order_resolved=false`,
   `record_validation_remediation_ready=false`,
   `record_validation_remediation_performed=false`,
   `record_validation_ready=false`, `record_contract_available=false`,
@@ -122,68 +128,76 @@ validate inputs, complete reviews, make steps ready, or clear dependencies.
   `record_validated=false`, `input_present=false`, `input_accepted=false`,
   `input_validated=false`, `review_ready=false`, `review_complete=false`,
   `step_ready=false`, `clearance_allowed=false`, and
-  `resolution_allowed=false` for every remediation row.
+  `resolution_allowed=false` for every dependency row.
 
-### Phase 4809 - Backend Remediation Assertions
+### Phase 4829 - Backend Dependency Assertions
 
-- Extend Admin API regression coverage proving remediation rows mirror
-  record-validation rows and do not close blockers or grant remediation,
+- Extend Admin API regression coverage proving dependency rows mirror
+  remediation rows and do not close blockers or grant ordering, remediation,
   validation, record, schema, log, idempotency, payload, replay, live, manager,
   Coinbase, reconciliation, writer, or state mutation authority.
 
-### Phase 4810 - OpenAPI Regeneration
+### Phase 4830 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4811 - Frontend Generated Schema Sync
+### Phase 4831 - Frontend Generated Schema Sync
 
 - Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4812 - Frontend Adapter Remediation Mapping
+### Phase 4832 - Frontend Adapter Dependency Mapping
 
-- Map remediation rows and summary fields through the existing command-suite
+- Map dependency rows and summary fields through the existing command-suite
   adapter.
 
-### Phase 4813 - Frontend Mock Remediation Evidence
+### Phase 4833 - Frontend Mock Dependency Evidence
 
 - Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4814 - Frontend UI Remediation Summary
+### Phase 4834 - Frontend UI Dependency Summary
 
-- Render remediation counts, blocked counts, names, statuses, required work,
-  remediation gates, validation gates, and replay-protection gates as read-only
-  evidence.
+- Render dependency counts, blocked counts, refs, statuses, predecessor/
+  successor counts, required work, dependency gates, remediation gates,
+  validation gates, and replay-protection gates as read-only evidence.
 
-### Phase 4815 - Frontend UI Remediation Rows
+### Phase 4835 - Frontend UI Dependency Rows
 
-- Render row-level remediation ref, parent validation ref, record-contract ref,
-  store requirement ref, input ref, review ref, step ref, dependency ref,
-  remediation name, schema/log/payload/idempotency/validation/replay/
-  remediation refs, order, status, false state flags, authority flags, and
-  no-live evidence.
+- Render row-level dependency ref, parent remediation ref, validation ref,
+  record-contract ref, store requirement ref, input ref, review ref, step ref,
+  dependency ref, predecessor/successor refs, gates, order, status, false state
+  flags, authority flags, and no-live evidence.
 
-### Phase 4816 - Quality Metadata Sync
+### Phase 4836 - Quality Metadata Sync
 
-- Update active range metadata to phases 4801-4820.
+- Update active range metadata to phases 4821-4840.
 
-### Phase 4817 - Documentation Sync
+### Phase 4837 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   examples, expanded context, and agent-state docs.
 
-### Phase 4818 - Contextless Review
+### Phase 4838 - Contextless Review
 
 - Record contextless review evidence for the clearance-step review-input store
-  record-validation remediation boundary.
+  record-validation remediation dependency boundary.
 
-### Phase 4819 - Focused Gates And Browser Smoke
+### Phase 4839 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and browser smoke for rendered
-  remediation evidence.
+  dependency evidence.
 
-### Phase 4820 - Commit And Push
+### Phase 4840 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Batch - Phases 4801-4820
+
+Backend commit `3415a0ac` and frontend commit `34bee27` derived blocked
+backend-owned record-validation remediation rows from existing
+closure-readiness clearance-step review-input store record-validation rows.
+Focused backend/frontend gates, blind/contextless review, and UI smoke passed
+at `http://127.0.0.1:3001/?phaseSmoke=4801-4820`. Live Coinbase execution was
+not run; submitted and executed notional were `0` USDC.
 
 ## Completed M55 Closure-Readiness Review-Input Store Record-Validation Batch - Phases 4781-4800
 
