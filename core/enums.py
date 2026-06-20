@@ -578,6 +578,16 @@ class AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName(
     INPUT_EVIDENCE_RECORD_VALIDATION = "input_evidence_record_validation"
 
 
+class AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationRemediationName(
+    str, Enum
+):
+    """Backend remediation required by one M55 review-input record validation."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION = (
+        "input_evidence_record_validation_remediation"
+    )
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 

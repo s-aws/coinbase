@@ -49,6 +49,7 @@ from core.enums import (
     AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureClearanceStepReviewInputName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName,
+    AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationRemediationName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName,
     AdminApiStealthClosureClearanceStepReviewName,
@@ -13959,6 +13960,102 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationRow(
+    BaseModel
+):
+    """Blocked backend remediation required by one M55 review-input validation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record_validation_remediation_ref: str
+    record_validation_ref: str
+    record_contract_ref: str
+    store_requirement_ref: str
+    input_ref: str
+    review_ref: str
+    step_ref: str
+    dependency_ref: str
+    dependency_class: AdminApiStealthClosureDependencyClass
+    record_validation_remediation_name: (
+        AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationRemediationName
+    )
+    record_validation_name: (
+        AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName
+    )
+    record_contract_name: (
+        AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName
+    )
+    requirement_name: AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName
+    input_name: AdminApiStealthClosureClearanceStepReviewInputName
+    review_name: AdminApiStealthClosureClearanceStepReviewName
+    clearance_owner: AdminApiStealthClosureClearanceOwner
+    required_artifact_ref: str
+    required_store_ref: str
+    required_writer_ref: str
+    required_record_key: str
+    required_record_schema_ref: str
+    required_append_only_log_ref: str
+    required_payload_fields: list[str] = Field(default_factory=list)
+    required_idempotency_key: str
+    required_validation_gate: str
+    required_replay_gate: str
+    record_contract_gate: str
+    required_validation_checks: list[str] = Field(default_factory=list)
+    required_remediation_work: list[str] = Field(default_factory=list)
+    required_remediation_refs: list[str] = Field(default_factory=list)
+    record_validation_gate: str
+    record_replay_protection_gate: str
+    record_validation_remediation_gate: str
+    clearance_order: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    review_order: int = Field(ge=1)
+    input_order: int = Field(ge=1)
+    store_requirement_order: int = Field(ge=1)
+    record_contract_order: int = Field(ge=1)
+    record_validation_order: int = Field(ge=1)
+    record_validation_remediation_order: int = Field(ge=1)
+    record_validation_remediation_status: AdminApiGateStatus = (
+        AdminApiGateStatus.BLOCKED
+    )
+    record_validation_remediation_required: bool = True
+    record_validation_remediation_ready: bool = False
+    record_validation_remediation_performed: bool = False
+    record_validation_required: bool = True
+    record_validation_ready: bool = False
+    record_contract_required: bool = True
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_required: bool = True
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_complete: bool = False
+    review_allowed: bool = False
+    step_ready: bool = False
+    step_complete: bool = False
+    clearance_allowed: bool = False
+    resolution_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRow(
     BaseModel
 ):
@@ -14039,6 +14136,17 @@ class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordVal
     bff_authority: str = "forward_only_no_execution"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    store_record_validation_remediation_rows: list[
+        StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationRow
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Read-only backend-owned remediation rows derived from this "
+            "missing record validation. Remediation remains blocked and "
+            "cannot validate records, make contracts available, write "
+            "evidence, clear dependencies, or execute live Coinbase work."
+        ),
+    )
     detail: str
 
 
@@ -14771,6 +14879,48 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
         str
     ] = Field(default_factory=list)
     closure_readiness_dependency_clearance_step_review_input_store_record_validation_replay_gates: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_count: int = Field(
+        ge=0
+    )
+    closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_count: int = Field(
+        ge=0
+    )
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_names: list[
+        AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationRemediationName
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_statuses: list[
+        AdminApiGateStatus
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_schema_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_log_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_payload_fields: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_idempotency_keys: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_checks: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_required_work: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_gates: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_validation_gates: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_replay_gates: list[
         str
     ] = Field(default_factory=list)
     missing_backend_contracts: list[str]

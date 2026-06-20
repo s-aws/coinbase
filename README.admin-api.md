@@ -321,22 +321,29 @@ dependencies, or changing execution authority. Completed phases 4741-4760
 derive blocked backend review-input store-requirement rows from those inputs
 without making stores available, allowing writers, writing records, validating
 records, accepting inputs, completing reviews, making steps ready, clearing
-dependencies, or changing execution authority. Active phases 4761-4780 derive
+dependencies, or changing execution authority. Completed phases 4761-4780 derive
 blocked backend review-input store record-contract rows from those store
 requirements without creating record contracts, schemas, logs, idempotency
 bindings, payload validation, replay protection, records, stores, accepted
 inputs, completed reviews, ready steps, cleared dependencies, or execution
-authority.
+authority. Completed phases 4781-4800 derive blocked backend review-input
+store record-validation rows from those record contracts without validating
+records or changing execution authority. Active phases 4801-4820 derive
+blocked backend review-input store record-validation remediation rows from
+those validations without remediating records, readying validations, clearing
+dependencies, or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
-record-contract, and store record-validation detail arrays are bounded
-representative readbacks. Their
+record-contract, store record-validation, and store record-validation
+remediation detail arrays are bounded representative readbacks. Their
 summaries keep full logical totals in `total_input_count`,
 `total_requirement_count`, `total_record_contract_count`,
-`total_record_validation_count`, `missing_input_count`, `missing_store_count`,
-`missing_record_contract_count`, and `missing_record_validation_count`, while
+`total_record_validation_count`, remediation totals, `missing_input_count`,
+`missing_store_count`, `missing_record_contract_count`, and
+`missing_record_validation_count`, while
 `materialized_input_count`, `materialized_requirement_count`,
 `materialized_record_contract_count`, `materialized_record_validation_count`,
-`detail_row_limit`, and `detail_rows_limited` describe the capped detail rows.
+remediation materialized counts, `detail_row_limit`, and `detail_rows_limited`
+describe the capped detail rows.
 These layers
 do not accept or validate review inputs, complete reviews, make steps ready, register routes, bind route
 inventory, bind shared command services, register handlers, create stores,

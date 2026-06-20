@@ -49,137 +49,150 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Review-Input Store Record-Validation Batch - Phases 4781-4800
+## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Batch - Phases 4801-4820
 
-These phases derive blocked backend-owned record-validation rows from the
-existing closure-readiness clearance-step review-input store record-contract
-rows. The record validations remain blocked and unresolved. The range must not
-enable service, construct adapters, invoke managers, call Coinbase, cancel or
-submit orders, repair or roll back state, execute reconciliation, mutate state,
-grant browser authority, grant BFF execution authority, validate records, make
-record validations ready, make record contracts available, make schemas
-available, make append-only logs available, bind idempotency, validate
-payloads, protect replay, make stores available, allow writers, write records,
-accept inputs, validate inputs, complete reviews, make steps ready, or clear
-dependencies.
+These phases derive blocked backend-owned record-validation remediation rows
+from the existing closure-readiness clearance-step review-input store
+record-validation rows. The remediation rows remain blocked and unresolved.
+The range must not enable service, construct adapters, invoke managers, call
+Coinbase, cancel or submit orders, repair or roll back state, execute
+reconciliation, mutate state, grant browser authority, grant BFF execution
+authority, perform remediation, validate records, make record validations
+ready, make record contracts available, make schemas available, make
+append-only logs available, bind idempotency, validate payloads, protect
+replay, make stores available, allow writers, write records, accept inputs,
+validate inputs, complete reviews, make steps ready, or clear dependencies.
 
-### Phase 4781 - Prior Range Completion Evidence
+### Phase 4801 - Prior Range Completion Evidence
 
-- Record completed phases 4761-4780 with backend commit `e093677f`, frontend
-  commit `3d6561b`, focused gates, blind/contextless review, UI smoke at
-  `http://127.0.0.1:3127/?phaseSmoke=4761-4780`, and `0` USDC live Coinbase
+- Record completed phases 4781-4800 with backend commit `78cf7abf`, frontend
+  commit `57bd420`, focused gates, blind/contextless review, UI smoke at
+  `http://127.0.0.1:3001/?phaseSmoke=4781-4800`, and `0` USDC live Coinbase
   submitted/executed notional.
 
-### Phase 4782 - Advance Active Queue Range
+### Phase 4802 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4761-4780 to active
-  phases 4781-4800 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4781-4800 to active
+  phases 4801-4820 while preserving no-live defaults and cap policy.
 
-### Phase 4783 - Store Record-Validation Scope
+### Phase 4803 - Store Record-Validation Remediation Scope
 
-- Add record-validation fields to existing record-contract rows without
-  changing blocker status, contract availability, schema availability, log
-  availability, idempotency binding, payload validation, replay protection,
-  store availability, writer allowance, write allowance, record presence/
-  acceptance/validation, input presence/acceptance/validation, review
-  readiness/completion, step readiness/completion, clearance allowance,
-  resolution allowance, or execution flags.
+- Add remediation fields to existing record-validation rows without changing
+  blocker status, remediation readiness, validation readiness, contract
+  availability, schema availability, log availability, idempotency binding,
+  payload validation, replay protection, store availability, writer allowance,
+  write allowance, record presence/acceptance/validation, input presence/
+  acceptance/validation, review readiness/completion, step readiness/
+  completion, clearance allowance, resolution allowance, or execution flags.
 
-### Phase 4784 - Backend Record-Validation Model
+### Phase 4804 - Backend Record-Validation Remediation Model
 
-- Extend the Admin API record-contract and summary schemas with typed record
-  validation name, validation ref, record-contract/store/input/review/step/
-  dependency refs, required validation checks, validation gate,
-  replay-protection gate, order, blocked status, and authority evidence fields.
+- Extend the Admin API record-validation and summary schemas with typed
+  remediation name, remediation ref, parent validation ref, record-contract/
+  store/input/review/step/dependency refs, required remediation work,
+  remediation refs, validation gate, replay-protection gate, remediation gate,
+  order, blocked status, and authority evidence fields.
 
-### Phase 4785 - Backend Record-Validation Derivation
+### Phase 4805 - Backend Remediation Derivation
 
-- Derive one record-validation row from each existing record-contract ref only.
+- Derive one remediation row from each existing record-validation ref only.
 
-### Phase 4786 - Record Validation Name Mapping
+### Phase 4806 - Remediation Work Mapping
 
-- Map every record contract to the backend-owned
-  `input_evidence_record_validation` validation name.
+- Map every record validation to backend-owned
+  `input_evidence_record_validation_remediation` work.
 
-### Phase 4787 - Validation Checks Gates And Ordering
+### Phase 4807 - Remediation Gates And Ordering
 
-- Record deterministic validation checks, record-validation gates,
-  replay-protection gates, schema refs, append-only log refs, payload fields,
-  idempotency keys, and clearance/step/review/input/store/record-validation
-  order.
+- Record deterministic required remediation work, remediation refs,
+  remediation gates, validation gates, replay-protection gates, schema refs,
+  append-only log refs, payload fields, idempotency keys, and
+  clearance/step/review/input/store/record-validation/remediation order.
 
-### Phase 4788 - Record-Validation Status Evidence
+### Phase 4808 - Remediation Status Evidence
 
-- Report blocked record-validation status, `record_validation_ready=false`,
-  `record_contract_available=false`, `record_schema_available=false`,
-  `append_only_log_available=false`, `idempotency_key_bound=false`,
-  `payload_schema_validated=false`, `replay_protected=false`,
-  `store_available=false`, `writer_allowed=false`, `write_allowed=false`,
-  `record_present=false`, `record_accepted=false`, `record_validated=false`,
-  `input_present=false`, `input_accepted=false`, `input_validated=false`,
-  `review_ready=false`, `review_complete=false`, `step_ready=false`,
-  `clearance_allowed=false`, and `resolution_allowed=false` for every
-  validation row.
+- Report blocked remediation status,
+  `record_validation_remediation_ready=false`,
+  `record_validation_remediation_performed=false`,
+  `record_validation_ready=false`, `record_contract_available=false`,
+  `record_schema_available=false`, `append_only_log_available=false`,
+  `idempotency_key_bound=false`, `payload_schema_validated=false`,
+  `replay_protected=false`, `store_available=false`, `writer_allowed=false`,
+  `write_allowed=false`, `record_present=false`, `record_accepted=false`,
+  `record_validated=false`, `input_present=false`, `input_accepted=false`,
+  `input_validated=false`, `review_ready=false`, `review_complete=false`,
+  `step_ready=false`, `clearance_allowed=false`, and
+  `resolution_allowed=false` for every remediation row.
 
-### Phase 4789 - Backend Record-Validation Assertions
+### Phase 4809 - Backend Remediation Assertions
 
-- Extend Admin API regression coverage proving record-validation rows mirror
-  record-contract rows and do not close blockers or grant validation, record,
-  schema, log, idempotency, payload, replay, live, manager, Coinbase,
-  reconciliation, writer, or state mutation authority.
+- Extend Admin API regression coverage proving remediation rows mirror
+  record-validation rows and do not close blockers or grant remediation,
+  validation, record, schema, log, idempotency, payload, replay, live, manager,
+  Coinbase, reconciliation, writer, or state mutation authority.
 
-### Phase 4790 - OpenAPI Regeneration
+### Phase 4810 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4791 - Frontend Generated Schema Sync
+### Phase 4811 - Frontend Generated Schema Sync
 
 - Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4792 - Frontend Adapter Record-Validation Mapping
+### Phase 4812 - Frontend Adapter Remediation Mapping
 
-- Map record-validation rows and summary fields through the existing
-  command-suite adapter.
+- Map remediation rows and summary fields through the existing command-suite
+  adapter.
 
-### Phase 4793 - Frontend Mock Record-Validation Evidence
+### Phase 4813 - Frontend Mock Remediation Evidence
 
 - Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4794 - Frontend UI Record-Validation Summary
+### Phase 4814 - Frontend UI Remediation Summary
 
-- Render record-validation counts, blocked counts, names, statuses, schema
-  refs, log refs, payload fields, idempotency keys, validation checks,
-  record-validation gates, and replay-protection gates as read-only evidence.
+- Render remediation counts, blocked counts, names, statuses, required work,
+  remediation gates, validation gates, and replay-protection gates as read-only
+  evidence.
 
-### Phase 4795 - Frontend UI Record-Validation Rows
+### Phase 4815 - Frontend UI Remediation Rows
 
-- Render row-level record-validation ref, record-contract ref, store
-  requirement ref, input ref, review ref, step ref, dependency ref, validation
-  name, contract name, schema/log/payload/idempotency/validation/replay refs,
-  order, status, false state flags, authority flags, and no-live evidence.
+- Render row-level remediation ref, parent validation ref, record-contract ref,
+  store requirement ref, input ref, review ref, step ref, dependency ref,
+  remediation name, schema/log/payload/idempotency/validation/replay/
+  remediation refs, order, status, false state flags, authority flags, and
+  no-live evidence.
 
-### Phase 4796 - Quality Metadata Sync
+### Phase 4816 - Quality Metadata Sync
 
-- Update active range metadata to phases 4781-4800.
+- Update active range metadata to phases 4801-4820.
 
-### Phase 4797 - Documentation Sync
+### Phase 4817 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   examples, expanded context, and agent-state docs.
 
-### Phase 4798 - Contextless Review
+### Phase 4818 - Contextless Review
 
 - Record contextless review evidence for the clearance-step review-input store
-  record-validation boundary.
+  record-validation remediation boundary.
 
-### Phase 4799 - Focused Gates And Browser Smoke
+### Phase 4819 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and browser smoke for rendered
-  record-validation evidence.
+  remediation evidence.
 
-### Phase 4800 - Commit And Push
+### Phase 4820 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Review-Input Store Record-Validation Batch - Phases 4781-4800
+
+Backend commit `78cf7abf` and frontend commit `57bd420` derived blocked
+backend-owned record-validation rows from existing closure-readiness
+clearance-step review-input store record-contract rows. Focused
+backend/frontend gates, blind/contextless review, and UI smoke passed at
+`http://127.0.0.1:3001/?phaseSmoke=4781-4800`. Live Coinbase execution was not
+run; submitted and executed notional were `0` USDC.
 
 ## Completed M55 Closure-Readiness Review-Input Store Record-Contract Batch - Phases 4761-4780
 

@@ -45,6 +45,7 @@ from core.enums import (
     AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureClearanceStepReviewInputName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName,
+    AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationRemediationName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName,
     AdminApiStealthClosureClearanceStepReviewName,
@@ -197,6 +198,7 @@ from .models import (
     StealthCommandSuiteClosureDependencyClearanceStepRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordContractRow,
+    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewRow,
@@ -304,7 +306,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4781-4800"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4801-4820"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -13059,6 +13061,24 @@ class AdminApiReadService:
                         record_replay_protection_gate = (
                             f"{record_contract_ref}::replay_protection_gate"
                         )
+                        record_validation_remediation_ref = (
+                            f"{record_validation_ref}::remediation"
+                        )
+                        required_remediation_work = [
+                            "make_record_contract_available",
+                            "make_record_schema_available",
+                            "make_append_only_log_available",
+                            "bind_idempotency_key",
+                            "validate_payload_schema",
+                            "protect_replay",
+                        ]
+                        required_remediation_refs = [
+                            f"{record_validation_remediation_ref}::{work}"
+                            for work in required_remediation_work
+                        ]
+                        record_validation_remediation_gate = (
+                            f"{record_validation_remediation_ref}::gate"
+                        )
                         review_name = clearance_step_review_names[
                             clearance_step_name
                         ]
@@ -13269,6 +13289,115 @@ class AdminApiReadService:
                                                 ),
                                                 live_coinbase_orders_ran=False,
                                                 live_coinbase_read_ran=False,
+                                                store_record_validation_remediation_rows=[
+                                                    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationRow(
+                                                        record_validation_remediation_ref=record_validation_remediation_ref,
+                                                        record_validation_ref=record_validation_ref,
+                                                        record_contract_ref=record_contract_ref,
+                                                        store_requirement_ref=store_requirement_ref,
+                                                        input_ref=input_ref,
+                                                        review_ref=review_ref,
+                                                        step_ref=step_ref,
+                                                        dependency_ref=dependency_ref,
+                                                        dependency_class=dependency_class,
+                                                        record_validation_remediation_name=(
+                                                            AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationRemediationName.INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION
+                                                        ),
+                                                        record_validation_name=(
+                                                            AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName.INPUT_EVIDENCE_RECORD_VALIDATION
+                                                        ),
+                                                        record_contract_name=(
+                                                            AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName.INPUT_EVIDENCE_RECORD_CONTRACT
+                                                        ),
+                                                        requirement_name=(
+                                                            AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName.INPUT_EVIDENCE_STORE
+                                                        ),
+                                                        input_name=input_name,
+                                                        review_name=review_name,
+                                                        clearance_owner=clearance_owner,
+                                                        required_artifact_ref=dependency_ref,
+                                                        required_store_ref=required_store_ref,
+                                                        required_writer_ref=required_writer_ref,
+                                                        required_record_key=required_record_key,
+                                                        required_record_schema_ref=required_record_schema_ref,
+                                                        required_append_only_log_ref=required_append_only_log_ref,
+                                                        required_payload_fields=required_payload_fields,
+                                                        required_idempotency_key=required_idempotency_key,
+                                                        required_validation_gate=required_validation_gate,
+                                                        required_replay_gate=required_replay_gate,
+                                                        record_contract_gate=record_contract_gate,
+                                                        required_validation_checks=required_validation_checks,
+                                                        required_remediation_work=required_remediation_work,
+                                                        required_remediation_refs=required_remediation_refs,
+                                                        record_validation_gate=record_validation_gate,
+                                                        record_replay_protection_gate=record_replay_protection_gate,
+                                                        record_validation_remediation_gate=record_validation_remediation_gate,
+                                                        clearance_order=clearance_order,
+                                                        step_order=1,
+                                                        review_order=1,
+                                                        input_order=1,
+                                                        store_requirement_order=1,
+                                                        record_contract_order=1,
+                                                        record_validation_order=1,
+                                                        record_validation_remediation_order=1,
+                                                        record_validation_remediation_status=(
+                                                            AdminApiGateStatus.BLOCKED
+                                                        ),
+                                                        record_validation_remediation_required=True,
+                                                        record_validation_remediation_ready=False,
+                                                        record_validation_remediation_performed=False,
+                                                        record_validation_required=True,
+                                                        record_validation_ready=False,
+                                                        record_contract_required=True,
+                                                        record_contract_available=False,
+                                                        record_schema_available=False,
+                                                        append_only_log_available=False,
+                                                        idempotency_key_bound=False,
+                                                        payload_schema_validated=False,
+                                                        replay_protected=False,
+                                                        store_required=True,
+                                                        store_available=False,
+                                                        writer_allowed=False,
+                                                        write_allowed=False,
+                                                        record_present=False,
+                                                        record_accepted=False,
+                                                        record_validated=False,
+                                                        validation_configured=False,
+                                                        replay_protection_configured=False,
+                                                        input_present=False,
+                                                        input_accepted=False,
+                                                        input_validated=False,
+                                                        review_ready=False,
+                                                        review_complete=False,
+                                                        review_allowed=False,
+                                                        step_ready=False,
+                                                        step_complete=False,
+                                                        clearance_allowed=False,
+                                                        resolution_allowed=False,
+                                                        backend_owned=True,
+                                                        browser_authority="display_only",
+                                                        bff_authority=(
+                                                            "forward_only_no_execution"
+                                                        ),
+                                                        live_coinbase_orders_ran=False,
+                                                        live_coinbase_read_ran=False,
+                                                        detail=(
+                                                            "Clearance-step review "
+                                                            "input store record "
+                                                            "validation remediation "
+                                                            "is read-only missing-"
+                                                            "remediation evidence. "
+                                                            "A future backend phase "
+                                                            "must complete the "
+                                                            "record contract, schema, "
+                                                            "append-only log, "
+                                                            "idempotency, payload, "
+                                                            "and replay work before "
+                                                            "this validation can "
+                                                            "become ready."
+                                                        ),
+                                                    )
+                                                ],
                                                 detail=(
                                                     "Clearance-step review "
                                                     "input store record "
@@ -14120,6 +14249,15 @@ class AdminApiReadService:
             )
             for record_validation in record_contract.store_record_validation_rows
         ]
+        dependency_clearance_step_review_input_store_record_validation_remediation_rows = [
+            remediation
+            for record_validation in (
+                dependency_clearance_step_review_input_store_record_validation_rows
+            )
+            for remediation in (
+                record_validation.store_record_validation_remediation_rows
+            )
+        ]
         blocker_closure_summary = StealthCommandSuiteBlockerClosureSummary(
             total_blocker_count=len(blocker_closures),
             blocked_blocker_count=sum(1 for item in blocker_closures if item.blocking),
@@ -14584,6 +14722,119 @@ class AdminApiReadService:
                     record_validation.record_replay_protection_gate
                     for record_validation in (
                         dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_count=len(
+                dependency_clearance_step_review_input_store_record_validation_remediation_rows
+            ),
+            closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_count=sum(
+                1
+                for remediation in (
+                    dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                )
+                if remediation.record_validation_remediation_status
+                == AdminApiGateStatus.BLOCKED
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_names=sorted(
+                {
+                    remediation.record_validation_remediation_name
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_statuses=sorted(
+                {
+                    remediation.record_validation_remediation_status
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_schema_refs=sorted(
+                {
+                    remediation.required_record_schema_ref
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_log_refs=sorted(
+                {
+                    remediation.required_append_only_log_ref
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_payload_fields=sorted(
+                {
+                    payload_field
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                    for payload_field in remediation.required_payload_fields
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_idempotency_keys=sorted(
+                {
+                    remediation.required_idempotency_key
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_checks=sorted(
+                {
+                    validation_check
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                    for validation_check in remediation.required_validation_checks
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_required_work=sorted(
+                {
+                    work
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                    for work in remediation.required_remediation_work
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_refs=sorted(
+                {
+                    remediation_ref
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                    for remediation_ref in remediation.required_remediation_refs
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_gates=sorted(
+                {
+                    remediation.record_validation_remediation_gate
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_validation_gates=sorted(
+                {
+                    remediation.record_validation_gate
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_replay_gates=sorted(
+                {
+                    remediation.record_replay_protection_gate
+                    for remediation in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_rows
                     )
                 }
             ),
