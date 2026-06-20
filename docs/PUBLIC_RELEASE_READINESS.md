@@ -6,8 +6,9 @@ spot-specific feature before live trading.
 ## Local Required Gates
 
 Run focused tests for ordinary backend changes. Run the repository regression
-gate before durable milestone closeout, public/release-candidate handoff, or
-deployment approval:
+gate before durable milestone closeout, public/release-candidate handoff,
+deployment approval/closeout, release-hardening closeout, Admin API/backend
+association closeout, or explicit full-gate request:
 
 ```powershell
 python tools/run_parallel_regression.py --workers 4

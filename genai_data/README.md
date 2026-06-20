@@ -54,9 +54,11 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 - Respect thread-safety boundaries and existing lock ownership.
 - For ordinary non-agent-file changes, run focused tests and validators that
   cover the changed behavior. Full `tests/regression/` is reserved for durable
-  milestone closeout, public/release-candidate handoff, or explicit user
-  request. Prefer `python tools/run_parallel_regression.py --workers 4` for the
-  full closeout gate.
+  milestone closeout, public/release-candidate handoff, deployment
+  approval/closeout, release-hardening closeout, Admin API/backend association
+  closeout, or explicit user request. Prefer
+  `python tools/run_parallel_regression.py --workers 4` for the full closeout
+  gate.
 
 ## Main Runtime Entry Points
 

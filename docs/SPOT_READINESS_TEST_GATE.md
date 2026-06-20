@@ -32,8 +32,9 @@ payload renders into the operator panel.
 
 This focused gate is the ordinary phase-level check for spot behavior. It does
 not replace the full repository regression gate when closing a durable
-milestone, preparing public/release-candidate handoff, or handling an explicit
-full-gate request:
+milestone, preparing public/release-candidate handoff, deployment
+approval/closeout, release-hardening closeout, Admin API/backend association
+closeout, or handling an explicit full-gate request:
 
 ```powershell
 pytest tests/regression/ -v --tb=short

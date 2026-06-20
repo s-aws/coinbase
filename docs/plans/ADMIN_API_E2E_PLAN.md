@@ -9,9 +9,11 @@ admin frontend repository at `C:\coinbase-frontend`.
 Current entry-point gate policy supersedes historical completed-phase wording
 below. For ordinary Admin API work, run focused tests and validators that cover
 the changed behavior. Run full backend regression only before durable milestone
-closeout, public/release-candidate handoff, or explicit user request. Use
-`python tools/run_parallel_regression.py --workers 4` for full closeout runs;
-do not use Python threads to parallelize the regression suite.
+closeout, public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or explicit
+user request. Use `python tools/run_parallel_regression.py --workers 4` for
+full closeout runs; do not use Python threads to parallelize the regression
+suite.
 
 ## Non-Negotiable Direction
 

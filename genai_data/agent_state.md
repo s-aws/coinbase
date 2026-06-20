@@ -36,8 +36,9 @@ Keep it short. Keep it factual.
 - Ordinary phase work must run focused tests and validators that cover the
   changed behavior.
 - Full `pytest tests/regression/ -v --tb=short` is reserved for durable
-  milestone closeout, public/release-candidate handoff, or explicit user
-  request.
+  milestone closeout, public/release-candidate handoff, deployment
+  approval/closeout, release-hardening closeout, Admin API/backend association
+  closeout, or explicit user request.
 - If only agent-instruction/context files changed (`AGENTS.md`, `agent.md`,
   `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`,
   `genai_data/agent_state.md`), regression tests may be skipped.

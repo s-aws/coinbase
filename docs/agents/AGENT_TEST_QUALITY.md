@@ -19,7 +19,9 @@ safety guards are owned here.
 - Do not make external/live tests part of the normal regression gate.
 - Do not run full regression by default for ordinary phases. Use focused tests
   for changed behavior and reserve full regression for durable milestone
-  closeout, public/release-candidate handoff, or explicit user request.
+  closeout, public/release-candidate handoff, deployment approval/closeout,
+  release-hardening closeout, Admin API/backend association closeout, or
+  explicit user request.
 - Do not parallelize the regression suite with threads. Use process workers
   through `tools/run_parallel_regression.py`, and mark shared-state tests
   `serial`.

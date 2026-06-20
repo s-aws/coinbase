@@ -71,8 +71,9 @@ Prefer extending existing focused tests in:
 ### Step 7: Run required validation
 
 Run the focused tests that cover the patched failure mode. For durable
-milestone closeout, public/release-candidate handoff, or explicit request, run
-the full regression gate:
+milestone closeout, public/release-candidate handoff, deployment
+approval/closeout, release-hardening closeout, Admin API/backend association
+closeout, or explicit request, run the full regression gate:
 
 ```powershell
 pytest tests/regression/ -v --tb=short
