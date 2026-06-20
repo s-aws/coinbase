@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **4981-5000**.
+- Approved phase range: **5001-5020**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4961-4980`.
+- Previous completed range: `4981-5000`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `4980`.
+- `current_phase`: `5000`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,152 +67,162 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 4981-5000
+## Active Phases 5001-5020
 
 These phases close the next concrete M55 planning gap by deriving blocked
-backend-owned claim-trace clearance-step review-input store record-contract
-rows from the existing claim-trace clearance-step review-input
-store-requirement rows. Each record contract must map back to its source store
-requirement, review input, review, clearance step, clearance plan, claim trace,
-work item, dependency, remediation, validation, upstream record contract, base
-input, required store, required writer, required record key, record schema,
-append-only log, payload fields, idempotency key, validation/replay gates,
-blocker chain, predecessor/successor contract refs, and disabled authority.
-The rows must not create contracts, schemas, logs, stores, writers, records,
-validate payloads, bind idempotency, protect replay, accept inputs, complete
-reviews, complete steps, execute plan steps, resolve claims, clear claim
-traces, claim or perform work items, clear dependencies, perform remediation,
-validate records, reconcile, call Coinbase, invoke managers, mutate state,
-grant browser authority, or grant BFF execution authority.
+backend-owned claim-trace clearance-step review-input store record-validation
+rows from the existing claim-trace clearance-step review-input store
+record-contract rows. Each validation row must map back to its source record
+contract, store requirement, review input, review, clearance step, clearance
+plan, claim trace, work item, dependency, remediation, upstream validation,
+upstream record contract, required schema, append-only log, payload fields,
+idempotency key, validation/replay gates, blocker chain,
+predecessor/successor validation refs, and disabled authority. The rows must
+not make contracts, schemas, logs, idempotency, payload validation, replay
+protection, records, inputs, reviews, steps, claims, remediation, validation,
+reconciliation, Coinbase, manager invocation, state mutation, browser
+authority, or BFF execution authority available.
 
-### Phase 4981 - Prior Range Completion Evidence
+### Phase 5001 - Prior Range Completion Evidence
 
-- Record completed phases 4961-4980 with backend commit `6e0dda3e`,
-  frontend commit `9def63e`, focused backend/frontend gates,
+- Record completed phases 4981-5000 with backend commit `eaa5f3f8`,
+  frontend commit `74fb355`, focused backend/frontend gates,
   blind/contextless review, UI smoke at
-  `http://127.0.0.1:3001/?phaseSmoke=4961-4980`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-4961-4980.png`, and `0`
+  `http://127.0.0.1:3001/?phaseSmoke=4981-5000`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-4981-5000.png`, and `0`
   USDC live Coinbase submitted/executed notional.
 
-### Phase 4982 - Advance Active Queue Range
+### Phase 5002 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4961-4980 to active
-  phases 4981-5000 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4981-5000 to active
+  phases 5001-5020 while preserving no-live defaults and cap policy.
 
-### Phase 4983 - Claim-Trace Store Record-Contract Scope
+### Phase 5003 - Claim-Trace Store Record-Validation Scope
 
-- Add record contracts under existing claim-trace clearance-step review-input
-  store-requirement rows without changing blocker status, contract
-  availability, schema/log availability, idempotency binding, payload
-  validation, replay protection, write authority, input acceptance, review
-  completion, step completion, claim resolution, or execution flags.
+- Add record validations under existing claim-trace clearance-step
+  review-input store record-contract rows without changing blocker status,
+  contract availability, schema/log availability, idempotency binding,
+  payload validation, replay protection, write authority, input acceptance,
+  review completion, step completion, claim resolution, or execution flags.
 
-### Phase 4984 - Backend Record-Contract Model
+### Phase 5004 - Backend Record-Validation Model
 
 - Add a nested remediation-dependency work-item claim-trace clearance-step
-  review-input store record-contract row model and blocked record-contract
-  summary fields.
+  review-input store record-validation row model and blocked
+  record-validation summary fields.
 
-### Phase 4985 - Backend Record-Contract Derivation
+### Phase 5005 - Backend Record-Validation Derivation
 
-- Derive each record contract only from an existing claim-trace clearance-step
-  review-input store-requirement row so no second dependency, work-item, claim,
-  validation, record, input, review, store, writer, schema, log, payload,
-  idempotency, replay, or execution source path is introduced.
+- Derive each record validation only from an existing claim-trace
+  clearance-step review-input store record-contract row so no second
+  dependency, work-item, claim, validation, record, input, review, store,
+  writer, schema, log, payload, idempotency, replay, or execution source path
+  is introduced.
 
-### Phase 4986 - Record-Contract Ordering Links
+### Phase 5006 - Record-Validation Checks And Gates
 
-- Assign deterministic predecessor and successor record-contract refs from the
-  parent store-requirement order.
+- Expose required validation checks, record-validation gate, and replay gate
+  as read-only evidence while keeping every check unsatisfied.
 
-### Phase 4987 - Record-Contract Status And Authority
+### Phase 5007 - Record-Validation Ordering Links
 
-- Record blocked status, false contract/schema/log availability, false
-  idempotency binding, false payload validation, false replay protection,
-  false writer/write/input/review/step/claim flags, and no-live/no-execution
-  authority flags for every record contract.
+- Assign deterministic predecessor and successor record-validation refs from
+  the parent record-contract order.
 
-### Phase 4988 - Record-Contract Summary Aggregation
+### Phase 5008 - Record-Validation Status And Authority
 
-- Add summary counts and refs for record contracts, blocked contracts,
-  statuses, source requirement/input/review/step/plan refs, names, required
-  store/writer/record/schema/log refs, payload fields, idempotency keys, gates,
+- Record blocked status, false validation readiness, false contract/schema/log
+  availability, false idempotency/payload/replay flags, false writer/write/
+  input/review/step/claim flags, and no-live/no-execution authority for every
+  validation row.
+
+### Phase 5009 - Record-Validation Summary Aggregation
+
+- Add summary counts and refs for record validations, blocked validations,
+  statuses, source contract/requirement/input/review/step/plan refs, names,
+  required schema/log refs, payload fields, idempotency keys, checks, gates,
   blockers, predecessors, and successors.
 
-### Phase 4989 - Backend Record-Contract Assertions
+### Phase 5010 - Backend Record-Validation Assertions
 
-- Extend focused Admin API regression coverage proving record contracts mirror
-  their source store requirements and grant no contract, schema, log,
-  idempotency, payload, replay, write, input acceptance, review completion,
-  step completion, claim, clear, remediation, validation, live, manager,
-  Coinbase, reconciliation, or state mutation authority.
+- Extend focused Admin API regression coverage proving record validations
+  mirror their source record contracts and grant no schema, log, idempotency,
+  payload, replay, write, input acceptance, review completion, step
+  completion, claim, clear, remediation, validation, live, manager, Coinbase,
+  reconciliation, or state mutation authority.
 
-### Phase 4990 - OpenAPI Regeneration
+### Phase 5011 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml` from backend models.
 
-### Phase 4991 - Frontend Generated Schema Sync
+### Phase 5012 - Frontend Generated Schema Sync
 
 - Regenerate the frontend TypeScript schema from the backend OpenAPI artifact.
 
-### Phase 4992 - Frontend Adapter Record-Contract Mapping
+### Phase 5013 - Frontend Adapter Record-Validation Mapping
 
 - Map remediation dependency work-item claim-trace clearance-step review-input
-  store record-contract rows and summary fields through the existing
+  store record-validation rows and summary fields through the existing
   command-suite adapter without adding a parallel client or feature fetch.
 
-### Phase 4993 - Frontend Mock Record-Contract Evidence
+### Phase 5014 - Frontend Mock Record-Validation Evidence
 
 - Sync mock command-suite evidence and summary totals for remediation
   dependency work-item claim-trace clearance-step review-input store
-  record-contract rows.
+  record-validation rows.
 
-### Phase 4994 - Frontend UI Record-Contract Summary
+### Phase 5015 - Frontend UI Record-Validation Summary
 
-- Render record-contract counts, blocked counts, refs, statuses, source
-  requirement/input/review/step/plan refs, names, required schemas, logs,
-  payload fields, idempotency keys, gates, blockers, and predecessor/successor
-  counts as read-only operator evidence.
+- Render record-validation counts, blocked counts, refs, statuses, source
+  contract/requirement/input/review/step/plan refs, names, required schemas,
+  logs, payload fields, idempotency keys, checks, gates, blockers, and
+  predecessor/successor counts as read-only operator evidence.
 
-### Phase 4995 - Frontend UI Record-Contract Rows
+### Phase 5016 - Frontend UI Record-Validation Rows
 
-- Render row-level record-contract ref, source store-requirement ref, source
-  review-input ref, schema, append-only log, payload fields, idempotency key,
-  gate, blocker chain, predecessor/successor refs, status, false contract/
-  schema/log/idempotency/payload/replay/write/input/review/step/claim flags,
-  authority flags, and no-live evidence.
+- Render row-level record-validation ref, source record-contract ref, source
+  store-requirement ref, source review-input ref, validation checks,
+  validation/replay gates, blocker chain, predecessor/successor refs, status,
+  false schema/log/idempotency/payload/replay/write/input/review/step/claim
+  flags, authority flags, and no-live evidence.
 
-### Phase 4996 - Quality Metadata And Regression-Policy Guard
+### Phase 5017 - Quality Metadata And Regression-Policy Guard
 
 - Update autonomous queue, release-readiness, deployment-readiness, artifact
   contract, runtime evidence, active range metadata, and regression-policy
   validators so active docs require the parallel closeout runner and treat
   sequential full regression as fallback-only.
 
-### Phase 4997 - Documentation Sync
+### Phase 5018 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   durable milestones, examples, expanded context, and agent-state docs so
-  contextless readers see 4981-5000 as active and 4961-4980 as completed.
+  contextless readers see 5001-5020 as active and 4981-5000 as completed.
 
-### Phase 4998 - Contextless Review
+### Phase 5019 - Contextless Review And Focused Gates
 
-- Run blind/contextless review proving claim-trace clearance-step
-  review-input store record-contract evidence and the regression gate policy
-  are discoverable, complete, no-live, and not executable or write authority.
+- Run blind/contextless review plus focused backend/frontend validators proving
+  claim-trace clearance-step review-input store record-validation evidence and
+  the regression gate policy are discoverable, complete, no-live, and not
+  executable or write authority.
 
-### Phase 4999 - Focused Gates And Browser Smoke
+### Phase 5020 - Browser Smoke, Commit, And Push
 
-- Run `python tools\run_autonomous_work_queue_check.py --summary-only`,
-  focused backend/frontend validators, and a browser smoke proving the
-  rendered UI exposes clearance-step review-input store record-contract
-  evidence without console errors.
+- Run a browser smoke at `http://127.0.0.1:3001/?phaseSmoke=5001-5020`, commit
+  and push backend and frontend repositories, then summarize implementation,
+  focused verification, live posture, UI URL, and next M55 scope.
 
-### Phase 5000 - Commit And Push
+## Completed Phases 4981-5000
 
-- Commit and push backend and frontend repositories, then summarize
-  implementation, focused verification, live posture, UI URL, and next M55
-  scope.
+These phases derived blocked backend-owned claim-trace clearance-step
+review-input store record-contract rows from existing claim-trace
+clearance-step review-input store-requirement rows and displayed them in the
+frontend M55 ledger. The range completed with backend commit `eaa5f3f8`,
+frontend commit `74fb355`, focused backend/frontend gates, blind/contextless
+review, UI smoke at `http://127.0.0.1:3001/?phaseSmoke=4981-5000`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-4981-5000.png`, and no live
+Coinbase execution. Submitted notional: `0` USDC. Executed notional: `0`
+USDC.
 ## Completed Phases 4961-4980
 
 These phases derived blocked backend-owned claim-trace clearance-step

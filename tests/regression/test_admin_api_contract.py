@@ -25754,7 +25754,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -25981,7 +25981,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26221,7 +26221,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26480,7 +26480,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -26705,7 +26705,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27610,7 +27610,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -30800,7 +30800,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31015,7 +31015,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4981-5000"
+    assert readback_payload["approved_phase_range"] == "5001-5020"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -34257,7 +34257,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "4981-5000"
+    assert payload["approved_phase_range"] == "5001-5020"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -37912,6 +37912,186 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert record_contract["backend_owned"] is True
         assert record_contract["browser_authority"] == "display_only"
         assert record_contract["bff_authority"] == "forward_only_no_execution"
+    expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations = [
+        record_validation
+        for record_contract in (
+            expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+        )
+        for record_validation in record_contract[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_rows"
+        ]
+    ]
+    assert len(
+        expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations
+    ) == len(
+        expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+    )
+    assert (
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count"
+        ]
+        == len(
+            expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations
+        )
+    )
+    assert (
+        blocker_summary[
+            "closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count"
+        ]
+        == len(
+            expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations
+        )
+    )
+    assert set(
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_refs"
+        ]
+    ) == {
+        record_validation[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref"
+        ]
+        for record_validation in (
+            expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations
+        )
+    }
+    assert (
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_statuses"
+        ]
+        == [AdminApiGateStatus.BLOCKED.value]
+    )
+    assert (
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_names"
+        ]
+        == [
+            AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName.INPUT_EVIDENCE_RECORD_VALIDATION.value
+        ]
+    )
+    assert set(
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_contract_refs"
+        ]
+    ) == {
+        record_validation[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref"
+        ]
+        for record_validation in (
+            expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations
+        )
+    }
+    assert set(
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_schema_refs"
+        ]
+    ) == {
+        record_validation["required_record_schema_ref"]
+        for record_validation in (
+            expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations
+        )
+    }
+    assert set(
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_log_refs"
+        ]
+    ) == {
+        record_validation["required_append_only_log_ref"]
+        for record_validation in (
+            expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations
+        )
+    }
+    assert {
+        "record_contract_available",
+        "record_schema_available",
+        "append_only_log_available",
+        "idempotency_key_bound",
+        "payload_schema_validated",
+        "replay_protected",
+    }.issubset(
+        set(
+            blocker_summary[
+                "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks"
+            ]
+        )
+    )
+    assert {
+        "claim_trace_clearance_step_review_input_store_record_validation_blocked",
+        "claim_trace_clearance_step_review_input_store_record_contract_blocked",
+        "record_validation_not_ready",
+        "input_evidence_store_not_available",
+    }.issubset(
+        set(
+            blocker_summary[
+                "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_blockers"
+            ]
+        )
+    )
+    for record_contract in (
+        expected_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+    ):
+        assert (
+            len(
+                record_contract[
+                    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_rows"
+                ]
+            )
+            == 1
+        )
+        record_validation = record_contract[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_rows"
+        ][0]
+        assert record_validation[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref"
+        ] == record_contract[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref"
+        ]
+        assert record_validation[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref"
+        ] == record_contract[
+            "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref"
+        ]
+        assert record_validation["record_validation_name"] == (
+            AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName.INPUT_EVIDENCE_RECORD_VALIDATION.value
+        )
+        assert record_validation["status"] == AdminApiGateStatus.BLOCKED.value
+        assert record_validation["record_validation_ready"] is False
+        assert record_validation["record_contract_available"] is False
+        assert record_validation["record_schema_available"] is False
+        assert record_validation["append_only_log_available"] is False
+        assert record_validation["idempotency_key_bound"] is False
+        assert record_validation["payload_schema_validated"] is False
+        assert record_validation["replay_protected"] is False
+        assert record_validation["writer_allowed"] is False
+        assert record_validation["write_allowed"] is False
+        assert record_validation["record_present"] is False
+        assert record_validation["record_accepted"] is False
+        assert record_validation["record_validated"] is False
+        assert record_validation["validation_configured"] is False
+        assert record_validation["replay_protection_configured"] is False
+        assert record_validation["input_accepted"] is False
+        assert record_validation["input_validated"] is False
+        assert record_validation["review_complete"] is False
+        assert record_validation["step_complete"] is False
+        assert record_validation["claim_allowed"] is False
+        assert record_validation["claim_resolved"] is False
+        assert record_validation["clears_claim_trace"] is False
+        assert record_validation["clears_work_item"] is False
+        assert record_validation["clears_dependency"] is False
+        assert record_validation["clears_remediation"] is False
+        assert record_validation["clears_record_validation"] is False
+        assert record_validation[
+            "record_validation_remediation_dependency_work_item_performed"
+        ] is False
+        assert record_validation["dependency_order_resolved"] is False
+        assert record_validation["record_validation_remediation_performed"] is False
+        assert record_validation["clearance_allowed"] is False
+        assert record_validation["resolution_allowed"] is False
+        assert record_validation["live_coinbase_orders_ran"] is False
+        assert record_validation["live_coinbase_read_ran"] is False
+        assert record_validation["no_live_execution"] is True
+        assert record_validation["backend_owned"] is True
+        assert record_validation["browser_authority"] == "display_only"
+        assert record_validation["bff_authority"] == "forward_only_no_execution"
     assert (
         blocker_summary["closure_readiness_dependency_resolution_required_count"]
         == 18
@@ -39814,7 +39994,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "4981-5000"
+    assert live_payload["approved_phase_range"] == "5001-5020"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -40472,7 +40652,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "4981-5000"
+    assert enterprise_payload["approved_phase_range"] == "5001-5020"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -41247,7 +41427,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "4981-5000"
+    assert recovery_preview_payload["approved_phase_range"] == "5001-5020"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

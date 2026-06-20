@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4981-5000",
+  "approved_phase_range": "5001-5020",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -106,13 +106,14 @@ clearance plan exposes blocked clearance-step rows without executing plan
 steps, resolving claims, clearing claim traces, writing evidence, or granting
 live/browser/BFF authority. The completed 4921-4980 ranges carry those rows
 through clearance-step reviews, review inputs, store requirements, and store
-record validations. In the active 4981-5000 range, each claim-trace
-clearance-step review-input store requirement exposes a blocked store
-record-contract row without creating contracts, schemas, append-only logs,
-stores, writers, records, idempotency bindings, payload validation, replay
-protection, accepted inputs, completed reviews/steps, resolved claims,
-cleared claim traces, remediation, state mutation, Coinbase calls, browser
-authority, or BFF execution authority.
+record validations. The completed 4981-5000 range derives a blocked store
+record-contract row for each claim-trace clearance-step review-input store
+requirement. In the active 5001-5020 range, each of those record contracts
+exposes a blocked store record-validation row without creating contracts,
+schemas, append-only logs, stores, writers, records, idempotency bindings,
+payload validation, replay protection, accepted inputs, completed
+reviews/steps, resolved claims, cleared claim traces, remediation, state
+mutation, Coinbase calls, browser authority, or BFF execution authority.
 
 ```json
 {
@@ -184,6 +185,28 @@ authority, or BFF execution authority.
       "claim_trace_clearance_step_review_input_store_requirement_blocked",
       "input_evidence_store_not_available",
       "record_contract_not_available"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 549,
+    "closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 549,
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_names": [
+      "input_evidence_record_validation"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_statuses": [
+      "blocked"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks": [
+      "record_contract_available",
+      "record_schema_available",
+      "append_only_log_available",
+      "idempotency_key_bound",
+      "payload_schema_validated",
+      "replay_protected"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_blockers": [
+      "claim_trace_clearance_step_review_input_store_record_validation_blocked",
+      "claim_trace_clearance_step_review_input_store_record_contract_blocked",
+      "input_evidence_store_not_available",
+      "record_validation_not_ready"
     ],
     "closure_readiness_trace_source_refs": [
       "live_enablement.paths",
@@ -331,7 +354,42 @@ authority, or BFF execution authority.
               "live_coinbase_orders_ran": false,
               "live_coinbase_read_ran": false,
               "browser_authority": "display_only",
-              "bff_authority": "forward_only_no_execution"
+              "bff_authority": "forward_only_no_execution",
+              "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_rows": [
+                {
+                  "status": "blocked",
+                  "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref": "application/admin_api/live_execution.py::evaluate_live_execution_gate::clearance_step_review_input::store_requirement::record_contract::record_validation",
+                  "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref": "application/admin_api/live_execution.py::evaluate_live_execution_gate::clearance_step_review_input::store_requirement::record_contract",
+                  "record_validation_name": "input_evidence_record_validation",
+                  "required_validation_checks": [
+                    "record_contract_available",
+                    "record_schema_available",
+                    "append_only_log_available",
+                    "idempotency_key_bound",
+                    "payload_schema_validated",
+                    "replay_protected"
+                  ],
+                  "record_validation_gate": "application/admin_api/live_execution.py::evaluate_live_execution_gate::clearance_step_review_input::store_requirement::record_contract::record_validation_gate",
+                  "record_replay_protection_gate": "application/admin_api/live_execution.py::evaluate_live_execution_gate::clearance_step_review_input::store_requirement::record_contract::record_replay_protection_gate",
+                  "blocker": "claim_trace_clearance_step_review_input_store_record_validation_blocked",
+                  "record_validation_ready": false,
+                  "record_contract_available": false,
+                  "record_schema_available": false,
+                  "append_only_log_available": false,
+                  "idempotency_key_bound": false,
+                  "payload_schema_validated": false,
+                  "replay_protected": false,
+                  "write_allowed": false,
+                  "input_accepted": false,
+                  "review_complete": false,
+                  "step_complete": false,
+                  "claim_resolved": false,
+                  "live_coinbase_orders_ran": false,
+                  "live_coinbase_read_ran": false,
+                  "browser_authority": "display_only",
+                  "bff_authority": "forward_only_no_execution"
+                }
+              ]
             }
           ]
         }
