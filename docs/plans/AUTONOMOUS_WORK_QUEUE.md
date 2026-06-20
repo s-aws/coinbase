@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **4961-4980**.
+- Approved phase range: **4981-5000**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4941-4960`.
+- Previous completed range: `4961-4980`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `4960`.
+- `current_phase`: `4980`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,158 +67,163 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 4961-4980
+## Active Phases 4981-5000
 
 These phases close the next concrete M55 planning gap by deriving blocked
-backend-owned claim-trace clearance-step review-input store-requirement rows
-from the existing claim-trace clearance-step review-input rows. Each store
-requirement must map back to its source review input, review, clearance step,
-clearance plan, claim trace, work item, dependency, remediation, validation,
-record contract, upstream store requirement, base input, required store,
-required writer, required record key, validation/replay gates, blocker chain,
-predecessor/successor store-requirement refs, and disabled authority. The
-rows must not create stores, allow writers, write records, accept inputs,
-validate inputs, complete reviews, complete steps, execute plan steps, resolve
-claims, clear claim traces, claim or perform work items, clear dependencies,
-perform remediation, validate records, create contracts/schemas/logs, bind
-idempotency, validate payloads, protect replay, reconcile, call Coinbase,
-invoke managers, mutate state, grant browser authority, or grant BFF
-execution authority.
+backend-owned claim-trace clearance-step review-input store record-contract
+rows from the existing claim-trace clearance-step review-input
+store-requirement rows. Each record contract must map back to its source store
+requirement, review input, review, clearance step, clearance plan, claim trace,
+work item, dependency, remediation, validation, upstream record contract, base
+input, required store, required writer, required record key, record schema,
+append-only log, payload fields, idempotency key, validation/replay gates,
+blocker chain, predecessor/successor contract refs, and disabled authority.
+The rows must not create contracts, schemas, logs, stores, writers, records,
+validate payloads, bind idempotency, protect replay, accept inputs, complete
+reviews, complete steps, execute plan steps, resolve claims, clear claim
+traces, claim or perform work items, clear dependencies, perform remediation,
+validate records, reconcile, call Coinbase, invoke managers, mutate state,
+grant browser authority, or grant BFF execution authority.
 
-### Phase 4961 - Prior Range Completion Evidence
+### Phase 4981 - Prior Range Completion Evidence
 
-- Record completed phases 4941-4960 with backend commit `126048b8`,
-  frontend commit `7bf8b4c`, focused backend/frontend gates,
+- Record completed phases 4961-4980 with backend commit `6e0dda3e`,
+  frontend commit `9def63e`, focused backend/frontend gates,
   blind/contextless review, UI smoke at
-  `http://127.0.0.1:3001/?phaseSmoke=4941-4960`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-4941-4960.png`, and `0`
+  `http://127.0.0.1:3001/?phaseSmoke=4961-4980`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-4961-4980.png`, and `0`
   USDC live Coinbase submitted/executed notional.
 
-### Phase 4962 - Advance Active Queue Range
+### Phase 4982 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4941-4960 to active
-  phases 4961-4980 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4961-4980 to active
+  phases 4981-5000 while preserving no-live defaults and cap policy.
 
-### Phase 4963 - Claim-Trace Clearance-Step Review-Input Store-Requirement Scope
+### Phase 4983 - Claim-Trace Store Record-Contract Scope
 
-- Add clearance-step review-input store requirements under existing
-  claim-trace clearance-step review inputs without changing blocker status,
-  store availability, writer authority, write authority, record presence,
-  input presence, input acceptance, input validation, review readiness, review
-  completion, step readiness, step completion, plan readiness, claim
-  resolution, work-item readiness, dependency readiness, remediation
-  readiness, validation readiness, clearance allowance, resolution allowance,
-  or execution flags.
+- Add record contracts under existing claim-trace clearance-step review-input
+  store-requirement rows without changing blocker status, contract
+  availability, schema/log availability, idempotency binding, payload
+  validation, replay protection, write authority, input acceptance, review
+  completion, step completion, claim resolution, or execution flags.
 
-### Phase 4964 - Backend Review-Input Store-Requirement Model
+### Phase 4984 - Backend Record-Contract Model
 
 - Add a nested remediation-dependency work-item claim-trace clearance-step
-  review-input store-requirement row model and blocked store-requirement
+  review-input store record-contract row model and blocked record-contract
   summary fields.
 
-### Phase 4965 - Backend Store-Requirement Derivation
+### Phase 4985 - Backend Record-Contract Derivation
 
-- Derive each store requirement only from an existing claim-trace
-  clearance-step review-input row so no second dependency, work-item, claim,
-  validation, record, input, review, store, writer, or execution source path
-  is introduced.
+- Derive each record contract only from an existing claim-trace clearance-step
+  review-input store-requirement row so no second dependency, work-item, claim,
+  validation, record, input, review, store, writer, schema, log, payload,
+  idempotency, replay, or execution source path is introduced.
 
-### Phase 4966 - Store-Requirement Ordering Links
+### Phase 4986 - Record-Contract Ordering Links
 
-- Assign deterministic predecessor and successor store-requirement refs from
-  the parent review-input order.
+- Assign deterministic predecessor and successor record-contract refs from the
+  parent store-requirement order.
 
-### Phase 4967 - Store-Requirement Status And Authority
+### Phase 4987 - Record-Contract Status And Authority
 
-- Record blocked status, false store availability, false writer/write
-  authority, false record presence, false input acceptance/validation, false
-  review completion, false step completion, false claim resolution, false
-  clearance state, and no-live/no-execution authority flags for every store
-  requirement.
+- Record blocked status, false contract/schema/log availability, false
+  idempotency binding, false payload validation, false replay protection,
+  false writer/write/input/review/step/claim flags, and no-live/no-execution
+  authority flags for every record contract.
 
-### Phase 4968 - Store-Requirement Summary Aggregation
+### Phase 4988 - Record-Contract Summary Aggregation
 
-- Add summary counts and refs for store requirements, blocked requirements,
-  statuses, source input/review/step/plan refs, requirement names, required
-  store refs, writer refs, record keys, gates, blockers, predecessors, and
-  successors.
+- Add summary counts and refs for record contracts, blocked contracts,
+  statuses, source requirement/input/review/step/plan refs, names, required
+  store/writer/record/schema/log refs, payload fields, idempotency keys, gates,
+  blockers, predecessors, and successors.
 
-### Phase 4969 - Backend Store-Requirement Assertions
+### Phase 4989 - Backend Record-Contract Assertions
 
-- Extend focused Admin API regression coverage proving store requirements
-  mirror their source review inputs and grant no store, writer, write, input
-  acceptance, input validation, review completion, step completion, claim,
-  clear, remediation, validation, record, schema, log, idempotency, payload,
-  replay, live, manager, Coinbase, reconciliation, or state mutation
-  authority.
+- Extend focused Admin API regression coverage proving record contracts mirror
+  their source store requirements and grant no contract, schema, log,
+  idempotency, payload, replay, write, input acceptance, review completion,
+  step completion, claim, clear, remediation, validation, live, manager,
+  Coinbase, reconciliation, or state mutation authority.
 
-### Phase 4970 - OpenAPI Regeneration
+### Phase 4990 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml` from backend models.
 
-### Phase 4971 - Frontend Generated Schema Sync
+### Phase 4991 - Frontend Generated Schema Sync
 
 - Regenerate the frontend TypeScript schema from the backend OpenAPI artifact.
 
-### Phase 4972 - Frontend Adapter Store-Requirement Mapping
+### Phase 4992 - Frontend Adapter Record-Contract Mapping
 
 - Map remediation dependency work-item claim-trace clearance-step review-input
-  store-requirement rows and summary fields through the existing
+  store record-contract rows and summary fields through the existing
   command-suite adapter without adding a parallel client or feature fetch.
 
-### Phase 4973 - Frontend Mock Store-Requirement Evidence
+### Phase 4993 - Frontend Mock Record-Contract Evidence
 
 - Sync mock command-suite evidence and summary totals for remediation
-  dependency work-item claim-trace clearance-step review-input
-  store-requirement rows.
+  dependency work-item claim-trace clearance-step review-input store
+  record-contract rows.
 
-### Phase 4974 - Frontend UI Store-Requirement Summary
+### Phase 4994 - Frontend UI Record-Contract Summary
 
-- Render store-requirement counts, blocked counts, refs, statuses, source
-  input/review/step/plan refs, requirement names, required stores, writers,
-  record keys, gates, blockers, and predecessor/successor counts as read-only
-  operator evidence.
+- Render record-contract counts, blocked counts, refs, statuses, source
+  requirement/input/review/step/plan refs, names, required schemas, logs,
+  payload fields, idempotency keys, gates, blockers, and predecessor/successor
+  counts as read-only operator evidence.
 
-### Phase 4975 - Frontend UI Store-Requirement Rows
+### Phase 4995 - Frontend UI Record-Contract Rows
 
-- Render row-level store-requirement ref, source review-input ref, source
-  review ref, source clearance-step ref, source clearance-plan ref, required
-  store, writer, record key, gate, blocker chain, predecessor/successor
-  requirement refs, status, false store/writer/write/input/review/step/claim
-  flags, authority flags, and no-live evidence.
+- Render row-level record-contract ref, source store-requirement ref, source
+  review-input ref, schema, append-only log, payload fields, idempotency key,
+  gate, blocker chain, predecessor/successor refs, status, false contract/
+  schema/log/idempotency/payload/replay/write/input/review/step/claim flags,
+  authority flags, and no-live evidence.
 
-### Phase 4976 - Quality Metadata And Regression-Policy Guard
+### Phase 4996 - Quality Metadata And Regression-Policy Guard
 
 - Update autonomous queue, release-readiness, deployment-readiness, artifact
   contract, runtime evidence, active range metadata, and regression-policy
   validators so active docs require the parallel closeout runner and treat
   sequential full regression as fallback-only.
 
-### Phase 4977 - Documentation Sync
+### Phase 4997 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   durable milestones, examples, expanded context, and agent-state docs so
-  contextless readers see 4961-4980 as active and 4941-4960 as completed.
+  contextless readers see 4981-5000 as active and 4961-4980 as completed.
 
-### Phase 4978 - Contextless Review
+### Phase 4998 - Contextless Review
 
 - Run blind/contextless review proving claim-trace clearance-step
-  review-input store-requirement evidence and the regression gate policy are
-  discoverable, complete, no-live, and not executable or write authority.
+  review-input store record-contract evidence and the regression gate policy
+  are discoverable, complete, no-live, and not executable or write authority.
 
-### Phase 4979 - Focused Gates And Browser Smoke
+### Phase 4999 - Focused Gates And Browser Smoke
 
 - Run `python tools\run_autonomous_work_queue_check.py --summary-only`,
   focused backend/frontend validators, and a browser smoke proving the
-  rendered UI exposes clearance-step review-input store-requirement evidence
-  without console errors.
+  rendered UI exposes clearance-step review-input store record-contract
+  evidence without console errors.
 
-### Phase 4980 - Commit And Push
+### Phase 5000 - Commit And Push
 
 - Commit and push backend and frontend repositories, then summarize
   implementation, focused verification, live posture, UI URL, and next M55
   scope.
+## Completed Phases 4961-4980
 
+These phases derived blocked backend-owned claim-trace clearance-step
+review-input store-requirement rows from existing claim-trace clearance-step
+review-input rows and displayed them in the frontend M55 ledger. The range
+completed with backend commit `6e0dda3e`, frontend commit `9def63e`, focused
+backend/frontend gates, blind/contextless review, UI smoke at
+`http://127.0.0.1:3001/?phaseSmoke=4961-4980`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-4961-4980.png`, and no live
+Coinbase execution. Submitted notional: `0` USDC. Executed notional: `0`
+USDC.
 ## Completed Phases 4941-4960
 
 These phases derived blocked backend-owned claim-trace clearance-step

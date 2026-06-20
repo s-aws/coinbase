@@ -15,6 +15,9 @@ PUBLIC_RELEASE_DOC = PROJECT_ROOT / "docs" / "PUBLIC_RELEASE_READINESS.md"
 FRONTEND_ASSOCIATION_DOC = PROJECT_ROOT / "docs" / "FRONTEND_ASSOCIATION.md"
 ADMIN_API_README = PROJECT_ROOT / "README.admin-api.md"
 ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
+STEALTH_COMMAND_SUITE_EXAMPLES_DOC = (
+    PROJECT_ROOT / "docs" / "examples" / "stealth-command-suite.md"
+)
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
 REGRESSION_GATE_POLICY_DOCS = (
@@ -49,9 +52,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "4961-4980"
-APPROVED_PHASES = tuple(range(4961, 4981))
-PREVIOUS_COMPLETED_PHASE_RANGE = "4941-4960"
+APPROVED_PHASE_RANGE = "4981-5000"
+APPROVED_PHASES = tuple(range(4981, 5001))
+PREVIOUS_COMPLETED_PHASE_RANGE = "4961-4980"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -94,6 +97,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_live_caps(body),
         _check_stop_conditions(body),
         _check_required_gates(body),
+        _check_example_phase_range_docs(),
         _check_regression_gate_policy_docs(),
         _check_frontend_release_docs(),
         _check_maintainer_handoff_docs(),
@@ -185,6 +189,51 @@ def _check_required_gates(body: str) -> QueueCheck:
         name="required_final_gates",
         passed=not missing,
         evidence={"missing_gate_text": missing},
+    )
+
+
+def _check_example_phase_range_docs() -> QueueCheck:
+    required_by_path = {
+        ADMIN_API_EXAMPLES_DOC: [
+            f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
+            "GET /api/v1/stealth/command-suite",
+        ],
+        STEALTH_COMMAND_SUITE_EXAMPLES_DOC: [
+            f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
+            f"active {APPROVED_PHASE_RANGE} range",
+            (
+                "closure_readiness_dependency_clearance_step_review_input_store_"
+                "record_validation_remediation_dependency_work_item_claim_trace_"
+                "clearance_step_review_input_store_record_contract_count"
+            ),
+            (
+                "record_validation_remediation_dependency_work_item_claim_trace_"
+                "clearance_step_review_input_store_record_contract_rows"
+            ),
+            "claim_trace_clearance_step_review_input_store_record_contract_blocked",
+        ],
+    }
+    stale_active_range_text = (
+        "active 4901-4920 range",
+        '"approved_phase_range": "4901-4920"',
+    )
+    missing: dict[str, list[str]] = {}
+    stale: dict[str, list[str]] = {}
+    for path, required in required_by_path.items():
+        body = path.read_text(encoding="utf-8") if path.exists() else ""
+        path_missing = [text for text in required if text not in body]
+        if path_missing:
+            missing[str(path.relative_to(PROJECT_ROOT))] = path_missing
+        path_stale = [text for text in stale_active_range_text if text in body]
+        if path_stale:
+            stale[str(path.relative_to(PROJECT_ROOT))] = path_stale
+    return QueueCheck(
+        name="example_phase_range_docs",
+        passed=not missing and not stale,
+        evidence={
+            "missing_current_example_text": missing,
+            "stale_example_text": stale,
+        },
     )
 
 

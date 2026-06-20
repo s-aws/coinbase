@@ -59,6 +59,7 @@ owners:
       - tools/run_spot_readiness_regression.py
       - tools/run_spot_release_gate.py
       - tools/run_parallel_regression.py
+      - tools/run_admin_oidc_readiness_smoke.py
       - tools/run_autonomous_work_queue_check.py
       - ai-context.md
       - AGENTS.md

@@ -16,8 +16,9 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT_PATH = str(PROJECT_ROOT)
+sys.path = [path for path in sys.path if path != PROJECT_ROOT_PATH]
+sys.path.insert(0, PROJECT_ROOT_PATH)
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
