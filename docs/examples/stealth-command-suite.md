@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4601-4620",
+  "approved_phase_range": "4621-4640",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -54,10 +54,14 @@ In the completed 4581-4600 range, all concrete M55 blocker rows may show partial
 proof/readback evidence. That evidence is readback only; `live_enabled`,
 `executable`, manager invocation, Coinbase submission/cancel/read,
 repair/rollback, reconciliation execution, and state mutation all remain
-false. In the current 4601-4620 range, the same rows also expose
+false. In the completed 4601-4620 range, the same rows also expose
 closure-readiness criteria, missing criteria, verification gates, readiness
 blockers, and readiness counts. Those fields describe what remains required;
 they do not close blockers or grant live authority.
+In the current 4621-4640 range, the rows also expose criterion-level trace
+rows and summary trace rollups. Those fields identify backend source refs and
+unresolved dependency refs for each criterion; they do not satisfy dependencies
+or grant live authority.
 
 ```json
 {
@@ -70,6 +74,15 @@ they do not close blockers or grant live authority.
     "closure_readiness_required_count": 6,
     "closure_ready_count": 0,
     "closure_evidence_complete_count": 0,
+    "closure_readiness_criterion_trace_count": 18,
+    "closure_readiness_trace_source_refs": [
+      "live_enablement.paths",
+      "m55_stealth_reveal_backend_dry_run"
+    ],
+    "closure_readiness_missing_dependency_refs": [
+      "application/admin_api/live_execution.py::evaluate_live_execution_gate",
+      "post_write_reconciliation_execution_policy"
+    ],
     "closure_readiness_blockers": [
       "live_service_decision_missing",
       "route_bound_live_adapter_missing",
@@ -131,6 +144,27 @@ they do not close blockers or grant live authority.
         "application/admin_api/stealth_command_execution.py::live_execution_adapter resolver"
       ],
       "partial_evidence_detail": "The reveal route has backend-owned dry-run adapter readback evidence, but no live adapter has been constructed.",
+      "closure_readiness_criterion_traces": [
+        {
+          "criterion": "Construct route-bound backend live adapters through the shared command service for every stealth mutation family.",
+          "source_evidence_refs": [
+            "commands.live_adapter_configured",
+            "m55_stealth_reveal_backend_dry_run"
+          ],
+          "dependency_refs": [
+            "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+            "/api/v1/admin/live-execution/adapter-decisions",
+            "route_inventory_execution_binding"
+          ],
+          "missing_dependency_refs": [
+            "application/admin_api/live_execution.py::build_live_execution_adapter_contract",
+            "/api/v1/admin/live-execution/adapter-decisions",
+            "route_inventory_execution_binding"
+          ],
+          "ready": false,
+          "evidence_complete": false
+        }
+      ],
       "next_backend_step": "Build the route-bound live execution adapter contract in backend code.",
       "live_service_enabled": false,
       "live_adapter_constructed": false,

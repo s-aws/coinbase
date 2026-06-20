@@ -13951,6 +13951,42 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteClosureReadinessCriterionTrace(BaseModel):
+    """Backend source and dependency trace for one closure-readiness criterion."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    criterion: str = Field(
+        description="Closure-readiness criterion being traced."
+    )
+    source_evidence_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Existing backend read/dry-run evidence refs used to derive this "
+            "criterion. These refs do not satisfy the criterion."
+        ),
+    )
+    dependency_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Backend contracts, proof routes, and gate-chain refs that must "
+            "resolve before this criterion can be complete."
+        ),
+    )
+    missing_dependency_refs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Dependency refs still missing for this criterion. For blocked M55 "
+            "rows this intentionally mirrors dependency_refs."
+        ),
+    )
+    verification_gates: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    ready: bool = False
+    evidence_complete: bool = False
+    trace_detail: str
+
+
 class StealthCommandSuiteBlockerClosureItem(BaseModel):
     """Concrete M55 blocker and the backend closure evidence still required."""
 
@@ -14048,6 +14084,16 @@ class StealthCommandSuiteBlockerClosureItem(BaseModel):
         ),
     )
     closure_readiness_detail: str
+    closure_readiness_criterion_traces: list[
+        StealthCommandSuiteClosureReadinessCriterionTrace
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Criterion-level traceability tying closure-readiness criteria to "
+            "backend source evidence refs and missing dependencies. This is "
+            "read-only planning evidence and does not grant execution authority."
+        ),
+    )
     required_backend_contracts: list[str] = Field(default_factory=list)
     missing_backend_contracts: list[str] = Field(default_factory=list)
     required_proof_routes: list[str] = Field(default_factory=list)
@@ -14113,8 +14159,11 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
     closure_readiness_required_count: int = Field(ge=0)
     closure_ready_count: int = Field(ge=0)
     closure_evidence_complete_count: int = Field(ge=0)
+    closure_readiness_criterion_trace_count: int = Field(ge=0)
     closure_readiness_blockers: list[str] = Field(default_factory=list)
     closure_readiness_verification_gates: list[str] = Field(default_factory=list)
+    closure_readiness_trace_source_refs: list[str] = Field(default_factory=list)
+    closure_readiness_missing_dependency_refs: list[str] = Field(default_factory=list)
     missing_backend_contracts: list[str]
     first_blocker: AdminApiStealthCommandSuiteBlockerClosure | None = None
     closure_authority: str = "backend_contract_only_no_execution"

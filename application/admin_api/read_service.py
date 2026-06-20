@@ -186,6 +186,7 @@ from .models import (
     StealthCommandSuiteBlockerClosureItem,
     StealthCommandSuiteBlockerClosureSummary,
     StealthCommandSuiteCancelReplaceBoundaryItem,
+    StealthCommandSuiteClosureReadinessCriterionTrace,
     StealthCommandSuiteCoverageGapEvidenceRouteItem,
     StealthCommandSuiteCoverageGapItem,
     StealthCommandSuiteExchangeTruthItem,
@@ -288,7 +289,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4601-4620"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4621-4640"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12916,6 +12917,38 @@ class AdminApiReadService:
             next_backend_step: str,
             detail: str,
         ) -> StealthCommandSuiteBlockerClosureItem:
+            criteria = closure_readiness_criteria or []
+            verification_gates = closure_readiness_verification_gates or []
+            readiness_blockers = closure_readiness_blockers or []
+            trace_source_refs = [
+                *source_evidence_refs,
+                *(partial_evidence_refs or []),
+                *(partial_evidence_contracts or []),
+            ]
+            dependency_refs = [
+                *required_backend_contracts,
+                *required_proof_routes,
+                *required_gate_chain,
+            ]
+            criterion_traces = [
+                StealthCommandSuiteClosureReadinessCriterionTrace(
+                    criterion=criterion,
+                    source_evidence_refs=trace_source_refs,
+                    dependency_refs=dependency_refs,
+                    missing_dependency_refs=dependency_refs,
+                    verification_gates=verification_gates,
+                    blockers=readiness_blockers,
+                    ready=False,
+                    evidence_complete=False,
+                    trace_detail=(
+                        "This closure-readiness criterion is derived from "
+                        "backend-owned source evidence refs, but every "
+                        "dependency ref remains unresolved in the M55 no-live "
+                        "posture."
+                    ),
+                )
+                for criterion in criteria
+            ]
             return StealthCommandSuiteBlockerClosureItem(
                 closure_id=closure_id,
                 blocker=blocker,
@@ -12934,14 +12967,13 @@ class AdminApiReadService:
                 closure_readiness_required=True,
                 closure_ready=False,
                 closure_evidence_complete=False,
-                closure_readiness_criteria=closure_readiness_criteria or [],
-                missing_closure_readiness_criteria=closure_readiness_criteria or [],
-                closure_readiness_verification_gates=(
-                    closure_readiness_verification_gates or []
-                ),
-                closure_readiness_blockers=closure_readiness_blockers or [],
+                closure_readiness_criteria=criteria,
+                missing_closure_readiness_criteria=criteria,
+                closure_readiness_verification_gates=verification_gates,
+                closure_readiness_blockers=readiness_blockers,
                 closure_readiness_detail=closure_readiness_detail
                 or "Closure-readiness criteria remain unsatisfied.",
+                closure_readiness_criterion_traces=criterion_traces,
                 required_backend_contracts=required_backend_contracts,
                 missing_backend_contracts=required_backend_contracts,
                 required_proof_routes=required_proof_routes,
@@ -13550,6 +13582,10 @@ class AdminApiReadService:
             closure_evidence_complete_count=sum(
                 1 for item in blocker_closures if item.closure_evidence_complete
             ),
+            closure_readiness_criterion_trace_count=sum(
+                len(item.closure_readiness_criterion_traces)
+                for item in blocker_closures
+            ),
             closure_readiness_blockers=sorted(
                 {
                     blocker
@@ -13562,6 +13598,22 @@ class AdminApiReadService:
                     gate
                     for item in blocker_closures
                     for gate in item.closure_readiness_verification_gates
+                }
+            ),
+            closure_readiness_trace_source_refs=sorted(
+                {
+                    source_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for source_ref in trace.source_evidence_refs
+                }
+            ),
+            closure_readiness_missing_dependency_refs=sorted(
+                {
+                    dependency_ref
+                    for item in blocker_closures
+                    for trace in item.closure_readiness_criterion_traces
+                    for dependency_ref in trace.missing_dependency_refs
                 }
             ),
             missing_backend_contracts=sorted(

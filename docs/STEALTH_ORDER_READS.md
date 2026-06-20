@@ -27,9 +27,11 @@ live-service or live-adapter flags, Coinbase/manager authority,
 repair/rollback authority, reconciliation execution, or state-mutation
 authority. For phases 4601-4620, the same rows also report closure-readiness
 criteria, missing criteria, verification gates, blockers, and readiness
-counts. Readiness criteria are planning evidence only: they do not close
-blockers, satisfy missing contracts, enable live execution, call Coinbase,
-invoke managers, execute reconciliation, or mutate state.
+counts. For phases 4621-4640, those criteria include criterion-level source
+refs and missing dependency refs. Readiness criteria and traces are planning
+evidence only: they do not close blockers, satisfy missing contracts, enable
+live execution, call Coinbase, invoke managers, execute reconciliation, or
+mutate state.
 
 ## Identity Rules
 

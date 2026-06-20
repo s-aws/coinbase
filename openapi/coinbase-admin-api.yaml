@@ -57732,6 +57732,14 @@ components:
         closure_readiness_detail:
           type: string
           title: Closure Readiness Detail
+        closure_readiness_criterion_traces:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteClosureReadinessCriterionTrace'
+          type: array
+          title: Closure Readiness Criterion Traces
+          description: Criterion-level traceability tying closure-readiness criteria
+            to backend source evidence refs and missing dependencies. This is read-only
+            planning evidence and does not grant execution authority.
         required_backend_contracts:
           items:
             type: string
@@ -57918,6 +57926,10 @@ components:
           type: integer
           minimum: 0.0
           title: Closure Evidence Complete Count
+        closure_readiness_criterion_trace_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Criterion Trace Count
         closure_readiness_blockers:
           items:
             type: string
@@ -57928,6 +57940,16 @@ components:
             type: string
           type: array
           title: Closure Readiness Verification Gates
+        closure_readiness_trace_source_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Trace Source Refs
+        closure_readiness_missing_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Missing Dependency Refs
         missing_backend_contracts:
           items:
             type: string
@@ -57991,6 +58013,7 @@ components:
       - closure_readiness_required_count
       - closure_ready_count
       - closure_evidence_complete_count
+      - closure_readiness_criterion_trace_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -58161,6 +58184,61 @@ components:
       title: StealthCommandSuiteCancelReplaceBoundaryItem
       description: Backend-owned cancel/replace prerequisite boundary for revealed
         placements.
+    StealthCommandSuiteClosureReadinessCriterionTrace:
+      properties:
+        criterion:
+          type: string
+          title: Criterion
+          description: Closure-readiness criterion being traced.
+        source_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Source Evidence Refs
+          description: Existing backend read/dry-run evidence refs used to derive
+            this criterion. These refs do not satisfy the criterion.
+        dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Dependency Refs
+          description: Backend contracts, proof routes, and gate-chain refs that must
+            resolve before this criterion can be complete.
+        missing_dependency_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Dependency Refs
+          description: Dependency refs still missing for this criterion. For blocked
+            M55 rows this intentionally mirrors dependency_refs.
+        verification_gates:
+          items:
+            type: string
+          type: array
+          title: Verification Gates
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        ready:
+          type: boolean
+          title: Ready
+          default: false
+        evidence_complete:
+          type: boolean
+          title: Evidence Complete
+          default: false
+        trace_detail:
+          type: string
+          title: Trace Detail
+      additionalProperties: false
+      type: object
+      required:
+      - criterion
+      - trace_detail
+      title: StealthCommandSuiteClosureReadinessCriterionTrace
+      description: Backend source and dependency trace for one closure-readiness criterion.
     StealthCommandSuiteCommandItem:
       properties:
         mutation_family:

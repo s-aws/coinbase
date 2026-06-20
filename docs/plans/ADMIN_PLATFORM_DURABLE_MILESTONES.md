@@ -3077,10 +3077,12 @@ Current backend evidence:
   blocker evidence. Completed phases 4581-4600 expand partial evidence to the
   remaining concrete M55 blocker rows while keeping exact proof, manager,
   Coinbase, reconciliation, repair/rollback, state mutation, browser, and BFF
-  execution authority blocked. Active phases 4601-4620 add structured
+  execution authority blocked. Completed phases 4601-4620 add structured
   closure-readiness criteria, missing criteria, verification gates, readiness
   blockers, and summary counts to those same rows without closing blockers or
-  granting live authority.
+  granting live authority. Active phases 4621-4640 add criterion-level
+  source/dependency traceability for those readiness criteria while keeping
+  every dependency unresolved and every execution authority flag false.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

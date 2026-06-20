@@ -47,93 +47,103 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Criteria Batch - Phases 4601-4620
+## Active M55 Closure-Readiness Traceability Batch - Phases 4621-4640
 
-These phases add structured closure-readiness criteria to the existing six
-M55 blocker-closure rows. The rows remain blocked and unresolved. The range
-must not enable service, construct adapters, invoke managers, call Coinbase,
-cancel or submit orders, repair or roll back state, execute reconciliation,
-mutate state, grant browser authority, or grant BFF execution authority.
+These phases add criterion-level source/dependency traceability to the existing
+six M55 blocker-closure rows. The rows remain blocked and unresolved. The
+range must not enable service, construct adapters, invoke managers, call
+Coinbase, cancel or submit orders, repair or roll back state, execute
+reconciliation, mutate state, grant browser authority, or grant BFF execution
+authority.
 
-### Phase 4601 - Prior Range Completion Evidence
+### Phase 4621 - Prior Range Completion Evidence
 
-- Record completed phases 4581-4600 with backend commit `380f5a0c`, frontend commit `c85e4a1`, focused gates, blind/contextless review, UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+- Record completed phases 4601-4620 with backend commit `307e463a`, frontend commit `69131b0`, focused gates, blind/contextless review, UI smoke, and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 4602 - Advance Active Queue Range
+### Phase 4622 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4581-4600 to active phases 4601-4620 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4601-4620 to active phases 4621-4640 while preserving no-live defaults and cap policy.
 
-### Phase 4603 - Closure-Readiness Scope
+### Phase 4623 - Traceability Scope
 
-- Add structured closure-readiness fields to existing blocker-closure rows without changing blocker status, missing contracts, or execution flags.
+- Add criterion trace fields to existing blocker-closure rows without changing blocker status, missing contracts, readiness flags, or execution flags.
 
-### Phase 4604 - Backend Model Contract
+### Phase 4624 - Backend Trace Model
 
-- Extend the Admin API item and summary schemas with readiness-required, ready, evidence-complete, criteria, missing criteria, gates, blockers, and detail fields.
+- Extend the Admin API item and summary schemas with criterion trace rows, aggregate trace count, source refs, and missing dependency refs.
 
-### Phase 4605 - Live-Service Closure Criteria
+### Phase 4625 - Trace Source Derivation
 
-- Add exact backend service-decision, prerequisite-evaluation, and no-browser/BFF authority criteria for `m55_live_service_enablement`.
+- Derive trace source refs from existing source evidence refs, partial evidence refs, and partial evidence contracts.
 
-### Phase 4606 - Live-Adapter Closure Criteria
+### Phase 4626 - Trace Dependency Derivation
 
-- Add route-bound shared-service adapter, route inventory, and no executor-bypass criteria for `m55_live_adapter_construction`.
+- Derive unresolved dependency refs from required backend contracts, proof routes, and gate chains.
 
-### Phase 4607 - Active-Placement Closure Criteria
+### Phase 4627 - Live-Service Criterion Traces
 
-- Add active-placement exchange-truth, manager/exchange cancel-replace, and post-write reconciliation criteria for `m55_active_placement_cancel_replace`.
+- Add live-service criterion traces for `m55_live_service_enablement` while keeping all service-decision dependencies unresolved.
 
-### Phase 4608 - Reveal Submission Closure Criteria
+### Phase 4628 - Live-Adapter Criterion Traces
 
-- Add reveal-trigger proof, manager invocation, Coinbase submission evidence, and post-write reconciliation criteria for `m55_reveal_exchange_submission`.
+- Add live-adapter criterion traces for `m55_live_adapter_construction` while keeping all route-bound adapter dependencies unresolved.
 
-### Phase 4609 - Recovery Closure Criteria
+### Phase 4629 - Active-Placement Criterion Traces
 
-- Add recovery preview, repair/rollback journal, rollback availability, and post-write reconciliation criteria for `m55_recovery_repair_rollback`.
+- Add active-placement criterion traces for `m55_active_placement_cancel_replace` while keeping manager, Coinbase, and reconciliation dependencies unresolved.
 
-### Phase 4610 - Reconciliation Closure Criteria
+### Phase 4630 - Reveal Criterion Traces
 
-- Add backend reconciliation executor, proof/journal/verification match, state-consistency, and completion-verifier criteria for `m55_post_write_reconciliation_execution`.
+- Add reveal criterion traces for `m55_reveal_exchange_submission` while keeping manager invocation, Coinbase submission, and reconciliation dependencies unresolved.
 
-### Phase 4611 - Summary Readiness Rollup
+### Phase 4631 - Recovery Criterion Traces
 
-- Add aggregate readiness counts, blockers, and verification gates showing six required rows, zero ready rows, and zero complete-evidence rows.
+- Add recovery criterion traces for `m55_recovery_repair_rollback` while keeping preview, repair, rollback, Coinbase read, and reconciliation dependencies unresolved.
 
-### Phase 4612 - Backend No-Closure Assertions
+### Phase 4632 - Reconciliation Criterion Traces
 
-- Extend Admin API regression coverage proving readiness criteria do not close blockers or grant live/manager/Coinbase/reconciliation/state mutation authority.
+- Add reconciliation criterion traces for `m55_post_write_reconciliation_execution` while keeping executor, match, state-consistency, and completion-verifier dependencies unresolved.
 
-### Phase 4613 - OpenAPI Regeneration
+### Phase 4633 - Backend Trace Assertions
+
+- Extend Admin API regression coverage proving criterion traces do not close blockers or grant live/manager/Coinbase/reconciliation/state mutation authority.
+
+### Phase 4634 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml` and keep generator path ordering pinned to the repo-local package tree.
 
-### Phase 4614 - Frontend Generated Schema Sync
+### Phase 4635 - Frontend Generated Schema Sync
 
-- Regenerate frontend TypeScript schema and map readiness fields through the existing command-suite adapter.
+- Regenerate frontend TypeScript schema and map criterion trace fields through the existing command-suite adapter.
 
-### Phase 4615 - Frontend Mock And UI Display
+### Phase 4636 - Frontend Mock And UI Display
 
-- Sync frontend mocks and render readiness counts, criteria, and blockers as read-only evidence.
+- Sync frontend mocks and render trace count, source refs, and missing dependency refs as read-only evidence.
 
-### Phase 4616 - Quality Metadata Sync
+### Phase 4637 - Quality Metadata Sync
 
-- Update active range metadata to phases 4601-4620.
+- Update active range metadata to phases 4621-4640.
 
-### Phase 4617 - Documentation Sync
+### Phase 4638 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff, examples, expanded context, and agent-state docs.
 
-### Phase 4618 - Contextless Review
+### Phase 4639 - Contextless Review And Focused Gates
 
-- Record contextless review evidence for the closure-readiness boundary.
+- Record contextless review evidence and run focused backend/frontend validators for the traceability boundary.
 
-### Phase 4619 - Focused Gates And UI Smoke
-
-- Run focused backend/frontend validators and verify the live UI renders 4601-4620 no-live posture without console errors.
-
-### Phase 4620 - Commit And Push
+### Phase 4640 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Criteria Batch - Phases 4601-4620
+
+Backend commit `307e463a` and frontend commit `69131b0` added structured
+closure-readiness criteria, missing criteria, verification gates, blockers,
+and summary counts to the six concrete M55 blocker-closure rows. Focused
+backend/frontend gates, blind/contextless review, and UI smoke passed at
+`http://127.0.0.1:3001/?phaseSmoke=4601-4620`. Live Coinbase execution was
+not run; submitted notional `0` USDC and executed notional `0` USDC.
 
 ## Completed M55 Remaining Blocker Partial-Evidence Batch - Phases 4581-4600
 
