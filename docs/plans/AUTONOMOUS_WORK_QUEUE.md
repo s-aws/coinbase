@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5001-5020**.
+- Approved phase range: **5021-5040**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4981-5000`.
+- Previous completed range: `5001-5020`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5000`.
+- `current_phase`: `5020`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,150 +67,163 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5001-5020
+## Active Phases 5021-5040
 
 These phases close the next concrete M55 planning gap by deriving blocked
 backend-owned claim-trace clearance-step review-input store record-validation
-rows from the existing claim-trace clearance-step review-input store
-record-contract rows. Each validation row must map back to its source record
-contract, store requirement, review input, review, clearance step, clearance
-plan, claim trace, work item, dependency, remediation, upstream validation,
-upstream record contract, required schema, append-only log, payload fields,
-idempotency key, validation/replay gates, blocker chain,
-predecessor/successor validation refs, and disabled authority. The rows must
-not make contracts, schemas, logs, idempotency, payload validation, replay
-protection, records, inputs, reviews, steps, claims, remediation, validation,
-reconciliation, Coinbase, manager invocation, state mutation, browser
-authority, or BFF execution authority available.
+remediation rows from the existing claim-trace clearance-step review-input
+store record-validation rows. Each remediation row must map back to its source
+record validation, record contract, store requirement, review input, review,
+clearance step, clearance plan, claim trace, work item, dependency, upstream
+remediation, upstream validation, upstream record contract, required
+remediation work, required refs, remediation/validation/replay gates, blocker
+chain, and disabled authority. The rows must not make remediation, validation,
+contracts, schemas, logs, idempotency, payload validation, replay protection,
+records, inputs, reviews, steps, claims, reconciliation, Coinbase, manager
+invocation, state mutation, browser authority, or BFF execution authority
+available.
 
-### Phase 5001 - Prior Range Completion Evidence
+### Phase 5021 - Prior Range Completion Evidence
 
-- Record completed phases 4981-5000 with backend commit `eaa5f3f8`,
-  frontend commit `74fb355`, focused backend/frontend gates,
+- Record completed phases 5001-5020 with backend commit `93c1415c`,
+  frontend commit `37aa393`, focused backend/frontend gates,
   blind/contextless review, UI smoke at
-  `http://127.0.0.1:3001/?phaseSmoke=4981-5000`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-4981-5000.png`, and `0`
+  `http://127.0.0.1:3001/?phaseSmoke=5001-5020`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5001-5020.png`, and `0`
   USDC live Coinbase submitted/executed notional.
 
-### Phase 5002 - Advance Active Queue Range
+### Phase 5022 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4981-5000 to active
-  phases 5001-5020 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 5001-5020 to active
+  phases 5021-5040 while preserving no-live defaults and cap policy.
 
-### Phase 5003 - Claim-Trace Store Record-Validation Scope
+### Phase 5023 - Claim-Trace Store Record-Validation Remediation Scope
 
-- Add record validations under existing claim-trace clearance-step
-  review-input store record-contract rows without changing blocker status,
-  contract availability, schema/log availability, idempotency binding,
-  payload validation, replay protection, write authority, input acceptance,
-  review completion, step completion, claim resolution, or execution flags.
+- Add remediation rows under existing claim-trace clearance-step review-input
+  store record-validation rows without changing blocker status, validation
+  readiness, remediation readiness, contract availability, schema/log
+  availability, idempotency binding, payload validation, replay protection,
+  write authority, input acceptance, review completion, step completion, claim
+  resolution, or execution flags.
 
-### Phase 5004 - Backend Record-Validation Model
+### Phase 5024 - Backend Record-Validation Remediation Model
 
 - Add a nested remediation-dependency work-item claim-trace clearance-step
-  review-input store record-validation row model and blocked
-  record-validation summary fields.
+  review-input store record-validation remediation row model and blocked
+  remediation summary fields.
 
-### Phase 5005 - Backend Record-Validation Derivation
+### Phase 5025 - Backend Record-Validation Remediation Derivation
 
-- Derive each record validation only from an existing claim-trace
-  clearance-step review-input store record-contract row so no second
-  dependency, work-item, claim, validation, record, input, review, store,
-  writer, schema, log, payload, idempotency, replay, or execution source path
-  is introduced.
+- Derive each remediation row only from an existing claim-trace clearance-step
+  review-input store record-validation row so no second dependency, work-item,
+  claim, remediation, validation, record, input, review, store, writer, schema,
+  log, payload, idempotency, replay, or execution source path is introduced.
 
-### Phase 5006 - Record-Validation Checks And Gates
+### Phase 5026 - Required Remediation Work And Refs
 
-- Expose required validation checks, record-validation gate, and replay gate
-  as read-only evidence while keeping every check unsatisfied.
+- Expose required remediation work and deterministic required refs as
+  read-only evidence while keeping every remediation action unperformed.
 
-### Phase 5007 - Record-Validation Ordering Links
+### Phase 5027 - Remediation Gates And Upstream Refs
 
-- Assign deterministic predecessor and successor record-validation refs from
-  the parent record-contract order.
+- Expose remediation, validation, replay, upstream remediation, upstream
+  validation, and upstream record-contract refs without satisfying any gate.
 
-### Phase 5008 - Record-Validation Status And Authority
+### Phase 5028 - Remediation Status And Authority
 
-- Record blocked status, false validation readiness, false contract/schema/log
-  availability, false idempotency/payload/replay flags, false writer/write/
-  input/review/step/claim flags, and no-live/no-execution authority for every
-  validation row.
+- Record blocked status, false remediation readiness/performed flags, false
+  validation/contract/schema/log/idempotency/payload/replay/write/input/
+  review/step/claim flags, and no-live/no-execution authority for every
+  remediation row.
 
-### Phase 5009 - Record-Validation Summary Aggregation
+### Phase 5029 - Remediation Summary Aggregation
 
-- Add summary counts and refs for record validations, blocked validations,
-  statuses, source contract/requirement/input/review/step/plan refs, names,
-  required schema/log refs, payload fields, idempotency keys, checks, gates,
-  blockers, predecessors, and successors.
+- Add summary counts and refs for remediations, blocked remediations,
+  statuses, source validation/contract/requirement/input/review/step/plan refs,
+  upstream remediation/validation/contract refs, names, required work,
+  required refs, gates, validation gates, replay gates, and blockers.
 
-### Phase 5010 - Backend Record-Validation Assertions
+### Phase 5030 - Backend Remediation Assertions
 
-- Extend focused Admin API regression coverage proving record validations
-  mirror their source record contracts and grant no schema, log, idempotency,
-  payload, replay, write, input acceptance, review completion, step
-  completion, claim, clear, remediation, validation, live, manager, Coinbase,
-  reconciliation, or state mutation authority.
+- Extend focused Admin API regression coverage proving remediation rows mirror
+  their source validations and grant no remediation, validation, schema, log,
+  idempotency, payload, replay, write, input acceptance, review completion,
+  step completion, claim, clear, live, manager, Coinbase, reconciliation, or
+  state mutation authority.
 
-### Phase 5011 - OpenAPI Regeneration
+### Phase 5031 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml` from backend models.
 
-### Phase 5012 - Frontend Generated Schema Sync
+### Phase 5032 - Frontend Generated Schema Sync
 
 - Regenerate the frontend TypeScript schema from the backend OpenAPI artifact.
 
-### Phase 5013 - Frontend Adapter Record-Validation Mapping
+### Phase 5033 - Frontend Adapter Remediation Mapping
 
 - Map remediation dependency work-item claim-trace clearance-step review-input
-  store record-validation rows and summary fields through the existing
-  command-suite adapter without adding a parallel client or feature fetch.
+  store record-validation remediation rows and summary fields through the
+  existing command-suite adapter without adding a parallel client or feature
+  fetch.
 
-### Phase 5014 - Frontend Mock Record-Validation Evidence
+### Phase 5034 - Frontend Mock Remediation Evidence
 
 - Sync mock command-suite evidence and summary totals for remediation
   dependency work-item claim-trace clearance-step review-input store
-  record-validation rows.
+  record-validation remediation rows.
 
-### Phase 5015 - Frontend UI Record-Validation Summary
+### Phase 5035 - Frontend UI Remediation Summary
 
-- Render record-validation counts, blocked counts, refs, statuses, source
-  contract/requirement/input/review/step/plan refs, names, required schemas,
-  logs, payload fields, idempotency keys, checks, gates, blockers, and
-  predecessor/successor counts as read-only operator evidence.
+- Render remediation counts, blocked counts, refs, statuses, source validation/
+  contract/requirement/input/review/step/plan refs, upstream refs, required
+  work, required refs, gates, validation gates, replay gates, and blockers as
+  read-only operator evidence.
 
-### Phase 5016 - Frontend UI Record-Validation Rows
+### Phase 5036 - Frontend UI Remediation Rows
 
-- Render row-level record-validation ref, source record-contract ref, source
-  store-requirement ref, source review-input ref, validation checks,
-  validation/replay gates, blocker chain, predecessor/successor refs, status,
-  false schema/log/idempotency/payload/replay/write/input/review/step/claim
-  flags, authority flags, and no-live evidence.
+- Render row-level remediation ref, source validation ref, source record
+  contract ref, required remediation work, required refs, remediation/
+  validation/replay gates, blocker chain, status, false readiness/performed
+  flags, authority flags, and no-live evidence nested under the source
+  validation row.
 
-### Phase 5017 - Quality Metadata And Regression-Policy Guard
+### Phase 5037 - Quality Metadata And Regression-Policy Guard
 
 - Update autonomous queue, release-readiness, deployment-readiness, artifact
   contract, runtime evidence, active range metadata, and regression-policy
   validators so active docs require the parallel closeout runner and treat
   sequential full regression as fallback-only.
 
-### Phase 5018 - Documentation Sync
+### Phase 5038 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   durable milestones, examples, expanded context, and agent-state docs so
-  contextless readers see 5001-5020 as active and 4981-5000 as completed.
+  contextless readers see 5021-5040 as active and 5001-5020 as completed.
 
-### Phase 5019 - Contextless Review And Focused Gates
+### Phase 5039 - Contextless Review And Focused Gates
 
 - Run blind/contextless review plus focused backend/frontend validators proving
-  claim-trace clearance-step review-input store record-validation evidence and
-  the regression gate policy are discoverable, complete, no-live, and not
-  executable or write authority.
+  claim-trace clearance-step review-input store record-validation remediation
+  evidence and the regression gate policy are discoverable, complete, no-live,
+  and not executable or write authority.
 
-### Phase 5020 - Browser Smoke, Commit, And Push
+### Phase 5040 - Browser Smoke, Commit, And Push
 
-- Run a browser smoke at `http://127.0.0.1:3001/?phaseSmoke=5001-5020`, commit
+- Run a browser smoke at `http://127.0.0.1:3001/?phaseSmoke=5021-5040`, commit
   and push backend and frontend repositories, then summarize implementation,
   focused verification, live posture, UI URL, and next M55 scope.
+
+## Completed Phases 5001-5020
+
+These phases derived blocked backend-owned claim-trace clearance-step
+review-input store record-validation rows from existing claim-trace
+clearance-step review-input store record-contract rows and displayed them in
+the frontend M55 ledger. The range completed with backend commit `93c1415c`,
+frontend commit `37aa393`, focused backend/frontend gates, blind/contextless
+review, UI smoke at `http://127.0.0.1:3001/?phaseSmoke=5001-5020`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-5001-5020.png`, and no live
+Coinbase execution. Submitted notional: `0` USDC. Executed notional: `0`
+USDC.
 
 ## Completed Phases 4981-5000
 

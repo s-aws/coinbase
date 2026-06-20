@@ -52,9 +52,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5001-5020"
-APPROVED_PHASES = tuple(range(5001, 5021))
-PREVIOUS_COMPLETED_PHASE_RANGE = "4981-5000"
+APPROVED_PHASE_RANGE = "5021-5040"
+APPROVED_PHASES = tuple(range(5021, 5041))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5001-5020"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -204,13 +204,13 @@ def _check_example_phase_range_docs() -> QueueCheck:
             (
                 "closure_readiness_dependency_clearance_step_review_input_store_"
                 "record_validation_remediation_dependency_work_item_claim_trace_"
-                "clearance_step_review_input_store_record_validation_count"
+                "clearance_step_review_input_store_record_validation_remediation_count"
             ),
             (
                 "record_validation_remediation_dependency_work_item_claim_trace_"
-                "clearance_step_review_input_store_record_validation_rows"
+                "clearance_step_review_input_store_record_validation_remediation_rows"
             ),
-            "claim_trace_clearance_step_review_input_store_record_validation_blocked",
+            "claim_trace_clearance_step_review_input_store_record_validation_remediation_blocked",
         ],
     }
     stale_active_range_text = (
