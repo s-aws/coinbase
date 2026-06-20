@@ -45,8 +45,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4621-4640`.
-- Active autonomous range: `4641-4660`.
+- Latest completed autonomous range before current work: `4641-4660`.
+- Active autonomous range: `4661-4680`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -646,9 +646,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4641-4660`.
+- Active autonomous range: `4661-4680`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4641-4660`.
+- Current direction: complete phases `4661-4680`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -741,12 +741,15 @@ Keep it short. Keep it factual.
   closure-readiness criteria, missing criteria, verification gates, readiness
   blockers, and summary counts for those six rows. Completed `4621-4640` adds
   criterion-level source/dependency traceability for those readiness criteria.
-  Active `4641-4660` classifies those trace dependencies as backend contract,
-  proof route, or gate-chain dependencies with matching missing-dependency and
-  dependency-resolution evidence. It must not call Coinbase, invoke managers,
-  execute reveal, cancel or replace active placements, execute reconciliation,
-  mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
-  authority, or grant BFF execution authority.
+  Completed `4641-4660` classifies those trace dependencies as backend
+  contract, proof route, or gate-chain dependencies with matching
+  missing-dependency and dependency-resolution evidence. Active `4661-4680`
+  assigns each classified dependency to a backend-owned clearance plan row with
+  owner, required artifact, clearance order, blocked status, and no-live
+  authority evidence. It must not call Coinbase, invoke managers, execute
+  reveal, cancel or replace active placements, execute reconciliation, mutate
+  lifecycle/order/exchange state, clear M55 blockers, grant browser authority,
+  or grant BFF execution authority.
 
 ## Decisions (Durable)
 
@@ -1364,7 +1367,7 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `4641-4660` by syncing
-  classified M55 closure-readiness trace dependencies across backend/frontend,
-  running focused gates, keeping live Coinbase execution not run, and
-  preserving the UI smoke URL.
+- Exact next command: complete active phases `4661-4680` by syncing M55
+  closure-readiness dependency clearance plans across backend/frontend, running
+  focused gates, keeping live Coinbase execution not run, and preserving the UI
+  smoke URL.

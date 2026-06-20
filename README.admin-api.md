@@ -304,10 +304,12 @@ and readiness blockers to the same six rows while keeping every blocker
 unresolved and every live/manager/Coinbase/reconciliation/state-mutation flag
 false. Completed phases 4621-4640 add criterion-level source/dependency
 traceability for those readiness criteria while keeping every dependency
-unresolved and every execution authority flag false. Active phases 4641-4660
+unresolved and every execution authority flag false. Completed phases 4641-4660
 classify those trace dependencies as backend contract, proof route, or
 gate-chain dependencies while keeping every dependency unresolved and every
-execution authority flag false.
+execution authority flag false. Active phases 4661-4680 assign each classified
+dependency to a backend-owned clearance plan row with an owner, required
+artifact, clearance order, blocked status, and no-execution authority flags.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

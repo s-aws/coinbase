@@ -10324,6 +10324,21 @@ components:
       - post_live_reconciliation
       title: AdminApiStealthAdmissionEvidence
       description: Evidence names required before a stealth admin command may execute.
+    AdminApiStealthClosureClearanceOwner:
+      type: string
+      enum:
+      - admin_api_contract
+      - backend_gate_chain
+      title: AdminApiStealthClosureClearanceOwner
+      description: Backend owner class responsible for clearing an M55 dependency.
+    AdminApiStealthClosureDependencyClass:
+      type: string
+      enum:
+      - backend_contract
+      - proof_route
+      - gate_chain
+      title: AdminApiStealthClosureDependencyClass
+      description: M55 closure-readiness dependency class for backend-owned clearance.
     AdminApiStealthCommandSuiteBlockerClosure:
       type: string
       enum:
@@ -57988,6 +58003,34 @@ components:
             type: string
           type: array
           title: Closure Readiness Missing Gate Chain Dependency Refs
+        closure_readiness_dependency_clearance_plan_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Clearance Plan Count
+        closure_readiness_blocked_dependency_clearance_plan_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Blocked Dependency Clearance Plan Count
+        closure_readiness_dependency_clearance_classes:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthClosureDependencyClass'
+          type: array
+          title: Closure Readiness Dependency Clearance Classes
+        closure_readiness_dependency_clearance_owner_refs:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthClosureClearanceOwner'
+          type: array
+          title: Closure Readiness Dependency Clearance Owner Refs
+        closure_readiness_dependency_clearance_required_artifact_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Required Artifact Refs
+        closure_readiness_dependency_clearance_statuses:
+          items:
+            $ref: '#/components/schemas/AdminApiGateStatus'
+          type: array
+          title: Closure Readiness Dependency Clearance Statuses
         missing_backend_contracts:
           items:
             type: string
@@ -58054,6 +58097,8 @@ components:
       - closure_readiness_criterion_trace_count
       - closure_readiness_dependency_resolution_required_count
       - closure_readiness_dependency_resolution_allowed_count
+      - closure_readiness_dependency_clearance_plan_count
+      - closure_readiness_blocked_dependency_clearance_plan_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -58224,6 +58269,67 @@ components:
       title: StealthCommandSuiteCancelReplaceBoundaryItem
       description: Backend-owned cancel/replace prerequisite boundary for revealed
         placements.
+    StealthCommandSuiteClosureDependencyClearancePlanRow:
+      properties:
+        dependency_ref:
+          type: string
+          title: Dependency Ref
+        dependency_class:
+          $ref: '#/components/schemas/AdminApiStealthClosureDependencyClass'
+        clearance_owner:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceOwner'
+        required_artifact_ref:
+          type: string
+          title: Required Artifact Ref
+        clearance_order:
+          type: integer
+          minimum: 1.0
+          title: Clearance Order
+        clearance_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        resolution_allowed:
+          type: boolean
+          title: Resolution Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - dependency_ref
+      - dependency_class
+      - clearance_owner
+      - required_artifact_ref
+      - clearance_order
+      - detail
+      title: StealthCommandSuiteClosureDependencyClearancePlanRow
+      description: Backend-owned plan row for clearing one M55 closure dependency.
     StealthCommandSuiteClosureReadinessCriterionTrace:
       properties:
         criterion:
@@ -58290,6 +58396,14 @@ components:
           type: array
           title: Missing Gate Chain Dependency Refs
           description: Gate-chain dependency refs still missing.
+        dependency_clearance_plan_rows:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteClosureDependencyClearancePlanRow'
+          type: array
+          title: Dependency Clearance Plan Rows
+          description: Read-only backend-owned clearance plan rows assigning each
+            dependency ref to an owner, required artifact, and clearance order. Rows
+            do not clear dependencies or grant execution authority.
         verification_gates:
           items:
             type: string

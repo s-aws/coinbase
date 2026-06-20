@@ -49,108 +49,121 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Dependency Classification Batch - Phases 4641-4660
+## Active M55 Closure-Readiness Dependency Clearance Plan Batch - Phases 4661-4680
 
-These phases classify each existing closure-readiness trace dependency as a
-backend contract dependency, proof route dependency, or gate-chain dependency.
-The rows remain blocked and unresolved. The range must not enable service,
-construct adapters, invoke managers, call Coinbase, cancel or submit orders,
-repair or roll back state, execute reconciliation, mutate state, grant browser
-authority, or grant BFF execution authority.
+These phases assign each existing classified closure-readiness dependency to a
+backend-owned clearance plan row. The rows remain blocked and unresolved. The
+range must not enable service, construct adapters, invoke managers, call
+Coinbase, cancel or submit orders, repair or roll back state, execute
+reconciliation, mutate state, grant browser authority, or grant BFF execution
+authority.
 
-### Phase 4641 - Prior Range Completion Evidence
+### Phase 4661 - Prior Range Completion Evidence
 
-- Record completed phases 4621-4640 with backend commit `4d9c75c1`, frontend
-  commit `3505cfb`, focused gates, blind/contextless review, UI smoke, and
-  `0` USDC live Coinbase submitted/executed notional.
+- Record completed phases 4641-4660 with backend commit `cdc05237`, frontend
+  commit `867b08d`, follow-up policy commits `3e7abb2e` and `00e549c`,
+  focused gates, blind/contextless review, UI smoke, and `0` USDC live
+  Coinbase submitted/executed notional.
 
-### Phase 4642 - Advance Active Queue Range
+### Phase 4662 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4621-4640 to active
-  phases 4641-4660 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4641-4660 to active
+  phases 4661-4680 while preserving no-live defaults and cap policy.
 
-### Phase 4643 - Dependency Classification Scope
+### Phase 4663 - Clearance Plan Scope
 
-- Add classified dependency fields to existing trace rows without changing
-  blocker status, readiness flags, missing dependency totals, or execution
-  flags.
+- Add clearance-plan fields to existing trace rows without changing blocker
+  status, readiness flags, missing dependency totals, or execution flags.
 
-### Phase 4644 - Backend Trace Classification Model
+### Phase 4664 - Backend Clearance Model
 
-- Extend the Admin API trace and summary schemas with backend contract, proof
-  route, gate-chain, matching missing-dependency, and resolution-flag fields.
+- Extend the Admin API trace and summary schemas with typed dependency class,
+  clearance owner, required artifact, order, status, allowed flags, and
+  authority evidence fields.
 
-### Phase 4645 - Backend Contract Dependencies
+### Phase 4665 - Backend Clearance Derivation
 
-- Derive backend contract dependency refs from the existing required backend
-  contract list.
+- Derive clearance rows from the existing classified dependency refs only.
 
-### Phase 4646 - Proof Route Dependencies
+### Phase 4666 - Clearance Owner Mapping
 
-- Derive proof route dependency refs from the existing required proof route
-  list.
+- Map backend contract and proof-route dependencies to `admin_api_contract`;
+  map gate-chain dependencies to `backend_gate_chain`.
 
-### Phase 4647 - Gate-Chain Dependencies
+### Phase 4667 - Clearance Artifact And Ordering
 
-- Derive gate-chain dependency refs from the existing required gate-chain list.
+- Record each dependency ref as the required artifact ref and assign
+  deterministic clearance order.
 
-### Phase 4648 - Missing Dependency Classification
+### Phase 4668 - Clearance Status Evidence
 
-- Mirror unresolved dependencies into classified missing dependency fields.
+- Report blocked clearance status, `clearance_allowed=false`, and
+  `resolution_allowed=false` for every dependency.
 
-### Phase 4649 - Dependency Resolution Evidence
+### Phase 4669 - Backend Clearance Assertions
 
-- Report that dependency resolution is required and not allowed by this
-  read-only response.
+- Extend Admin API regression coverage proving clearance rows mirror
+  classified trace dependencies and do not close blockers or grant live,
+  manager, Coinbase, reconciliation, or state mutation authority.
 
-### Phase 4650 - Backend Classification Assertions
-
-- Extend Admin API regression coverage proving classified trace dependencies do
-  not close blockers or grant live/manager/Coinbase/reconciliation/state
-  mutation authority.
-
-### Phase 4651 - OpenAPI Regeneration
+### Phase 4670 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4652 - Frontend Generated Schema Sync
+### Phase 4671 - Frontend Generated Schema Sync
 
 - Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4653 - Frontend Adapter Classification Mapping
+### Phase 4672 - Frontend Adapter Clearance Mapping
 
-- Map classified trace fields through the existing command-suite adapter.
+- Map clearance rows and summary fields through the existing command-suite
+  adapter.
 
-### Phase 4654 - Frontend Mock Classification Evidence
+### Phase 4673 - Frontend Mock Clearance Evidence
 
 - Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4655 - Frontend UI Classification Display
+### Phase 4674 - Frontend UI Clearance Summary
 
-- Render classified dependency and dependency-resolution details as read-only
-  evidence.
+- Render clearance counts, blocked counts, owners, statuses, artifacts, and
+  classes as read-only evidence.
 
-### Phase 4656 - Quality Metadata Sync
+### Phase 4675 - Frontend UI Clearance Rows
 
-- Update active range metadata to phases 4641-4660.
+- Render row-level dependency ref, class, owner, artifact, order, status,
+  allowed flags, authority flags, and no-live evidence.
 
-### Phase 4657 - Documentation Sync
+### Phase 4676 - Quality Metadata Sync
+
+- Update active range metadata to phases 4661-4680.
+
+### Phase 4677 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   examples, expanded context, and agent-state docs.
 
-### Phase 4658 - Contextless Review
+### Phase 4678 - Contextless Review
 
-- Record contextless review evidence for the classification boundary.
+- Record contextless review evidence for the clearance-plan boundary.
 
-### Phase 4659 - Focused Gates And Browser Smoke
+### Phase 4679 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and browser smoke for rendered
-  classified evidence.
+  clearance evidence.
 
-### Phase 4660 - Commit And Push
+### Phase 4680 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Dependency Classification Batch - Phases 4641-4660
+
+Backend commit `cdc05237` and frontend commit `867b08d` classified each
+closure-readiness trace dependency as a backend contract, proof route, or
+gate-chain dependency. Follow-up commits `3e7abb2e` and `00e549c` normalized
+regression-closeout instructions. Focused backend/frontend gates,
+blind/contextless review, and UI smoke passed at
+`http://127.0.0.1:3121/?phaseSmoke=4641-4660`. Live Coinbase execution was not
+run; submitted notional `0` USDC and executed notional `0` USDC.
 
 ## Completed M55 Closure-Readiness Traceability Batch - Phases 4621-4640
 

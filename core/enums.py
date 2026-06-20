@@ -517,6 +517,21 @@ class AdminApiStealthCommandSuiteBlockerClosure(str, Enum):
     )
 
 
+class AdminApiStealthClosureDependencyClass(str, Enum):
+    """M55 closure-readiness dependency class for backend-owned clearance."""
+
+    BACKEND_CONTRACT = "backend_contract"
+    PROOF_ROUTE = "proof_route"
+    GATE_CHAIN = "gate_chain"
+
+
+class AdminApiStealthClosureClearanceOwner(str, Enum):
+    """Backend owner class responsible for clearing an M55 dependency."""
+
+    ADMIN_API_CONTRACT = "admin_api_contract"
+    BACKEND_GATE_CHAIN = "backend_gate_chain"
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 

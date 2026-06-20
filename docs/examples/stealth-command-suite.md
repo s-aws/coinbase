@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4641-4660",
+  "approved_phase_range": "4661-4680",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -61,10 +61,13 @@ they do not close blockers or grant live authority.
 In the completed 4621-4640 range, the rows also expose criterion-level trace
 rows and summary trace rollups. Those fields identify backend source refs and
 unresolved dependency refs for each criterion; they do not satisfy dependencies
-or grant live authority. In the current 4641-4660 range, those trace
+or grant live authority. In the completed 4641-4660 range, those trace
 dependencies are classified as backend contract, proof route, and gate-chain
 dependencies with matching missing-dependency classifications and explicit
-resolution-required/no-resolution-allowed evidence.
+resolution-required/no-resolution-allowed evidence. In the current 4661-4680
+range, each classified dependency also has a backend-owned clearance plan row
+with owner, required artifact, clearance order, blocked status, and no-live
+authority fields.
 
 ```json
 {
@@ -80,6 +83,15 @@ resolution-required/no-resolution-allowed evidence.
     "closure_readiness_criterion_trace_count": 18,
     "closure_readiness_dependency_resolution_required_count": 18,
     "closure_readiness_dependency_resolution_allowed_count": 0,
+    "closure_readiness_dependency_clearance_plan_count": 183,
+    "closure_readiness_blocked_dependency_clearance_plan_count": 183,
+    "closure_readiness_dependency_clearance_owner_refs": [
+      "admin_api_contract",
+      "backend_gate_chain"
+    ],
+    "closure_readiness_dependency_clearance_statuses": [
+      "blocked"
+    ],
     "closure_readiness_trace_source_refs": [
       "live_enablement.paths",
       "m55_stealth_reveal_backend_dry_run"

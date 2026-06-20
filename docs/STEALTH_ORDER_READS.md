@@ -31,10 +31,13 @@ counts. For phases 4621-4640, those criteria include criterion-level source
 refs and missing dependency refs. For phases 4641-4660, those trace
 dependencies are classified as backend contract, proof route, or gate-chain
 dependencies with matching missing-dependency classifications and explicit
-resolution-required/no-resolution-allowed evidence. Readiness criteria and
-traces are planning evidence only: they do not close blockers, satisfy missing
-contracts, enable live execution, call Coinbase, invoke managers, execute
-reconciliation, or mutate state.
+resolution-required/no-resolution-allowed evidence. For phases 4661-4680, each
+classified dependency also has a backend-owned clearance plan row with owner,
+required artifact, clearance order, blocked status, and no-resolution/no-live
+authority evidence. Readiness criteria, traces, and clearance rows are planning
+evidence only: they do not close blockers, satisfy missing contracts, enable
+live execution, call Coinbase, invoke managers, execute reconciliation, or
+mutate state.
 
 ## Identity Rules
 

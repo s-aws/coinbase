@@ -45,6 +45,8 @@ from core.enums import (
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
+    AdminApiStealthClosureClearanceOwner,
+    AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
@@ -13951,6 +13953,27 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteClosureDependencyClearancePlanRow(BaseModel):
+    """Backend-owned plan row for clearing one M55 closure dependency."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dependency_ref: str
+    dependency_class: AdminApiStealthClosureDependencyClass
+    clearance_owner: AdminApiStealthClosureClearanceOwner
+    required_artifact_ref: str
+    clearance_order: int = Field(ge=1)
+    clearance_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    clearance_allowed: bool = False
+    resolution_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteClosureReadinessCriterionTrace(BaseModel):
     """Backend source and dependency trace for one closure-readiness criterion."""
 
@@ -14012,6 +14035,16 @@ class StealthCommandSuiteClosureReadinessCriterionTrace(BaseModel):
     missing_gate_chain_dependency_refs: list[str] = Field(
         default_factory=list,
         description="Gate-chain dependency refs still missing."
+    )
+    dependency_clearance_plan_rows: list[
+        StealthCommandSuiteClosureDependencyClearancePlanRow
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Read-only backend-owned clearance plan rows assigning each "
+            "dependency ref to an owner, required artifact, and clearance order. "
+            "Rows do not clear dependencies or grant execution authority."
+        ),
     )
     verification_gates: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
@@ -14218,6 +14251,20 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
         default_factory=list
     )
     closure_readiness_missing_gate_chain_dependency_refs: list[str] = Field(
+        default_factory=list
+    )
+    closure_readiness_dependency_clearance_plan_count: int = Field(ge=0)
+    closure_readiness_blocked_dependency_clearance_plan_count: int = Field(ge=0)
+    closure_readiness_dependency_clearance_classes: list[
+        AdminApiStealthClosureDependencyClass
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_owner_refs: list[
+        AdminApiStealthClosureClearanceOwner
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_required_artifact_refs: list[str] = Field(
+        default_factory=list
+    )
+    closure_readiness_dependency_clearance_statuses: list[AdminApiGateStatus] = Field(
         default_factory=list
     )
     missing_backend_contracts: list[str]

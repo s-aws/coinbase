@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **4641-4660**.
+- Approved phase range: **4661-4680**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4621-4640`.
+- Previous completed range: `4641-4660`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `4640`.
+- `current_phase`: `4660`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -60,126 +60,138 @@ baseline before the range, not the final phase id in the active range.
 - Focused frontend/API/deployment checks for changed behavior fail.
 - Full `tests/regression/` or frontend `release:gate` fails when the current
   work is explicitly closing a durable milestone, public/release-candidate
-  handoff, or user-requested full gate.
+  handoff, deployment approval/closeout, release-hardening closeout, Admin
+  API/backend association closeout, or user-requested full gate.
 - `blind/contextless review` finds a blocking ambiguity or unsafe path.
 - Live Coinbase reconciliation fails, live notional exceeds cap, or exact product/notional evidence is missing.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 4641-4660
+## Active Phases 4661-4680
 
-These phases close the next concrete M55 planning gap by classifying each
-closure-readiness trace dependency as a backend contract dependency, proof
-route dependency, or gate-chain dependency. Classification must make remaining
-work easier for contextless readers to audit without changing blocker status
-or granting live, manager, Coinbase, reconciliation, state-mutation, browser,
-or BFF execution authority.
+These phases close the next concrete M55 planning gap by assigning every
+classified closure-readiness dependency to a backend-owned clearance plan row.
+Each row must name the dependency class, clearance owner, required artifact,
+clearance order, blocked status, and no-execution authority flags without
+clearing the dependency or enabling live, manager, Coinbase, reconciliation,
+state-mutation, browser, or BFF execution authority.
 
-### Phase 4641 - Prior Range Completion Evidence
+### Phase 4661 - Prior Range Completion Evidence
 
-- Record completed phases 4621-4640 with backend commit `4d9c75c1`, frontend
-  commit `3505cfb`, focused backend/frontend gates, blind/contextless review,
-  UI smoke at `http://127.0.0.1:3001/?phaseSmoke=4621-4640`, and `0` USDC live
-  Coinbase submitted/executed notional.
+- Record completed phases 4641-4660 with backend commit `cdc05237`, frontend
+  commit `867b08d`, follow-up policy commits `3e7abb2e` and `00e549c`,
+  focused backend/frontend gates, blind/contextless review, UI smoke at
+  `http://127.0.0.1:3121/?phaseSmoke=4641-4660`, and `0` USDC live Coinbase
+  submitted/executed notional.
 
-### Phase 4642 - Advance Active Queue Range
+### Phase 4662 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4621-4640 to active
-  phases 4641-4660 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4641-4660 to active
+  phases 4661-4680 while preserving no-live defaults and cap policy.
 
-### Phase 4643 - Dependency Classification Scope
+### Phase 4663 - Clearance Plan Scope
 
-- Add classified dependency evidence to existing closure-readiness traces
-  without changing status, missing dependency totals, readiness flags, or
+- Add clearance-plan evidence to existing closure-readiness traces without
+  changing blocker status, missing dependency totals, readiness flags, or
   execution flags.
 
-### Phase 4644 - Backend Trace Classification Model
+### Phase 4664 - Backend Clearance Enums And Model
 
-- Extend Admin API trace and summary schemas with backend contract, proof route,
-  gate-chain, and matching missing-dependency classification fields.
+- Add typed dependency-class and clearance-owner enums plus a trace-level
+  clearance plan row model.
 
-### Phase 4645 - Backend Contract Dependency Derivation
+### Phase 4665 - Backend Clearance Plan Derivation
 
-- Derive backend contract dependency refs only from existing required backend
-  contracts so no second contract source path is introduced.
+- Derive clearance rows only from the existing classified dependency refs so no
+  second dependency source path is introduced.
 
-### Phase 4646 - Proof Route Dependency Derivation
+### Phase 4666 - Clearance Owner Assignment
 
-- Derive proof route dependency refs only from existing required proof routes
-  so route prerequisites stay backend-owned and explicit.
+- Assign backend contract and proof-route dependencies to `admin_api_contract`
+  and gate-chain dependencies to `backend_gate_chain`.
 
-### Phase 4647 - Gate-Chain Dependency Derivation
+### Phase 4667 - Clearance Artifact, Order, And Status
 
-- Derive gate-chain dependency refs only from existing required gate-chain
-  entries so approval, audit, guard, reconciliation, and completion gates remain
-  unresolved.
+- Record required artifact refs, deterministic clearance order, blocked status,
+  clearance disallowance, and resolution disallowance for every dependency.
 
-### Phase 4648 - Missing Dependency Classification
+### Phase 4668 - Summary Aggregation
 
-- Mirror unresolved dependencies into classified missing dependency fields so
-  contextless readers can see which dependency classes remain missing.
+- Add summary counts and refs for clearance rows, blocked rows, classes,
+  owners, required artifacts, and statuses.
 
-### Phase 4649 - Dependency Resolution Flags
+### Phase 4669 - Backend Clearance Assertions
 
-- Add read-only dependency resolution flags proving dependency resolution is
-  required but not allowed by the response.
+- Extend focused Admin API regression coverage proving clearance rows mirror
+  dependency classification and grant no live/manager/Coinbase/reconciliation/
+  state mutation authority.
 
-### Phase 4650 - Backend Classification Assertions
-
-- Extend focused Admin API regression coverage proving every trace exposes all
-  classified dependency fields, missing classifications, and no authority
-  changes.
-
-### Phase 4651 - OpenAPI Regeneration
+### Phase 4670 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml` from backend models.
 
-### Phase 4652 - Frontend Generated Schema Sync
+### Phase 4671 - Frontend Generated Schema Sync
 
 - Regenerate the frontend TypeScript schema from the backend OpenAPI artifact.
 
-### Phase 4653 - Frontend Adapter Classification Mapping
+### Phase 4672 - Frontend Adapter Clearance Mapping
 
-- Map classified trace dependencies through the existing command-suite adapter
-  without adding a parallel client or feature fetch.
+- Map clearance rows and summary fields through the existing command-suite
+  adapter without adding a parallel client or feature fetch.
 
-### Phase 4654 - Frontend Mock Classification Evidence
+### Phase 4673 - Frontend Mock Clearance Evidence
 
-- Sync mock command-suite evidence and summary totals for classified
-  dependency fields.
+- Sync mock command-suite evidence and summary totals for clearance rows.
 
-### Phase 4655 - Frontend UI Classification Display
+### Phase 4674 - Frontend UI Clearance Summary
 
-- Render backend contract, proof route, gate-chain, missing-classification, and
-  dependency resolution details as complete read-only operator evidence.
+- Render clearance plan counts, blocked counts, owners, statuses, artifacts,
+  and classes as read-only operator evidence.
 
-### Phase 4656 - Quality Metadata Sync
+### Phase 4675 - Frontend UI Clearance Rows
+
+- Render row-level dependency ref, class, owner, artifact, order, status,
+  allowed flags, authority flags, and no-live evidence.
+
+### Phase 4676 - Quality Metadata Sync
 
 - Update autonomous queue, release-readiness, deployment-readiness, artifact
-  contract, runtime evidence, and active range metadata to phases 4641-4660.
+  contract, runtime evidence, and active range metadata to phases 4661-4680.
 
-### Phase 4657 - Documentation Sync
+### Phase 4677 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff, durable
   milestones, examples, expanded context, and agent-state docs so contextless
-  readers see 4641-4660 as active and 4621-4640 as completed.
+  readers see 4661-4680 as active and 4641-4660 as completed.
 
-### Phase 4658 - Contextless Review
+### Phase 4678 - Contextless Review
 
-- Run blind/contextless review proving the classified dependency evidence is
+- Run blind/contextless review proving clearance-plan evidence is
   discoverable, complete, no-live, and not executable authority.
 
-### Phase 4659 - Focused Gates And Browser Smoke
+### Phase 4679 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and a browser smoke proving the
-  rendered UI exposes the classified dependency evidence without console
-  errors.
+  rendered UI exposes clearance-plan evidence without console errors.
 
-### Phase 4660 - Commit And Push
+### Phase 4680 - Commit And Push
 
 - Commit and push backend and frontend repositories, then summarize
   implementation, focused verification, live posture, UI URL, and next M55
   scope.
+
+## Completed Phases 4641-4660
+
+- Backend commit `cdc05237` and frontend commit `867b08d` classified each
+  closure-readiness trace dependency as a backend contract, proof route, or
+  gate-chain dependency while keeping every row blocked, unresolved, and
+  no-live. Follow-up commits `3e7abb2e` and `00e549c` normalized durable
+  regression-closeout instructions.
+- Backend focused gates, frontend focused checks, blind/contextless review, and
+  UI smoke passed. Live UI smoke used
+  `http://127.0.0.1:3121/?phaseSmoke=4641-4660`.
+- Live Coinbase execution was not run; submitted/executed notional remained
+  `0` USDC.
 
 ## Completed Phases 4621-4640
 
