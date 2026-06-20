@@ -68,14 +68,17 @@ rows. For phases 5021-5040, each claim-trace clearance-step review-input
 store record validation also has blocked backend record-validation remediation
 rows. For completed phases 5041-5060, each claim-trace clearance-step
 review-input store record-validation remediation also has blocked backend
-remediation dependency rows. For active phases 5061-5080, each remediation
+remediation dependency rows. For completed phases 5061-5080, each remediation
 dependency row also has blocked backend remediation dependency work-item rows.
+For active phases 5081-5100, each remediation dependency work-item row also
+has a blocked backend remediation dependency work-item claim-trace row.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store
 record-validation remediations, remediation dependencies, remediation
-dependency work items, work-item claim traces, claim-trace clearance plans,
-and claim-trace clearance steps are planning
+dependency work items, dependency work-item claim traces, work-item claim
+traces, claim-trace clearance plans, and claim-trace clearance steps are
+planning
 evidence only: they do not close blockers, satisfy missing contracts, resolve
 dependency order, execute plans, execute plan steps, clear claim traces, claim
 work items, perform work items, perform remediation, resolve claims, allow

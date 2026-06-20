@@ -46,6 +46,7 @@ def test_regression_policy_docs_make_parallel_runner_canonical():
     stale_default_markers = (
         "Default full Bash regression command",
         "python3 -m pytest tests/regression/ -v",
+        "Regression suite passes.",
     )
     sequential_full_regression = re.compile(
         r"(?:python(?:3)? -m )?pytest tests[\\/]+regression[\\/]* -v(?: --tb=short)?"

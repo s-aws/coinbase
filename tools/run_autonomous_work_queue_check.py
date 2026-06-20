@@ -56,9 +56,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5061-5080"
-APPROVED_PHASES = tuple(range(5061, 5081))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5041-5060"
+APPROVED_PHASE_RANGE = "5081-5100"
+APPROVED_PHASES = tuple(range(5081, 5101))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5061-5080"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -211,15 +211,15 @@ def _check_example_phase_range_docs() -> QueueCheck:
                 "closure_readiness_dependency_clearance_step_review_input_store_"
                 "record_validation_remediation_dependency_work_item_claim_trace_"
                 "clearance_step_review_input_store_record_validation_remediation_"
-                "dependency_work_item_count"
+                "dependency_work_item_claim_trace_count"
             ),
             (
                 "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_"
-                "review_input_store_record_validation_remediation_dependency_work_item_rows"
+                "review_input_store_record_validation_remediation_dependency_work_item_claim_trace_rows"
             ),
             (
                 "claim_trace_clearance_step_review_input_store_record_validation_"
-                "remediation_dependency_work_item_blocked"
+                "remediation_dependency_work_item_claim_trace_blocked"
             ),
         ],
     }
@@ -232,6 +232,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5021-5040"',
         "active 5041-5060 range",
         '"approved_phase_range": "5041-5060"',
+        "active 5061-5080 range",
+        '"approved_phase_range": "5061-5080"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -396,6 +398,10 @@ def _check_agent_state_docs() -> QueueCheck:
         "complete active phases `5041-5060`",
         "current active range is `5041-5060`",
         "Active autonomous range: `5041-5060`",
+        "Active `5061-5080`",
+        "complete active phases `5061-5080`",
+        "current active range is `5061-5080`",
+        "Active autonomous range: `5061-5080`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]

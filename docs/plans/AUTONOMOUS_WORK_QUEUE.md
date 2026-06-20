@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5061-5080**.
+- Approved phase range: **5081-5100**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `5041-5060`.
+- Previous completed range: `5061-5080`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5060`.
+- `current_phase`: `5080`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,148 +67,163 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5061-5080
+## Active Phases 5081-5100
 
 These phases close the next concrete M55 planning gap by deriving blocked
-backend-owned remediation dependency work-item rows under each claim-trace
-clearance-step review-input store record-validation remediation dependency row.
-Each work item row must map back to its dependency, source remediation, source
+backend-owned remediation dependency work-item claim-trace rows under each
+claim-trace clearance-step review-input store record-validation remediation
+dependency work-item row. Each claim trace maps one unresolved work-item
+readiness claim back to its source work item, dependency, remediation,
 validation, record contract, store requirement, review input, review,
-clearance step, clearance plan, claim trace, upstream work item, predecessor
-and successor dependency rows, required work-item action, required refs,
+clearance step, clearance plan, upstream claim trace, upstream work item,
+predecessor/successor work-item claim traces, required action, required refs,
 validation/replay gates, blocker chain, and disabled authority. The rows must
-not claim work, make work queues ready, perform remediation, resolve
-dependencies, validate records, create contracts/schemas/logs, bind
+not resolve claims, claim or perform work items, clear dependencies, perform
+remediation, validate records, create contracts/schemas/logs, bind
 idempotency, validate payloads, protect replay, write or accept records,
-complete inputs/reviews/steps, resolve claims, reconcile, call Coinbase,
-invoke managers, mutate state, grant browser authority, or grant BFF execution
-authority.
+complete inputs/reviews/steps, reconcile, call Coinbase, invoke managers,
+mutate state, grant browser authority, or grant BFF execution authority.
 
-### Phase 5061 - Prior Range Completion Evidence
+### Phase 5081 - Prior Range Completion Evidence
 
-- Record completed phases 5041-5060 with backend commit `53684951`, frontend
-  commit `2dd2750`, focused backend/frontend gates, blind/contextless review,
-  UI smoke at `http://127.0.0.1:3001/?phaseSmoke=5041-5060`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5041-5060.png`, and `0`
+- Record completed phases 5061-5080 with backend commit `69045d5c`, frontend
+  commit `3170295`, focused backend/frontend gates, blind/contextless review,
+  UI smoke at `http://127.0.0.1:3001/?phaseSmoke=5061-5080`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5061-5080.png`, and `0`
   USDC live Coinbase submitted/executed notional.
 
-### Phase 5062 - Advance Active Queue Range
+### Phase 5082 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 5041-5060 to active
-  phases 5061-5080 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 5061-5080 to active
+  phases 5081-5100 while preserving no-live defaults and cap policy.
 
-### Phase 5063 - Remediation Dependency Work-Item Scope
+### Phase 5083 - Dependency Work-Item Claim-Trace Scope
 
-- Add work-item rows under existing claim-trace clearance-step review-input
-  store record-validation remediation dependency rows without changing blocker
-  status, work-item readiness, claim state, dependency readiness, remediation
-  readiness, validation readiness, contract/schema/log availability,
-  idempotency binding, payload validation, replay protection, write authority,
-  input acceptance, review completion, step completion, claim resolution, or
-  execution flags.
+- Add claim-trace rows under existing remediation dependency work-item rows
+  without changing blocker status, claim-trace readiness, work-item readiness,
+  claim state, dependency readiness, remediation readiness, validation
+  readiness, contract/schema/log availability, idempotency binding, payload
+  validation, replay protection, write authority, input acceptance, review
+  completion, step completion, reconciliation, Coinbase, browser, or BFF
+  authority.
 
-### Phase 5064 - Backend Dependency Work-Item Row Model
+### Phase 5084 - Backend Work-Item Claim-Trace Model
 
-- Add the nested claim-trace clearance-step review-input store
-  record-validation remediation dependency work-item row model and blocked
-  dependency-work-item summary fields.
+- Add the nested remediation-dependency work-item claim-trace row model and
+  blocked claim-trace summary fields.
 
-### Phase 5065 - Backend Dependency Work-Item Derivation
+### Phase 5085 - Backend Work-Item Claim-Trace Derivation
 
-- Derive exactly one work-item row from each existing remediation dependency
-  row so no second dependency, work queue, claim, remediation, validation,
-  record, input, review, store, writer, schema, log, payload, idempotency,
-  replay, or execution source path is introduced.
+- Derive exactly one claim-trace row from each existing remediation dependency
+  work-item row so no second dependency, work queue, claim, remediation,
+  validation, record, input, review, store, writer, schema, log, payload,
+  idempotency, replay, or execution source path is introduced.
 
-### Phase 5066 - Work-Item Predecessor And Successor Evidence
+### Phase 5086 - Claim-Trace Predecessor And Successor Evidence
 
-- Expose predecessor and successor dependency refs plus derived predecessor and
-  successor dependency work-item refs as read-only ordering evidence without
-  resolving dependency or work-item order.
+- Expose predecessor and successor work-item refs plus derived predecessor and
+  successor work-item claim-trace refs as read-only ordering evidence without
+  resolving dependency, work-item, or claim-trace order.
 
-### Phase 5067 - Work-Item Required Action And Refs
+### Phase 5087 - Claim-Trace Required Action And Refs
 
-- Expose required work-item action and deterministic required refs as read-only
-  evidence while keeping every work item unclaimed and unperformed.
+- Expose required claim-trace action and deterministic required refs as
+  read-only evidence while keeping every claim trace unresolved and every work
+  item unclaimed and unperformed.
 
-### Phase 5068 - Work-Item Gates And Blockers
+### Phase 5088 - Claim-Trace Gates And Blockers
 
-- Expose work-item gate, dependency gate, validation gate, replay gate, blocker
-  chain, and blocked/not-ready status without satisfying any gate.
+- Expose claim-trace gate, work-item gate, dependency gate, validation gate,
+  replay gate, blocker chain, and blocked/not-ready status without satisfying
+  any gate.
 
-### Phase 5069 - Work-Item Summary Aggregation
+### Phase 5089 - Claim-Trace Summary Aggregation
 
-- Add summary counts and refs for dependency work items, blocked work items,
-  statuses, dependency refs, remediation refs, validation refs, gates,
-  predecessors, successors, required actions, required refs, validation gates,
-  replay gates, and blockers.
+- Add summary counts and refs for dependency work-item claim traces, blocked
+  claim traces, statuses, work-item refs, dependency refs, remediation refs,
+  validation refs, gates, predecessors, successors, claims, claim ids, targets,
+  required actions, required refs, validation gates, replay gates, and
+  blockers.
 
-### Phase 5070 - Backend Work-Item Assertions
+### Phase 5090 - Backend Claim-Trace Assertions
 
-- Extend focused Admin API regression coverage proving dependency work-item rows
-  mirror their source dependencies and grant no claim, queue, handoff,
-  remediation, validation, schema, log, idempotency, payload, replay, write,
-  input acceptance, review completion, step completion, claim, clear, live,
-  manager, Coinbase, reconciliation, or state mutation authority.
+- Extend focused Admin API regression coverage proving claim-trace rows mirror
+  their source work items and grant no claim, queue, handoff, remediation,
+  validation, schema, log, idempotency, payload, replay, write, input
+  acceptance, review completion, step completion, clear, live, manager,
+  Coinbase, reconciliation, or state mutation authority.
 
-### Phase 5071 - OpenAPI Regeneration
+### Phase 5091 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml` from backend models.
 
-### Phase 5072 - Frontend Generated Schema Sync
+### Phase 5092 - Frontend Generated Schema Sync
 
 - Regenerate the frontend TypeScript schema from the backend OpenAPI artifact.
 
-### Phase 5073 - Frontend Adapter Work-Item Mapping
+### Phase 5093 - Frontend Adapter Claim-Trace Mapping
 
-- Map remediation dependency work-item rows and summary fields through the
-  existing command-suite adapter without adding a parallel client or feature
-  fetch.
+- Map remediation dependency work-item claim-trace rows and summary fields
+  through the existing command-suite adapter without adding a parallel client
+  or feature fetch.
 
-### Phase 5074 - Frontend Mock Work-Item Evidence
+### Phase 5094 - Frontend Mock Claim-Trace Evidence
 
 - Sync mock command-suite evidence and summary totals for remediation
-  dependency work-item rows.
+  dependency work-item claim-trace rows.
 
-### Phase 5075 - Frontend UI Work-Item Summary
+### Phase 5095 - Frontend UI Claim-Trace Summary
 
-- Render work-item counts, blocked counts, refs, statuses, dependency refs,
-  remediation refs, validation refs, predecessors, successors, required
-  actions, required refs, gates, validation gates, replay gates, and blockers
-  as read-only operator evidence.
+- Render claim-trace counts, blocked counts, refs, statuses, work-item refs,
+  dependency refs, remediation refs, validation refs, predecessors,
+  successors, claims, targets, required actions, required refs, gates,
+  validation gates, replay gates, and blockers as read-only operator evidence.
 
-### Phase 5076 - Frontend UI Work-Item Rows
+### Phase 5096 - Frontend UI Claim-Trace Rows
 
-- Render row-level work-item ref, source dependency ref, source remediation ref,
-  source validation ref, required action, required refs, gates,
-  predecessor/successor work-item refs, blocker chain, status, false
-  readiness/claim/queue/performed flags, authority flags, and no-live evidence
-  nested under the source dependency row.
+- Render row-level claim-trace ref, source work-item ref, source dependency
+  ref, source remediation ref, source validation ref, claim, target ref,
+  required action, required refs, gates, predecessor/successor claim-trace
+  refs, blocker chain, status, false readiness/claim/queue/performed flags,
+  authority flags, and no-live evidence nested under the source work-item row.
 
-### Phase 5077 - Quality Metadata And Regression-Policy Guard
+### Phase 5097 - Quality Metadata And Regression-Policy Guard
 
 - Update autonomous queue, release-readiness, deployment-readiness, artifact
   contract, runtime evidence, active range metadata, and regression-policy
   validators so active docs require the parallel closeout runner and treat
   sequential full regression as fallback-only.
 
-### Phase 5078 - Documentation Sync
+### Phase 5098 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   durable milestones, examples, expanded context, and agent-state docs so
-  contextless readers see 5061-5080 as active and 5041-5060 as completed.
+  contextless readers see 5081-5100 as active and 5061-5080 as completed.
 
-### Phase 5079 - Contextless Review And Focused Gates
+### Phase 5099 - Contextless Review And Focused Gates
 
 - Run blind/contextless review plus focused backend/frontend validators proving
-  remediation dependency work-item evidence and the regression gate policy are
-  discoverable, complete, no-live, and not executable or write authority.
+  remediation dependency work-item claim-trace evidence and the regression gate
+  policy are discoverable, complete, no-live, and not executable or write
+  authority.
 
-### Phase 5080 - Browser Smoke, Commit, And Push
+### Phase 5100 - Browser Smoke, Commit, And Push
 
-- Run a browser smoke at `http://127.0.0.1:3001/?phaseSmoke=5061-5080`, commit
+- Run a browser smoke at `http://127.0.0.1:3001/?phaseSmoke=5081-5100`, commit
   and push backend and frontend repositories, then summarize implementation,
   focused verification, live posture, UI URL, and next M55 scope.
+
+## Completed Phases 5061-5080
+
+These phases derived blocked backend-owned claim-trace clearance-step
+review-input store record-validation remediation dependency work-item rows
+from existing remediation dependency rows and displayed them in the frontend
+M55 ledger. The range completed with backend commit `69045d5c`, frontend
+commit `3170295`, focused backend/frontend gates, blind/contextless review, UI
+smoke at `http://127.0.0.1:3001/?phaseSmoke=5061-5080`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-5061-5080.png`, and no live
+Coinbase execution. Submitted notional: `0` USDC. Executed notional: `0`
+USDC.
 
 ## Completed Phases 5041-5060
 

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "5061-5080",
+  "approved_phase_range": "5081-5100",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -117,12 +117,17 @@ dependency order, performing remediation, validating records, creating
 contracts, schemas, append-only logs, stores, writers, records, idempotency
 bindings, payload validation, replay protection, accepted inputs, completed
 reviews/steps, resolved claims, state mutation, Coinbase calls, browser
-authority, or BFF execution authority. In the active 5061-5080 range, each
+authority, or BFF execution authority. In the completed 5061-5080 range, each
 dependency row exposes one blocked dependency work-item row without claiming
 or performing work items, resolving dependencies, validating records, writing
 evidence, reconciling, calling Coinbase, invoking managers, mutating state, or
-granting browser/BFF execution authority. Nested dependency rows include
-`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows`.
+granting browser/BFF execution authority. In the active 5081-5100 range, each
+dependency work-item row exposes one blocked dependency work-item claim trace
+without resolving claims, claiming or performing work items, clearing
+dependencies, performing remediation, validating records, writing evidence,
+reconciling, calling Coinbase, invoking managers, mutating state, or granting
+browser/BFF execution authority. Nested dependency work-item rows include
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_rows`.
 
 ```json
 {
@@ -251,6 +256,19 @@ granting browser/BFF execution authority. Nested dependency rows include
       "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_blocked",
       "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_unclaimed",
       "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_blocked"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count": 549,
+    "closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count": 549,
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_statuses": [
+      "blocked"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_claims": [
+      "record_validation_remediation_dependency_work_item_ready"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_blockers": [
+      "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_blocked",
+      "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_not_resolved",
+      "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_unclaimed"
     ],
     "closure_readiness_trace_source_refs": [
       "live_enablement.paths",

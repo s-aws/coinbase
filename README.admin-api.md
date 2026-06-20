@@ -378,12 +378,18 @@ execution authority. Completed phases 5041-5060 derive blocked backend
 claim-trace clearance-step review-input store record-validation remediation
 dependency rows from those remediations without resolving dependency order,
 performing remediation, validating records, writing evidence, reconciling,
-calling Coinbase, invoking managers, or changing execution authority. Active
+calling Coinbase, invoking managers, or changing execution authority. Completed
 phases 5061-5080 derive blocked backend claim-trace clearance-step
 review-input store record-validation remediation dependency work-item rows
 from those dependency rows without claiming work items, performing work items,
 resolving dependencies, validating records, writing evidence, reconciling,
-calling Coinbase, invoking managers, or changing execution authority.
+calling Coinbase, invoking managers, or changing execution authority. Active
+phases 5081-5100 derive blocked backend claim-trace clearance-step
+review-input store record-validation remediation dependency work-item claim
+traces from those dependency work-item rows without resolving claims, claiming
+or performing work items, clearing dependencies, performing remediation,
+validating records, writing evidence, reconciling, calling Coinbase, invoking
+managers, or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their
