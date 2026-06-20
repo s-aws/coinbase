@@ -305,7 +305,7 @@ python tools/run_parallel_regression.py --workers 4
 
 ## Next Steps
 
-1. Run all tests to establish baseline
+1. Run the relevant focused tests to establish the ordinary-change baseline
    ```bash
    pytest tests/ -v > baseline_results.txt
    ```

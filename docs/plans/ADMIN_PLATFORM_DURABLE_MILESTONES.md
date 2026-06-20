@@ -3119,12 +3119,15 @@ Current backend evidence:
   clearance-step review-input store record-validation remediation dependency
   rows from those remediations without resolving dependency order, performing
   remediation, readying validations, clearing dependencies, or changing
-  execution authority. Active phases 4841-4860 derive blocked backend
+  execution authority. Completed phases 4841-4860 derive blocked backend
   clearance-step review-input store record-validation remediation dependency
   work-item rows from those dependencies without claiming work items,
   performing work items, resolving dependency order, performing remediation,
   readying validations, clearing dependencies, or changing execution
-  authority.
+  authority. Active phases 4861-4880 derive blocked backend claim-trace rows
+  from those work items without resolving claims, allowing claim resolution,
+  claiming or performing work items, clearing dependencies, performing
+  remediation, validating records, or changing execution authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

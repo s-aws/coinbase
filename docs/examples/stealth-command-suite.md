@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4841-4860",
+  "approved_phase_range": "4861-4880",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -90,11 +90,15 @@ completing reviews, readying steps, clearing dependencies, or granting
 live/browser/BFF authority. In the completed 4821-4840 range, each remediation
 row exposes blocked record-validation remediation dependency evidence without
 resolving dependency order, performing remediation, readying validations,
-clearing dependencies, or granting live/browser/BFF authority. In the active
+clearing dependencies, or granting live/browser/BFF authority. In the completed
 4841-4860 range, each remediation dependency row exposes blocked work-item
 evidence without claiming work items, performing work items, resolving
 dependency order, performing remediation, readying validations, clearing
-dependencies, or granting live/browser/BFF authority.
+dependencies, or granting live/browser/BFF authority. In the active 4861-4880
+range, each remediation dependency work item exposes blocked claim-trace
+evidence without resolving claims, claiming or performing work items,
+clearing dependencies, performing remediation, validating records, or granting
+live/browser/BFF authority.
 
 ```json
 {

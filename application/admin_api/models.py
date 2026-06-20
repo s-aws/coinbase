@@ -14074,6 +14074,144 @@ class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordVal
     bff_authority: str = "forward_only_no_execution"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    record_validation_remediation_dependency_work_item_claim_trace_rows: list[
+        StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceRow
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Read-only backend-owned claim-trace rows derived from this "
+            "record-validation remediation dependency work item. Claim traces "
+            "remain blocked and cannot resolve claims, clear work items, "
+            "clear dependencies, remediate records, write evidence, reconcile, "
+            "or execute anything."
+        ),
+    )
+    detail: str
+
+
+class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceRow(
+    BaseModel
+):
+    """Blocked claim trace derived from one M55 remediation dependency work item."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = (
+        "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_items"
+    )
+    source: str = (
+        "backend_closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
+    )
+    authority: str = (
+        "backend_derived_from_closure_readiness_dependency_work_items_no_claim_resolution"
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_ref: str
+    record_validation_remediation_dependency_work_item_ref: str
+    record_validation_remediation_dependency_ref: str
+    record_validation_remediation_ref: str
+    record_validation_ref: str
+    record_contract_ref: str
+    store_requirement_ref: str
+    input_ref: str
+    review_ref: str
+    step_ref: str
+    dependency_ref: str
+    dependency_class: AdminApiStealthClosureDependencyClass
+    claim_id: str
+    claim: str = "record_validation_remediation_dependency_work_item_ready"
+    claim_target_ref: str
+    claim_trace_gate: str
+    claim_trace_blocker: str = "record_validation_remediation_dependency_work_item_not_ready"
+    work_item_blocker: str = "record_validation_remediation_dependency_work_item_unclaimed"
+    dependency_blocker: str = "record_validation_remediation_dependency_not_ready"
+    remediation_blocker: str = "record_validation_remediation_not_performed"
+    validation_blocker: str = "record_validation_not_ready"
+    record_contract_blocker: str = "record_contract_not_available"
+    store_blocker: str = "input_evidence_store_not_available"
+    input_blocker: str = "review_input_not_accepted"
+    review_blocker: str = "clearance_step_review_not_complete"
+    step_blocker: str = "clearance_step_not_ready"
+    required_backend_refs: list[str] = Field(default_factory=list)
+    required_work_item_action: str
+    required_work_item_refs: list[str] = Field(default_factory=list)
+    required_validation_gate: str
+    required_replay_gate: str
+    record_validation_gate: str
+    record_replay_protection_gate: str
+    record_validation_remediation_gate: str
+    record_validation_remediation_dependency_gate: str
+    record_validation_remediation_dependency_work_item_gate: str
+    predecessor_record_validation_remediation_dependency_work_item_claim_trace_refs: list[
+        str
+    ] = Field(default_factory=list)
+    successor_record_validation_remediation_dependency_work_item_claim_trace_refs: list[
+        str
+    ] = Field(default_factory=list)
+    clearance_order: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    review_order: int = Field(ge=1)
+    input_order: int = Field(ge=1)
+    store_requirement_order: int = Field(ge=1)
+    record_contract_order: int = Field(ge=1)
+    record_validation_order: int = Field(ge=1)
+    record_validation_remediation_order: int = Field(ge=1)
+    record_validation_remediation_dependency_order: int = Field(ge=1)
+    record_validation_remediation_dependency_work_item_order: int = Field(ge=1)
+    record_validation_remediation_dependency_work_item_claim_trace_order: int = Field(
+        ge=1
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    claim_trace_required: bool = True
+    claim_trace_ready: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    clears_work_item: bool = False
+    clears_dependency: bool = False
+    clears_remediation: bool = False
+    clears_record_validation: bool = False
+    record_validation_remediation_dependency_work_item_required: bool = True
+    record_validation_remediation_dependency_work_item_ready: bool = False
+    record_validation_remediation_dependency_work_item_performed: bool = False
+    work_item_claimed: bool = False
+    record_validation_remediation_dependency_required: bool = True
+    record_validation_remediation_dependency_ready: bool = False
+    dependency_order_resolved: bool = False
+    record_validation_remediation_required: bool = True
+    record_validation_remediation_ready: bool = False
+    record_validation_remediation_performed: bool = False
+    record_validation_required: bool = True
+    record_validation_ready: bool = False
+    record_contract_required: bool = True
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_required: bool = True
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_complete: bool = False
+    review_allowed: bool = False
+    step_ready: bool = False
+    step_complete: bool = False
+    clearance_allowed: bool = False
+    resolution_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
     detail: str
 
 
@@ -15247,6 +15385,42 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
         str
     ] = Field(default_factory=list)
     closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_replay_gates: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count: int = Field(
+        ge=0
+    )
+    closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count: int = Field(
+        ge=0
+    )
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_statuses: list[
+        AdminApiGateStatus
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_claims: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_gates: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_blockers: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_work_item_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_dependency_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_required_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_predecessors: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_successors: list[
         str
     ] = Field(default_factory=list)
     missing_backend_contracts: list[str]

@@ -69,7 +69,7 @@ Before deploying any changes to the platform (architectural changes, new feature
 
 ## Phase 8: Deployment
 
-- [ ] All regression tests pass ✓
+- [ ] Full regression closeout gate passed when this is a durable milestone, release, or deployment closeout: `python tools/run_parallel_regression.py --workers 4`
 - [ ] All unit tests pass ✓
 - [ ] All integration tests pass ✓
 - [ ] External tests pass (if applicable) ✓
@@ -145,7 +145,7 @@ if [ $EXIT_CODE -ne 0 ]; then
     exit 1
 fi
 
-echo "All regression tests passed - safe to deploy"
+echo "Full regression closeout gate passed - safe to deploy"
 exit 0
 ```
 

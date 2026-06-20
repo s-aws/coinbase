@@ -335,11 +335,14 @@ dependencies, or changing execution authority. Completed phases 4821-4840 derive
 blocked backend review-input store record-validation remediation dependency
 rows from those remediations without resolving dependency order, performing
 remediation, readying validations, clearing dependencies, or changing
-execution authority. Active phases 4841-4860 derive blocked backend
+execution authority. Completed phases 4841-4860 derive blocked backend
 review-input store record-validation remediation dependency work-item rows from
 those dependencies without claiming work items, performing work items,
 resolving dependency order, performing remediation, readying validations,
-clearing dependencies, or changing execution authority.
+clearing dependencies, or changing execution authority. Active phases
+4861-4880 derive blocked backend claim-trace rows from those work items without
+resolving claims, allowing claim resolution, clearing dependencies, performing
+remediation, validating records, or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their
