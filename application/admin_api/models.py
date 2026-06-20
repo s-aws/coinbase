@@ -46,6 +46,7 @@ from core.enums import (
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthClosureClearanceOwner,
+    AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionEvidence,
@@ -13953,6 +13954,32 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteClosureDependencyClearanceStepRow(BaseModel):
+    """Blocked backend-owned step for a single M55 closure dependency plan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    step_ref: str
+    dependency_ref: str
+    dependency_class: AdminApiStealthClosureDependencyClass
+    step_name: AdminApiStealthClosureClearanceStepName
+    clearance_owner: AdminApiStealthClosureClearanceOwner
+    required_artifact_ref: str
+    clearance_order: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    step_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    step_ready: bool = False
+    step_complete: bool = False
+    clearance_allowed: bool = False
+    resolution_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteClosureDependencyClearancePlanRow(BaseModel):
     """Backend-owned plan row for clearing one M55 closure dependency."""
 
@@ -13971,6 +13998,16 @@ class StealthCommandSuiteClosureDependencyClearancePlanRow(BaseModel):
     bff_authority: str = "forward_only_no_execution"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    clearance_step_rows: list[
+        StealthCommandSuiteClosureDependencyClearanceStepRow
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Read-only backend-owned steps derived from this dependency plan. "
+            "Steps remain blocked and cannot clear dependencies or grant "
+            "execution authority."
+        ),
+    )
     detail: str
 
 
@@ -14267,6 +14304,17 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
     closure_readiness_dependency_clearance_statuses: list[AdminApiGateStatus] = Field(
         default_factory=list
     )
+    closure_readiness_dependency_clearance_step_count: int = Field(ge=0)
+    closure_readiness_blocked_dependency_clearance_step_count: int = Field(ge=0)
+    closure_readiness_dependency_clearance_step_names: list[
+        AdminApiStealthClosureClearanceStepName
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_statuses: list[
+        AdminApiGateStatus
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_required_artifact_refs: list[
+        str
+    ] = Field(default_factory=list)
     missing_backend_contracts: list[str]
     first_blocker: AdminApiStealthCommandSuiteBlockerClosure | None = None
     closure_authority: str = "backend_contract_only_no_execution"

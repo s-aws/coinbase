@@ -307,9 +307,11 @@ traceability for those readiness criteria while keeping every dependency
 unresolved and every execution authority flag false. Completed phases 4641-4660
 classify those trace dependencies as backend contract, proof route, or
 gate-chain dependencies while keeping every dependency unresolved and every
-execution authority flag false. Active phases 4661-4680 assign each classified
-dependency to a backend-owned clearance plan row with an owner, required
-artifact, clearance order, blocked status, and no-execution authority flags.
+execution authority flag false. Completed phases 4661-4680 assign each
+classified dependency to a backend-owned clearance plan row with an owner,
+required artifact, clearance order, blocked status, and no-execution authority
+flags. Active phases 4681-4700 derive blocked backend clearance-step rows from
+those plans without clearing dependencies or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

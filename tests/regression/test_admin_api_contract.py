@@ -404,6 +404,7 @@ from core.enums import (
     AdminApiRole,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthClosureClearanceOwner,
+    AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionContextField,
@@ -25747,7 +25748,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -25974,7 +25975,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26214,7 +26215,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26473,7 +26474,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -26698,7 +26699,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27603,7 +27604,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -30793,7 +30794,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31008,7 +31009,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "4661-4680"
+    assert readback_payload["approved_phase_range"] == "4681-4700"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -34250,7 +34251,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "4661-4680"
+    assert payload["approved_phase_range"] == "4681-4700"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -34378,6 +34379,11 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
                 for row in backend_contract_rows
             )
             assert all(
+                row["clearance_step_rows"][0]["step_name"]
+                == AdminApiStealthClosureClearanceStepName.IMPLEMENT_BACKEND_CONTRACT.value
+                for row in backend_contract_rows
+            )
+            assert all(
                 row["dependency_class"]
                 == AdminApiStealthClosureDependencyClass.PROOF_ROUTE.value
                 for row in proof_route_rows
@@ -34385,6 +34391,11 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
             assert all(
                 row["clearance_owner"]
                 == AdminApiStealthClosureClearanceOwner.ADMIN_API_CONTRACT.value
+                for row in proof_route_rows
+            )
+            assert all(
+                row["clearance_step_rows"][0]["step_name"]
+                == AdminApiStealthClosureClearanceStepName.ADD_PROOF_ROUTE.value
                 for row in proof_route_rows
             )
             assert all(
@@ -34397,6 +34408,11 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
                 == AdminApiStealthClosureClearanceOwner.BACKEND_GATE_CHAIN.value
                 for row in gate_chain_rows
             )
+            assert all(
+                row["clearance_step_rows"][0]["step_name"]
+                == AdminApiStealthClosureClearanceStepName.VERIFY_GATE_CHAIN.value
+                for row in gate_chain_rows
+            )
             for row in clearance_rows:
                 assert row["clearance_status"] == AdminApiGateStatus.BLOCKED.value
                 assert row["clearance_allowed"] is False
@@ -34406,6 +34422,34 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
                 assert row["bff_authority"] == "forward_only_no_execution"
                 assert row["live_coinbase_orders_ran"] is False
                 assert row["live_coinbase_read_ran"] is False
+                clearance_steps = row["clearance_step_rows"]
+                assert len(clearance_steps) == 1
+                assert clearance_steps[0]["step_ref"] == (
+                    f"{row['dependency_ref']}::clearance_step"
+                )
+                assert clearance_steps[0]["dependency_ref"] == row["dependency_ref"]
+                assert clearance_steps[0]["dependency_class"] == row["dependency_class"]
+                assert clearance_steps[0]["clearance_owner"] == row["clearance_owner"]
+                assert clearance_steps[0]["required_artifact_ref"] == (
+                    row["required_artifact_ref"]
+                )
+                assert clearance_steps[0]["clearance_order"] == row["clearance_order"]
+                assert clearance_steps[0]["step_order"] == 1
+                assert clearance_steps[0]["step_status"] == (
+                    AdminApiGateStatus.BLOCKED.value
+                )
+                assert clearance_steps[0]["step_ready"] is False
+                assert clearance_steps[0]["step_complete"] is False
+                assert clearance_steps[0]["clearance_allowed"] is False
+                assert clearance_steps[0]["resolution_allowed"] is False
+                assert clearance_steps[0]["backend_owned"] is True
+                assert clearance_steps[0]["browser_authority"] == "display_only"
+                assert clearance_steps[0]["bff_authority"] == (
+                    "forward_only_no_execution"
+                )
+                assert clearance_steps[0]["live_coinbase_orders_ran"] is False
+                assert clearance_steps[0]["live_coinbase_read_ran"] is False
+                assert clearance_steps[0]["detail"]
                 assert row["detail"]
             assert trace["verification_gates"] == (
                 closure["closure_readiness_verification_gates"]
@@ -34578,6 +34622,36 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert blocker_summary["closure_readiness_dependency_clearance_statuses"] == [
         AdminApiGateStatus.BLOCKED.value
     ]
+    expected_clearance_step_count = sum(
+        len(row["clearance_step_rows"])
+        for closure in blocker_closures.values()
+        for trace in closure["closure_readiness_criterion_traces"]
+        for row in trace["dependency_clearance_plan_rows"]
+    )
+    assert (
+        blocker_summary["closure_readiness_dependency_clearance_step_count"]
+        == expected_clearance_step_count
+    )
+    assert (
+        blocker_summary["closure_readiness_blocked_dependency_clearance_step_count"]
+        == expected_clearance_step_count
+    )
+    assert set(
+        blocker_summary["closure_readiness_dependency_clearance_step_names"]
+    ) == {
+        AdminApiStealthClosureClearanceStepName.IMPLEMENT_BACKEND_CONTRACT.value,
+        AdminApiStealthClosureClearanceStepName.ADD_PROOF_ROUTE.value,
+        AdminApiStealthClosureClearanceStepName.VERIFY_GATE_CHAIN.value,
+    }
+    assert (
+        blocker_summary["closure_readiness_dependency_clearance_step_statuses"]
+        == [AdminApiGateStatus.BLOCKED.value]
+    )
+    assert set(
+        blocker_summary[
+            "closure_readiness_dependency_clearance_step_required_artifact_refs"
+        ]
+    ) == set(blocker_summary["closure_readiness_missing_dependency_refs"])
     assert (
         blocker_summary["closure_readiness_dependency_resolution_required_count"]
         == 18
@@ -36480,7 +36554,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "4661-4680"
+    assert live_payload["approved_phase_range"] == "4681-4700"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -37133,7 +37207,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "4661-4680"
+    assert enterprise_payload["approved_phase_range"] == "4681-4700"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -37908,7 +37982,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "4661-4680"
+    assert recovery_preview_payload["approved_phase_range"] == "4681-4700"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

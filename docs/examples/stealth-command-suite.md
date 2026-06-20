@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4661-4680",
+  "approved_phase_range": "4681-4700",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -64,10 +64,13 @@ unresolved dependency refs for each criterion; they do not satisfy dependencies
 or grant live authority. In the completed 4641-4660 range, those trace
 dependencies are classified as backend contract, proof route, and gate-chain
 dependencies with matching missing-dependency classifications and explicit
-resolution-required/no-resolution-allowed evidence. In the current 4661-4680
-range, each classified dependency also has a backend-owned clearance plan row
-with owner, required artifact, clearance order, blocked status, and no-live
-authority fields.
+resolution-required/no-resolution-allowed evidence. In the completed
+4661-4680 range, each classified dependency also has a backend-owned clearance
+plan row with owner, required artifact, clearance order, blocked status, and
+no-live authority fields. In the current 4681-4700 range, each clearance plan
+also exposes a blocked backend clearance-step row naming the backend contract,
+proof route, or gate-chain work still required before the dependency can be
+cleared.
 
 ```json
 {

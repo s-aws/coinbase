@@ -10331,6 +10331,14 @@ components:
       - backend_gate_chain
       title: AdminApiStealthClosureClearanceOwner
       description: Backend owner class responsible for clearing an M55 dependency.
+    AdminApiStealthClosureClearanceStepName:
+      type: string
+      enum:
+      - implement_backend_contract
+      - add_proof_route
+      - verify_gate_chain
+      title: AdminApiStealthClosureClearanceStepName
+      description: Backend step required before an M55 dependency can be cleared.
     AdminApiStealthClosureDependencyClass:
       type: string
       enum:
@@ -58031,6 +58039,29 @@ components:
             $ref: '#/components/schemas/AdminApiGateStatus'
           type: array
           title: Closure Readiness Dependency Clearance Statuses
+        closure_readiness_dependency_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Clearance Step Count
+        closure_readiness_blocked_dependency_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Blocked Dependency Clearance Step Count
+        closure_readiness_dependency_clearance_step_names:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepName'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Names
+        closure_readiness_dependency_clearance_step_statuses:
+          items:
+            $ref: '#/components/schemas/AdminApiGateStatus'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Statuses
+        closure_readiness_dependency_clearance_step_required_artifact_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Required Artifact Refs
         missing_backend_contracts:
           items:
             type: string
@@ -58099,6 +58130,8 @@ components:
       - closure_readiness_dependency_resolution_allowed_count
       - closure_readiness_dependency_clearance_plan_count
       - closure_readiness_blocked_dependency_clearance_plan_count
+      - closure_readiness_dependency_clearance_step_count
+      - closure_readiness_blocked_dependency_clearance_step_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -58316,6 +58349,14 @@ components:
           type: boolean
           title: Live Coinbase Read Ran
           default: false
+        clearance_step_rows:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteClosureDependencyClearanceStepRow'
+          type: array
+          title: Clearance Step Rows
+          description: Read-only backend-owned steps derived from this dependency
+            plan. Steps remain blocked and cannot clear dependencies or grant execution
+            authority.
         detail:
           type: string
           title: Detail
@@ -58330,6 +58371,88 @@ components:
       - detail
       title: StealthCommandSuiteClosureDependencyClearancePlanRow
       description: Backend-owned plan row for clearing one M55 closure dependency.
+    StealthCommandSuiteClosureDependencyClearanceStepRow:
+      properties:
+        step_ref:
+          type: string
+          title: Step Ref
+        dependency_ref:
+          type: string
+          title: Dependency Ref
+        dependency_class:
+          $ref: '#/components/schemas/AdminApiStealthClosureDependencyClass'
+        step_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepName'
+        clearance_owner:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceOwner'
+        required_artifact_ref:
+          type: string
+          title: Required Artifact Ref
+        clearance_order:
+          type: integer
+          minimum: 1.0
+          title: Clearance Order
+        step_order:
+          type: integer
+          minimum: 1.0
+          title: Step Order
+        step_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        step_ready:
+          type: boolean
+          title: Step Ready
+          default: false
+        step_complete:
+          type: boolean
+          title: Step Complete
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        resolution_allowed:
+          type: boolean
+          title: Resolution Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - step_ref
+      - dependency_ref
+      - dependency_class
+      - step_name
+      - clearance_owner
+      - required_artifact_ref
+      - clearance_order
+      - step_order
+      - detail
+      title: StealthCommandSuiteClosureDependencyClearanceStepRow
+      description: Blocked backend-owned step for a single M55 closure dependency
+        plan.
     StealthCommandSuiteClosureReadinessCriterionTrace:
       properties:
         criterion:

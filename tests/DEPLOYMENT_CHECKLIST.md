@@ -35,7 +35,9 @@ Before deploying any changes to the platform (architectural changes, new feature
   ```bash
   python tools/run_parallel_regression.py --workers 4
   ```
-  - Falls back to `pytest tests/regression/ -v --tb=short` when pytest-xdist is unavailable
+  - Requires pytest-xdist for the process-parallel lane; if pytest-xdist is
+    unavailable, install the test dependencies or deliberately run the
+    sequential closeout fallback: `pytest tests/regression/ -v --tb=short`
   - Must pass before the milestone/release/deployment is considered complete
 
 ## Phase 5: Full Test Suite

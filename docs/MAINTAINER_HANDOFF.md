@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4641-4660` under M55.
-- Active autonomous range: `4661-4680` under M55.
+- Latest completed autonomous range: `4661-4680` under M55.
+- Active autonomous range: `4681-4700` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -433,9 +433,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   execution authority flag false. Completed 4641-4660 work classifies those
   trace dependencies as backend contract, proof route, or gate-chain
   dependencies while keeping every dependency unresolved and every execution
-  authority flag false. Active 4661-4680 work assigns each classified
+  authority flag false. Completed 4661-4680 work assigns each classified
   dependency to a backend-owned clearance plan row with owner, required
   artifact, clearance order, blocked status, and no-live authority evidence.
+  Active 4681-4700 work derives blocked backend clearance-step rows from those
+  plans without clearing dependencies or changing execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

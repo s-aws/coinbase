@@ -532,6 +532,14 @@ class AdminApiStealthClosureClearanceOwner(str, Enum):
     BACKEND_GATE_CHAIN = "backend_gate_chain"
 
 
+class AdminApiStealthClosureClearanceStepName(str, Enum):
+    """Backend step required before an M55 dependency can be cleared."""
+
+    IMPLEMENT_BACKEND_CONTRACT = "implement_backend_contract"
+    ADD_PROOF_ROUTE = "add_proof_route"
+    VERIFY_GATE_CHAIN = "verify_gate_chain"
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 

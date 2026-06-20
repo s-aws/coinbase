@@ -3085,10 +3085,12 @@ Current backend evidence:
   every dependency unresolved and every execution authority flag false.
   Completed phases 4641-4660 classify those trace dependencies as backend
   contract, proof route, or gate-chain dependencies while keeping every
-  dependency unresolved and every execution authority flag false. Active phases
-  4661-4680 assign each classified dependency to a backend-owned clearance plan
-  row with owner, required artifact, clearance order, blocked status, and
-  no-live authority evidence.
+  dependency unresolved and every execution authority flag false. Completed
+  phases 4661-4680 assign each classified dependency to a backend-owned
+  clearance plan row with owner, required artifact, clearance order, blocked
+  status, and no-live authority evidence. Active phases 4681-4700 derive
+  blocked backend clearance-step rows from those plans without clearing
+  dependencies or changing execution authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.
