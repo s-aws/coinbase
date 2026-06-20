@@ -288,7 +288,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4561-4580"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4581-4600"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -13127,6 +13127,23 @@ class AdminApiReadService:
                     "exchange_truth_checks",
                     "admission_readiness.active_placement_cancel_replace_ran",
                 ],
+                partial_evidence_refs=[
+                    "stealth_cancel_active_placement_cancel_proof",
+                    "stealth_move_active_placement_cancel_replace_proof",
+                    "stealth_reprice_active_placement_cancel_replace_proof",
+                    "active_placement_exchange_truth_contract",
+                ],
+                partial_evidence_contracts=[
+                    "application/admin_api/stealth_cancel_replace_boundary.py",
+                    "application/admin_api/stealth_cancel_replace_proof_service.py",
+                    "application/admin_api/stealth_exchange_truth_boundary.py",
+                ],
+                partial_evidence_detail=(
+                    "Cancel/replace proof and exchange-truth readback "
+                    "contracts exist as backend-owned evidence, but they do "
+                    "not cancel active placements, invoke managers, call "
+                    "Coinbase, or satisfy the blocker ledger."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/stealth_cancel_replace_boundary.py",
                     "application/admin_api/stealth_cancel_replace_proof_service.py",
@@ -13175,6 +13192,22 @@ class AdminApiReadService:
                     "admission_readiness.coinbase_order_submitted",
                     "commands.backend_contract_refs",
                 ],
+                partial_evidence_refs=[
+                    "stealth_reveal_trigger_proof",
+                    "stealth_reveal_exchange_submission_policy",
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/reveal::coinbase_exchange_submission_policy",
+                ],
+                partial_evidence_contracts=[
+                    "application/admin_api/stealth_reveal_trigger_proof_service.py",
+                    "application/admin_api/stealth_coinbase_exchange_submission_policy_service.py",
+                    "application/admin_api/stealth_exchange_truth_boundary.py",
+                ],
+                partial_evidence_detail=(
+                    "Reveal-trigger and exchange-submission policy evidence "
+                    "exist as non-executable backend proof surfaces, but the "
+                    "Admin API still does not call reveal_order_slice or "
+                    "submit a Coinbase order."
+                ),
                 required_backend_contracts=[
                     "core/stealth_order_manager.py::reveal_order_slice",
                     "application/admin_api/stealth_reveal_trigger_proof_service.py",
@@ -13221,6 +13254,23 @@ class AdminApiReadService:
                     "admission_readiness.state_mutation_allowed",
                     "commands.backend_contract_refs",
                 ],
+                partial_evidence_refs=[
+                    "stealth_recovery_proof",
+                    "stealth_recovery_repair_result_contract",
+                    "stealth_recovery_rollback_contract",
+                    "post_write_reconciliation_proof_contract",
+                ],
+                partial_evidence_contracts=[
+                    "application/admin_api/stealth_recovery_proof_service.py",
+                    "application/admin_api/stealth_exchange_truth_boundary.py",
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                ],
+                partial_evidence_detail=(
+                    "Recovery proof, repair-result, rollback, and "
+                    "post-write proof readback surfaces exist, but they do "
+                    "not perform repair, rollback, reconciliation execution, "
+                    "Coinbase reads, or lifecycle mutation."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/stealth_recovery_proof_service.py",
                     "bridges/stealth_order_bridge.py",
@@ -13262,6 +13312,22 @@ class AdminApiReadService:
                     "create_lifecycle_write_audit.execution_contract",
                     "coverage_gaps.missing_contracts",
                 ],
+                partial_evidence_refs=[
+                    "safe_post_write_reconciliation_proof",
+                    "post_write_execution_journal",
+                    "verified_post_write_reconciliation",
+                ],
+                partial_evidence_contracts=[
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                    "application/admin_api/stealth_post_write_reconciliation_service.py",
+                    "application/admin_api/stealth_post_write_reconciliation_policy_service.py",
+                ],
+                partial_evidence_detail=(
+                    "Post-write proof, journal, and verification records can "
+                    "be matched as backend-owned readback evidence, but this "
+                    "row still does not execute reconciliation or mutate "
+                    "state."
+                ),
                 required_backend_contracts=[
                     "application/admin_api/stealth_post_write_reconciliation.py",
                     "application/admin_api/stealth_post_write_reconciliation_service.py",

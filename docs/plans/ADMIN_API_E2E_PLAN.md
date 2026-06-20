@@ -38,16 +38,107 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Blocker Partial-Evidence Ledger Batch - Phases 4561-4580
+## Active M55 Remaining Blocker Partial-Evidence Batch - Phases 4581-4600
 
-These phases close the next concrete M55 clarity gap by adding backend-owned
-partial-evidence classification to the concrete blocker-closure ledger. The
-ledger may show that the exact stealth reveal route has non-executable dry-run
-service and adapter evidence, but every M55 blocker row remains blocked and
-unresolved. This range must not enable the service, construct a live adapter,
-call Coinbase, invoke the stealth manager, reveal an order, submit or cancel a
-slice, execute reconciliation, mutate state, grant browser authority, or grant
+These phases classify existing backend proof/readback surfaces as partial
+evidence for the remaining concrete M55 blocker rows while keeping every row
+blocked and unresolved. The range covers active-placement cancel/replace,
+reveal exchange submission, recovery repair/rollback, and post-write
+reconciliation execution. It must not enable service, construct adapters,
+invoke managers, call Coinbase, cancel or submit orders, repair or roll back
+state, execute reconciliation, mutate state, grant browser authority, or grant
 BFF execution authority.
+
+### Phase 4581 - Prior Range Completion Evidence
+
+- Record completed phases 4561-4580 with backend commit `1bc02470`, frontend commit `8d7f2ff`, focused gates, blind/contextless review, UI smoke, and `0` USDC live Coinbase submitted/executed notional.
+
+### Phase 4582 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 4561-4580 to active phases 4581-4600 while preserving no-live defaults and cap policy.
+
+### Phase 4583 - Remaining Blocker Partial Evidence Scope
+
+- Keep the existing blocker-closure field shape and add only partial proof/readback refs for remaining blocked rows.
+
+### Phase 4584 - Active Placement Partial Evidence
+
+- Populate active-placement cancel/replace partial evidence from cancel/replace and exchange-truth proof/readback surfaces while keeping execution disabled.
+
+### Phase 4585 - Reveal Submission Partial Evidence
+
+- Populate reveal exchange-submission partial evidence from reveal-trigger and exchange-submission policy surfaces while keeping Coinbase submission disabled.
+
+### Phase 4586 - Recovery Repair/Rollback Partial Evidence
+
+- Populate recovery repair/rollback partial evidence from recovery proof, repair-result, rollback, and post-write proof surfaces while keeping repair and rollback disabled.
+
+### Phase 4587 - Post-Write Reconciliation Partial Evidence
+
+- Populate post-write reconciliation execution partial evidence from proof, journal, and verification surfaces while keeping reconciliation execution disabled.
+
+### Phase 4588 - Summary Rollup Expansion
+
+- Update summary counts and refs so six blocker rows have partial evidence and zero rows are resolved.
+
+### Phase 4589 - Backend No-Closure Assertions
+
+- Extend Admin API regression coverage for the expanded partial-evidence ledger and unchanged no-live/no-authority flags.
+
+### Phase 4590 - Frontend Mock And Adapter Sync
+
+- Sync frontend mock command-suite evidence and schema consumers with the expanded six-row partial-evidence rollup.
+
+### Phase 4591 - Frontend Ledger Display Verification
+
+- Verify the existing UI renders expanded partial evidence without adding trading controls.
+
+### Phase 4592 - Quality Metadata Sync
+
+- Update active range metadata to phases 4581-4600.
+
+### Phase 4593 - Documentation Sync
+
+- Update Admin API, frontend API, testing, roadmap, maintainer handoff, examples, expanded context, and agent-state docs.
+
+### Phase 4594 - Stale Authority Scan
+
+- Search for stale wording implying partial evidence closes blockers or grants live/manager/Coinbase/reconciliation/state mutation authority.
+
+### Phase 4595 - Backend Focused Gates
+
+- Run autonomous queue and focused Admin API command-suite regression coverage.
+
+### Phase 4596 - Frontend Focused Gates
+
+- Run frontend autonomous/API/typecheck and focused UI/mock/quality tests as needed.
+
+### Phase 4597 - Contextless Review
+
+- Record contextless review evidence for the expanded partial-evidence boundary.
+
+### Phase 4598 - Live UI Smoke
+
+- Verify the live UI renders 4581-4600 no-live posture without console errors.
+
+### Phase 4599 - No-Live Report
+
+- Record `0` USDC submitted/executed notional and milestone-closeout gate deferral.
+
+### Phase 4600 - Commit And Push
+
+- Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Partial Blocker Evidence Batch - Phases 4561-4580
+
+Backend commit `1bc02470` added backend-owned partial-evidence classification
+for the reveal dry-run live-service and adapter rows. Frontend commit
+`8d7f2ff` displayed the same evidence. Focused backend and frontend gates,
+blind/contextless review, and UI smoke passed at
+`http://127.0.0.1:3120/?phaseSmoke=4561-4580`. Full backend regression and
+frontend release gate were deferred to durable milestone closeout. Live
+Coinbase execution was not run; submitted notional `0` USDC and executed
+notional `0` USDC.
 
 ### Phase 4561 - Prior Range Completion Evidence
 

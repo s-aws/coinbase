@@ -2,8 +2,10 @@
 
 ## Overview
 
-This repository maintains a layered pytest suite with a strict regression gate.
-The suite is designed to protect concurrency safety, ID discipline, and stealth/follow-up lifecycle behavior while allowing rapid iteration.
+This repository maintains a layered pytest suite with focused phase gates and a
+strict full-regression closeout gate. The suite is designed to protect
+concurrency safety, ID discipline, and stealth/follow-up lifecycle behavior
+while allowing rapid iteration.
 
 ## Current Inventory (2026-05-16)
 
@@ -23,13 +25,17 @@ The suite is designed to protect concurrency safety, ID discipline, and stealth/
 
 ## Required Execution Policy
 
-For non-agent-file changes:
+For ordinary non-agent-file changes, run focused tests and validators covering
+the changed behavior. For durable milestone closeout, public/release-candidate
+handoff, or explicit user request, run the full regression closeout gate:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
 
-This is mandatory.
+The helper runs non-serial regression tests with pytest-xdist process workers
+and runs tests marked `serial` in a separate sequential lane. Do not use Python
+threads to parallelize the regression suite.
 
 ## Suite Coverage Focus
 
@@ -66,9 +72,9 @@ This is mandatory.
 
 ## Command Reference
 
-### Core gate
+### Full regression closeout gate
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
 
 ### Full suite

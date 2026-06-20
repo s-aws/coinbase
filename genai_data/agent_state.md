@@ -44,8 +44,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4541-4560`.
-- Active autonomous range: `4561-4580`.
+- Latest completed autonomous range before current work: `4561-4580`.
+- Active autonomous range: `4581-4600`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -645,9 +645,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4561-4580`.
+- Active autonomous range: `4581-4600`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4561-4580`.
+- Current direction: complete phases `4581-4600`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -732,11 +732,14 @@ Keep it short. Keep it factual.
   Completed `4521-4540` adds one backend-owned, route-bound, non-executable
   dry-run adapter for stealth reveal. Completed `4541-4560` adds one
   backend-owned, route-bound, non-executable dry-run live-service contract for
-  stealth reveal. Active `4561-4580` classifies those dry-run surfaces as
-  partial blocker evidence; it must not call Coinbase, invoke managers,
-  execute reveal, cancel or replace active placements, execute reconciliation,
-  mutate lifecycle/order/exchange state, clear M55 blockers, grant browser
-  authority, or grant BFF execution authority.
+  stealth reveal. Completed `4561-4580` classified those dry-run surfaces as
+  partial blocker evidence. Active `4581-4600` expands partial proof/readback
+  evidence to the remaining concrete M55 blocker rows: active-placement
+  cancel/replace, reveal exchange submission, recovery repair/rollback, and
+  post-write reconciliation execution. It must not call Coinbase, invoke
+  managers, execute reveal, cancel or replace active placements, execute
+  reconciliation, mutate lifecycle/order/exchange state, clear M55 blockers,
+  grant browser authority, or grant BFF execution authority.
 
 ## Decisions (Durable)
 
@@ -1354,6 +1357,6 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: pause for user restart after the backend/frontend
-  phase-close commit and push; do not advance to another range in this
-  session.
+- Exact next command: complete active phases `4581-4600` by syncing expanded
+  M55 partial-evidence rows across backend/frontend, running focused gates,
+  keeping live Coinbase execution not run, and preserving the UI smoke URL.

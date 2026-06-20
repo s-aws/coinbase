@@ -86,6 +86,7 @@ owners:
       - genai_data/ARCHITECTURE.md
       - genai_data/API_REFERENCE.md
       - genai_data/CONFIGURATION.md
+      - genai_data/COMPREHENSIVE_TEST_SUITE.md
       - genai_data/TESTING_STRATEGY.md
       - genai_data/ORDER_ID_HANDLING.md
       - genai_data/agent_state.md
@@ -375,6 +376,8 @@ owners:
       - tests/SETUP_SUMMARY.md
       - tests/DEPLOYMENT_CHECKLIST.md
       - tests/requirements.txt
+      - tests/regression/__init__.py
+      - tests/regression/test_core_functionality.py
     tests:
       - pytest tests/regression/test_db_prod_guard.py -v --tb=short
     requires_regression: true

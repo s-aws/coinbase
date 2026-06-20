@@ -106,8 +106,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4541-4560` under M55.
-- Active autonomous range: `4561-4580` under M55.
+- Latest completed autonomous range: `4561-4580` under M55.
+- Active autonomous range: `4581-4600` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -415,9 +415,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   4521-4540 work adds one backend-owned, route-bound, non-executable stealth
   reveal dry-run adapter. Completed 4541-4560 work adds one backend-owned,
   route-bound, non-executable stealth reveal dry-run live-service contract.
-  Active 4561-4580 work classifies both dry-run surfaces as partial blocker
-  evidence while keeping exact proof, manager, Coinbase, reconciliation,
-  state mutation, browser, and BFF execution authority blocked.
+  Completed 4561-4580 work classifies both dry-run surfaces as partial
+  blocker evidence. Active 4581-4600 work expands partial evidence to the
+  remaining concrete M55 blocker rows while keeping exact proof, manager,
+  Coinbase, reconciliation, repair/rollback, state mutation, browser, and BFF
+  execution authority blocked.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

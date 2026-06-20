@@ -77,7 +77,8 @@ def pytest_configure(config):
         "markers", "slow: mark test as slow running"
     )
     config.addinivalue_line(
-        "markers", "regression: mark test as regression test (must pass before deploy)"
+        "markers",
+        "regression: mark test as regression closeout/release-gate coverage",
     )
     config.addinivalue_line(
         "markers", "integration: mark test as integration test (touches real DB / external services)"

@@ -292,9 +292,13 @@ repair, rollback, reconciliation, state mutation, browser, or BFF authority.
 Completed phases 4521-4540 added one route-bound, non-executable dry-run
 adapter for stealth reveal. Completed phases 4541-4560 added route-bound,
 non-executable dry-run live-service evidence for the same reveal route.
-Active phases 4561-4580 classify those reveal dry-run service and adapter
+Completed phases 4561-4580 classify those reveal dry-run service and adapter
 surfaces as partial blocker evidence while keeping exact proof, manager,
-Coinbase, reconciliation, browser, and BFF execution authority blocked.
+Coinbase, reconciliation, browser, and BFF execution authority blocked. Active
+phases 4581-4600 expand partial evidence to the remaining concrete M55
+blocker rows for active-placement cancel/replace, reveal exchange submission,
+recovery repair/rollback, and post-write reconciliation execution while
+keeping every blocker unresolved and no-live.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

@@ -205,7 +205,7 @@ Quick reference guide to all test files and their coverage.
 ## Regression Tests (Critical Paths)
 
 ### `test_core_functionality.py`
-**Tests**: Critical paths that MUST PASS before deployment  
+**Tests**: Critical paths for milestone/release closeout
 **Coverage**:
 - Stealth order creation with correct initial state
 - Order has all required fields
@@ -280,8 +280,8 @@ pytest tests/unit/test_order_calculator.py::TestSpreadCalculations::test_calcula
 # Run with coverage
 pytest tests/ --cov=. --cov-report=html
 
-# Pre-deployment checklist
-pytest tests/regression/ -v --tb=short
+# Milestone/release closeout regression gate
+python tools/run_parallel_regression.py --workers 4
 ```
 
 ---
@@ -310,13 +310,18 @@ pytest tests/regression/ -v --tb=short
    pytest tests/ -v > baseline_results.txt
    ```
 
-2. Run regression tests before any changes
+2. Run focused tests before and after ordinary changes
    ```bash
-   pytest tests/regression/ -v --tb=short
+   pytest tests/regression/<focused_test_file>.py -v --tb=short
    ```
 
-3. Add tests as new features are implemented
+3. Run full regression before durable milestone closeout or release handoff
+   ```bash
+   python tools/run_parallel_regression.py --workers 4
+   ```
 
-4. Expand external API tests when credentials available
+4. Add tests as new features are implemented
 
-5. Add stress/performance tests as system scales
+5. Expand external API tests when credentials available
+
+6. Add stress/performance tests as system scales

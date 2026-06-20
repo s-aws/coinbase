@@ -5,10 +5,12 @@ spot-specific feature before live trading.
 
 ## Local Required Gates
 
-Run the repository regression gate after non-agent-file changes:
+Run focused tests for ordinary backend changes. Run the repository regression
+gate before durable milestone closeout, public/release-candidate handoff, or
+deployment approval:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
 
 Run the focused spot readiness gate after spot trading changes:
@@ -70,7 +72,8 @@ Coinbase execution as not run with notional `$0`.
 `artifacts/runtime-evidence.json`.
 It is release evidence for the read-only/disabled-command frontend candidate,
 not approval for live Coinbase execution. These checks do not replace this
-repository's backend regression gate when backend files changed.
+repository's backend regression closeout gate when a milestone or release is
+being marked complete.
 
 Frontend production readiness is conditional on a real backend OIDC/JWT
 session bridge. Current `server_env_static` BFF authority is local or staging

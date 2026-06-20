@@ -6,9 +6,9 @@ without relying on chat history.
 
 ## Approved Range Status
 
-- Approved phase range: **4561-4580**.
+- Approved phase range: **4581-4600**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4541-4560`.
+- Previous completed range: `4561-4580`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -37,7 +37,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `4560`.
+- `current_phase`: `4580`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -55,100 +55,112 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 4561-4580
+## Active Phases 4581-4600
 
-These phases close the next concrete M55 clarity gap by adding backend-owned
-partial-evidence classification to the concrete blocker-closure ledger. The
-ledger may show that the exact stealth reveal route has non-executable dry-run
-service and adapter evidence, but every M55 blocker row remains blocked and
-unresolved. This range must not enable the service, construct a live adapter,
-call Coinbase, invoke the stealth manager, reveal an order, submit or cancel a
-slice, execute reconciliation, mutate state, grant browser authority, or grant
-BFF execution authority.
+These phases close the next concrete M55 ledger gap by classifying existing
+backend proof/readback surfaces as partial evidence for the four remaining
+non-service/non-adapter blocker rows: active-placement cancel/replace, reveal
+exchange submission, recovery repair/rollback, and post-write reconciliation
+execution. Every M55 blocker row remains blocked and unresolved. This range
+must not enable live service, construct a live adapter, invoke managers, call
+Coinbase, cancel or submit orders, perform repair or rollback, execute
+reconciliation, mutate state, grant browser authority, or grant BFF execution
+authority.
 
-### Phase 4561 - Prior Range Completion Evidence
+### Phase 4581 - Prior Range Completion Evidence
 
-- Record completed phases 4541-4560 with backend commit `73ea497c`, frontend commit `d5f7a00`, passing backend regression, frontend release gate, blind/contextless review, UI smoke at `http://127.0.0.1:3117/?phaseSmoke=4541-4560`, and `0` USDC live Coinbase submitted/executed notional.
+- Record completed phases 4561-4580 with backend commit `1bc02470`, frontend commit `8d7f2ff`, focused backend/frontend gates, blind/contextless review, UI smoke at `http://127.0.0.1:3120/?phaseSmoke=4561-4580`, and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 4562 - Advance Active Queue Range
+### Phase 4582 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4541-4560 to active phases 4561-4580 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4561-4580 to active phases 4581-4600 while preserving no-live defaults and cap policy.
 
-### Phase 4563 - Partial Evidence Contract Fields
+### Phase 4583 - Remaining Blocker Partial Evidence Scope
 
-- Add explicit blocker-closure fields for partial evidence presence, evidence refs, evidence contracts, and detail without changing status, blocking, resolved, missing-contract, or execution flags.
+- Keep the existing blocker-closure field shape and add only evidence refs, evidence contracts, and detail for remaining blocked rows without changing status, blocking, resolved, missing-contract, or execution flags.
 
-### Phase 4564 - Reveal Service Partial Evidence
+### Phase 4584 - Active Placement Partial Evidence
 
-- Populate the `m55_live_service_enablement` row with route-bound reveal dry-run service evidence refs while keeping `live_service_enabled=false` and the blocker unresolved.
+- Populate `m55_active_placement_cancel_replace` with existing cancel/replace and exchange-truth proof/readback refs while keeping active-placement cancel/replace execution disabled.
 
-### Phase 4565 - Reveal Adapter Partial Evidence
+### Phase 4585 - Reveal Submission Partial Evidence
 
-- Populate the `m55_live_adapter_construction` row with route-bound reveal dry-run adapter evidence refs while keeping `live_adapter_constructed=false` and the blocker unresolved.
+- Populate `m55_reveal_exchange_submission` with existing reveal-trigger and exchange-submission policy refs while keeping `reveal_order_slice` and Coinbase submission disabled.
 
-### Phase 4566 - Summary Partial Evidence Rollup
+### Phase 4586 - Recovery Repair/Rollback Partial Evidence
 
-- Add summary counts and refs for partial evidence so contextless readers can separate dry-run evidence from missing backend contracts.
+- Populate `m55_recovery_repair_rollback` with existing recovery proof, repair-result, rollback, and post-write proof refs while keeping repair, rollback, Coinbase reads, and lifecycle mutation disabled.
 
-### Phase 4567 - Backend No-Closure Assertions
+### Phase 4587 - Post-Write Reconciliation Partial Evidence
 
-- Extend Admin API regression coverage proving partial evidence does not reduce missing contracts, resolve blockers, enable service/adapter flags, allow manager/Coinbase/reconciliation/state mutation, or change submitted/executed notional.
+- Populate `m55_post_write_reconciliation_execution` with existing proof, journal, and verification refs while keeping reconciliation execution and state mutation disabled.
 
-### Phase 4568 - Backend OpenAPI Sync
+### Phase 4588 - Summary Rollup Expansion
 
-- Regenerate `openapi/coinbase-admin-api.yaml` from FastAPI models and verify the blocker-closure schema exposes only read-only partial-evidence fields.
+- Update summary counts and refs so contextless readers see six partial-evidence rows and zero resolved blocker rows.
 
-### Phase 4569 - Frontend Generated Schema Sync
+### Phase 4589 - Backend No-Closure Assertions
 
-- Regenerate `C:\coinbase-frontend\src\shared\api\generated\schema.ts` from the backend OpenAPI artifact without hand-editing generated code.
+- Extend focused Admin API regression coverage proving the new partial evidence does not reduce missing contracts, resolve blockers, enable manager/Coinbase/reconciliation/state mutation, or change submitted/executed notional.
 
-### Phase 4570 - Frontend Adapter Mapping
+### Phase 4590 - Frontend Mock And Adapter Sync
 
-- Map partial-evidence fields through the stealth command-suite adapter as backend-owned evidence, not UI-derived inference.
+- Sync frontend mock command-suite evidence and generated-schema consumers to display the expanded six-row partial-evidence rollup as backend-owned evidence.
 
-### Phase 4571 - Frontend Mock Runtime Sync
+### Phase 4591 - Frontend Ledger Display Verification
 
-- Sync mock command-suite fixtures to include the same partial evidence rows and summary rollup while keeping live-enabled and executable counts at zero.
+- Verify the existing M55 blocker ledger renders the expanded partial evidence without adding command controls or changing disabled execution posture.
 
-### Phase 4572 - Frontend Ledger Display
+### Phase 4592 - Quality Metadata Sync
 
-- Display partial dry-run evidence in the existing M55 blocker ledger without adding trading controls or changing disabled execution posture.
+- Update autonomous queue, release-readiness, deployment-readiness, artifact contract, runtime evidence, and active range metadata to phases 4581-4600.
 
-### Phase 4573 - Quality Metadata Sync
+### Phase 4593 - Documentation Sync
 
-- Update autonomous queue, release-readiness, deployment-readiness, artifact contract, runtime evidence, and active range metadata to phases 4561-4580.
+- Update Admin API, frontend API, testing, roadmap, maintainer handoff, durable milestones, examples, expanded context, and agent-state docs so contextless readers see 4581-4600 as active and 4561-4580 as completed.
 
-### Phase 4574 - Documentation Sync
+### Phase 4594 - Stale Authority Scan
 
-- Update Admin API, frontend API, testing, roadmap, maintainer handoff, durable milestones, examples, expanded context, and agent-state docs so contextless readers see 4561-4580 as active and 4541-4560 as completed.
+- Search backend/frontend code and docs for stale wording implying expanded partial evidence closes M55 blockers, enables execution, submits/cancels Coinbase orders, invokes managers, executes repair/rollback/reconciliation, or mutates state.
 
-### Phase 4575 - Stale Authority Scan
+### Phase 4595 - Backend Focused Gates
 
-- Search backend/frontend code and docs for stale wording implying partial evidence closes M55 blockers, enables live service/adapter execution, submits Coinbase orders, invokes managers, or mutates state.
+- Run `python tools\run_autonomous_work_queue_check.py --summary-only` and focused Admin API command-suite regression coverage.
 
-### Phase 4576 - Backend Focused Gates
+### Phase 4596 - Frontend Focused Gates
 
-- Run `python tools\run_autonomous_work_queue_check.py --summary-only`, OpenAPI freshness checks, and focused Admin API command-suite regression coverage.
+- Run frontend autonomous check, typecheck/API checks as needed, and focused tests for mocks, quality gates, admin shell, and stealth command-suite display.
 
-### Phase 4577 - Frontend Focused Gates
+### Phase 4597 - Contextless Review
 
-- Run frontend API freshness, autonomous check, typecheck, and focused tests for mocks, quality gates, admin shell, and stealth command-suite display.
+- Record a contextless review proving a fresh reader can distinguish expanded partial evidence from live authority without chat history.
 
-### Phase 4578 - Milestone-Closeout Regression Deferral
+### Phase 4598 - Live UI Smoke
 
-- Record that backend full regression is deferred to durable milestone
-  closeout unless explicitly requested; ordinary phase closure uses focused
-  Admin API/readiness/autonomous checks.
+- Verify the local admin frontend renders the 4581-4600 range and no-live posture without browser console errors; keep the UI URL in the summary.
 
-### Phase 4579 - Milestone-Closeout Frontend Gate Deferral
+### Phase 4599 - No-Live Report
 
-- Record that full frontend `npm run release:gate` is deferred to durable
-  milestone closeout unless explicitly requested; ordinary phase closure uses
-  focused API, unit, autonomous, and UI smoke checks.
+- Record that live Coinbase execution was not run and submitted/executed notional remained `0` USDC. Full backend regression and frontend release gate remain deferred to durable milestone closeout unless explicitly requested.
 
-### Phase 4580 - Blind Contextless Review, Live UI Smoke, Commit And Push
+### Phase 4600 - Commit And Push
 
-- Run blind/contextless review proving a fresh agent can explain partial blocker evidence without inferring live authority, verify the local admin frontend renders the current phase range and no-live posture without browser console errors, record a No-Live Report with `0` USDC submitted/executed, then commit and push backend and frontend repositories.
+- Commit and push backend and frontend repositories, then summarize implementation, focused verification, live posture, UI URL, and next M55 scope.
+
+## Completed Phases 4561-4580
+
+- Backend commit `1bc02470` classified the reveal dry-run service and adapter
+  surfaces as partial blocker evidence; frontend commit `8d7f2ff` displayed
+  the same evidence.
+- Backend focused gates passed with `11` tests and `1` warning; frontend
+  focused checks passed with `51` tests; blind/contextless review passed
+  after clarity fixes.
+- Live UI smoke passed at
+  `http://127.0.0.1:3120/?phaseSmoke=4561-4580`.
+- Full backend regression and full frontend release gate were deferred to
+  durable milestone closeout under the current testing policy.
+- Live Coinbase execution was not run. Submitted notional: `0` USDC.
+  Executed notional: `0` USDC.
 
 ## Completed Phases 4541-4560
 

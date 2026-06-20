@@ -73,9 +73,9 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(4561, 4581))
+    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(4581, 4601))
     assert summary["status"] == "passed"
-    assert summary["approved_phase_range"] == "4561-4580"
+    assert summary["approved_phase_range"] == "4581-4600"
     assert summary["approved_phase_count"] == 20
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"

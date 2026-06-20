@@ -16,10 +16,27 @@ tests/
 ├── e2e/           - End-to-end tests (full system)
 ├── external/      - Coinbase API/WebSocket tests (ISOLATED)
 ├── fixtures/      - Test data and mocks
-└── regression/    - Critical path tests (runs before deploy)
+└── regression/    - Critical path tests (milestone/release closeout gate)
 ```
 
 ## Running Tests
+
+## Current Regression Policy
+
+Use focused tests and validators for ordinary phase work. The full
+`tests/regression/` gate is reserved for durable milestone closeout,
+public/release-candidate handoff, deployment approval, or explicit user
+request.
+
+When the full regression gate is required, prefer the process-parallel helper:
+
+```bash
+python tools/run_parallel_regression.py --workers 4
+```
+
+The helper runs tests marked `serial` in a separate sequential lane and runs
+the remaining regression tests with pytest-xdist process workers. Do not use
+Python threads to parallelize this suite.
 
 ### Run All Tests
 ```bash
@@ -30,7 +47,7 @@ pytest tests/ -v
 ```bash
 pytest tests/unit/ -v              # Unit tests only
 pytest tests/integration/ -v       # Integration tests
-pytest tests/regression/ -v        # Regression tests (critical)
+pytest tests/regression/ -v        # Full milestone/release regression gate
 pytest tests/external/ -v          # Coinbase API tests (requires API key)
 ```
 
@@ -39,10 +56,10 @@ pytest tests/external/ -v          # Coinbase API tests (requires API key)
 pytest tests/ --cov=. --cov-report=html
 ```
 
-### Run Regression Before Deploy
+### Run Regression For Milestone Closeout Or Release Candidate
 ```bash
 pytest tests/regression/ -v --tb=short
-# Must pass 100% before deploying changes
+# Must pass before closing a durable milestone or releasing/deploying changes
 ```
 
 ## Test Categories
@@ -168,13 +185,14 @@ pytest tests/ -v -m "not external"
 ```
 
 ### 5. Regression Tests (`tests/regression/`)
-**Purpose:** Critical path tests that must pass before deployment.
+**Purpose:** Critical path tests for durable milestone closeout, public/release
+candidate handoff, deployment approval, or explicit user request.
 
 **When to use:**
-- Before any major refactor (like adding hooks/events)
-- Before production deployment
-- After architectural changes
-- After merging major features
+- Before durable milestone closeout
+- Before production deployment or release-candidate handoff
+- After broad architectural changes when focused tests are insufficient
+- When explicitly requested
 
 **Content (project-wide critical paths):**
 - Order creation and execution (all order types)
@@ -194,20 +212,20 @@ pytest tests/ -v -m "not external"
 
 **Characteristics:**
 - Representative of actual user workflows
-- Must pass 100% before deploy
+- Must pass 100% before milestone closeout or release/deployment handoff
 - Fast (run in < 30 seconds total)
 - No external API calls (all mocked)
 - Cover high-value functionality that users depend on
 
-**Run before deploy:**
+**Run for milestone closeout or release/deployment handoff:**
 ```bash
 pytest tests/regression/ -v --tb=short
 exit_code=$?
 if [ $exit_code -ne 0 ]; then
-    echo "REGRESSION TESTS FAILED - DO NOT DEPLOY"
+    echo "REGRESSION TESTS FAILED - DO NOT CLOSE OUT OR DEPLOY"
     exit 1
 fi
-echo "Regression tests passed - safe to deploy"
+echo "Regression tests passed - closeout/deployment gate passed"
 ```
 
 ## Test Data & Fixtures (`tests/fixtures/`)
@@ -255,11 +273,11 @@ Store fixture data in `tests/fixtures/`:
 
 2. **Make changes to core engine**
 
-3. **Run regression tests immediately:**
+3. **Run focused tests immediately:**
    ```bash
-   pytest tests/regression/ -v
+   pytest tests/regression/<focused_test_file>.py -v --tb=short
    ```
-   - Must pass 100% or revert changes
+   - Must pass for the changed behavior
 
 4. **Run full test suite:**
    ```bash
@@ -273,7 +291,12 @@ Store fixture data in `tests/fixtures/`:
    pytest tests/external/ -v -m external
    ```
 
-6. **Deploy only if all tests pass**
+6. **Run full regression before milestone closeout or deployment approval:**
+   ```bash
+   python tools/run_parallel_regression.py --workers 4
+   ```
+
+7. **Deploy only if required gates pass**
 
 ## Continuous Integration
 
@@ -376,7 +399,7 @@ WEBSOCKET_TIMEOUT = 10  # seconds
 After running tests, track:
 - **Test Count:** Total unit, integration, regression
 - **Coverage:** Code coverage % (aim for > 80%)
-- **Regression Pass Rate:** Must be 100% before deploy
+- **Regression Pass Rate:** Must be 100% before milestone closeout or release/deployment handoff
 - **Test Execution Time:** Should complete in < 5 minutes
 
 ## Project Components (Ready for Test Coverage)

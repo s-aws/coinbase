@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4561-4580",
+  "approved_phase_range": "4581-4600",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -50,11 +50,11 @@ The same read-only response includes an M55 blocker-closure ledger. It names
 the concrete backend blockers that still prevent future live stealth
 execution, but it does not enable any of them:
 
-In the current 4561-4580 range, the reveal route may show both a configured
-dry-run adapter and a configured dry-run live-service contract with
-`live_execution_status="approval_required"`. That is readback evidence only;
-`live_enabled`, `executable`, manager invocation, Coinbase submission/cancel/read,
-reconciliation execution, and state mutation all remain false.
+In the current 4581-4600 range, all concrete M55 blocker rows may show partial
+proof/readback evidence. That evidence is readback only; `live_enabled`,
+`executable`, manager invocation, Coinbase submission/cancel/read,
+repair/rollback, reconciliation execution, and state mutation all remain
+false.
 
 ```json
 {
@@ -63,14 +63,20 @@ reconciliation execution, and state mutation all remain false.
     "blocker_count": 6,
     "blocking_count": 6,
     "resolved_count": 0,
-    "partial_evidence_count": 2,
+    "partial_evidence_count": 6,
     "partial_evidence_closure_ids": [
       "m55_live_service_enablement",
-      "m55_live_adapter_construction"
+      "m55_live_adapter_construction",
+      "m55_active_placement_cancel_replace",
+      "m55_reveal_exchange_submission",
+      "m55_recovery_repair_rollback",
+      "m55_post_write_reconciliation_execution"
     ],
     "partial_evidence_refs": [
       "m55_stealth_reveal_backend_dry_run",
-      "m55_stealth_reveal_service_dry_run"
+      "m55_stealth_reveal_service_dry_run",
+      "active_placement_exchange_truth_contract",
+      "safe_post_write_reconciliation_proof"
     ],
     "execution_allowed": false,
     "live_coinbase_orders_ran": false,

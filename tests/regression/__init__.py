@@ -1,1 +1,1 @@
-"""Regression tests - critical path tests that must always pass."""
+"""Regression tests - critical path coverage for closeout and release gates."""
