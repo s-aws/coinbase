@@ -10354,6 +10354,12 @@ components:
       - input_evidence_record_contract
       title: AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName
       description: Backend record contract required by one M55 review-input store.
+    AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName:
+      type: string
+      enum:
+      - input_evidence_record_validation
+      title: AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName
+      description: Backend record validation required by one M55 review-input store.
     AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName:
       type: string
       enum:
@@ -58244,6 +58250,70 @@ components:
           type: array
           title: Closure Readiness Dependency Clearance Step Review Input Store Record
             Contract Gates
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Count
+        closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Blocked Dependency Clearance Step Review Input
+            Store Record Validation Count
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_names:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Names
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_statuses:
+          items:
+            $ref: '#/components/schemas/AdminApiGateStatus'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Statuses
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_schema_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Schema Refs
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_log_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Log Refs
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_payload_fields:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Payload Fields
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_idempotency_keys:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Idempotency Keys
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_checks:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Checks
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_gates:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Gates
+        closure_readiness_dependency_clearance_step_review_input_store_record_validation_replay_gates:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Replay Gates
         missing_backend_contracts:
           items:
             type: string
@@ -58322,6 +58392,8 @@ components:
       - closure_readiness_blocked_dependency_clearance_step_review_input_store_requirement_count
       - closure_readiness_dependency_clearance_step_review_input_store_record_contract_count
       - closure_readiness_blocked_dependency_clearance_step_review_input_store_record_contract_count
+      - closure_readiness_dependency_clearance_step_review_input_store_record_validation_count
+      - closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -58919,6 +58991,15 @@ components:
           type: boolean
           title: Live Coinbase Read Ran
           default: false
+        store_record_validation_rows:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRow'
+          type: array
+          title: Store Record Validation Rows
+          description: Read-only backend-owned record validations derived from this
+            missing record contract. Validations remain blocked and cannot make schemas,
+            logs, idempotency, payload validation, replay protection, records, inputs,
+            reviews, dependencies, or execution authority available.
         detail:
           type: string
           title: Detail
@@ -58957,6 +59038,295 @@ components:
       title: StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordContractRow
       description: Blocked backend record contract required by one M55 review-input
         store.
+    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRow:
+      properties:
+        record_validation_ref:
+          type: string
+          title: Record Validation Ref
+        record_contract_ref:
+          type: string
+          title: Record Contract Ref
+        store_requirement_ref:
+          type: string
+          title: Store Requirement Ref
+        input_ref:
+          type: string
+          title: Input Ref
+        review_ref:
+          type: string
+          title: Review Ref
+        step_ref:
+          type: string
+          title: Step Ref
+        dependency_ref:
+          type: string
+          title: Dependency Ref
+        dependency_class:
+          $ref: '#/components/schemas/AdminApiStealthClosureDependencyClass'
+        record_validation_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName'
+        record_contract_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName'
+        requirement_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName'
+        input_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputName'
+        review_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewName'
+        clearance_owner:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceOwner'
+        required_artifact_ref:
+          type: string
+          title: Required Artifact Ref
+        required_store_ref:
+          type: string
+          title: Required Store Ref
+        required_writer_ref:
+          type: string
+          title: Required Writer Ref
+        required_record_key:
+          type: string
+          title: Required Record Key
+        required_record_schema_ref:
+          type: string
+          title: Required Record Schema Ref
+        required_append_only_log_ref:
+          type: string
+          title: Required Append Only Log Ref
+        required_payload_fields:
+          items:
+            type: string
+          type: array
+          title: Required Payload Fields
+        required_idempotency_key:
+          type: string
+          title: Required Idempotency Key
+        required_validation_gate:
+          type: string
+          title: Required Validation Gate
+        required_replay_gate:
+          type: string
+          title: Required Replay Gate
+        record_contract_gate:
+          type: string
+          title: Record Contract Gate
+        required_validation_checks:
+          items:
+            type: string
+          type: array
+          title: Required Validation Checks
+        record_validation_gate:
+          type: string
+          title: Record Validation Gate
+        record_replay_protection_gate:
+          type: string
+          title: Record Replay Protection Gate
+        clearance_order:
+          type: integer
+          minimum: 1.0
+          title: Clearance Order
+        step_order:
+          type: integer
+          minimum: 1.0
+          title: Step Order
+        review_order:
+          type: integer
+          minimum: 1.0
+          title: Review Order
+        input_order:
+          type: integer
+          minimum: 1.0
+          title: Input Order
+        store_requirement_order:
+          type: integer
+          minimum: 1.0
+          title: Store Requirement Order
+        record_contract_order:
+          type: integer
+          minimum: 1.0
+          title: Record Contract Order
+        record_validation_order:
+          type: integer
+          minimum: 1.0
+          title: Record Validation Order
+        record_validation_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        record_validation_required:
+          type: boolean
+          title: Record Validation Required
+          default: true
+        record_validation_ready:
+          type: boolean
+          title: Record Validation Ready
+          default: false
+        record_contract_required:
+          type: boolean
+          title: Record Contract Required
+          default: true
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        record_schema_available:
+          type: boolean
+          title: Record Schema Available
+          default: false
+        append_only_log_available:
+          type: boolean
+          title: Append Only Log Available
+          default: false
+        idempotency_key_bound:
+          type: boolean
+          title: Idempotency Key Bound
+          default: false
+        payload_schema_validated:
+          type: boolean
+          title: Payload Schema Validated
+          default: false
+        replay_protected:
+          type: boolean
+          title: Replay Protected
+          default: false
+        store_required:
+          type: boolean
+          title: Store Required
+          default: true
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        write_allowed:
+          type: boolean
+          title: Write Allowed
+          default: false
+        record_present:
+          type: boolean
+          title: Record Present
+          default: false
+        record_accepted:
+          type: boolean
+          title: Record Accepted
+          default: false
+        record_validated:
+          type: boolean
+          title: Record Validated
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        input_present:
+          type: boolean
+          title: Input Present
+          default: false
+        input_accepted:
+          type: boolean
+          title: Input Accepted
+          default: false
+        input_validated:
+          type: boolean
+          title: Input Validated
+          default: false
+        review_ready:
+          type: boolean
+          title: Review Ready
+          default: false
+        review_complete:
+          type: boolean
+          title: Review Complete
+          default: false
+        review_allowed:
+          type: boolean
+          title: Review Allowed
+          default: false
+        step_ready:
+          type: boolean
+          title: Step Ready
+          default: false
+        step_complete:
+          type: boolean
+          title: Step Complete
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        resolution_allowed:
+          type: boolean
+          title: Resolution Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - record_validation_ref
+      - record_contract_ref
+      - store_requirement_ref
+      - input_ref
+      - review_ref
+      - step_ref
+      - dependency_ref
+      - dependency_class
+      - record_validation_name
+      - record_contract_name
+      - requirement_name
+      - input_name
+      - review_name
+      - clearance_owner
+      - required_artifact_ref
+      - required_store_ref
+      - required_writer_ref
+      - required_record_key
+      - required_record_schema_ref
+      - required_append_only_log_ref
+      - required_idempotency_key
+      - required_validation_gate
+      - required_replay_gate
+      - record_contract_gate
+      - record_validation_gate
+      - record_replay_protection_gate
+      - clearance_order
+      - step_order
+      - review_order
+      - input_order
+      - store_requirement_order
+      - record_contract_order
+      - record_validation_order
+      - detail
+      title: StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRow
+      description: Blocked backend validation required by one M55 review-input record
+        contract.
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow:
       properties:
         store_requirement_ref:

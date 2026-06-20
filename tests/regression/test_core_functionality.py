@@ -2,7 +2,7 @@
 Regression tests - Critical path tests for milestone/release closeout.
 
 These tests verify core functionality hasn't broken due to refactoring.
-Run these tests with: pytest tests/regression/ -v
+Run this focused file with: pytest tests/regression/test_core_functionality.py -v
 
 All tests in this file must pass before durable milestone closeout,
 public/release-candidate handoff, explicit request, or deployment approval.

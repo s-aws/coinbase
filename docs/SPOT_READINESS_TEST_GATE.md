@@ -37,8 +37,11 @@ approval/closeout, release-hardening closeout, Admin API/backend association
 closeout, or handling an explicit full-gate request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 External Coinbase sandbox, wallet smoke, metadata refresh, and paper-mode
 scenario replay checks remain opt-in. They must not become default regression

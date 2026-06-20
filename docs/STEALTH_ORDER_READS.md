@@ -40,15 +40,17 @@ blocked backend review rows. For phases 4721-4740, each clearance-step review
 also has blocked backend review-input rows. For phases 4741-4760, each review
 input also has a blocked backend review-input store-requirement row. For
 phases 4761-4780, each store requirement also has a blocked backend
-review-input store record-contract row. Readiness criteria, traces, clearance
-rows, steps, step reviews, review inputs, review-input store requirements, and
-review-input store record contracts are planning evidence only: they do not
-close blockers, satisfy missing contracts, make record contracts available,
-make schemas available, make append-only logs available, bind idempotency,
-validate payloads, protect replay, make stores available, allow writers, write
-or validate records, accept or validate inputs, make steps ready, complete
-reviews, enable live execution, call Coinbase, invoke managers, execute
-reconciliation, or mutate state.
+review-input store record-contract row. For phases 4781-4800, each record
+contract also has a blocked backend review-input store record-validation row.
+Readiness criteria, traces, clearance rows, steps, step reviews, review
+inputs, review-input store requirements, review-input store record contracts,
+and review-input store record validations are planning evidence only: they do
+not close blockers, satisfy missing contracts, make record contracts
+available, make validations ready, make schemas available, make append-only
+logs available, bind idempotency, validate payloads, protect replay, make
+stores available, allow writers, write or validate records, accept or validate
+inputs, make steps ready, complete reviews, enable live execution, call
+Coinbase, invoke managers, execute reconciliation, or mutate state.
 
 ## Identity Rules
 

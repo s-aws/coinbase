@@ -45,6 +45,7 @@ from core.enums import (
     AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureClearanceStepReviewInputName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName,
+    AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName,
     AdminApiStealthClosureClearanceStepReviewName,
     AdminApiStealthClosureDependencyClass,
@@ -196,6 +197,7 @@ from .models import (
     StealthCommandSuiteClosureDependencyClearanceStepRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordContractRow,
+    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewRow,
     StealthCommandSuiteClosureDependencyClearancePlanRow,
@@ -302,7 +304,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4761-4780"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4781-4800"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -13017,6 +13019,9 @@ class AdminApiReadService:
                         record_contract_ref = (
                             f"{store_requirement_ref}::record_contract"
                         )
+                        record_validation_ref = (
+                            f"{record_contract_ref}::record_validation"
+                        )
                         required_record_schema_ref = (
                             f"{store_requirement_ref}::record_schema"
                         )
@@ -13039,6 +13044,20 @@ class AdminApiReadService:
                         )
                         record_contract_gate = (
                             f"{store_requirement_ref}::record_contract_gate"
+                        )
+                        required_validation_checks = [
+                            "record_contract_available",
+                            "record_schema_available",
+                            "append_only_log_available",
+                            "idempotency_key_bound",
+                            "payload_schema_validated",
+                            "replay_protected",
+                        ]
+                        record_validation_gate = (
+                            f"{record_contract_ref}::record_validation_gate"
+                        )
+                        record_replay_protection_gate = (
+                            f"{record_contract_ref}::replay_protection_gate"
                         )
                         review_name = clearance_step_review_names[
                             clearance_step_name
@@ -13169,6 +13188,105 @@ class AdminApiReadService:
                                         ),
                                         live_coinbase_orders_ran=False,
                                         live_coinbase_read_ran=False,
+                                        store_record_validation_rows=[
+                                            StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRow(
+                                                record_validation_ref=record_validation_ref,
+                                                record_contract_ref=record_contract_ref,
+                                                store_requirement_ref=store_requirement_ref,
+                                                input_ref=input_ref,
+                                                review_ref=review_ref,
+                                                step_ref=step_ref,
+                                                dependency_ref=dependency_ref,
+                                                dependency_class=dependency_class,
+                                                record_validation_name=(
+                                                    AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName.INPUT_EVIDENCE_RECORD_VALIDATION
+                                                ),
+                                                record_contract_name=(
+                                                    AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName.INPUT_EVIDENCE_RECORD_CONTRACT
+                                                ),
+                                                requirement_name=(
+                                                    AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName.INPUT_EVIDENCE_STORE
+                                                ),
+                                                input_name=input_name,
+                                                review_name=review_name,
+                                                clearance_owner=clearance_owner,
+                                                required_artifact_ref=dependency_ref,
+                                                required_store_ref=required_store_ref,
+                                                required_writer_ref=required_writer_ref,
+                                                required_record_key=required_record_key,
+                                                required_record_schema_ref=required_record_schema_ref,
+                                                required_append_only_log_ref=required_append_only_log_ref,
+                                                required_payload_fields=required_payload_fields,
+                                                required_idempotency_key=required_idempotency_key,
+                                                required_validation_gate=required_validation_gate,
+                                                required_replay_gate=required_replay_gate,
+                                                record_contract_gate=record_contract_gate,
+                                                required_validation_checks=required_validation_checks,
+                                                record_validation_gate=record_validation_gate,
+                                                record_replay_protection_gate=record_replay_protection_gate,
+                                                clearance_order=clearance_order,
+                                                step_order=1,
+                                                review_order=1,
+                                                input_order=1,
+                                                store_requirement_order=1,
+                                                record_contract_order=1,
+                                                record_validation_order=1,
+                                                record_validation_status=(
+                                                    AdminApiGateStatus.BLOCKED
+                                                ),
+                                                record_validation_required=True,
+                                                record_validation_ready=False,
+                                                record_contract_required=True,
+                                                record_contract_available=False,
+                                                record_schema_available=False,
+                                                append_only_log_available=False,
+                                                idempotency_key_bound=False,
+                                                payload_schema_validated=False,
+                                                replay_protected=False,
+                                                store_required=True,
+                                                store_available=False,
+                                                writer_allowed=False,
+                                                write_allowed=False,
+                                                record_present=False,
+                                                record_accepted=False,
+                                                record_validated=False,
+                                                validation_configured=False,
+                                                replay_protection_configured=False,
+                                                input_present=False,
+                                                input_accepted=False,
+                                                input_validated=False,
+                                                review_ready=False,
+                                                review_complete=False,
+                                                review_allowed=False,
+                                                step_ready=False,
+                                                step_complete=False,
+                                                clearance_allowed=False,
+                                                resolution_allowed=False,
+                                                backend_owned=True,
+                                                browser_authority="display_only",
+                                                bff_authority=(
+                                                    "forward_only_no_execution"
+                                                ),
+                                                live_coinbase_orders_ran=False,
+                                                live_coinbase_read_ran=False,
+                                                detail=(
+                                                    "Clearance-step review "
+                                                    "input store record "
+                                                    "validation is read-only "
+                                                    "missing-validation "
+                                                    "evidence. A future "
+                                                    "backend phase must make "
+                                                    "the record contract, "
+                                                    "schema, append-only log, "
+                                                    "idempotency binding, "
+                                                    "payload validation, and "
+                                                    "replay protection ready "
+                                                    "before any input record "
+                                                    "can be accepted or "
+                                                    "validated."
+                                                ),
+                                            )
+                                        ],
                                         detail=(
                                             "Clearance-step review input "
                                             "store record contract is "
@@ -13995,6 +14113,13 @@ class AdminApiReadService:
             )
             for record_contract in requirement.store_record_contract_rows
         ]
+        dependency_clearance_step_review_input_store_record_validation_rows = [
+            record_validation
+            for record_contract in (
+                dependency_clearance_step_review_input_store_record_contract_rows
+            )
+            for record_validation in record_contract.store_record_validation_rows
+        ]
         blocker_closure_summary = StealthCommandSuiteBlockerClosureSummary(
             total_blocker_count=len(blocker_closures),
             blocked_blocker_count=sum(1 for item in blocker_closures if item.blocking),
@@ -14372,6 +14497,93 @@ class AdminApiReadService:
                     record_contract.record_contract_gate
                     for record_contract in (
                         dependency_clearance_step_review_input_store_record_contract_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_count=len(
+                dependency_clearance_step_review_input_store_record_validation_rows
+            ),
+            closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_count=sum(
+                1
+                for record_validation in (
+                    dependency_clearance_step_review_input_store_record_validation_rows
+                )
+                if record_validation.record_validation_status
+                == AdminApiGateStatus.BLOCKED
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_names=sorted(
+                {
+                    record_validation.record_validation_name
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_statuses=sorted(
+                {
+                    record_validation.record_validation_status
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_schema_refs=sorted(
+                {
+                    record_validation.required_record_schema_ref
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_log_refs=sorted(
+                {
+                    record_validation.required_append_only_log_ref
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_payload_fields=sorted(
+                {
+                    payload_field
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                    for payload_field in record_validation.required_payload_fields
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_idempotency_keys=sorted(
+                {
+                    record_validation.required_idempotency_key
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_checks=sorted(
+                {
+                    validation_check
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                    for validation_check in record_validation.required_validation_checks
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_gates=sorted(
+                {
+                    record_validation.record_validation_gate
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_replay_gates=sorted(
+                {
+                    record_validation.record_replay_protection_gate
+                    for record_validation in (
+                        dependency_clearance_step_review_input_store_record_validation_rows
                     )
                 }
             ),

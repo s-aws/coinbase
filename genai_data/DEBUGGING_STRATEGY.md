@@ -76,8 +76,11 @@ approval/closeout, release-hardening closeout, Admin API/backend association
 closeout, or explicit request, run the full regression gate:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 For broad changes:
 ```powershell

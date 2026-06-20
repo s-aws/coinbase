@@ -20,11 +20,20 @@ REGRESSION_POLICY_DOCS = (
     "docs/agents/INVARIANTS.md",
     "docs/agents/AGENT_ADMIN_API_CONTRACT.md",
     "docs/STEALTH_ORDER_READS.md",
+    "docs/SPOT_READINESS_TEST_GATE.md",
+    "docs/SPOT_READINESS_ROADMAP.md",
+    "docs/REPO_CLEANUP_CLASSIFICATION.md",
+    "genai_data/AGENT_ARCHITECT.md",
+    "genai_data/AGENT_CONSISTENCY_PROTOCOL.md",
+    "genai_data/DEBUGGING_STRATEGY.md",
     "genai_data/TESTING_STRATEGY.md",
+    "genai_data/CONFIGURATION.md",
+    "genai_data/agent_state.md",
     "tests/README.md",
     "tests/DEPLOYMENT_CHECKLIST.md",
     "tests/SETUP_SUMMARY.md",
     "tests/TEST_COVERAGE_SUMMARY.md",
+    "tests/TEST_FILES_INDEX.md",
 )
 
 

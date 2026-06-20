@@ -568,8 +568,11 @@ approval/closeout, release-hardening closeout, Admin API/backend association
 closeout, or explicit full-gate request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 Regression may be skipped when the change set is limited to agent
 instruction/context files and no runtime behavior changed:

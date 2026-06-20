@@ -266,7 +266,7 @@ pytest tests/ -v
 pytest tests/unit/ -v
 pytest tests/integration/ -v
 pytest tests/e2e/ -v
-pytest tests/regression/ -v
+python tools/run_parallel_regression.py --workers 4
 
 # Run specific test file
 pytest tests/unit/test_order_calculator.py -v

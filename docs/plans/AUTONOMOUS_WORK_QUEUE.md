@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **4761-4780**.
+- Approved phase range: **4781-4800**.
 - Range status: active under M55 - Stealth Full Admin Command Suite.
-- Previous completed range: `4741-4760`.
+- Previous completed range: `4761-4780`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `4760`.
+- `current_phase`: `4780`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,137 +67,156 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 4761-4780
+## Active Phases 4781-4800
 
 These phases close the next concrete M55 planning gap by deriving blocked
-backend-owned clearance-step review-input store record-contract rows from the
-existing blocked store-requirement rows. Each record contract must name the
-store requirement, input, review, step, dependency, owner, required store,
-writer, record key, record schema, append-only log, payload fields,
-idempotency key, validation gate, replay gate, deterministic order, blocked
-status, false record-contract/schema/log/idempotency/payload/replay flags,
+backend-owned clearance-step review-input store record-validation rows from
+the existing blocked store record-contract rows. Each validation must name the
+record contract, store requirement, input, review, step, dependency, owner,
+record-contract gate, required validation checks, record-validation gate,
+replay-protection gate, deterministic order, blocked status, false validation
+readiness, false record-contract/schema/log/idempotency/payload/replay flags,
 false store/writer/write/record/input/review/step readiness flags, false
-clearance/resolution flags, and no-execution authority without creating record
-contracts, schemas, logs, idempotency bindings, payload validation, replay
-protection, records, stores, writers, accepted inputs, completed reviews,
-ready steps, cleared dependencies, or live, manager, Coinbase,
+clearance/resolution flags, and no-execution authority without validating
+records, creating schemas, logs, idempotency bindings, payload validation,
+replay protection, records, stores, writers, accepted inputs, completed
+reviews, ready steps, cleared dependencies, or live, manager, Coinbase,
 reconciliation, state-mutation, browser, or BFF execution authority.
 
-### Phase 4761 - Prior Range Completion Evidence
+### Phase 4781 - Prior Range Completion Evidence
 
-- Record completed phases 4741-4760 with backend commit `fa4ffef4`, frontend
-  commit `dcbb3db`, focused backend/frontend gates, blind/contextless review,
-  UI smoke at `http://127.0.0.1:3126/?phaseSmoke=4741-4760`, and `0` USDC
+- Record completed phases 4761-4780 with backend commit `e093677f`, frontend
+  commit `3d6561b`, focused backend/frontend gates, blind/contextless review,
+  UI smoke at `http://127.0.0.1:3127/?phaseSmoke=4761-4780`, and `0` USDC
   live Coinbase submitted/executed notional.
 
-### Phase 4762 - Advance Active Queue Range
+### Phase 4782 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4741-4760 to active
-  phases 4761-4780 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4761-4780 to active
+  phases 4781-4800 while preserving no-live defaults and cap policy.
 
-### Phase 4763 - Store Record-Contract Scope
+### Phase 4783 - Store Record-Validation Scope
 
-- Add record-contract evidence to existing clearance-step review-input store
-  requirement rows without changing blocker status, store availability, writer
-  allowance, write allowance, record presence/acceptance/validation, input
+- Add record-validation evidence to existing clearance-step review-input store
+  record-contract rows without changing blocker status, contract availability,
+  schema availability, log availability, idempotency binding, payload
+  validation, replay protection, record presence/acceptance/validation, input
   acceptance, review readiness/completion, step readiness/completion,
   clearance allowance, resolution allowance, plan status, or execution flags.
 
-### Phase 4764 - Backend Record-Contract Enum And Model
+### Phase 4784 - Backend Record-Validation Enum And Model
 
-- Add a typed record-contract name plus a nested record-contract row model on
-  the existing store-requirement row model.
+- Add a typed record-validation name plus a nested record-validation row model
+  on the existing store record-contract row model.
 
-### Phase 4765 - Backend Record-Contract Derivation
+### Phase 4785 - Backend Record-Validation Derivation
 
-- Derive record-contract rows only from existing store-requirement rows so no
-  second dependency, step, review, input, store, or record source path is
-  introduced.
+- Derive record-validation rows only from existing store record-contract rows
+  so no second dependency, step, review, input, store, contract, or record
+  source path is introduced.
 
-### Phase 4766 - Schema Log And Idempotency Ref Assignment
+### Phase 4786 - Validation Check And Gate Assignment
 
-- Assign deterministic record schema refs, append-only log refs, payload
-  fields, idempotency keys, and record-contract gates from the store
-  requirement ref while preserving store/writer/record/validation/replay refs.
+- Assign deterministic validation checks, record-validation gates, and
+  replay-protection gates from the record-contract ref while preserving
+  schema, append-only log, payload field, idempotency, store, writer, and
+  record refs.
 
-### Phase 4767 - Record-Contract Status And Authority
+### Phase 4787 - Record-Validation Status And Authority
 
-- Record deterministic clearance/step/review/input/store/record-contract
-  order, blocked status, false record-contract availability, false schema/log
-  availability, false idempotency binding, false payload validation, false
-  replay protection, false store/write/record/input/review/step readiness, and
-  no-live/no-execution authority flags for every record contract.
+- Record deterministic clearance/step/review/input/store/record-validation
+  order, blocked status, false validation readiness, false record-contract
+  availability, false schema/log availability, false idempotency binding,
+  false payload validation, false replay protection, false
+  store/write/record/input/review/step readiness, and no-live/no-execution
+  authority flags for every validation row.
 
-### Phase 4768 - Record-Contract Summary Aggregation
+### Phase 4788 - Record-Validation Summary Aggregation
 
 - Add summary counts and refs for clearance-step review-input store record
-  contracts, blocked contracts, contract names, statuses, schema refs, log
-  refs, payload fields, idempotency keys, and record-contract gates.
+  validations, blocked validations, validation names, statuses, schema refs,
+  log refs, payload fields, idempotency keys, validation checks,
+  record-validation gates, and replay-protection gates.
 
-### Phase 4769 - Backend Record-Contract Assertions
+### Phase 4789 - Backend Record-Validation Assertions
 
-- Extend focused Admin API regression coverage proving record-contract rows
-  mirror store-requirement rows and grant no record, schema, log, idempotency,
-  payload, replay, live, manager, Coinbase, reconciliation, writer, validation,
-  or state mutation authority.
+- Extend focused Admin API regression coverage proving record-validation rows
+  mirror record-contract rows and grant no validation, record, schema, log,
+  idempotency, payload, replay, live, manager, Coinbase, reconciliation,
+  writer, or state mutation authority.
 
-### Phase 4770 - OpenAPI Regeneration
+### Phase 4790 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml` from backend models.
 
-### Phase 4771 - Frontend Generated Schema Sync
+### Phase 4791 - Frontend Generated Schema Sync
 
 - Regenerate the frontend TypeScript schema from the backend OpenAPI artifact.
 
-### Phase 4772 - Frontend Adapter Record-Contract Mapping
+### Phase 4792 - Frontend Adapter Record-Validation Mapping
 
-- Map record-contract rows and summary fields through the existing
+- Map record-validation rows and summary fields through the existing
   command-suite adapter without adding a parallel client or feature fetch.
 
-### Phase 4773 - Frontend Mock Record-Contract Evidence
+### Phase 4793 - Frontend Mock Record-Validation Evidence
 
 - Sync mock command-suite evidence and summary totals for clearance-step
-  review-input store record-contract rows.
+  review-input store record-validation rows.
 
-### Phase 4774 - Frontend UI Record-Contract Summary
+### Phase 4794 - Frontend UI Record-Validation Summary
 
-- Render record-contract counts, blocked counts, contract names, statuses,
-  schema refs, log refs, payload fields, idempotency keys, and record-contract
-  gates as read-only operator evidence.
+- Render record-validation counts, blocked counts, validation names, statuses,
+  schema refs, log refs, payload fields, idempotency keys, validation checks,
+  record-validation gates, and replay-protection gates as read-only operator
+  evidence.
 
-### Phase 4775 - Frontend UI Record-Contract Rows
+### Phase 4795 - Frontend UI Record-Validation Rows
 
-- Render row-level record contract ref, store requirement ref, input ref,
-  review ref, step ref, dependency ref, contract name, owner, artifact,
-  store/writer/record/schema/log/payload/idempotency/validation/replay refs,
-  order, status, readiness flags, authority flags, and no-live evidence.
+- Render row-level record validation ref, record contract ref, store
+  requirement ref, input ref, review ref, step ref, dependency ref, validation
+  name, contract name, owner, artifact, schema/log/payload/idempotency/
+  validation/replay refs, order, status, readiness flags, authority flags, and
+  no-live evidence.
 
-### Phase 4776 - Quality Metadata Sync
+### Phase 4796 - Quality Metadata Sync
 
 - Update autonomous queue, release-readiness, deployment-readiness, artifact
-  contract, runtime evidence, and active range metadata to phases 4761-4780.
+  contract, runtime evidence, and active range metadata to phases 4781-4800.
 
-### Phase 4777 - Documentation Sync
+### Phase 4797 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff, durable
   milestones, examples, expanded context, and agent-state docs so contextless
-  readers see 4761-4780 as active and 4741-4760 as completed.
+  readers see 4781-4800 as active and 4761-4780 as completed.
 
-### Phase 4778 - Contextless Review
+### Phase 4798 - Contextless Review
 
-- Run blind/contextless review proving record-contract evidence is
+- Run blind/contextless review proving record-validation evidence is
   discoverable, complete, no-live, and not executable or write authority.
 
-### Phase 4779 - Focused Gates And Browser Smoke
+### Phase 4799 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and a browser smoke proving the
-  rendered UI exposes record-contract evidence without console errors.
+  rendered UI exposes record-validation evidence without console errors.
 
-### Phase 4780 - Commit And Push
+### Phase 4800 - Commit And Push
 
 - Commit and push backend and frontend repositories, then summarize
   implementation, focused verification, live posture, UI URL, and next M55
   scope.
+
+## Completed Phases 4761-4780
+
+- Backend commit `e093677f` and frontend commit `3d6561b` derived blocked
+  backend-owned clearance-step review-input store record-contract rows from
+  existing store-requirement rows with schema, append-only log, payload,
+  idempotency, validation, replay, blocked status, and no-live authority
+  flags.
+- Focused backend/frontend gates, blind/contextless review, and browser smoke
+  completed with UI evidence at
+  `http://127.0.0.1:3127/?phaseSmoke=4761-4780`.
+- Live Coinbase execution was not run; submitted and executed notional were
+  `0` USDC.
 
 ## Completed Phases 4741-4760
 
@@ -505,7 +524,7 @@ authority.
 
 ### Phase 4277 - Full Backend Regression
 
-- Run `pytest tests\regression\ -v --tb=short`.
+- Run `python tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 4278 - Full Frontend Release Gate
 
@@ -2116,7 +2135,8 @@ forward cap approval:
 
 Stop advancement to the next phase until fixed when any of these occur:
 
-- `pytest tests\regression\ -v --tb=short` fails after backend changes.
+- `python tools/run_parallel_regression.py --workers 4` fails at a required
+  backend milestone closeout gate.
 - Frontend `npm run release:gate` fails after frontend release/BFF/API work.
 - A blind/contextless review finds a blocking ambiguity or unsafe path.
 - A security review finds browser-trusted authority, secret exposure, or live
@@ -9031,8 +9051,7 @@ The 1481-1500 range closed M49-M52:
 
 ### Phase 1079 - Full Backend Regression
 
-- Run `pytest tests\regression\ -v --tb=short` and
-  `python3 -m pytest tests/regression/ -v`.
+- Run `python tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 1080 - Full Gates And Summary
 
@@ -9176,8 +9195,7 @@ The 1481-1500 range closed M49-M52:
 
 ### Phase 1060 - Full Gates And Summary
 
-- Run `pytest tests\regression\ -v --tb=short`,
-  `python3 -m pytest tests/regression/ -v`, and frontend
+- Run `python tools/run_parallel_regression.py --workers 4` and frontend
   `npm run release:gate`, then summarize implementation, verification, live
   posture, commits, and next objective scope.
 
@@ -11117,7 +11135,7 @@ Completion evidence:
 
 ### Phase 858 - Full Backend Regression
 
-- Run `pytest tests\regression\ -v --tb=short`.
+- Run `python tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 859 - Full Frontend Release Gate
 
@@ -11662,13 +11680,13 @@ Completion evidence:
 Backend changes:
 
 ```powershell
-pytest tests\regression\ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
 
-Bash equivalent when running from a Linux shell:
+Sequential fallback only when `pytest-xdist` is unavailable:
 
 ```bash
-python3 -m pytest tests/regression/ -v
+pytest tests/regression/ -v --tb=short
 ```
 
 Frontend release/BFF/API/deployment changes:

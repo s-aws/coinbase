@@ -5,7 +5,7 @@ Keep it short. Keep it factual.
 
 ## Metadata
 
-- Last updated (ET): 2026-06-19
+- Last updated (ET): 2026-06-20
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
 - Commit (optional): completed range `4501-4520` is backend `840776df` and
@@ -35,18 +35,21 @@ Keep it short. Keep it factual.
 - Respect locks and thread-safety invariants.
 - Ordinary phase work must run focused tests and validators that cover the
   changed behavior.
-- Full `pytest tests/regression/ -v --tb=short` is reserved for durable
-  milestone closeout, public/release-candidate handoff, deployment
-  approval/closeout, release-hardening closeout, Admin API/backend association
-  closeout, or explicit user request.
+- Full regression is reserved for durable milestone closeout,
+  public/release-candidate handoff, deployment approval/closeout,
+  release-hardening closeout, Admin API/backend association closeout, or
+  explicit user request. Canonical command:
+  `python tools/run_parallel_regression.py --workers 4`.
+- Use `pytest tests/regression/ -v --tb=short` only as an intentional
+  sequential fallback when `pytest-xdist` is unavailable.
 - If only agent-instruction/context files changed (`AGENTS.md`, `agent.md`,
   `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`,
   `genai_data/agent_state.md`), regression tests may be skipped.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `4741-4760`.
-- Active autonomous range: `4761-4780`.
+- Latest completed autonomous range before current work: `4761-4780`.
+- Active autonomous range: `4781-4800`.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite.
 - Completed files through `3021-3040`: backend/frontend typed execution
   live-readiness closure evidence for guarded stealth command families,
@@ -646,9 +649,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `4761-4780`.
+- Active autonomous range: `4781-4800`.
 - Active milestone: M55 - Stealth Full Admin Command Suite.
-- Current direction: complete phases `4761-4780`.
+- Current direction: complete phases `4781-4800`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -758,12 +761,16 @@ Keep it short. Keep it factual.
   clearance-step review-input store-requirement rows from those inputs without
   making stores available, allowing writers, writing records, validating
   records, accepting inputs, completing reviews, making steps ready, clearing
-  dependencies, or changing execution authority. Active `4761-4780` derives
-  blocked backend clearance-step review-input store record-contract rows from
-  those store requirements without creating record contracts, schemas, logs,
-  idempotency bindings, payload validation, replay protection, records,
-  stores, accepted inputs, completed reviews, ready steps, cleared
-  dependencies, or execution authority.
+  dependencies, or changing execution authority. Completed `4761-4780`
+  derives blocked backend clearance-step review-input store record-contract
+  rows from those store requirements without creating record contracts,
+  schemas, logs, idempotency bindings, payload validation, replay protection,
+  records, stores, accepted inputs, completed reviews, ready steps, cleared
+  dependencies, or execution authority. Active `4781-4800` derives blocked
+  backend clearance-step review-input store record-validation rows from those
+  record contracts without validating records, making schemas/logs/
+  idempotency/payload/replay ready, accepting inputs, completing reviews,
+  readying steps, clearing dependencies, or changing execution authority.
   It must not call Coinbase, invoke managers, execute
   reveal, cancel or replace active placements, execute reconciliation, mutate
   lifecycle/order/exchange state, clear M55 blockers, grant browser authority,
@@ -1061,8 +1068,10 @@ Keep it short. Keep it factual.
 - Result: M55 range `3301-3320` passed. Live Coinbase
   execution `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-16; full regression is now a
-  milestone-closeout gate, not an ordinary phase gate.
-  `python -m pytest tests\regression\ -v --tb=short`
+  milestone-closeout gate, not an ordinary phase gate. Historical fallback-era
+  command: `python -m pytest tests\regression\ -v --tb=short`. Current
+  canonical closeout command: `python tools/run_parallel_regression.py
+  --workers 4`.
 - Result: Passed, 855 tests, 1 warning.
 - Last frontend focused run: 2026-06-16
   `npm run api:check`, `npm run api:routes:check`,
@@ -1385,7 +1394,7 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `4761-4780` by syncing M55
+- Exact next command: complete active phases `4781-4800` by syncing M55
   closure-readiness dependency clearance-step review-input store record
-  contracts across backend/frontend, running focused gates, keeping live
+  validations across backend/frontend, running focused gates, keeping live
   Coinbase execution not run, and preserving the UI smoke URL.

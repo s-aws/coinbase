@@ -41,13 +41,16 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 5. Do not carry unresolved assumptions forward. Convert them to explicit risks in `agent_state.md`.
 6. Use one code path per behavior. Do not implement parallel logic.
 7. Run focused tests and validators for the changed behavior before marking
-   ordinary phase work complete. Reserve full `pytest tests/regression/ -v`
-   for durable milestone closeout, public/release-candidate handoff,
-   deployment approval/closeout, release-hardening closeout, Admin API/backend
-   association closeout, or explicit user request. If the change set is limited to
-   agent-instruction/context files only (`AGENTS.md`, `agent.md`,
-   `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`,
-   `genai_data/agent_state.md`), regression tests may be skipped.
+   ordinary phase work complete. Reserve the full regression gate
+   `python tools/run_parallel_regression.py --workers 4` for durable milestone
+   closeout, public/release-candidate handoff, deployment approval/closeout,
+   release-hardening closeout, Admin API/backend association closeout, or
+   explicit user request. Use `pytest tests/regression/ -v --tb=short` only as
+   an intentional sequential fallback when `pytest-xdist` is unavailable. If
+   the change set is limited to agent-instruction/context files only
+   (`AGENTS.md`, `agent.md`, `ai-context.md`, `docs/agents/*.md`,
+   `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may
+   be skipped.
 
 ## Session Start Checklist
 

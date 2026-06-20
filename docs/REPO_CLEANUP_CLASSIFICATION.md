@@ -145,8 +145,11 @@ python tools/classify_repo_files.py --quiet --fail-category empty_artifact_candi
   closeout, run the full regression gate:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 - Any active UI move requires a Dashboard Contract Agent review and focused UI
   regression tests where available.
