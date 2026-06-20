@@ -1,0 +1,41 @@
+name: Public Agent Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  agent-policy:
+    name: Agent Policy And Regression Process
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install policy-check dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+
+      - name: Ownership and autonomous queue policy
+        shell: pwsh
+        run: |
+          python tools/check_ownership.py
+          python tools/run_autonomous_work_queue_check.py --summary-only
+
+      - name: Regression runner contract
+        shell: pwsh
+        run: |
+          # Ordinary PRs use focused tests. Durable milestone closeout uses:
+          # python tools/run_parallel_regression.py --workers 4
+          python -m pytest tests/regression/test_parallel_regression_runner.py -v --tb=short

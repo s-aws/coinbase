@@ -18,8 +18,12 @@
 ## Validation
 
 - Focused owner tests:
-- Required regression gate:
-  - [ ] `pytest tests/regression/ -v --tb=short`
+- Autonomous queue / policy check:
+  - [ ] `python tools/run_autonomous_work_queue_check.py --summary-only`
+- Full regression closeout gate:
+  - [ ] Not applicable: ordinary phase work with focused tests only
+  - [ ] Required for durable milestone/release/deployment closeout and passed: `python tools/run_parallel_regression.py --workers 4`
+  - [ ] Intentional sequential fallback: `pytest tests/regression/ -v --tb=short` because `pytest-xdist` was unavailable
 - Ownership check:
   - [ ] `python tools/check_ownership.py --owner <owner_id>`
 

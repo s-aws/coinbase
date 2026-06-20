@@ -1,6 +1,7 @@
 import re
 import pytest
 from pathlib import Path
+from types import SimpleNamespace
 
 from tools.run_parallel_regression import (
     SUMMARY_PREFIX,
@@ -14,6 +15,8 @@ pytestmark = pytest.mark.regression
 
 
 REGRESSION_POLICY_DOCS = (
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/workflows/public-agent-checks.yml",
     "AGENTS.md",
     "agent.md",
     "docs/agents/README.md",
@@ -129,4 +132,36 @@ def test_parallel_regression_runner_dry_run_does_not_require_xdist(capsys):
     assert "parallel_safe_regression:" in captured.out
     assert "-n 2" in captured.out
     assert "serial_regression:" in captured.out
+    assert SUMMARY_PREFIX in captured.out
+
+
+def test_parallel_regression_runner_creates_lane_basetemp_dirs(
+    monkeypatch, tmp_path, capsys
+):
+    seen_basetemps = []
+
+    def fake_run(command, check):
+        basetemp = Path(command[command.index("--basetemp") + 1])
+        assert basetemp.exists()
+        seen_basetemps.append(basetemp)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.is_xdist_available", lambda: True
+    )
+    monkeypatch.setattr("tools.run_parallel_regression.subprocess.run", fake_run)
+
+    exit_code = main(
+        [
+            "--workers",
+            "2",
+            "--basetemp-root",
+            str(tmp_path / "parallel-regression"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert len(seen_basetemps) == 2
+    assert {path.name for path in seen_basetemps} == {"parallel", "serial"}
     assert SUMMARY_PREFIX in captured.out

@@ -180,6 +180,14 @@ def _format_command(command: Iterable[str]) -> str:
     return subprocess.list2cmdline(tuple(command))
 
 
+def _prepare_basetemp_dirs(commands: Iterable[RegressionCommand]) -> None:
+    for command in commands:
+        args = command.command
+        for index, arg in enumerate(args[:-1]):
+            if arg == "--basetemp":
+                Path(args[index + 1]).mkdir(parents=True, exist_ok=True)
+
+
 def _emit_summary(*, status: str, commands: list[RegressionCommand], failed: str | None) -> None:
     print(
         SUMMARY_PREFIX
@@ -215,6 +223,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         _emit_summary(status="missing_xdist", commands=commands, failed="xdist")
         return 2
+
+    _prepare_basetemp_dirs(commands)
 
     for command in commands:
         print(f"==> {command.name}: {_format_command(command.command)}", flush=True)

@@ -49,36 +49,37 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Batch - Phases 4821-4840
+## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Batch - Phases 4841-4860
 
 These phases derive blocked backend-owned record-validation remediation
-dependency rows from the existing closure-readiness clearance-step review-input
-store record-validation remediation rows. The dependency rows remain blocked
-and unresolved. The range must not enable service, construct adapters, invoke
-managers, call Coinbase, cancel or submit orders, repair or roll back state,
-execute reconciliation, mutate state, grant browser authority, grant BFF
-execution authority, perform remediation, resolve dependency order, validate
+dependency work-item rows from the existing closure-readiness clearance-step
+review-input store record-validation remediation dependency rows. The work
+items remain blocked, unclaimed, unperformed, and unresolved. The range must
+not enable service, construct adapters, invoke managers, call Coinbase, cancel
+or submit orders, repair or roll back state, execute reconciliation, mutate
+state, grant browser authority, grant BFF execution authority, claim or
+perform work items, perform remediation, resolve dependency order, validate
 records, make record validations ready, make record contracts available, make
 schemas available, make append-only logs available, bind idempotency, validate
 payloads, protect replay, make stores available, allow writers, write records,
 accept inputs, validate inputs, complete reviews, make steps ready, or clear
 dependencies.
 
-### Phase 4821 - Prior Range Completion Evidence
+### Phase 4841 - Prior Range Completion Evidence
 
-- Record completed phases 4801-4820 with backend commit `3415a0ac`, frontend
-  commit `34bee27`, focused gates, blind/contextless review, UI smoke at
-  `http://127.0.0.1:3001/?phaseSmoke=4801-4820`, and `0` USDC live Coinbase
+- Record completed phases 4821-4840 with backend commit `a61da3bd`, frontend
+  commit `92bb035`, focused gates, blind/contextless review, UI smoke at
+  `http://127.0.0.1:3001/?phaseSmoke=4821-4840`, and `0` USDC live Coinbase
   submitted/executed notional.
 
-### Phase 4822 - Advance Active Queue Range
+### Phase 4842 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4801-4820 to active
-  phases 4821-4840 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4821-4840 to active
+  phases 4841-4860 while preserving no-live defaults and cap policy.
 
-### Phase 4823 - Remediation Dependency Scope
+### Phase 4843 - Dependency Work-Item Scope
 
-- Add dependency fields to existing remediation rows without changing blocker
+- Add work-item fields to existing dependency rows without changing blocker
   status, dependency order resolution, remediation readiness, validation
   readiness, contract availability, schema availability, log availability,
   idempotency binding, payload validation, replay protection, store
@@ -87,36 +88,39 @@ dependencies.
   readiness/completion, step readiness/completion, clearance allowance,
   resolution allowance, or execution flags.
 
-### Phase 4824 - Backend Remediation Dependency Model
+### Phase 4844 - Backend Work-Item Model
 
-- Extend the Admin API remediation and summary schemas with dependency ref,
-  parent remediation ref, validation/record-contract/store/input/review/step/
-  dependency refs, predecessor/successor remediation refs, required
-  remediation work, validation gate, replay-protection gate, remediation gate,
-  dependency gate, order, blocked status, and authority evidence fields.
+- Extend the Admin API dependency and summary schemas with work-item ref,
+  parent dependency ref, parent remediation ref, validation/record-contract/
+  store/input/review/step/dependency refs, predecessor/successor dependency
+  refs, required work-item action, required work-item refs, validation gate,
+  replay-protection gate, remediation gate, dependency gate, work-item gate,
+  order, blocked status, and authority evidence fields.
 
-### Phase 4825 - Backend Dependency Derivation
+### Phase 4845 - Backend Work-Item Derivation
 
-- Derive one remediation dependency row from each existing remediation ref
-  only.
+- Derive one work-item row from each existing remediation dependency ref only.
 
-### Phase 4826 - Dependency Ordering Mapping
+### Phase 4846 - Work-Item Ordering Mapping
 
-- Map every remediation row to backend-owned unresolved dependency ordering
-  evidence with predecessor and successor remediation refs.
+- Map every dependency row to backend-owned unclaimed work-item evidence with
+  predecessor and successor remediation dependency refs.
 
-### Phase 4827 - Dependency Gates And Ordering
+### Phase 4847 - Work-Item Gates And Ordering
 
-- Record deterministic required remediation work, remediation refs,
-  dependency gates, remediation gates, validation gates, replay-protection
-  gates, schema refs, append-only log refs, payload fields, idempotency keys,
-  and clearance/step/review/input/store/record-validation/remediation/
-  dependency order.
+- Record deterministic required remediation work, required work-item action,
+  required work-item refs, remediation refs, dependency gates, work-item gates,
+  remediation gates, validation gates, replay-protection gates, schema refs,
+  append-only log refs, payload fields, idempotency keys, and
+  clearance/step/review/input/store/record-validation/remediation/dependency/
+  work-item order.
 
-### Phase 4828 - Dependency Status Evidence
+### Phase 4848 - Work-Item Status Evidence
 
-- Report blocked dependency status,
-  `record_validation_remediation_dependency_ready=false`,
+- Report blocked work-item status,
+  `record_validation_remediation_dependency_work_item_ready=false`,
+  `record_validation_remediation_dependency_work_item_performed=false`,
+  `work_item_claimed=false`, `record_validation_remediation_dependency_ready=false`,
   `dependency_order_resolved=false`,
   `record_validation_remediation_ready=false`,
   `record_validation_remediation_performed=false`,
@@ -128,67 +132,79 @@ dependencies.
   `record_validated=false`, `input_present=false`, `input_accepted=false`,
   `input_validated=false`, `review_ready=false`, `review_complete=false`,
   `step_ready=false`, `clearance_allowed=false`, and
-  `resolution_allowed=false` for every dependency row.
+  `resolution_allowed=false` for every work-item row.
 
-### Phase 4829 - Backend Dependency Assertions
+### Phase 4849 - Backend Work-Item Assertions
 
-- Extend Admin API regression coverage proving dependency rows mirror
-  remediation rows and do not close blockers or grant ordering, remediation,
-  validation, record, schema, log, idempotency, payload, replay, live, manager,
-  Coinbase, reconciliation, writer, or state mutation authority.
+- Extend Admin API regression coverage proving work-item rows mirror
+  dependency rows and do not close blockers or grant claim, perform, ordering,
+  remediation, validation, record, schema, log, idempotency, payload, replay,
+  live, manager, Coinbase, reconciliation, writer, or state mutation
+  authority.
 
-### Phase 4830 - OpenAPI Regeneration
+### Phase 4850 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4831 - Frontend Generated Schema Sync
+### Phase 4851 - Frontend Generated Schema Sync
 
 - Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4832 - Frontend Adapter Dependency Mapping
+### Phase 4852 - Frontend Adapter Work-Item Mapping
 
-- Map dependency rows and summary fields through the existing command-suite
+- Map work-item rows and summary fields through the existing command-suite
   adapter.
 
-### Phase 4833 - Frontend Mock Dependency Evidence
+### Phase 4853 - Frontend Mock Work-Item Evidence
 
 - Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4834 - Frontend UI Dependency Summary
+### Phase 4854 - Frontend UI Work-Item Summary
 
-- Render dependency counts, blocked counts, refs, statuses, predecessor/
-  successor counts, required work, dependency gates, remediation gates,
-  validation gates, and replay-protection gates as read-only evidence.
+- Render work-item counts, blocked counts, refs, statuses, dependency refs,
+  predecessor/successor counts, required actions, required refs, work-item
+  gates, remediation gates, validation gates, and replay-protection gates as
+  read-only evidence.
 
-### Phase 4835 - Frontend UI Dependency Rows
+### Phase 4855 - Frontend UI Work-Item Rows
 
-- Render row-level dependency ref, parent remediation ref, validation ref,
-  record-contract ref, store requirement ref, input ref, review ref, step ref,
-  dependency ref, predecessor/successor refs, gates, order, status, false state
-  flags, authority flags, and no-live evidence.
+- Render row-level work-item ref, parent dependency ref, parent remediation
+  ref, validation ref, record-contract ref, store requirement ref, input ref,
+  review ref, step ref, dependency ref, required action, required refs,
+  predecessor/successor refs, gates, order, status, false state flags,
+  authority flags, and no-live evidence.
 
-### Phase 4836 - Quality Metadata Sync
+### Phase 4856 - Quality Metadata Sync
 
-- Update active range metadata to phases 4821-4840.
+- Update active range metadata to phases 4841-4860.
 
-### Phase 4837 - Documentation Sync
+### Phase 4857 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   examples, expanded context, and agent-state docs.
 
-### Phase 4838 - Contextless Review
+### Phase 4858 - Contextless Review
 
 - Record contextless review evidence for the clearance-step review-input store
-  record-validation remediation dependency boundary.
+  record-validation remediation dependency work-item boundary.
 
-### Phase 4839 - Focused Gates And Browser Smoke
+### Phase 4859 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and browser smoke for rendered
-  dependency evidence.
+  work-item evidence.
 
-### Phase 4840 - Commit And Push
+### Phase 4860 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Batch - Phases 4821-4840
+
+Backend commit `a61da3bd` and frontend commit `92bb035` derived blocked
+backend-owned record-validation remediation dependency rows from existing
+closure-readiness clearance-step review-input store record-validation
+remediation rows. Focused backend/frontend gates, blind/contextless review,
+and UI smoke passed at `http://127.0.0.1:3001/?phaseSmoke=4821-4840`. Live
+Coinbase execution was not run; submitted and executed notional were `0` USDC.
 
 ## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Batch - Phases 4801-4820
 
