@@ -6,8 +6,13 @@ Trading bot for Coinbase derivatives/spot markets. Python 3.13, pytest for testi
 
 ## Testing
 
-- Regression tests live in `tests/regression/`
-- Run with: `python3 -m pytest tests/regression/ -v --tb=short`
+- Regression tests live in `tests/regression/`.
+- Run focused tests and validators for ordinary changes.
+- Full regression is a durable milestone/release/deployment/Admin API closeout
+  or explicit-request gate. Use:
+  `python tools/run_parallel_regression.py --workers 4`
+- Sequential pytest is a fallback only when the runner cannot be used:
+  `python3 -m pytest tests/regression/ -v --tb=short`
 - Test file naming: `tests/regression/test_<feature>.py`
 - New tests for bug fixes should be regression tests in `tests/regression/`
 
@@ -61,10 +66,12 @@ Required probes for compatibility refactors:
 - one direct probe per old operation type
 - `python tools/check_ownership.py`
 - focused regression tests and validators that cover the changed compatibility
-  path. Full `pytest tests/regression/ -v --tb=short` remains a durable
-  milestone closeout, public/release-candidate handoff, deployment
-  approval/closeout, release-hardening closeout, Admin API/backend association
-  closeout, or explicit-request gate.
+  path. Full regression remains a durable milestone closeout,
+  public/release-candidate handoff, deployment approval/closeout,
+  release-hardening closeout, Admin API/backend association closeout, or
+  explicit-request gate. Use `python tools/run_parallel_regression.py
+  --workers 4`; sequential `pytest tests/regression/ -v --tb=short` is a
+  fallback only when the runner cannot be used.
 
 Test quality rules:
 - A singleton test must use a factory that returns a fresh object each call and assert factory call count is 1.
@@ -84,7 +91,7 @@ Review checklist before final response:
 Coinbase repo-specific:
 - `configuration.py` is a compatibility module. Treat `REST_CLIENT`, `ORDERBOOK`, `API_KEY`, `API_SECRET`, `Subscription`, and product helpers as exported public names.
 - `ORDERBOOK` is mutable runtime state. Existing callers may read and write attributes.
-- Non-agent-file changes must pass focused tests and validators that cover the changed behavior. Full `pytest tests/regression/ -v --tb=short` is reserved for durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request.
+- Non-agent-file changes must pass focused tests and validators that cover the changed behavior. Full regression is reserved for durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request. Use `python tools/run_parallel_regression.py --workers 4`; sequential `pytest tests/regression/ -v --tb=short` is a fallback only when the runner cannot be used.
 - Use surgical patches only; do not normalize line endings or run broad formatters.
 
 CRITICAL:

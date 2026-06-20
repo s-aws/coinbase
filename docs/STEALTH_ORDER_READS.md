@@ -52,7 +52,9 @@ each remediation dependency work item also has a blocked backend claim-trace
 row. For phases 4881-4900, each remediation dependency work-item claim-trace
 row also has a blocked backend claim-trace clearance-plan row. For phases
 4901-4920, each claim-trace clearance-plan row also has blocked backend
-claim-trace clearance-step rows for the required plan steps.
+claim-trace clearance-step rows for the required plan steps. For phases
+4921-4940, each claim-trace clearance-step row also has blocked backend
+claim-trace clearance-step review rows for the required step reviews.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store
