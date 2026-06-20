@@ -556,6 +556,12 @@ class AdminApiStealthClosureClearanceStepReviewInputName(str, Enum):
     GATE_CHAIN_EVIDENCE = "gate_chain_evidence"
 
 
+class AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName(str, Enum):
+    """Backend store requirement for one M55 clearance-step review input."""
+
+    INPUT_EVIDENCE_STORE = "input_evidence_store"
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 

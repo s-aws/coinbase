@@ -37,11 +37,14 @@ required artifact, clearance order, blocked status, and no-resolution/no-live
 authority evidence. For phases 4681-4700, each clearance plan also has blocked
 backend clearance-step rows. For phases 4701-4720, each clearance step also has
 blocked backend review rows. For phases 4721-4740, each clearance-step review
-also has blocked backend review-input rows. Readiness criteria, traces,
-clearance rows, steps, step reviews, and review inputs are planning evidence
-only: they do not close blockers, satisfy missing contracts, accept or validate
-inputs, make steps ready, complete reviews, enable live execution, call
-Coinbase, invoke managers, execute reconciliation, or mutate state.
+also has blocked backend review-input rows. For phases 4741-4760, each review
+input also has a blocked backend review-input store-requirement row. Readiness
+criteria, traces, clearance rows, steps, step reviews, review inputs, and
+review-input store requirements are planning evidence only: they do not close
+blockers, satisfy missing contracts, make stores available, allow writers,
+write or validate records, accept or validate inputs, make steps ready,
+complete reviews, enable live execution, call Coinbase, invoke managers,
+execute reconciliation, or mutate state.
 
 ## Identity Rules
 

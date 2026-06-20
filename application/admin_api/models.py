@@ -48,6 +48,7 @@ from core.enums import (
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureClearanceStepReviewInputName,
+    AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName,
     AdminApiStealthClosureClearanceStepReviewName,
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
@@ -13956,6 +13957,62 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow(
+    BaseModel
+):
+    """Blocked backend store/writer requirement for one M55 review input."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    store_requirement_ref: str
+    input_ref: str
+    review_ref: str
+    step_ref: str
+    dependency_ref: str
+    dependency_class: AdminApiStealthClosureDependencyClass
+    requirement_name: AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName
+    input_name: AdminApiStealthClosureClearanceStepReviewInputName
+    review_name: AdminApiStealthClosureClearanceStepReviewName
+    clearance_owner: AdminApiStealthClosureClearanceOwner
+    required_artifact_ref: str
+    required_store_ref: str
+    required_writer_ref: str
+    required_record_key: str
+    required_validation_gate: str
+    required_replay_gate: str
+    clearance_order: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    review_order: int = Field(ge=1)
+    input_order: int = Field(ge=1)
+    store_requirement_order: int = Field(ge=1)
+    store_requirement_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    store_required: bool = True
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_complete: bool = False
+    review_allowed: bool = False
+    step_ready: bool = False
+    step_complete: bool = False
+    clearance_allowed: bool = False
+    resolution_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow(BaseModel):
     """Blocked backend-owned input required by one M55 clearance-step review."""
 
@@ -13991,6 +14048,17 @@ class StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow(BaseModel)
     bff_authority: str = "forward_only_no_execution"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    clearance_step_review_input_store_requirement_rows: list[
+        StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Read-only backend-owned store and writer requirements derived from "
+            "this missing input. Requirements remain blocked and cannot create "
+            "stores, allow writers, write records, accept inputs, complete "
+            "reviews, clear dependencies, or grant execution authority."
+        ),
+    )
     detail: str
 
 
@@ -14434,6 +14502,33 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
         AdminApiGateStatus
     ] = Field(default_factory=list)
     closure_readiness_dependency_clearance_step_review_input_required_artifact_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_requirement_count: int = Field(
+        ge=0
+    )
+    closure_readiness_blocked_dependency_clearance_step_review_input_store_requirement_count: int = Field(
+        ge=0
+    )
+    closure_readiness_dependency_clearance_step_review_input_store_requirement_names: list[
+        AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_requirement_statuses: list[
+        AdminApiGateStatus
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_required_store_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_required_writer_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_required_record_keys: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_required_validation_gates: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_required_replay_gates: list[
         str
     ] = Field(default_factory=list)
     missing_backend_contracts: list[str]

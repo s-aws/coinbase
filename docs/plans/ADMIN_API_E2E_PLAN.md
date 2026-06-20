@@ -49,117 +49,136 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Dependency Clearance Step Review Input Batch - Phases 4721-4740
+## Active M55 Closure-Readiness Review-Input Store Requirement Batch - Phases 4741-4760
 
-These phases derive blocked backend-owned clearance-step review input rows from
-the existing closure-readiness dependency clearance-step reviews. The input
-rows remain blocked and unresolved. The range must not enable service,
+These phases derive blocked backend-owned store-requirement rows from the
+existing closure-readiness clearance-step review-input rows. The store
+requirements remain blocked and unresolved. The range must not enable service,
 construct adapters, invoke managers, call Coinbase, cancel or submit orders,
 repair or roll back state, execute reconciliation, mutate state, grant browser
-authority, grant BFF execution authority, accept inputs, validate inputs,
-complete reviews, make steps ready, or clear dependencies.
+authority, grant BFF execution authority, make stores available, allow writers,
+write records, validate records, accept inputs, validate inputs, complete
+reviews, make steps ready, or clear dependencies.
 
-### Phase 4721 - Prior Range Completion Evidence
+### Phase 4741 - Prior Range Completion Evidence
 
-- Record completed phases 4701-4720 with backend commit `3411b54a`, frontend
-  commit `96c4ba4`, focused gates, blind/contextless review, UI smoke, and
-  `0` USDC live Coinbase submitted/executed notional.
+- Record completed phases 4721-4740 with backend commit `af5f5a78`, frontend
+  commit `2f7e2a5`, focused gates, blind/contextless review, UI smoke at
+  `http://127.0.0.1:3125/?phaseSmoke=4721-4740`, and `0` USDC live Coinbase
+  submitted/executed notional.
 
-### Phase 4722 - Advance Active Queue Range
+### Phase 4742 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4701-4720 to active
-  phases 4721-4740 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4721-4740 to active
+  phases 4741-4760 while preserving no-live defaults and cap policy.
 
-### Phase 4723 - Clearance Step Review Input Scope
+### Phase 4743 - Store Requirement Scope
 
-- Add review-input fields to existing clearance-step review rows without
-  changing blocker status, review readiness/completion, review allowance, step
-  readiness/completion, clearance allowance, resolution allowance, or execution
-  flags.
+- Add store-requirement fields to existing clearance-step review-input rows
+  without changing blocker status, input presence/acceptance/validation,
+  review readiness/completion, step readiness/completion, clearance allowance,
+  resolution allowance, or execution flags.
 
-### Phase 4724 - Backend Review Input Model
+### Phase 4744 - Backend Store Requirement Model
 
-- Extend the Admin API review and summary schemas with typed input name, input
-  ref, review ref, step ref, required artifact, order, status, present/
-  accepted/validated flags, allowed flags, and authority evidence fields.
+- Extend the Admin API input and summary schemas with typed store requirement
+  name, store requirement ref, input/review/step/dependency refs, required
+  store/writer/record/validation/replay refs, order, blocked status, and
+  authority evidence fields.
 
-### Phase 4725 - Backend Review Input Derivation
+### Phase 4745 - Backend Store Requirement Derivation
 
-- Derive review-input rows from the existing clearance-step review refs only.
+- Derive one store-requirement row from each existing clearance-step
+  review-input ref only.
 
-### Phase 4726 - Input Name Mapping
+### Phase 4746 - Store Requirement Name Mapping
 
-- Map backend contract, proof-route, and gate-chain review names to their
-  corresponding backend-owned input names.
+- Map every review input to the backend-owned `input_evidence_store`
+  requirement name.
 
-### Phase 4727 - Input Artifact And Ordering
+### Phase 4747 - Store Requirement Artifact And Ordering
 
-- Record each dependency ref as the required artifact ref and assign
-  deterministic clearance, step, review, and input order.
+- Record deterministic store, writer, record, validation, and replay refs plus
+  clearance, step, review, input, and store-requirement order.
 
-### Phase 4728 - Input Status Evidence
+### Phase 4748 - Store Requirement Status Evidence
 
-- Report blocked input status, `input_present=false`, `input_accepted=false`,
-  `input_validated=false`, `review_allowed=false`, `review_ready=false`,
-  `review_complete=false`, `step_ready=false`, `clearance_allowed=false`, and
-  `resolution_allowed=false` for every input.
+- Report blocked requirement status, `store_available=false`,
+  `writer_allowed=false`, `write_allowed=false`, `record_present=false`,
+  `record_accepted=false`, `record_validated=false`,
+  `validation_configured=false`, `replay_protection_configured=false`,
+  `input_present=false`, `input_accepted=false`, `input_validated=false`,
+  `review_ready=false`, `review_complete=false`, `step_ready=false`,
+  `clearance_allowed=false`, and `resolution_allowed=false` for every
+  requirement.
 
-### Phase 4729 - Backend Review Input Assertions
+### Phase 4749 - Backend Store Requirement Assertions
 
-- Extend Admin API regression coverage proving review-input rows mirror review
-  rows and do not close blockers or grant live, manager, Coinbase,
-  reconciliation, or state mutation authority.
+- Extend Admin API regression coverage proving store-requirement rows mirror
+  input rows and do not close blockers or grant live, manager, Coinbase,
+  reconciliation, writer, record, validation, replay, or state mutation
+  authority.
 
-### Phase 4730 - OpenAPI Regeneration
+### Phase 4750 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4731 - Frontend Generated Schema Sync
+### Phase 4751 - Frontend Generated Schema Sync
 
 - Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4732 - Frontend Adapter Review Input Mapping
+### Phase 4752 - Frontend Adapter Store Requirement Mapping
 
-- Map review-input rows and summary fields through the existing command-suite
-  adapter.
+- Map store-requirement rows and summary fields through the existing
+  command-suite adapter.
 
-### Phase 4733 - Frontend Mock Review Input Evidence
+### Phase 4753 - Frontend Mock Store Requirement Evidence
 
 - Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4734 - Frontend UI Review Input Summary
+### Phase 4754 - Frontend UI Store Requirement Summary
 
-- Render input counts, blocked counts, names, statuses, artifacts, and classes
-  as read-only evidence.
+- Render store-requirement counts, blocked counts, names, statuses, store refs,
+  writer refs, record keys, validation gates, and replay gates as read-only
+  evidence.
 
-### Phase 4735 - Frontend UI Review Input Rows
+### Phase 4755 - Frontend UI Store Requirement Rows
 
-- Render row-level input ref, review ref, step ref, dependency ref, input name,
-  owner, artifact, order, status, input flags, allowed flags, authority flags,
-  and no-live evidence.
+- Render row-level store requirement ref, input ref, review ref, step ref,
+  dependency ref, requirement name, store/writer/record/validation/replay refs,
+  order, status, false state flags, authority flags, and no-live evidence.
 
-### Phase 4736 - Quality Metadata Sync
+### Phase 4756 - Quality Metadata Sync
 
-- Update active range metadata to phases 4721-4740.
+- Update active range metadata to phases 4741-4760.
 
-### Phase 4737 - Documentation Sync
+### Phase 4757 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   examples, expanded context, and agent-state docs.
 
-### Phase 4738 - Contextless Review
+### Phase 4758 - Contextless Review
 
 - Record contextless review evidence for the clearance-step review-input
-  boundary.
+  store-requirement boundary.
 
-### Phase 4739 - Focused Gates And Browser Smoke
+### Phase 4759 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and browser smoke for rendered
-  review-input evidence.
+  store-requirement evidence.
 
-### Phase 4740 - Commit And Push
+### Phase 4760 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Dependency Clearance Step Review Input Batch - Phases 4721-4740
+
+Backend commit `af5f5a78` and frontend commit `2f7e2a5` derived blocked
+backend-owned clearance-step review input rows from existing closure-readiness
+dependency clearance-step reviews. Focused backend/frontend gates,
+blind/contextless review, and UI smoke passed at
+`http://127.0.0.1:3125/?phaseSmoke=4721-4740`. Live Coinbase execution was not
+run; submitted and executed notional were `0` USDC.
 
 ## Completed M55 Closure-Readiness Dependency Clearance Step Review Batch - Phases 4701-4720
 

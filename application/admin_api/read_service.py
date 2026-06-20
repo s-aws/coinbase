@@ -44,6 +44,7 @@ from core.enums import (
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureClearanceStepReviewInputName,
+    AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName,
     AdminApiStealthClosureClearanceStepReviewName,
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
@@ -193,6 +194,7 @@ from .models import (
     StealthCommandSuiteCancelReplaceBoundaryItem,
     StealthCommandSuiteClosureDependencyClearanceStepRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow,
+    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewRow,
     StealthCommandSuiteClosureDependencyClearancePlanRow,
     StealthCommandSuiteClosureReadinessCriterionTrace,
@@ -298,7 +300,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4721-4740"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4741-4760"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -12999,21 +13001,94 @@ class AdminApiReadService:
                         clearance_order = len(rows) + 1
                         step_ref = f"{dependency_ref}::clearance_step"
                         review_ref = f"{dependency_ref}::clearance_step_review"
+                        input_ref = f"{dependency_ref}::clearance_step_review_input"
+                        store_requirement_ref = (
+                            f"{input_ref}::store_requirement"
+                        )
+                        required_store_ref = f"{input_ref}::evidence_store"
+                        required_writer_ref = f"{input_ref}::evidence_writer"
+                        required_record_key = f"{input_ref}::acceptance_record"
+                        required_validation_gate = (
+                            f"{input_ref}::record_validation_gate"
+                        )
+                        required_replay_gate = f"{input_ref}::record_replay_gate"
                         review_name = clearance_step_review_names[
                             clearance_step_name
                         ]
-                        clearance_step_review_input_rows = [
-                            StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow(
-                                input_ref=(
-                                    f"{dependency_ref}::clearance_step_review_input"
-                                ),
+                        input_name = clearance_step_review_input_names[
+                            review_name
+                        ]
+                        clearance_step_review_input_store_requirement_rows = [
+                            StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow(
+                                store_requirement_ref=store_requirement_ref,
+                                input_ref=input_ref,
                                 review_ref=review_ref,
                                 step_ref=step_ref,
                                 dependency_ref=dependency_ref,
                                 dependency_class=dependency_class,
-                                input_name=clearance_step_review_input_names[
-                                    review_name
-                                ],
+                                requirement_name=(
+                                    AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName.INPUT_EVIDENCE_STORE
+                                ),
+                                input_name=input_name,
+                                review_name=review_name,
+                                clearance_owner=clearance_owner,
+                                required_artifact_ref=dependency_ref,
+                                required_store_ref=required_store_ref,
+                                required_writer_ref=required_writer_ref,
+                                required_record_key=required_record_key,
+                                required_validation_gate=required_validation_gate,
+                                required_replay_gate=required_replay_gate,
+                                clearance_order=clearance_order,
+                                step_order=1,
+                                review_order=1,
+                                input_order=1,
+                                store_requirement_order=1,
+                                store_requirement_status=(
+                                    AdminApiGateStatus.BLOCKED
+                                ),
+                                store_required=True,
+                                store_available=False,
+                                writer_allowed=False,
+                                write_allowed=False,
+                                record_present=False,
+                                record_accepted=False,
+                                record_validated=False,
+                                validation_configured=False,
+                                replay_protection_configured=False,
+                                input_present=False,
+                                input_accepted=False,
+                                input_validated=False,
+                                review_ready=False,
+                                review_complete=False,
+                                review_allowed=False,
+                                step_ready=False,
+                                step_complete=False,
+                                clearance_allowed=False,
+                                resolution_allowed=False,
+                                backend_owned=True,
+                                browser_authority="display_only",
+                                bff_authority="forward_only_no_execution",
+                                live_coinbase_orders_ran=False,
+                                live_coinbase_read_ran=False,
+                                detail=(
+                                    "Clearance-step review input store "
+                                    "requirement is read-only missing-store "
+                                    "evidence. A future backend phase must "
+                                    "provide the store, writer, record key, "
+                                    "validation gate, and replay gate before "
+                                    "this input can become present or "
+                                    "accepted."
+                                ),
+                            )
+                        ]
+                        clearance_step_review_input_rows = [
+                            StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow(
+                                input_ref=input_ref,
+                                review_ref=review_ref,
+                                step_ref=step_ref,
+                                dependency_ref=dependency_ref,
+                                dependency_class=dependency_class,
+                                input_name=input_name,
                                 review_name=review_name,
                                 clearance_owner=clearance_owner,
                                 required_artifact_ref=dependency_ref,
@@ -13038,6 +13113,9 @@ class AdminApiReadService:
                                 bff_authority="forward_only_no_execution",
                                 live_coinbase_orders_ran=False,
                                 live_coinbase_read_ran=False,
+                                clearance_step_review_input_store_requirement_rows=(
+                                    clearance_step_review_input_store_requirement_rows
+                                ),
                                 detail=(
                                     "Clearance-step review input is read-only "
                                     "missing-input evidence. A future backend "
@@ -13791,6 +13869,13 @@ class AdminApiReadService:
             for review in dependency_clearance_step_review_rows
             for input_row in review.clearance_step_review_input_rows
         ]
+        dependency_clearance_step_review_input_store_requirement_rows = [
+            requirement
+            for input_row in dependency_clearance_step_review_input_rows
+            for requirement in (
+                input_row.clearance_step_review_input_store_requirement_rows
+            )
+        ]
         blocker_closure_summary = StealthCommandSuiteBlockerClosureSummary(
             total_blocker_count=len(blocker_closures),
             blocked_blocker_count=sum(1 for item in blocker_closures if item.blocking),
@@ -14030,6 +14115,75 @@ class AdminApiReadService:
                 {
                     input_row.required_artifact_ref
                     for input_row in dependency_clearance_step_review_input_rows
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_requirement_count=len(
+                dependency_clearance_step_review_input_store_requirement_rows
+            ),
+            closure_readiness_blocked_dependency_clearance_step_review_input_store_requirement_count=sum(
+                1
+                for requirement in (
+                    dependency_clearance_step_review_input_store_requirement_rows
+                )
+                if requirement.store_requirement_status
+                == AdminApiGateStatus.BLOCKED
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_requirement_names=sorted(
+                {
+                    requirement.requirement_name
+                    for requirement in (
+                        dependency_clearance_step_review_input_store_requirement_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_requirement_statuses=sorted(
+                {
+                    requirement.store_requirement_status
+                    for requirement in (
+                        dependency_clearance_step_review_input_store_requirement_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_required_store_refs=sorted(
+                {
+                    requirement.required_store_ref
+                    for requirement in (
+                        dependency_clearance_step_review_input_store_requirement_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_required_writer_refs=sorted(
+                {
+                    requirement.required_writer_ref
+                    for requirement in (
+                        dependency_clearance_step_review_input_store_requirement_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_required_record_keys=sorted(
+                {
+                    requirement.required_record_key
+                    for requirement in (
+                        dependency_clearance_step_review_input_store_requirement_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_required_validation_gates=sorted(
+                {
+                    requirement.required_validation_gate
+                    for requirement in (
+                        dependency_clearance_step_review_input_store_requirement_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_required_replay_gates=sorted(
+                {
+                    requirement.required_replay_gate
+                    for requirement in (
+                        dependency_clearance_step_review_input_store_requirement_rows
+                    )
                 }
             ),
             missing_backend_contracts=sorted(

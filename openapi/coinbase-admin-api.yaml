@@ -10348,6 +10348,12 @@ components:
       title: AdminApiStealthClosureClearanceStepReviewInputName
       description: Backend input required before an M55 clearance-step review can
         pass.
+    AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName:
+      type: string
+      enum:
+      - input_evidence_store
+      title: AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName
+      description: Backend store requirement for one M55 clearance-step review input.
     AdminApiStealthClosureClearanceStepReviewName:
       type: string
       enum:
@@ -58128,6 +58134,58 @@ components:
           type: array
           title: Closure Readiness Dependency Clearance Step Review Input Required
             Artifact Refs
+        closure_readiness_dependency_clearance_step_review_input_store_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Clearance Step Review Input Store Requirement
+            Count
+        closure_readiness_blocked_dependency_clearance_step_review_input_store_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Closure Readiness Blocked Dependency Clearance Step Review Input
+            Store Requirement Count
+        closure_readiness_dependency_clearance_step_review_input_store_requirement_names:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Requirement
+            Names
+        closure_readiness_dependency_clearance_step_review_input_store_requirement_statuses:
+          items:
+            $ref: '#/components/schemas/AdminApiGateStatus'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Requirement
+            Statuses
+        closure_readiness_dependency_clearance_step_review_input_store_required_store_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Required
+            Store Refs
+        closure_readiness_dependency_clearance_step_review_input_store_required_writer_refs:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Required
+            Writer Refs
+        closure_readiness_dependency_clearance_step_review_input_store_required_record_keys:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Required
+            Record Keys
+        closure_readiness_dependency_clearance_step_review_input_store_required_validation_gates:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Required
+            Validation Gates
+        closure_readiness_dependency_clearance_step_review_input_store_required_replay_gates:
+          items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Required
+            Replay Gates
         missing_backend_contracts:
           items:
             type: string
@@ -58202,6 +58260,8 @@ components:
       - closure_readiness_blocked_dependency_clearance_step_review_count
       - closure_readiness_dependency_clearance_step_review_input_count
       - closure_readiness_blocked_dependency_clearance_step_review_input_count
+      - closure_readiness_dependency_clearance_step_review_input_store_requirement_count
+      - closure_readiness_blocked_dependency_clearance_step_review_input_store_requirement_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -58549,6 +58609,15 @@ components:
           type: boolean
           title: Live Coinbase Read Ran
           default: false
+        clearance_step_review_input_store_requirement_rows:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow'
+          type: array
+          title: Clearance Step Review Input Store Requirement Rows
+          description: Read-only backend-owned store and writer requirements derived
+            from this missing input. Requirements remain blocked and cannot create
+            stores, allow writers, write records, accept inputs, complete reviews,
+            clear dependencies, or grant execution authority.
         detail:
           type: string
           title: Detail
@@ -58572,6 +58641,200 @@ components:
       title: StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow
       description: Blocked backend-owned input required by one M55 clearance-step
         review.
+    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow:
+      properties:
+        store_requirement_ref:
+          type: string
+          title: Store Requirement Ref
+        input_ref:
+          type: string
+          title: Input Ref
+        review_ref:
+          type: string
+          title: Review Ref
+        step_ref:
+          type: string
+          title: Step Ref
+        dependency_ref:
+          type: string
+          title: Dependency Ref
+        dependency_class:
+          $ref: '#/components/schemas/AdminApiStealthClosureDependencyClass'
+        requirement_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName'
+        input_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewInputName'
+        review_name:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceStepReviewName'
+        clearance_owner:
+          $ref: '#/components/schemas/AdminApiStealthClosureClearanceOwner'
+        required_artifact_ref:
+          type: string
+          title: Required Artifact Ref
+        required_store_ref:
+          type: string
+          title: Required Store Ref
+        required_writer_ref:
+          type: string
+          title: Required Writer Ref
+        required_record_key:
+          type: string
+          title: Required Record Key
+        required_validation_gate:
+          type: string
+          title: Required Validation Gate
+        required_replay_gate:
+          type: string
+          title: Required Replay Gate
+        clearance_order:
+          type: integer
+          minimum: 1.0
+          title: Clearance Order
+        step_order:
+          type: integer
+          minimum: 1.0
+          title: Step Order
+        review_order:
+          type: integer
+          minimum: 1.0
+          title: Review Order
+        input_order:
+          type: integer
+          minimum: 1.0
+          title: Input Order
+        store_requirement_order:
+          type: integer
+          minimum: 1.0
+          title: Store Requirement Order
+        store_requirement_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        store_required:
+          type: boolean
+          title: Store Required
+          default: true
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        write_allowed:
+          type: boolean
+          title: Write Allowed
+          default: false
+        record_present:
+          type: boolean
+          title: Record Present
+          default: false
+        record_accepted:
+          type: boolean
+          title: Record Accepted
+          default: false
+        record_validated:
+          type: boolean
+          title: Record Validated
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        input_present:
+          type: boolean
+          title: Input Present
+          default: false
+        input_accepted:
+          type: boolean
+          title: Input Accepted
+          default: false
+        input_validated:
+          type: boolean
+          title: Input Validated
+          default: false
+        review_ready:
+          type: boolean
+          title: Review Ready
+          default: false
+        review_complete:
+          type: boolean
+          title: Review Complete
+          default: false
+        review_allowed:
+          type: boolean
+          title: Review Allowed
+          default: false
+        step_ready:
+          type: boolean
+          title: Step Ready
+          default: false
+        step_complete:
+          type: boolean
+          title: Step Complete
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        resolution_allowed:
+          type: boolean
+          title: Resolution Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - store_requirement_ref
+      - input_ref
+      - review_ref
+      - step_ref
+      - dependency_ref
+      - dependency_class
+      - requirement_name
+      - input_name
+      - review_name
+      - clearance_owner
+      - required_artifact_ref
+      - required_store_ref
+      - required_writer_ref
+      - required_record_key
+      - required_validation_gate
+      - required_replay_gate
+      - clearance_order
+      - step_order
+      - review_order
+      - input_order
+      - store_requirement_order
+      - detail
+      title: StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow
+      description: Blocked backend store/writer requirement for one M55 review input.
     StealthCommandSuiteClosureDependencyClearanceStepReviewRow:
       properties:
         review_ref:

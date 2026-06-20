@@ -314,9 +314,13 @@ flags. Completed phases 4681-4700 derive blocked backend clearance-step rows
 from those plans without clearing dependencies or changing execution authority.
 Completed phases 4701-4720 derive blocked backend clearance-step review rows
 from those steps without completing reviews, making steps ready, clearing
-dependencies, or changing execution authority. Active phases 4721-4740 derive
-blocked backend review-input rows from those reviews without accepting inputs,
-validating inputs, completing reviews, making steps ready, clearing
+dependencies, or changing execution authority. Completed phases 4721-4740
+derive blocked backend review-input rows from those reviews without accepting
+inputs, validating inputs, completing reviews, making steps ready, clearing
+dependencies, or changing execution authority. Active phases 4741-4760 derive
+blocked backend review-input store-requirement rows from those inputs without
+making stores available, allowing writers, writing records, validating records,
+accepting inputs, completing reviews, making steps ready, clearing
 dependencies, or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
