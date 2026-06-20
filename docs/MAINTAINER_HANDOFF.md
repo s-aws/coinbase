@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4901-4920` under M55.
-- Active autonomous range: `4921-4940` under M55.
+- Latest completed autonomous range: `4921-4940` under M55.
+- Active autonomous range: `4941-4960` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -485,12 +485,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   clearing claim traces, claiming or performing work items, clearing
   dependencies, performing remediation, validating records, writing evidence,
   reconciling, calling Coinbase, invoking managers, or changing execution
-  authority. Active 4921-4940 work derives blocked backend claim-trace
+  authority. Completed 4921-4940 work derives blocked backend claim-trace
   clearance-step review rows from those clearance steps without completing
   reviews, executing plan steps, resolving claims, clearing claim traces,
   claiming or performing work items, clearing dependencies, performing
   remediation, validating records, writing evidence, reconciling, calling
-  Coinbase, invoking managers, or changing execution authority.
+  Coinbase, invoking managers, or changing execution authority. Active
+  4941-4960 work derives blocked backend claim-trace clearance-step
+  review-input rows from those reviews without accepting inputs, validating
+  inputs, completing reviews, executing plan steps, resolving claims, clearing
+  claim traces, claiming or performing work items, clearing dependencies,
+  performing remediation, validating records, writing evidence, reconciling,
+  calling Coinbase, invoking managers, or changing execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

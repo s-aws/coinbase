@@ -202,6 +202,7 @@ from .models import (
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepRow,
+    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceRow,
@@ -312,7 +313,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "4921-4940"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "4941-4960"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -14215,6 +14216,168 @@ class AdminApiReadService:
                                                                                                         ),
                                                                                                         live_coinbase_orders_ran=False,
                                                                                                         live_coinbase_read_ran=False,
+                                                                                                        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows=[
+                                                                                                            StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputRow(
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref=claim_trace_clearance_step_review_input_ref,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref=claim_trace_clearance_step_review_ref,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref=claim_trace_clearance_step_ref,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref=record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_ref=record_validation_remediation_dependency_work_item_claim_trace_ref,
+                                                                                                                record_validation_remediation_dependency_work_item_ref=record_validation_remediation_dependency_work_item_ref,
+                                                                                                                record_validation_remediation_dependency_ref=record_validation_remediation_dependency_ref,
+                                                                                                                record_validation_remediation_ref=record_validation_remediation_ref,
+                                                                                                                record_validation_ref=record_validation_ref,
+                                                                                                                record_contract_ref=record_contract_ref,
+                                                                                                                store_requirement_ref=store_requirement_ref,
+                                                                                                                input_ref=input_ref,
+                                                                                                                review_ref=review_ref,
+                                                                                                                step_ref=step_ref,
+                                                                                                                dependency_ref=dependency_ref,
+                                                                                                                dependency_class=dependency_class,
+                                                                                                                claim_id=record_validation_remediation_dependency_work_item_claim_id,
+                                                                                                                clearance_target_ref=record_validation_remediation_dependency_work_item_claim_trace_ref,
+                                                                                                                clearance_step_name=claim_trace_clearance_step_name,
+                                                                                                                input_name=input_name,
+                                                                                                                required_review_input=claim_trace_clearance_step_review_input_ref,
+                                                                                                                required_backend_refs=required_backend_refs,
+                                                                                                                required_plan_steps=claim_trace_clearance_plan_required_steps,
+                                                                                                                required_verification_gates=[
+                                                                                                                    claim_trace_clearance_plan_verification_gate
+                                                                                                                ],
+                                                                                                                required_review_gates=[
+                                                                                                                    f"{claim_trace_clearance_step_review_ref}::gate"
+                                                                                                                ],
+                                                                                                                verification_gate=claim_trace_clearance_plan_verification_gate,
+                                                                                                                clearance_step_gate=(
+                                                                                                                    f"{claim_trace_clearance_step_ref}::gate"
+                                                                                                                ),
+                                                                                                                clearance_step_review_gate=(
+                                                                                                                    f"{claim_trace_clearance_step_review_ref}::gate"
+                                                                                                                ),
+                                                                                                                clearance_step_review_input_gate=(
+                                                                                                                    f"{claim_trace_clearance_step_review_input_ref}::gate"
+                                                                                                                ),
+                                                                                                                predecessor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_refs=(
+                                                                                                                    [
+                                                                                                                        f"{claim_trace_clearance_step_refs[claim_trace_clearance_step_index - 1]}::review::input_evidence"
+                                                                                                                    ]
+                                                                                                                    if claim_trace_clearance_step_index
+                                                                                                                    > 0
+                                                                                                                    else []
+                                                                                                                ),
+                                                                                                                successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_refs=(
+                                                                                                                    [
+                                                                                                                        f"{claim_trace_clearance_step_refs[claim_trace_clearance_step_index + 1]}::review::input_evidence"
+                                                                                                                    ]
+                                                                                                                    if claim_trace_clearance_step_index
+                                                                                                                    + 1
+                                                                                                                    < len(
+                                                                                                                        claim_trace_clearance_step_refs
+                                                                                                                    )
+                                                                                                                    else []
+                                                                                                                ),
+                                                                                                                clearance_order=clearance_order,
+                                                                                                                step_order=1,
+                                                                                                                review_order=1,
+                                                                                                                input_order=1,
+                                                                                                                store_requirement_order=1,
+                                                                                                                record_contract_order=1,
+                                                                                                                record_validation_order=1,
+                                                                                                                record_validation_remediation_order=1,
+                                                                                                                record_validation_remediation_dependency_order=clearance_order,
+                                                                                                                record_validation_remediation_dependency_work_item_order=clearance_order,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_order=clearance_order,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_order=clearance_order,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_step_order=claim_trace_clearance_step_index
+                                                                                                                + 1,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_order=1,
+                                                                                                                record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_order=1,
+                                                                                                                status=AdminApiGateStatus.BLOCKED,
+                                                                                                                input_required=True,
+                                                                                                                input_present=False,
+                                                                                                                input_accepted=False,
+                                                                                                                input_validated=False,
+                                                                                                                review_required=True,
+                                                                                                                review_ready=False,
+                                                                                                                review_complete=False,
+                                                                                                                review_allowed=False,
+                                                                                                                required_inputs_present=False,
+                                                                                                                required_gates_passed=False,
+                                                                                                                step_required=True,
+                                                                                                                step_ready=False,
+                                                                                                                step_complete=False,
+                                                                                                                prior_step_complete=False,
+                                                                                                                next_step_enabled=False,
+                                                                                                                plan_required=True,
+                                                                                                                plan_ready=False,
+                                                                                                                sequence_ready=False,
+                                                                                                                all_dependencies_ready=False,
+                                                                                                                all_predecessors_ready=False,
+                                                                                                                all_verification_gates_passed=False,
+                                                                                                                claim_trace_required=True,
+                                                                                                                claim_trace_ready=False,
+                                                                                                                claim_allowed=False,
+                                                                                                                claim_resolved=False,
+                                                                                                                clears_claim_trace=False,
+                                                                                                                clears_work_item=False,
+                                                                                                                clears_dependency=False,
+                                                                                                                clears_remediation=False,
+                                                                                                                clears_record_validation=False,
+                                                                                                                record_validation_remediation_dependency_work_item_required=True,
+                                                                                                                record_validation_remediation_dependency_work_item_ready=False,
+                                                                                                                record_validation_remediation_dependency_work_item_performed=False,
+                                                                                                                work_item_claimed=False,
+                                                                                                                record_validation_remediation_dependency_required=True,
+                                                                                                                record_validation_remediation_dependency_ready=False,
+                                                                                                                dependency_order_resolved=False,
+                                                                                                                record_validation_remediation_required=True,
+                                                                                                                record_validation_remediation_ready=False,
+                                                                                                                record_validation_remediation_performed=False,
+                                                                                                                record_validation_required=True,
+                                                                                                                record_validation_ready=False,
+                                                                                                                record_contract_required=True,
+                                                                                                                record_contract_available=False,
+                                                                                                                record_schema_available=False,
+                                                                                                                append_only_log_available=False,
+                                                                                                                idempotency_key_bound=False,
+                                                                                                                payload_schema_validated=False,
+                                                                                                                replay_protected=False,
+                                                                                                                store_required=True,
+                                                                                                                store_available=False,
+                                                                                                                writer_allowed=False,
+                                                                                                                write_allowed=False,
+                                                                                                                record_present=False,
+                                                                                                                record_accepted=False,
+                                                                                                                record_validated=False,
+                                                                                                                validation_configured=False,
+                                                                                                                replay_protection_configured=False,
+                                                                                                                clearance_allowed=False,
+                                                                                                                resolution_allowed=False,
+                                                                                                                backend_owned=True,
+                                                                                                                browser_authority="display_only",
+                                                                                                                bff_authority=(
+                                                                                                                    "forward_only_no_execution"
+                                                                                                                ),
+                                                                                                                live_coinbase_orders_ran=False,
+                                                                                                                live_coinbase_read_ran=False,
+                                                                                                                no_live_execution=True,
+                                                                                                                detail=(
+                                                                                                                    "Record-validation remediation "
+                                                                                                                    "dependency work-item claim-trace "
+                                                                                                                    "clearance-step review input is "
+                                                                                                                    "read-only backend evidence. "
+                                                                                                                    "The input remains missing and "
+                                                                                                                    "cannot be accepted, validated, "
+                                                                                                                    "used to complete a review, "
+                                                                                                                    "complete a step, resolve a "
+                                                                                                                    "claim, write evidence, or "
+                                                                                                                    "enable live execution."
+                                                                                                                ),
+                                                                                                            )
+                                                                                                            for claim_trace_clearance_step_review_input_ref in [
+                                                                                                                f"{claim_trace_clearance_step_review_ref}::input_evidence"
+                                                                                                            ]
+                                                                                                        ],
                                                                                                         detail=(
                                                                                                             "Record-validation "
                                                                                                             "remediation dependency "
@@ -15248,6 +15411,15 @@ class AdminApiReadService:
             )
             for clearance_step_review in (
                 clearance_step.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_rows
+            )
+        ]
+        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows = [
+            clearance_step_review_input
+            for clearance_step_review in (
+                dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_rows
+            )
+            for clearance_step_review_input in (
+                clearance_step_review.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
             )
         ]
         blocker_closure_summary = StealthCommandSuiteBlockerClosureSummary(
@@ -16541,6 +16713,172 @@ class AdminApiReadService:
                     )
                     for successor in (
                         review.successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_refs
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count=len(
+                dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+            ),
+            closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count=sum(
+                1
+                for review_input in (
+                    dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                )
+                if review_input.status == AdminApiGateStatus.BLOCKED
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_refs=sorted(
+                {
+                    review_input.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_statuses=sorted(
+                {
+                    review_input.status
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_review_refs=sorted(
+                {
+                    review_input.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_step_refs=sorted(
+                {
+                    review_input.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_plan_refs=sorted(
+                {
+                    review_input.record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_names=sorted(
+                {
+                    review_input.input_name
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_review_names=sorted(
+                {
+                    review_input.review_name
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_step_names=sorted(
+                {
+                    review_input.clearance_step_name
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_claims=sorted(
+                {
+                    review_input.claim
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_targets=sorted(
+                {
+                    review_input.clearance_target_ref
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_required_refs=sorted(
+                {
+                    required_ref
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                    for required_ref in review_input.required_backend_refs
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_required_inputs=sorted(
+                {
+                    review_input.required_review_input
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_gates=sorted(
+                {
+                    gate
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                    for gate in (
+                        review_input.clearance_step_review_input_gate,
+                        review_input.clearance_step_review_gate,
+                        *review_input.required_review_gates,
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_blockers=sorted(
+                {
+                    blocker
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                    for blocker in (
+                        review_input.blocker,
+                        review_input.review_blocker,
+                        review_input.step_blocker,
+                        review_input.plan_blocker,
+                        review_input.claim_trace_blocker,
+                        review_input.work_item_blocker,
+                        review_input.dependency_blocker,
+                        review_input.remediation_blocker,
+                        review_input.validation_blocker,
+                        review_input.record_contract_blocker,
+                        review_input.store_blocker,
+                        review_input.input_blocker,
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_predecessors=sorted(
+                {
+                    predecessor
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                    for predecessor in (
+                        review_input.predecessor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_refs
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_successors=sorted(
+                {
+                    successor
+                    for review_input in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_rows
+                    )
+                    for successor in (
+                        review_input.successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_refs
                     )
                 }
             ),

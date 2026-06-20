@@ -351,11 +351,17 @@ Completed phases 4901-4920 derive blocked backend claim-trace clearance-step
 rows from those clearance plans without executing plan steps, resolving
 claims, clearing claim traces, clearing work items or dependencies, writing
 evidence, reconciling, calling Coinbase, invoking managers, or changing
-execution authority. Active phases 4921-4940 derive blocked backend
+execution authority. Completed phases 4921-4940 derive blocked backend
 claim-trace clearance-step review rows from those clearance steps without
 completing reviews, executing plan steps, resolving claims, clearing claim
 traces, clearing work items or dependencies, writing evidence, reconciling,
-calling Coinbase, invoking managers, or changing execution authority.
+calling Coinbase, invoking managers, or changing execution authority. Active
+phases 4941-4960 derive blocked backend claim-trace clearance-step
+review-input rows from those reviews without accepting inputs, validating
+inputs, completing reviews, executing plan steps, resolving claims, clearing
+claim traces, clearing work items or dependencies, writing evidence,
+reconciling, calling Coinbase, invoking managers, or changing execution
+authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their
@@ -1124,6 +1130,10 @@ are not backend approval to trade. These checks do not replace focused backend
 checks for ordinary backend changes or the full backend regression gate when a
 durable milestone, release/deployment handoff, release-hardening closeout,
 Admin API/backend association closeout, or explicit user request requires it.
+When that full backend gate is required, use
+`python tools/run_parallel_regression.py --workers 4`; sequential
+`pytest tests/regression/ -v --tb=short` is fallback-only when the parallel
+runner cannot be used.
 In short: runtime evidence is saved, and these artifacts are not approval for
 live Coinbase execution.
 No-live release artifacts are not approval for live Coinbase execution.

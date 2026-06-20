@@ -54,7 +54,10 @@ row also has a blocked backend claim-trace clearance-plan row. For phases
 4901-4920, each claim-trace clearance-plan row also has blocked backend
 claim-trace clearance-step rows for the required plan steps. For phases
 4921-4940, each claim-trace clearance-step row also has blocked backend
-claim-trace clearance-step review rows for the required step reviews.
+claim-trace clearance-step review rows for the required step reviews. For
+phases 4941-4960, each claim-trace clearance-step review row also has blocked
+backend claim-trace clearance-step review-input rows for the required review
+inputs.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store

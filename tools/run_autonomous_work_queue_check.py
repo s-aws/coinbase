@@ -29,12 +29,17 @@ REGRESSION_GATE_POLICY_DOCS = (
     PROJECT_ROOT / "docs" / "STEALTH_ORDER_READS.md",
     PROJECT_ROOT / "docs" / "agents" / "README.md",
     PROJECT_ROOT / "docs" / "agents" / "AGENT_TEST_QUALITY.md",
-    PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_CONTEXTLESS_REVIEW_LOG.md",
     PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md",
     PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md",
     PROJECT_ROOT / "tests" / "DEPLOYMENT_CHECKLIST.md",
     PROJECT_ROOT / "tests" / "README.md",
     PROJECT_ROOT / "tests" / "SETUP_SUMMARY.md",
+)
+CANONICAL_FULL_REGRESSION_COMMAND = "python tools/run_parallel_regression.py --workers 4"
+SEQUENTIAL_FULL_REGRESSION_COMMANDS = (
+    "pytest tests/regression/ -v --tb=short",
+    "python -m pytest tests\\regression\\ -v --tb=short",
+    "python3 -m pytest tests/regression/ -v --tb=short",
 )
 STALE_REGRESSION_POLICY_TEXT = (
     "required backend regression gate when backend files change",
@@ -44,9 +49,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "4921-4940"
-APPROVED_PHASES = tuple(range(4921, 4941))
-PREVIOUS_COMPLETED_PHASE_RANGE = "4901-4920"
+APPROVED_PHASE_RANGE = "4941-4960"
+APPROVED_PHASES = tuple(range(4941, 4961))
+PREVIOUS_COMPLETED_PHASE_RANGE = "4921-4940"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -186,6 +191,8 @@ def _check_required_gates(body: str) -> QueueCheck:
 def _check_regression_gate_policy_docs() -> QueueCheck:
     stale_matches: dict[str, list[str]] = {}
     missing_policy: dict[str, list[str]] = {}
+    missing_canonical_command: list[str] = []
+    sequential_without_fallback: dict[str, list[str]] = {}
     required_policy_text = [
         "focused",
         "ordinary",
@@ -193,21 +200,63 @@ def _check_regression_gate_policy_docs() -> QueueCheck:
     ]
     for path in REGRESSION_GATE_POLICY_DOCS:
         body = path.read_text(encoding="utf-8") if path.exists() else ""
-        stale = [text for text in STALE_REGRESSION_POLICY_TEXT if text in body]
+        policy_body = _active_regression_policy_body(path, body)
+        stale = [text for text in STALE_REGRESSION_POLICY_TEXT if text in policy_body]
         if stale:
             stale_matches[str(path.relative_to(PROJECT_ROOT))] = stale
-        if "regression" in body.lower():
-            missing = [text for text in required_policy_text if text not in body.lower()]
+        if "regression" in policy_body.lower():
+            missing = [
+                text for text in required_policy_text if text not in policy_body.lower()
+            ]
             if missing:
                 missing_policy[str(path.relative_to(PROJECT_ROOT))] = missing
+            if CANONICAL_FULL_REGRESSION_COMMAND not in policy_body:
+                missing_canonical_command.append(str(path.relative_to(PROJECT_ROOT)))
+            fallback_violations = [
+                command
+                for command in SEQUENTIAL_FULL_REGRESSION_COMMANDS
+                if command in policy_body
+                and not _sequential_command_is_fallback_only(policy_body, command)
+            ]
+            if fallback_violations:
+                sequential_without_fallback[str(path.relative_to(PROJECT_ROOT))] = (
+                    fallback_violations
+                )
     return QueueCheck(
         name="regression_gate_policy_docs",
-        passed=not stale_matches and not missing_policy,
+        passed=not stale_matches
+        and not missing_policy
+        and not missing_canonical_command
+        and not sequential_without_fallback,
         evidence={
             "stale_policy_text": stale_matches,
             "missing_policy_terms": missing_policy,
+            "missing_canonical_command": missing_canonical_command,
+            "sequential_without_fallback": sequential_without_fallback,
         },
     )
+
+
+def _active_regression_policy_body(path: Path, body: str) -> str:
+    """Return only active policy text for docs that also contain history."""
+
+    if path in {QUEUE_DOC, PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md"}:
+        return body.split("\n## Completed", maxsplit=1)[0]
+    return body
+
+
+def _sequential_command_is_fallback_only(body: str, command: str) -> bool:
+    body_lower = body.lower()
+    command_lower = command.lower()
+    start = 0
+    while True:
+        index = body_lower.find(command_lower, start)
+        if index == -1:
+            return True
+        context = body_lower[max(0, index - 180) : index + len(command_lower) + 180]
+        if "fallback" not in context:
+            return False
+        start = index + len(command_lower)
 
 
 def _check_frontend_release_docs() -> QueueCheck:

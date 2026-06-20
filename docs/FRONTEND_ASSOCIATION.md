@@ -106,6 +106,10 @@ Any backend API contract change intended for frontend consumption must update:
 - focused backend checks for ordinary backend changes
 - full backend regression only for milestone, release/deployment, association
   closeout, or explicit-request gates
+- when full backend regression is required, use
+  `python tools/run_parallel_regression.py --workers 4`; sequential
+  `pytest tests/regression/ -v --tb=short` is fallback-only when the parallel
+  runner cannot be used
 - frontend quality gate when frontend files changed
 - frontend `npm run release:gate` for release candidates
 
