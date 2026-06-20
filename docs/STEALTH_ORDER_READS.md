@@ -49,15 +49,17 @@ record-validation remediation dependency row. For phases 4841-4860, each
 remediation dependency also has a blocked backend review-input store
 record-validation remediation dependency work-item row. For phases 4861-4880,
 each remediation dependency work item also has a blocked backend claim-trace
-row.
+row. For phases 4881-4900, each remediation dependency work-item claim-trace
+row also has a blocked backend claim-trace clearance-plan row.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store
 record-validation remediations, remediation dependencies, remediation
-dependency work items, and work-item claim traces are planning
+dependency work items, work-item claim traces, and claim-trace clearance plans
+are planning
 evidence only: they do not close blockers, satisfy missing contracts, resolve
-dependency order, claim work items, perform work items, perform remediation,
-resolve claims, allow claim resolution,
+dependency order, execute plans, clear claim traces, claim work items, perform
+work items, perform remediation, resolve claims, allow claim resolution,
 make record contracts available, make validations ready, make schemas
 available, make append-only logs available, bind idempotency, validate
 payloads, protect replay, make stores available, allow writers, write or

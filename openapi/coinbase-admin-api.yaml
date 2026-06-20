@@ -58624,6 +58624,95 @@ components:
           type: array
           title: Closure Readiness Dependency Clearance Step Review Input Store Record
             Validation Remediation Dependency Work Item Claim Trace Successors
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+        : type: integer
+          minimum: 0.0
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Count
+        ? closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+        : type: integer
+          minimum: 0.0
+          title: Closure Readiness Blocked Dependency Clearance Step Review Input
+            Store Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Count
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_refs
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Refs
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_statuses
+        : items:
+            $ref: '#/components/schemas/AdminApiGateStatus'
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Statuses
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_claim_trace_refs
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Claim Trace Refs
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_claims
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Claims
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_targets
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Targets
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_required_refs
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Required Refs
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_steps
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Steps
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_verification_gates
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Verification Gates
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_blockers
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Blockers
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_predecessors
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Predecessors
+        ? closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_successors
+        : items:
+            type: string
+          type: array
+          title: Closure Readiness Dependency Clearance Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Successors
         missing_backend_contracts:
           items:
             type: string
@@ -58712,6 +58801,8 @@ components:
       - closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count
       - closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
       - closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+      - closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+      - closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
       - missing_backend_contracts
       - detail
       title: StealthCommandSuiteBlockerClosureSummary
@@ -59725,6 +59816,470 @@ components:
       - detail
       title: StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyRow
       description: Blocked dependency row for one M55 review-input validation remediation.
+    ? StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanRow
+    : properties:
+        source_ref:
+          type: string
+          title: Source Ref
+          default: closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+        source:
+          type: string
+          title: Source
+          default: backend_closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+        authority:
+          type: string
+          title: Authority
+          default: backend_derived_from_claim_traces_no_plan_execution_no_claim_resolution
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Ref
+        record_validation_remediation_dependency_work_item_claim_trace_ref:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Ref
+        record_validation_remediation_dependency_work_item_ref:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Ref
+        record_validation_remediation_dependency_ref:
+          type: string
+          title: Record Validation Remediation Dependency Ref
+        record_validation_remediation_ref:
+          type: string
+          title: Record Validation Remediation Ref
+        record_validation_ref:
+          type: string
+          title: Record Validation Ref
+        record_contract_ref:
+          type: string
+          title: Record Contract Ref
+        store_requirement_ref:
+          type: string
+          title: Store Requirement Ref
+        input_ref:
+          type: string
+          title: Input Ref
+        review_ref:
+          type: string
+          title: Review Ref
+        step_ref:
+          type: string
+          title: Step Ref
+        dependency_ref:
+          type: string
+          title: Dependency Ref
+        dependency_class:
+          $ref: '#/components/schemas/AdminApiStealthClosureDependencyClass'
+        claim_id:
+          type: string
+          title: Claim Id
+        claim:
+          type: string
+          title: Claim
+          default: record_validation_remediation_dependency_work_item_ready
+        clearance_target_ref:
+          type: string
+          title: Clearance Target Ref
+        required_backend_refs:
+          items:
+            type: string
+          type: array
+          title: Required Backend Refs
+        planned_backend_sequence:
+          items:
+            type: string
+          type: array
+          title: Planned Backend Sequence
+        required_plan_steps:
+          items:
+            type: string
+          type: array
+          title: Required Plan Steps
+        required_verification_gates:
+          items:
+            type: string
+          type: array
+          title: Required Verification Gates
+        verification_gate:
+          type: string
+          title: Verification Gate
+        blocker:
+          type: string
+          title: Blocker
+          default: claim_trace_clearance_plan_blocked
+        claim_trace_blocker:
+          type: string
+          title: Claim Trace Blocker
+          default: record_validation_remediation_dependency_work_item_not_ready
+        work_item_blocker:
+          type: string
+          title: Work Item Blocker
+          default: record_validation_remediation_dependency_work_item_unclaimed
+        dependency_blocker:
+          type: string
+          title: Dependency Blocker
+          default: record_validation_remediation_dependency_not_ready
+        remediation_blocker:
+          type: string
+          title: Remediation Blocker
+          default: record_validation_remediation_not_performed
+        validation_blocker:
+          type: string
+          title: Validation Blocker
+          default: record_validation_not_ready
+        record_contract_blocker:
+          type: string
+          title: Record Contract Blocker
+          default: record_contract_not_available
+        store_blocker:
+          type: string
+          title: Store Blocker
+          default: input_evidence_store_not_available
+        input_blocker:
+          type: string
+          title: Input Blocker
+          default: review_input_not_accepted
+        review_blocker:
+          type: string
+          title: Review Blocker
+          default: clearance_step_review_not_complete
+        step_blocker:
+          type: string
+          title: Step Blocker
+          default: clearance_step_not_ready
+        predecessor_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Record Validation Remediation Dependency Work Item Claim
+            Trace Clearance Plan Refs
+        successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Record Validation Remediation Dependency Work Item Claim
+            Trace Clearance Plan Refs
+        clearance_order:
+          type: integer
+          minimum: 1.0
+          title: Clearance Order
+        step_order:
+          type: integer
+          minimum: 1.0
+          title: Step Order
+        review_order:
+          type: integer
+          minimum: 1.0
+          title: Review Order
+        input_order:
+          type: integer
+          minimum: 1.0
+          title: Input Order
+        store_requirement_order:
+          type: integer
+          minimum: 1.0
+          title: Store Requirement Order
+        record_contract_order:
+          type: integer
+          minimum: 1.0
+          title: Record Contract Order
+        record_validation_order:
+          type: integer
+          minimum: 1.0
+          title: Record Validation Order
+        record_validation_remediation_order:
+          type: integer
+          minimum: 1.0
+          title: Record Validation Remediation Order
+        record_validation_remediation_dependency_order:
+          type: integer
+          minimum: 1.0
+          title: Record Validation Remediation Dependency Order
+        record_validation_remediation_dependency_work_item_order:
+          type: integer
+          minimum: 1.0
+          title: Record Validation Remediation Dependency Work Item Order
+        record_validation_remediation_dependency_work_item_claim_trace_order:
+          type: integer
+          minimum: 1.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Order
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_order:
+          type: integer
+          minimum: 1.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Order
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        plan_required:
+          type: boolean
+          title: Plan Required
+          default: true
+        plan_ready:
+          type: boolean
+          title: Plan Ready
+          default: false
+        sequence_ready:
+          type: boolean
+          title: Sequence Ready
+          default: false
+        all_dependencies_ready:
+          type: boolean
+          title: All Dependencies Ready
+          default: false
+        all_predecessors_ready:
+          type: boolean
+          title: All Predecessors Ready
+          default: false
+        all_verification_gates_passed:
+          type: boolean
+          title: All Verification Gates Passed
+          default: false
+        claim_trace_required:
+          type: boolean
+          title: Claim Trace Required
+          default: true
+        claim_trace_ready:
+          type: boolean
+          title: Claim Trace Ready
+          default: false
+        claim_allowed:
+          type: boolean
+          title: Claim Allowed
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        clears_claim_trace:
+          type: boolean
+          title: Clears Claim Trace
+          default: false
+        clears_work_item:
+          type: boolean
+          title: Clears Work Item
+          default: false
+        clears_dependency:
+          type: boolean
+          title: Clears Dependency
+          default: false
+        clears_remediation:
+          type: boolean
+          title: Clears Remediation
+          default: false
+        clears_record_validation:
+          type: boolean
+          title: Clears Record Validation
+          default: false
+        record_validation_remediation_dependency_work_item_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Required
+          default: true
+        record_validation_remediation_dependency_work_item_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Ready
+          default: false
+        record_validation_remediation_dependency_work_item_performed:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Performed
+          default: false
+        work_item_claimed:
+          type: boolean
+          title: Work Item Claimed
+          default: false
+        record_validation_remediation_dependency_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Required
+          default: true
+        record_validation_remediation_dependency_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Ready
+          default: false
+        dependency_order_resolved:
+          type: boolean
+          title: Dependency Order Resolved
+          default: false
+        record_validation_remediation_required:
+          type: boolean
+          title: Record Validation Remediation Required
+          default: true
+        record_validation_remediation_ready:
+          type: boolean
+          title: Record Validation Remediation Ready
+          default: false
+        record_validation_remediation_performed:
+          type: boolean
+          title: Record Validation Remediation Performed
+          default: false
+        record_validation_required:
+          type: boolean
+          title: Record Validation Required
+          default: true
+        record_validation_ready:
+          type: boolean
+          title: Record Validation Ready
+          default: false
+        record_contract_required:
+          type: boolean
+          title: Record Contract Required
+          default: true
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        record_schema_available:
+          type: boolean
+          title: Record Schema Available
+          default: false
+        append_only_log_available:
+          type: boolean
+          title: Append Only Log Available
+          default: false
+        idempotency_key_bound:
+          type: boolean
+          title: Idempotency Key Bound
+          default: false
+        payload_schema_validated:
+          type: boolean
+          title: Payload Schema Validated
+          default: false
+        replay_protected:
+          type: boolean
+          title: Replay Protected
+          default: false
+        store_required:
+          type: boolean
+          title: Store Required
+          default: true
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        write_allowed:
+          type: boolean
+          title: Write Allowed
+          default: false
+        record_present:
+          type: boolean
+          title: Record Present
+          default: false
+        record_accepted:
+          type: boolean
+          title: Record Accepted
+          default: false
+        record_validated:
+          type: boolean
+          title: Record Validated
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        input_present:
+          type: boolean
+          title: Input Present
+          default: false
+        input_accepted:
+          type: boolean
+          title: Input Accepted
+          default: false
+        input_validated:
+          type: boolean
+          title: Input Validated
+          default: false
+        review_ready:
+          type: boolean
+          title: Review Ready
+          default: false
+        review_complete:
+          type: boolean
+          title: Review Complete
+          default: false
+        review_allowed:
+          type: boolean
+          title: Review Allowed
+          default: false
+        step_ready:
+          type: boolean
+          title: Step Ready
+          default: false
+        step_complete:
+          type: boolean
+          title: Step Complete
+          default: false
+        clearance_allowed:
+          type: boolean
+          title: Clearance Allowed
+          default: false
+        resolution_allowed:
+          type: boolean
+          title: Resolution Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_ref
+      - record_validation_remediation_dependency_work_item_ref
+      - record_validation_remediation_dependency_ref
+      - record_validation_remediation_ref
+      - record_validation_ref
+      - record_contract_ref
+      - store_requirement_ref
+      - input_ref
+      - review_ref
+      - step_ref
+      - dependency_ref
+      - dependency_class
+      - claim_id
+      - clearance_target_ref
+      - verification_gate
+      - clearance_order
+      - step_order
+      - review_order
+      - input_order
+      - store_requirement_order
+      - record_contract_order
+      - record_validation_order
+      - record_validation_remediation_order
+      - record_validation_remediation_dependency_order
+      - record_validation_remediation_dependency_work_item_order
+      - record_validation_remediation_dependency_work_item_claim_trace_order
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_order
+      - detail
+      title: StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanRow
+      description: Blocked clearance plan derived from one M55 dependency work-item
+        claim trace.
     ? StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceRow
     : properties:
         source_ref:
@@ -60124,6 +60679,16 @@ components:
           type: boolean
           title: Live Coinbase Read Ran
           default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_rows:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanRow'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Rows
+          description: Read-only backend-owned clearance-plan rows derived from this
+            claim trace. Plans remain blocked and cannot make claims resolvable, clear
+            work items or dependencies, remediate records, write evidence, reconcile,
+            or execute anything.
         detail:
           type: string
           title: Detail

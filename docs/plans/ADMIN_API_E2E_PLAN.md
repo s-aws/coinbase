@@ -49,7 +49,117 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Batch - Phases 4861-4880
+## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Plan Batch - Phases 4881-4900
+
+This batch derives blocked backend-owned claim-trace clearance-plan rows from
+the existing remediation dependency work-item claim-trace rows. It preserves
+the current no-live posture and does not resolve claims, clear claim traces,
+claim or perform work items, clear dependencies, remediate records, validate
+records, create stores/contracts/schemas/logs, bind idempotency, validate
+payloads, protect replay, write records, reconcile, call Coinbase, invoke
+managers, mutate state, grant browser authority, or grant BFF execution
+authority.
+
+### Phase 4881 - Prior Range Completion Evidence
+
+- Record completed phases 4861-4880 with synchronized backend/frontend
+  commits, focused gates, blind/contextless review, UI smoke at
+  `http://127.0.0.1:3001/?phaseSmoke=4861-4880`, and `0` USDC live Coinbase
+  submitted/executed notional.
+
+### Phase 4882 - Advance Active Queue Range
+
+- Move active range metadata from completed phases 4861-4880 to active phases
+  4881-4900 while preserving no-live defaults and cap policy.
+
+### Phase 4883 - Clearance-Plan Scope
+
+- Add blocked clearance plans under existing claim-trace rows without changing
+  claim, work-item, dependency, remediation, validation, record, store, write,
+  manager, reconciliation, Coinbase, browser, or BFF authority.
+
+### Phase 4884 - Backend Model
+
+- Add the nested claim-trace clearance-plan model and summary fields.
+
+### Phase 4885 - Backend Derivation
+
+- Derive each clearance plan from one existing claim trace and its source
+  work item/dependency/remediation/validation chain.
+
+### Phase 4886 - Ordering Links
+
+- Link predecessor and successor clearance-plan refs from the existing
+  claim-trace ordering.
+
+### Phase 4887 - Blocked Authority Flags
+
+- Record blocked status, false readiness, false sequence readiness, false
+  verification-gate pass state, false claim resolution, false clear/write/
+  execute state, and no-live authority.
+
+### Phase 4888 - Summary Aggregation
+
+- Aggregate counts, refs, statuses, claim-trace refs, claims, targets,
+  required refs, steps, verification gates, blockers, predecessors, and
+  successors.
+
+### Phase 4889 - Backend Assertions
+
+- Extend focused Admin API regression assertions for nested rows and summary
+  no-authority invariants.
+
+### Phase 4890 - OpenAPI Regeneration
+
+- Regenerate `openapi/coinbase-admin-api.yaml`.
+
+### Phase 4891 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI.
+
+### Phase 4892 - Frontend Adapter Mapping
+
+- Map nested rows and summary fields through the existing command-suite
+  adapter.
+
+### Phase 4893 - Frontend Mock Sync
+
+- Sync frontend mock command-suite evidence and summary totals.
+
+### Phase 4894 - UI Summary
+
+- Render clearance-plan summary evidence in the M55 ledger.
+
+### Phase 4895 - UI Rows
+
+- Render row-level clearance-plan evidence and no-authority flags.
+
+### Phase 4896 - Quality Metadata
+
+- Update active range metadata to phases 4881-4900.
+
+### Phase 4897 - Documentation
+
+- Update Admin API, frontend, testing, examples, milestones, handoff, and
+  expanded context so contextless readers see 4881-4900 as active and
+  4861-4880 as completed.
+
+### Phase 4898 - Contextless Review
+
+- Run blind/contextless review for discoverability and no-execution posture.
+
+### Phase 4899 - Focused Gates And UI Smoke
+
+- Run focused backend/frontend gates and browser smoke for
+  `http://127.0.0.1:3001/?phaseSmoke=4881-4900`.
+
+### Phase 4900 - No-Live Report, Commit, And Push
+
+- Commit and push both repositories with `0` USDC submitted/executed notional
+  and note full regression remains deferred unless this closes a durable
+  milestone.
+
+## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Batch - Phases 4861-4880
 
 These phases derive blocked backend-owned claim-trace rows from the existing
 closure-readiness clearance-step review-input store record-validation
