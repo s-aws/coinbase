@@ -7225,6 +7225,29 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "exchange_truth_check_count" in stealth_command_suite_schema["properties"]
     assert "cancel_replace_boundaries" in stealth_command_suite_schema["properties"]
     assert "cancel_replace_boundary_count" in stealth_command_suite_schema["properties"]
+    assert "enablement_candidate_reviews" in stealth_command_suite_schema["properties"]
+    assert "enablement_candidate_review_summary" in stealth_command_suite_schema["properties"]
+    assert (
+        "StealthCommandSuiteEnablementCandidateReviewItem"
+        in written["components"]["schemas"]
+    )
+    assert (
+        "StealthCommandSuiteEnablementCandidateReviewSummary"
+        in written["components"]["schemas"]
+    )
+    candidate_review_schema = written["components"]["schemas"][
+        "StealthCommandSuiteEnablementCandidateReviewItem"
+    ]
+    assert "rank" in candidate_review_schema["properties"]
+    assert "exchange_facing_blocker_count" in candidate_review_schema["properties"]
+    assert "selected_first_candidate" in candidate_review_schema["properties"]
+    assert "candidate_execution_allowed" in candidate_review_schema["properties"]
+    candidate_review_summary_schema = written["components"]["schemas"][
+        "StealthCommandSuiteEnablementCandidateReviewSummary"
+    ]
+    assert "selected_candidate_id" in candidate_review_summary_schema["properties"]
+    assert "ranking_policy" in candidate_review_summary_schema["properties"]
+    assert "all_candidates_blocked" in candidate_review_summary_schema["properties"]
     assert "StealthCommandSuiteCancelReplaceBoundaryItem" in written["components"][
         "schemas"
     ]
@@ -34272,6 +34295,9 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["blocking_cancel_replace_boundary_count"] == 3
     assert payload["admission_readiness_count"] == 7
     assert payload["blocking_admission_readiness_count"] == 7
+    assert payload["enablement_candidate_review_count"] == 7
+    assert payload["blocked_enablement_candidate_review_count"] == 7
+    assert payload["executable_enablement_candidate_review_count"] == 0
     assert payload["exchange_truth_required"] is True
     assert payload["browser_authority"] == "display_only"
     assert payload["bff_authority"] == "forward_only_no_execution"
@@ -34279,6 +34305,51 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["live_coinbase_read_ran"] is False
     assert payload["submitted_notional_usdc"] == "0"
     assert payload["executed_notional_usdc"] == "0"
+    candidate_reviews = payload["enablement_candidate_reviews"]
+    assert [item["rank"] for item in candidate_reviews] == list(range(1, 8))
+    assert all(item["status"] == AdminApiGateStatus.BLOCKED.value for item in candidate_reviews)
+    assert all(item["candidate_executable"] is False for item in candidate_reviews)
+    assert all(item["candidate_execution_allowed"] is False for item in candidate_reviews)
+    assert all(item["manager_invocation_allowed"] is False for item in candidate_reviews)
+    assert all(item["coinbase_submit_allowed"] is False for item in candidate_reviews)
+    assert all(item["coinbase_cancel_allowed"] is False for item in candidate_reviews)
+    assert all(item["coinbase_read_allowed"] is False for item in candidate_reviews)
+    assert all(item["state_mutation_allowed"] is False for item in candidate_reviews)
+    assert all(item["reconciliation_execution_allowed"] is False for item in candidate_reviews)
+    assert all(item["browser_authority"] == "display_only" for item in candidate_reviews)
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in candidate_reviews
+    )
+    first_candidate = candidate_reviews[0]
+    assert first_candidate["mutation_family"] == AdminApiMutationFamilyType.STEALTH_CREATE.value
+    assert first_candidate["route"] == "/api/v1/stealth/orders"
+    assert first_candidate["selected_first_candidate"] is True
+    assert first_candidate["exchange_facing_blocker_count"] == 0
+    assert first_candidate["active_placement_exchange_truth_required"] is False
+    assert first_candidate["coinbase_exchange_required"] is False
+    assert first_candidate["source_evidence_refs"] == [
+        "commands",
+        "admission_readiness",
+        "exchange_truth_checks",
+        "blocker_closures",
+    ]
+    candidate_summary = payload["enablement_candidate_review_summary"]
+    assert candidate_summary["status"] == AdminApiGateStatus.BLOCKED.value
+    assert candidate_summary["candidate_review_count"] == 7
+    assert candidate_summary["blocked_candidate_review_count"] == 7
+    assert candidate_summary["executable_candidate_review_count"] == 0
+    assert candidate_summary["selected_candidate_id"] == first_candidate["candidate_id"]
+    assert (
+        candidate_summary["selected_mutation_family"]
+        == AdminApiMutationFamilyType.STEALTH_CREATE.value
+    )
+    assert candidate_summary["selected_route"] == "/api/v1/stealth/orders"
+    assert candidate_summary["selected_exchange_facing_blocker_count"] == 0
+    assert candidate_summary["all_candidates_blocked"] is True
+    assert candidate_summary["first_candidate_executable"] is False
+    assert candidate_summary["live_coinbase_orders_ran"] is False
+    assert candidate_summary["live_coinbase_read_ran"] is False
     blocker_closures = {
         item["closure_id"]: item for item in payload["blocker_closures"]
     }

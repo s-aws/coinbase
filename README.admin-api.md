@@ -394,7 +394,11 @@ Active phases 5101-5120 reconcile M55 route-level stealth command enablement
 candidates across existing create, reveal, move, cancel, recovery,
 reconciliation, and movement reprice routes without enabling any command,
 calling managers, reconciling, mutating state, calling Coinbase, or granting
-browser/BFF execution authority.
+browser/BFF execution authority. The command-suite response now includes
+`enablement_candidate_reviews` and `enablement_candidate_review_summary`.
+Every row is blocked and non-executable; the current first review target is
+`stealth_create` at `/api/v1/stealth/orders` because it has zero
+exchange-facing blockers, not because create is executable.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their

@@ -19569,6 +19569,117 @@ class StealthCreateLifecycleWriteAuditEvidence(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteEnablementCandidateReviewItem(BaseModel):
+    """Route-level no-live candidate ranking for M55 stealth command enablement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate_id: str
+    rank: int = Field(ge=1)
+    mutation_family: AdminApiMutationFamilyType
+    workflow_family: AdminApiStealthCommandSuiteGapFamily
+    route: str
+    method: str = "POST"
+    identity_key: str = "stealth_order_id"
+    service_method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    selected_first_candidate: bool = False
+    candidate_available: bool = True
+    candidate_executable: bool = False
+    candidate_execution_allowed: bool = False
+    route_inventory_matched: bool = True
+    admission_readiness_bound: bool = True
+    exchange_truth_check_bound: bool = True
+    cancel_replace_boundary_bound: bool = False
+    blocker_closure_bound: bool = True
+    active_placement_exchange_truth_required: bool = True
+    lifecycle_write_guard_required: bool = False
+    mutation_claim_required: bool = True
+    manager_invocation_required: bool = True
+    coinbase_exchange_required: bool = False
+    coinbase_submission_required: bool = False
+    coinbase_cancel_required: bool = False
+    coinbase_read_required: bool = False
+    active_placement_cancel_replace_required: bool = False
+    post_write_reconciliation_required: bool = True
+    state_mutation_required: bool = True
+    exchange_facing_blocker_count: int = Field(ge=0)
+    blocking_admission_evidence_count: int = Field(ge=0)
+    blocking_context_count: int = Field(ge=0)
+    proof_route_count: int = Field(ge=0)
+    missing_gate_count: int = Field(ge=0)
+    blocker_closure_count: int = Field(ge=0)
+    total_blocker_score: int = Field(ge=0)
+    ranking_reasons: list[str] = Field(default_factory=list)
+    unresolved_blockers: list[str] = Field(default_factory=list)
+    blocker_categories: list[AdminApiLivePreflightCategory] = Field(default_factory=list)
+    blocker_closure_ids: list[str] = Field(default_factory=list)
+    source_evidence_refs: list[str] = Field(default_factory=list)
+    required_backend_contracts: list[str] = Field(default_factory=list)
+    required_proof_routes: list[str] = Field(default_factory=list)
+    required_gate_chain: list[str] = Field(default_factory=list)
+    next_backend_steps: list[str] = Field(default_factory=list)
+    canonical_behavior_path: list[str] = Field(default_factory=list)
+    exact_command_context_present: bool = False
+    resolver_lookup_allowed: bool = False
+    proof_resolution_attempted: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    command_context_bound: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_service_enabled: bool = False
+    live_adapter_constructed: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    state_mutation_allowed: bool = False
+    state_mutated: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
+class StealthCommandSuiteEnablementCandidateReviewSummary(BaseModel):
+    """Aggregate over route-level M55 stealth enablement candidate reviews."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = "m55_route_level_enablement_candidate_review"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    candidate_review_count: int = Field(ge=0)
+    blocked_candidate_review_count: int = Field(ge=0)
+    executable_candidate_review_count: int = Field(ge=0)
+    selected_candidate_id: str | None = None
+    selected_mutation_family: AdminApiMutationFamilyType | None = None
+    selected_route: str | None = None
+    selected_first_blocker: str | None = None
+    selected_exchange_facing_blocker_count: int | None = None
+    ranking_policy: list[str] = Field(default_factory=list)
+    all_candidates_blocked: bool = True
+    first_candidate_executable: bool = False
+    route_inventory_complete: bool = True
+    all_admission_readiness_bound: bool = True
+    proof_store_coverage_mapped: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_service_enabled: bool = False
+    live_adapter_constructed: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteResponse(AdminApiReadPayload):
     """Read-only M55 stealth command-suite readiness evidence."""
 
@@ -19612,6 +19723,15 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
         default_factory=list
     )
     blocker_closure_summary: StealthCommandSuiteBlockerClosureSummary | None = None
+    enablement_candidate_review_count: int = 0
+    blocked_enablement_candidate_review_count: int = 0
+    executable_enablement_candidate_review_count: int = 0
+    enablement_candidate_reviews: list[
+        StealthCommandSuiteEnablementCandidateReviewItem
+    ] = Field(default_factory=list)
+    enablement_candidate_review_summary: (
+        StealthCommandSuiteEnablementCandidateReviewSummary | None
+    ) = None
     create_lifecycle_write_audit: StealthCreateLifecycleWriteAuditEvidence | None = None
     read_routes: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)

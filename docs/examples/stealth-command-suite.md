@@ -37,6 +37,9 @@ Expected posture:
   "blocking_admission_readiness_count": 7,
   "blocker_closure_count": 6,
   "blocking_blocker_closure_count": 6,
+  "enablement_candidate_review_count": 7,
+  "blocked_enablement_candidate_review_count": 7,
+  "executable_enablement_candidate_review_count": 0,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
   "submitted_notional_usdc": "0",
@@ -136,6 +139,65 @@ canonical evidence remains the backend-owned `"commands"`,
 This route-level enablement candidate review is still no-live and cannot make
 stealth create, reveal, move, cancel, recovery, reconciliation, or movement
 reprice executable.
+
+```json
+{
+  "enablement_candidate_review_count": 7,
+  "blocked_enablement_candidate_review_count": 7,
+  "executable_enablement_candidate_review_count": 0,
+  "enablement_candidate_reviews": [
+    {
+      "candidate_id": "m55_enablement_candidate::stealth_create",
+      "rank": 1,
+      "mutation_family": "stealth_create",
+      "workflow_family": "stealth_create_workflow",
+      "route": "/api/v1/stealth/orders",
+      "service_method": "create_stealth_order",
+      "status": "blocked",
+      "selected_first_candidate": true,
+      "candidate_executable": false,
+      "candidate_execution_allowed": false,
+      "exchange_facing_blocker_count": 0,
+      "active_placement_exchange_truth_required": false,
+      "coinbase_exchange_required": false,
+      "source_evidence_refs": [
+        "commands",
+        "admission_readiness",
+        "exchange_truth_checks",
+        "blocker_closures"
+      ],
+      "manager_invocation_allowed": false,
+      "coinbase_submit_allowed": false,
+      "coinbase_cancel_allowed": false,
+      "coinbase_read_allowed": false,
+      "reconciliation_execution_allowed": false,
+      "state_mutation_allowed": false,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ],
+  "enablement_candidate_review_summary": {
+    "status": "blocked",
+    "candidate_review_count": 7,
+    "blocked_candidate_review_count": 7,
+    "executable_candidate_review_count": 0,
+    "selected_mutation_family": "stealth_create",
+    "selected_route": "/api/v1/stealth/orders",
+    "selected_exchange_facing_blocker_count": 0,
+    "all_candidates_blocked": true,
+    "first_candidate_executable": false,
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution",
+    "live_coinbase_orders_ran": false,
+    "live_coinbase_read_ran": false
+  }
+}
+```
+
+The selected candidate is a backend work-sequencing target only. It does not
+authorize create execution, lifecycle writes, proof lookup, manager
+invocation, Coinbase reads/submits/cancels, reconciliation execution, or state
+mutation.
 
 ```json
 {

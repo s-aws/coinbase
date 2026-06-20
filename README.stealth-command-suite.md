@@ -83,6 +83,15 @@ The route requires Admin API authentication and `analytics:read`. It returns
   execution flags false, and submitted/executed notional `0`. A configured
   reveal dry-run adapter does not clear full M55 adapter construction or make
   stealth live paths executable.
+- `enablement_candidate_reviews` and
+  `enablement_candidate_review_summary` on the read-only command-suite
+  response. These rows rank the seven existing stealth command routes by
+  exchange-facing blocker count, blocker-closure count, admission evidence,
+  missing gates, and route. The first current review target is
+  `stealth_create` at `POST /api/v1/stealth/orders` because it has no
+  active-placement or Coinbase-facing blocker, but it remains blocked and
+  non-executable. The review does not call managers, Coinbase,
+  reconciliation, cancel/replace, proof resolvers, or state mutation paths.
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -210,6 +219,16 @@ missing backend contracts and next backend steps, but it keeps live service
 enablement, live adapter construction, manager invocation, Coinbase
 submit/cancel/read, active-placement cancel/replace, repair/rollback,
 reconciliation execution, and state mutation disabled.
+The command-suite response also exposes `enablement_candidate_reviews` as the
+current M55 route-level candidate review. This is not another recursive
+evidence ledger and it is not a command gate. It ranks existing command routes
+so backend work can select the next no-live implementation target. Every
+candidate keeps `candidate_executable=false`,
+`candidate_execution_allowed=false`, `manager_invocation_allowed=false`,
+`coinbase_submit_allowed=false`, `coinbase_cancel_allowed=false`,
+`coinbase_read_allowed=false`, `reconciliation_execution_allowed=false`,
+`state_mutation_allowed=false`, browser `display_only`, and BFF
+`forward_only_no_execution`.
 
 ## Safety Constraints
 
@@ -269,6 +288,12 @@ reconciliation execution, and state mutation disabled.
   live-service enablement, adapter construction, manager invocation, Coinbase
   reads/submits/cancels, active-placement cancel/replace behavior, recovery
   repair/rollback, reconciliation execution, lifecycle/order/exchange
+  mutation, browser approval, or BFF execution authority.
+- `enablement_candidate_reviews` is a read-only route-ranking ledger on
+  `GET /api/v1/stealth/command-suite`. It must not be converted into route
+  execution, proof lookup, live-service enablement, adapter construction,
+  manager invocation, Coinbase reads/submits/cancels, active-placement
+  cancel/replace behavior, reconciliation execution, lifecycle/order/exchange
   mutation, browser approval, or BFF execution authority.
 - `admission_readiness.context_requirements` is not proof lookup. Missing
   command-envelope context must keep resolver lookup and proof resolution

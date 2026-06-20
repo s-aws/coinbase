@@ -69394,6 +69394,431 @@ components:
       - detail
       title: StealthCommandSuiteCoverageGapItem
       description: Remaining stealth admin suite family that is not yet command-complete.
+    StealthCommandSuiteEnablementCandidateReviewItem:
+      properties:
+        candidate_id:
+          type: string
+          title: Candidate Id
+        rank:
+          type: integer
+          minimum: 1.0
+          title: Rank
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: POST
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        service_method:
+          type: string
+          title: Service Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        selected_first_candidate:
+          type: boolean
+          title: Selected First Candidate
+          default: false
+        candidate_available:
+          type: boolean
+          title: Candidate Available
+          default: true
+        candidate_executable:
+          type: boolean
+          title: Candidate Executable
+          default: false
+        candidate_execution_allowed:
+          type: boolean
+          title: Candidate Execution Allowed
+          default: false
+        route_inventory_matched:
+          type: boolean
+          title: Route Inventory Matched
+          default: true
+        admission_readiness_bound:
+          type: boolean
+          title: Admission Readiness Bound
+          default: true
+        exchange_truth_check_bound:
+          type: boolean
+          title: Exchange Truth Check Bound
+          default: true
+        cancel_replace_boundary_bound:
+          type: boolean
+          title: Cancel Replace Boundary Bound
+          default: false
+        blocker_closure_bound:
+          type: boolean
+          title: Blocker Closure Bound
+          default: true
+        active_placement_exchange_truth_required:
+          type: boolean
+          title: Active Placement Exchange Truth Required
+          default: true
+        lifecycle_write_guard_required:
+          type: boolean
+          title: Lifecycle Write Guard Required
+          default: false
+        mutation_claim_required:
+          type: boolean
+          title: Mutation Claim Required
+          default: true
+        manager_invocation_required:
+          type: boolean
+          title: Manager Invocation Required
+          default: true
+        coinbase_exchange_required:
+          type: boolean
+          title: Coinbase Exchange Required
+          default: false
+        coinbase_submission_required:
+          type: boolean
+          title: Coinbase Submission Required
+          default: false
+        coinbase_cancel_required:
+          type: boolean
+          title: Coinbase Cancel Required
+          default: false
+        coinbase_read_required:
+          type: boolean
+          title: Coinbase Read Required
+          default: false
+        active_placement_cancel_replace_required:
+          type: boolean
+          title: Active Placement Cancel Replace Required
+          default: false
+        post_write_reconciliation_required:
+          type: boolean
+          title: Post Write Reconciliation Required
+          default: true
+        state_mutation_required:
+          type: boolean
+          title: State Mutation Required
+          default: true
+        exchange_facing_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Exchange Facing Blocker Count
+        blocking_admission_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Admission Evidence Count
+        blocking_context_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Context Count
+        proof_route_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Route Count
+        missing_gate_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Gate Count
+        blocker_closure_count:
+          type: integer
+          minimum: 0.0
+          title: Blocker Closure Count
+        total_blocker_score:
+          type: integer
+          minimum: 0.0
+          title: Total Blocker Score
+        ranking_reasons:
+          items:
+            type: string
+          type: array
+          title: Ranking Reasons
+        unresolved_blockers:
+          items:
+            type: string
+          type: array
+          title: Unresolved Blockers
+        blocker_categories:
+          items:
+            $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+          type: array
+          title: Blocker Categories
+        blocker_closure_ids:
+          items:
+            type: string
+          type: array
+          title: Blocker Closure Ids
+        source_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Source Evidence Refs
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        required_proof_routes:
+          items:
+            type: string
+          type: array
+          title: Required Proof Routes
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        next_backend_steps:
+          items:
+            type: string
+          type: array
+          title: Next Backend Steps
+        canonical_behavior_path:
+          items:
+            type: string
+          type: array
+          title: Canonical Behavior Path
+        exact_command_context_present:
+          type: boolean
+          title: Exact Command Context Present
+          default: false
+        resolver_lookup_allowed:
+          type: boolean
+          title: Resolver Lookup Allowed
+          default: false
+        proof_resolution_attempted:
+          type: boolean
+          title: Proof Resolution Attempted
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        command_context_bound:
+          type: boolean
+          title: Command Context Bound
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_service_enabled:
+          type: boolean
+          title: Live Service Enabled
+          default: false
+        live_adapter_constructed:
+          type: boolean
+          title: Live Adapter Constructed
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        active_placement_cancel_replace_allowed:
+          type: boolean
+          title: Active Placement Cancel Replace Allowed
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        state_mutated:
+          type: boolean
+          title: State Mutated
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - candidate_id
+      - rank
+      - mutation_family
+      - workflow_family
+      - route
+      - service_method
+      - action_class
+      - required_permission
+      - exchange_facing_blocker_count
+      - blocking_admission_evidence_count
+      - blocking_context_count
+      - proof_route_count
+      - missing_gate_count
+      - blocker_closure_count
+      - total_blocker_score
+      - detail
+      title: StealthCommandSuiteEnablementCandidateReviewItem
+      description: Route-level no-live candidate ranking for M55 stealth command enablement.
+    StealthCommandSuiteEnablementCandidateReviewSummary:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: m55_route_level_enablement_candidate_review
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        candidate_review_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Review Count
+        blocked_candidate_review_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Candidate Review Count
+        executable_candidate_review_count:
+          type: integer
+          minimum: 0.0
+          title: Executable Candidate Review Count
+        selected_candidate_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Selected Candidate Id
+        selected_mutation_family:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          - type: 'null'
+        selected_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Selected Route
+        selected_first_blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Selected First Blocker
+        selected_exchange_facing_blocker_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Selected Exchange Facing Blocker Count
+        ranking_policy:
+          items:
+            type: string
+          type: array
+          title: Ranking Policy
+        all_candidates_blocked:
+          type: boolean
+          title: All Candidates Blocked
+          default: true
+        first_candidate_executable:
+          type: boolean
+          title: First Candidate Executable
+          default: false
+        route_inventory_complete:
+          type: boolean
+          title: Route Inventory Complete
+          default: true
+        all_admission_readiness_bound:
+          type: boolean
+          title: All Admission Readiness Bound
+          default: true
+        proof_store_coverage_mapped:
+          type: boolean
+          title: Proof Store Coverage Mapped
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_service_enabled:
+          type: boolean
+          title: Live Service Enabled
+          default: false
+        live_adapter_constructed:
+          type: boolean
+          title: Live Adapter Constructed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - candidate_review_count
+      - blocked_candidate_review_count
+      - executable_candidate_review_count
+      - detail
+      title: StealthCommandSuiteEnablementCandidateReviewSummary
+      description: Aggregate over route-level M55 stealth enablement candidate reviews.
     StealthCommandSuiteExchangeTruthItem:
       properties:
         mutation_family:
@@ -69737,6 +70162,27 @@ components:
         blocker_closure_summary:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandSuiteBlockerClosureSummary'
+          - type: 'null'
+        enablement_candidate_review_count:
+          type: integer
+          title: Enablement Candidate Review Count
+          default: 0
+        blocked_enablement_candidate_review_count:
+          type: integer
+          title: Blocked Enablement Candidate Review Count
+          default: 0
+        executable_enablement_candidate_review_count:
+          type: integer
+          title: Executable Enablement Candidate Review Count
+          default: 0
+        enablement_candidate_reviews:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteEnablementCandidateReviewItem'
+          type: array
+          title: Enablement Candidate Reviews
+        enablement_candidate_review_summary:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteEnablementCandidateReviewSummary'
           - type: 'null'
         create_lifecycle_write_audit:
           anyOf:

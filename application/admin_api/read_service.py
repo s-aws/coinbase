@@ -195,6 +195,8 @@ from .models import (
     StealthCommandSuiteBlockerClosureItem,
     StealthCommandSuiteBlockerClosureSummary,
     StealthCommandSuiteCancelReplaceBoundaryItem,
+    StealthCommandSuiteEnablementCandidateReviewItem,
+    StealthCommandSuiteEnablementCandidateReviewSummary,
     StealthCommandSuiteClosureDependencyClearanceStepRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordContractRow,
@@ -19252,6 +19254,363 @@ class AdminApiReadService:
             ),
         )
 
+        workflow_family_by_mutation = {
+            AdminApiMutationFamilyType.STEALTH_CREATE: (
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW
+            ),
+            AdminApiMutationFamilyType.STEALTH_REVEAL: (
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW
+            ),
+            AdminApiMutationFamilyType.STEALTH_CANCEL: (
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING
+            ),
+            AdminApiMutationFamilyType.STEALTH_MOVE: (
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW
+            ),
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE: (
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW
+            ),
+            AdminApiMutationFamilyType.STEALTH_RECOVERY: (
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW
+            ),
+            AdminApiMutationFamilyType.STEALTH_RECONCILIATION: (
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW
+            ),
+        }
+        admission_readiness_by_route = {
+            readiness.route: readiness for readiness in admission_readiness
+        }
+        exchange_truth_checks_by_route = {
+            check.route: check for check in exchange_truth_checks
+        }
+        cancel_replace_boundaries_by_route = {
+            boundary.route: boundary for boundary in cancel_replace_boundaries
+        }
+
+        def ordered_unique(values: list[str]) -> list[str]:
+            return list(dict.fromkeys(values))
+
+        def build_candidate_review(
+            command: StealthCommandSuiteCommandItem,
+        ) -> StealthCommandSuiteEnablementCandidateReviewItem:
+            readiness = admission_readiness_by_route[command.route]
+            truth_check = exchange_truth_checks_by_route[command.route]
+            boundary = cancel_replace_boundaries_by_route.get(command.route)
+            route_closures = [
+                closure
+                for closure in blocker_closures
+                if command.route in closure.command_routes
+                or command.mutation_family in closure.affected_mutation_families
+            ]
+            route_closure_ids = [closure.closure_id for closure in route_closures]
+            route_categories = ordered_unique(
+                [closure.category.value for closure in route_closures]
+            )
+            active_cancel_replace_required = any(
+                closure.blocker
+                == (
+                    AdminApiStealthCommandSuiteBlockerClosure.ACTIVE_PLACEMENT_CANCEL_REPLACE_EXECUTION_DISABLED
+                )
+                for closure in route_closures
+            )
+            coinbase_submission_required = any(
+                closure.blocker
+                == (
+                    AdminApiStealthCommandSuiteBlockerClosure.LIVE_REVEAL_EXCHANGE_SUBMISSION_DISABLED
+                )
+                for closure in route_closures
+            )
+            coinbase_cancel_required = active_cancel_replace_required
+            coinbase_read_required = bool(
+                truth_check.exchange_truth_required
+                and truth_check.active_placement_evidence_required
+            )
+            coinbase_exchange_required = any(
+                category == AdminApiLivePreflightCategory.COINBASE_EXCHANGE.value
+                for category in route_categories
+            )
+            exchange_facing_blockers = [
+                truth_check.active_placement_evidence_required,
+                active_cancel_replace_required,
+                coinbase_submission_required,
+                coinbase_cancel_required,
+                coinbase_read_required,
+            ]
+            exchange_facing_blocker_count = sum(
+                1 for blocker in exchange_facing_blockers if blocker
+            )
+            required_backend_contracts = ordered_unique(
+                [
+                    *command.backend_contract_refs,
+                    *[
+                        contract
+                        for closure in route_closures
+                        for contract in closure.required_backend_contracts
+                    ],
+                ]
+            )
+            required_proof_routes = ordered_unique(
+                [
+                    route
+                    for closure in route_closures
+                    for route in closure.required_proof_routes
+                ]
+            )
+            required_gate_chain = ordered_unique(
+                [
+                    *command.required_gate_chain,
+                    *[
+                        gate
+                        for closure in route_closures
+                        for gate in closure.required_gate_chain
+                    ],
+                ]
+            )
+            unresolved_blockers = ordered_unique(
+                [
+                    *command.missing_gate_chain,
+                    *readiness.missing_evidence,
+                    *readiness.missing_context,
+                    *[
+                        closure.blocker.value
+                        for closure in route_closures
+                        if closure.blocking
+                    ],
+                    *[
+                        blocker
+                        for closure in route_closures
+                        for blocker in closure.closure_readiness_blockers
+                    ],
+                ]
+            )
+            next_backend_steps = ordered_unique(
+                [closure.next_backend_step for closure in route_closures]
+            )
+            total_blocker_score = (
+                exchange_facing_blocker_count * 100
+                + len(route_closures) * 10
+                + readiness.missing_evidence_count
+                + len(command.missing_gate_chain)
+            )
+            canonical_behavior_path = ordered_unique(
+                [
+                    "frontend request",
+                    command.route,
+                    "FastAPI route",
+                    "auth/RBAC",
+                    "idempotency and approval gate",
+                    command.shared_method,
+                    *command.backend_contract_refs,
+                    "post-write reconciliation",
+                    "typed response",
+                ]
+            )
+            ranking_reasons = [
+                (
+                    "Ranked by exchange-facing blocker count before local "
+                    "admission gaps."
+                ),
+                (
+                    "Routes with active-placement cancel/replace, Coinbase "
+                    "submit/cancel/read, or exchange-truth blockers rank after "
+                    "non-exchange-facing routes."
+                ),
+                (
+                    "Browser and BFF authority remain display/forward only and "
+                    "never improve a candidate ranking."
+                ),
+            ]
+            return StealthCommandSuiteEnablementCandidateReviewItem(
+                candidate_id=(
+                    f"m55_enablement_candidate::{command.mutation_family.value}"
+                ),
+                rank=1,
+                mutation_family=command.mutation_family,
+                workflow_family=workflow_family_by_mutation[command.mutation_family],
+                route=command.route,
+                method=command.method,
+                identity_key=command.identity_key,
+                service_method=command.shared_method,
+                action_class=command.action_class,
+                required_permission=command.required_permission,
+                status=AdminApiGateStatus.BLOCKED,
+                selected_first_candidate=False,
+                candidate_available=True,
+                candidate_executable=False,
+                candidate_execution_allowed=False,
+                route_inventory_matched=True,
+                admission_readiness_bound=True,
+                exchange_truth_check_bound=True,
+                cancel_replace_boundary_bound=boundary is not None,
+                blocker_closure_bound=bool(route_closures),
+                active_placement_exchange_truth_required=(
+                    truth_check.active_placement_evidence_required
+                ),
+                lifecycle_write_guard_required=readiness.lifecycle_write_guard_required,
+                mutation_claim_required=True,
+                manager_invocation_required=True,
+                coinbase_exchange_required=coinbase_exchange_required,
+                coinbase_submission_required=coinbase_submission_required,
+                coinbase_cancel_required=coinbase_cancel_required,
+                coinbase_read_required=coinbase_read_required,
+                active_placement_cancel_replace_required=(
+                    active_cancel_replace_required
+                ),
+                post_write_reconciliation_required=True,
+                state_mutation_required=True,
+                exchange_facing_blocker_count=exchange_facing_blocker_count,
+                blocking_admission_evidence_count=readiness.missing_evidence_count,
+                blocking_context_count=readiness.missing_context_count,
+                proof_route_count=len(command.proof_routes),
+                missing_gate_count=len(command.missing_gate_chain),
+                blocker_closure_count=len(route_closures),
+                total_blocker_score=total_blocker_score,
+                ranking_reasons=ranking_reasons,
+                unresolved_blockers=unresolved_blockers,
+                blocker_categories=[
+                    AdminApiLivePreflightCategory(category)
+                    for category in route_categories
+                ],
+                blocker_closure_ids=route_closure_ids,
+                source_evidence_refs=[
+                    "commands",
+                    "admission_readiness",
+                    "exchange_truth_checks",
+                    "blocker_closures",
+                ],
+                required_backend_contracts=required_backend_contracts,
+                required_proof_routes=required_proof_routes,
+                required_gate_chain=required_gate_chain,
+                next_backend_steps=next_backend_steps,
+                canonical_behavior_path=canonical_behavior_path,
+                exact_command_context_present=False,
+                resolver_lookup_allowed=False,
+                proof_resolution_attempted=False,
+                backend_owned=True,
+                route_bound=True,
+                command_context_bound=False,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_service_enabled=False,
+                live_adapter_constructed=False,
+                manager_invocation_allowed=False,
+                manager_invocation_ran=False,
+                coinbase_submit_allowed=False,
+                coinbase_cancel_allowed=False,
+                coinbase_read_allowed=False,
+                active_placement_cancel_replace_allowed=False,
+                active_placement_cancel_replace_ran=False,
+                reconciliation_execution_allowed=False,
+                reconciliation_executed=False,
+                state_mutation_allowed=False,
+                state_mutated=False,
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                detail=(
+                    "Route-level candidate review is backend-derived from the "
+                    "existing command-suite evidence. It ranks likely M55 "
+                    "enablement order but cannot execute, invoke managers, "
+                    "call Coinbase, run reconciliation, or mutate state."
+                ),
+            )
+
+        enablement_candidate_reviews = [
+            build_candidate_review(command) for command in commands
+        ]
+        enablement_candidate_reviews.sort(
+            key=lambda item: (
+                item.exchange_facing_blocker_count,
+                item.blocker_closure_count,
+                item.blocking_admission_evidence_count,
+                item.missing_gate_count,
+                item.route,
+            )
+        )
+        for rank, candidate in enumerate(enablement_candidate_reviews, start=1):
+            candidate.rank = rank
+            candidate.selected_first_candidate = rank == 1
+
+        selected_candidate = (
+            enablement_candidate_reviews[0] if enablement_candidate_reviews else None
+        )
+        enablement_candidate_review_summary = (
+            StealthCommandSuiteEnablementCandidateReviewSummary(
+                candidate_review_count=len(enablement_candidate_reviews),
+                blocked_candidate_review_count=sum(
+                    1
+                    for candidate in enablement_candidate_reviews
+                    if candidate.status == AdminApiGateStatus.BLOCKED
+                ),
+                executable_candidate_review_count=sum(
+                    1
+                    for candidate in enablement_candidate_reviews
+                    if candidate.candidate_executable
+                ),
+                selected_candidate_id=(
+                    selected_candidate.candidate_id if selected_candidate else None
+                ),
+                selected_mutation_family=(
+                    selected_candidate.mutation_family if selected_candidate else None
+                ),
+                selected_route=selected_candidate.route if selected_candidate else None,
+                selected_first_blocker=(
+                    selected_candidate.unresolved_blockers[0]
+                    if selected_candidate and selected_candidate.unresolved_blockers
+                    else None
+                ),
+                selected_exchange_facing_blocker_count=(
+                    selected_candidate.exchange_facing_blocker_count
+                    if selected_candidate
+                    else None
+                ),
+                ranking_policy=[
+                    "Rank by lowest exchange-facing blocker count.",
+                    "Then rank by blocker-closure count.",
+                    "Then rank by missing admission evidence.",
+                    "Then rank by missing gate count and route for stability.",
+                    "Never use browser or BFF evidence as enablement authority.",
+                ],
+                all_candidates_blocked=all(
+                    candidate.status == AdminApiGateStatus.BLOCKED
+                    for candidate in enablement_candidate_reviews
+                ),
+                first_candidate_executable=(
+                    selected_candidate.candidate_executable
+                    if selected_candidate
+                    else False
+                ),
+                route_inventory_complete=all(
+                    candidate.route_inventory_matched
+                    for candidate in enablement_candidate_reviews
+                ),
+                all_admission_readiness_bound=all(
+                    candidate.admission_readiness_bound
+                    for candidate in enablement_candidate_reviews
+                ),
+                proof_store_coverage_mapped=all(
+                    candidate.proof_route_count > 0
+                    for candidate in enablement_candidate_reviews
+                ),
+                backend_owned=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_service_enabled=False,
+                live_adapter_constructed=False,
+                execution_allowed=False,
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                detail=(
+                    "The first M55 candidate is a planning target only. The "
+                    "summary ranks route-level candidates from existing "
+                    "backend evidence and leaves every command blocked until "
+                    "backend proof, service, adapter, manager, Coinbase, and "
+                    "reconciliation gates are explicitly completed."
+                ),
+            )
+            if enablement_candidate_reviews
+            else None
+        )
+
         return StealthCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             status=AdminApiGateStatus.BLOCKED,
@@ -19305,6 +19664,19 @@ class AdminApiReadService:
             ),
             blocker_closures=blocker_closures,
             blocker_closure_summary=blocker_closure_summary,
+            enablement_candidate_review_count=len(enablement_candidate_reviews),
+            blocked_enablement_candidate_review_count=sum(
+                1
+                for candidate in enablement_candidate_reviews
+                if candidate.status == AdminApiGateStatus.BLOCKED
+            ),
+            executable_enablement_candidate_review_count=sum(
+                1
+                for candidate in enablement_candidate_reviews
+                if candidate.candidate_executable
+            ),
+            enablement_candidate_reviews=enablement_candidate_reviews,
+            enablement_candidate_review_summary=enablement_candidate_review_summary,
             create_lifecycle_write_audit=_stealth_create_lifecycle_write_audit(
                 required_gate_chain=stealth_create_gate_chain,
                 missing_gate_chain=stealth_create_missing_gate_chain,

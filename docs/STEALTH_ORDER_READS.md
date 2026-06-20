@@ -75,7 +75,13 @@ has a blocked backend remediation dependency work-item claim-trace row.
 For active phases 5101-5120, the next M55 work is route-level enablement
 candidate review over existing stealth command routes and command-suite
 admission evidence. It does not add another recursive evidence layer or make
-any command executable.
+any command executable. The command-suite response exposes
+`enablement_candidate_reviews` and `enablement_candidate_review_summary` for
+that review. Rows are ranked by exchange-facing blocker count, blocker-closure
+count, blocked admission evidence, missing gates, and route. The current first
+review target is `stealth_create` at `/api/v1/stealth/orders`; it remains
+`blocked`, `candidate_executable=false`, and
+`candidate_execution_allowed=false`.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store
@@ -93,6 +99,11 @@ payloads, protect replay, make stores available, allow writers, write or
 validate records, accept or validate inputs, make steps ready, complete
 reviews, enable live execution, call Coinbase, invoke managers, execute
 reconciliation, or mutate state.
+Route-level enablement candidate reviews are also planning evidence only:
+they do not execute the selected route, run proof resolvers, invoke managers,
+construct adapters, enable live service, submit/cancel/read Coinbase orders,
+run active-placement cancel/replace, execute reconciliation, mutate
+lifecycle/order/exchange state, or grant browser/BFF authority.
 
 ## Identity Rules
 

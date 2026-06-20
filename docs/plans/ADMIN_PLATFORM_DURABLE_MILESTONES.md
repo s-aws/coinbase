@@ -3152,13 +3152,17 @@ Current backend evidence:
   writing records, accepting inputs, validating inputs, completing reviews,
   executing plan steps, resolving claims, clearing claim traces, clearing work
   items or dependencies, writing evidence, reconciling, invoking managers,
-  calling Coinbase, or changing execution authority. Active phases 4981-5000
-  derive blocked backend claim-trace clearance-step review-input store
+  calling Coinbase, or changing execution authority. Completed phases
+  4981-5000 derive blocked backend claim-trace clearance-step review-input store
   record-contract rows from those store requirements without creating
   contracts, schemas, logs, binding idempotency, validating payloads,
   protecting replay, writing records, accepting inputs, completing reviews,
   executing steps, resolving claims, reconciling, invoking managers, calling
-  Coinbase, or changing execution authority.
+  Coinbase, or changing execution authority. Active phases 5101-5120 reconcile
+  route-level stealth command enablement candidates from the completed blocked
+  evidence chain. The first ranked candidate is planning evidence only; it
+  does not invoke managers, mutate lifecycle/order/exchange state, reconcile,
+  call Coinbase, or grant browser/BFF execution authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.
