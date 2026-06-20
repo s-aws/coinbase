@@ -140,7 +140,9 @@ python tools/check_ownership.py
 python tools/classify_repo_files.py --quiet --fail-category empty_artifact_candidate --fail-category root_historical_note --fail-category root_diagnostic_tool --fail-category root_test_candidate --fail-category experimental_ui_candidate --fail-category ui_fixture_or_export_candidate --fail-category root_runtime_output
 ```
 
-- Moving tests or runtime-facing files requires:
+- Moving tests or runtime-facing files requires focused coverage for the moved
+  behavior. If the move is broad, cross-boundary, or part of durable milestone
+  closeout, run the full regression gate:
 
 ```powershell
 pytest tests/regression/ -v --tb=short

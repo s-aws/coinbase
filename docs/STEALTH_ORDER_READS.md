@@ -359,7 +359,9 @@ Focused backend coverage:
 python -m pytest tests\regression\test_admin_api_contract.py -v --tb=short
 ```
 
-Full backend regression is still required for non-agent changes:
+Full backend regression is a durable milestone closeout gate, not an ordinary
+phase gate. Run it before marking a milestone complete, before
+public/release-candidate handoff, or when explicitly requested:
 
 ```powershell
 python -m pytest tests\regression\ -v --tb=short

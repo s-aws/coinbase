@@ -166,9 +166,11 @@ For same-side post-fill retreat, tests should prove:
 ## Pre-Merge Checklist
 
 1. Relevant new/updated tests added.
-2. `pytest tests/regression/ -v --tb=short` passes.
-3. For broad changes, full suite run completed or explicitly deferred with rationale.
-4. No flaky retries required to pass.
+2. Focused tests and validators for the changed behavior pass.
+3. Full regression passes when this is durable milestone closeout,
+   public/release-candidate handoff, deployment approval, or explicit request.
+4. For broad changes, full suite run completed or explicitly deferred with rationale.
+5. No flaky retries required to pass.
 
 ## Debugging Failed Tests
 

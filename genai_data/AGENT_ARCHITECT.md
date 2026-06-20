@@ -561,19 +561,24 @@ Hard boundary:
 
 ### Required Gate
 
-Run this before considering any non-agent-file change complete:
+Run focused tests and validators that cover the changed behavior before
+ordinary phase completion. Run the full regression gate before durable
+milestone closeout, public/release-candidate handoff, or explicit full-gate
+request:
 
 ```powershell
 pytest tests/regression/ -v --tb=short
 ```
 
-Regression tests may be skipped only when the change set is limited to agent
-instruction/context files:
+Regression may be skipped when the change set is limited to agent
+instruction/context files and no runtime behavior changed:
 
 ```text
 AGENTS.md
 agent.md
 ai-context.md
+.agents/ownership.yaml
+docs/agents/*.md
 genai_data/AGENT_*.md
 genai_data/agent_state.md
 ```

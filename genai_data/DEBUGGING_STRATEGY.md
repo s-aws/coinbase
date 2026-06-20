@@ -8,7 +8,9 @@ This is the practical debugging workflow for the current engine.
 2. Confirm the canonical path before editing (avoid parallel fixes).
 3. Preserve ID discipline (`client_order_id` internal, `order_id` exchange).
 4. Treat concurrency bugs as lock/ordering bugs until proven otherwise.
-5. Validate with regression tests before considering the fix complete.
+5. Validate with focused tests that cover the failure before considering the
+   fix complete. Reserve full regression for durable milestone closeout,
+   public/release-candidate handoff, or explicit request.
 
 ## Recommended Workflow
 
@@ -67,6 +69,10 @@ Prefer extending existing focused tests in:
 - `tests/integration/`
 
 ### Step 7: Run required validation
+
+Run the focused tests that cover the patched failure mode. For durable
+milestone closeout, public/release-candidate handoff, or explicit request, run
+the full regression gate:
 
 ```powershell
 pytest tests/regression/ -v --tb=short

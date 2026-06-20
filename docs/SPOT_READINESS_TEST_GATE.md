@@ -30,7 +30,10 @@ The browser smoke gate uses `pytest-playwright` with Chromium. It opens
 sends `request_spot_readiness`, and verifies a server-shaped spot readiness
 payload renders into the operator panel.
 
-This focused gate does not replace the repository requirement:
+This focused gate is the ordinary phase-level check for spot behavior. It does
+not replace the full repository regression gate when closing a durable
+milestone, preparing public/release-candidate handoff, or handling an explicit
+full-gate request:
 
 ```powershell
 pytest tests/regression/ -v --tb=short

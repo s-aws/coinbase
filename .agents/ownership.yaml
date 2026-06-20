@@ -87,6 +87,7 @@ owners:
       - genai_data/API_REFERENCE.md
       - genai_data/CONFIGURATION.md
       - genai_data/COMPREHENSIVE_TEST_SUITE.md
+      - genai_data/DEBUGGING_STRATEGY.md
       - genai_data/TESTING_STRATEGY.md
       - genai_data/ORDER_ID_HANDLING.md
       - genai_data/agent_state.md
