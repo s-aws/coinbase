@@ -49,132 +49,145 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Batch - Phases 5041-5060
+## Active M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Work-Item Batch - Phases 5061-5080
 
-This batch derives blocked backend-owned remediation dependency rows under
-existing remediation dependency work-item claim-trace clearance-step
-review-input store record-validation remediation rows. It preserves the current
-no-live posture and does not resolve dependencies, perform remediation,
+This batch derives blocked backend-owned remediation dependency work-item rows
+under existing claim-trace clearance-step review-input store record-validation
+remediation dependency rows. It preserves the current no-live posture and does
+not claim work, perform work items, resolve dependencies, perform remediation,
 validate records, create contracts, create schemas, create logs, bind
 idempotency, validate payloads, protect replay, create stores, write records,
 accept inputs, complete reviews, complete steps, execute plan steps, resolve
-claims, clear claim traces, claim or perform work items, reconcile, call
-Coinbase, invoke managers, mutate state, grant browser authority, or grant BFF
-execution authority.
+claims, clear claim traces, reconcile, call Coinbase, invoke managers, mutate
+state, grant browser authority, or grant BFF execution authority.
 
-### Phase 5041 - Prior Range Completion Evidence
+### Phase 5061 - Prior Range Completion Evidence
 
-- Record completed phases 5021-5040 with synchronized backend/frontend
-  commits `b7d0e3b1` and `c58063b`, focused gates, blind/contextless review,
-  UI smoke at `http://127.0.0.1:3001/?phaseSmoke=5021-5040`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5021-5040.png`, and `0`
+- Record completed phases 5041-5060 with backend commit `53684951`, frontend
+  commit `2dd2750`, focused backend/frontend gates, blind/contextless review,
+  UI smoke at `http://127.0.0.1:3001/?phaseSmoke=5041-5060`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5041-5060.png`, and `0`
   USDC live Coinbase submitted/executed notional.
 
-### Phase 5042 - Advance Active Queue Range
+### Phase 5062 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5021-5040 to active phases
-  5041-5060 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5041-5060 to active phases
+  5061-5080 while preserving no-live defaults and cap policy.
 
-### Phase 5043 - Remediation Dependency Scope
+### Phase 5063 - Remediation Dependency Work-Item Scope
 
-- Add blocked dependency rows under existing claim-trace clearance-step
-  review-input store record-validation remediation rows without changing
-  dependency readiness, order resolution, remediation, validation, contract,
-  schema, log, idempotency, payload, replay, store, writer, write, input,
-  review, step, claim, work-item, reconciliation, Coinbase, browser, or BFF
-  authority.
+- Add blocked work-item rows under existing claim-trace clearance-step
+  review-input store record-validation remediation dependency rows without
+  changing work-item claim state, dependency readiness, remediation readiness,
+  validation readiness, contract/schema/log availability, idempotency binding,
+  payload validation, replay protection, store/writer availability, write
+  authority, input acceptance, review completion, step completion, claim
+  resolution, reconciliation, Coinbase, browser, or BFF authority.
 
-### Phase 5044 - Backend Remediation Dependency Row Model
+### Phase 5064 - Backend Dependency Work-Item Row Model
 
 - Add the nested claim-trace clearance-step review-input store
-  record-validation remediation dependency row model and summary fields.
+  record-validation remediation dependency work-item row model and blocked
+  summary fields.
 
-### Phase 5045 - Backend Remediation Dependency Derivation
+### Phase 5065 - Backend Dependency Work-Item Derivation
 
-- Derive each dependency row from one existing clearance-step review-input
-  store record-validation remediation row and its source remediation/
-  validation/contract/requirement/input/review/clearance-step/clearance-plan/
-  claim-trace/work-item/dependency chain.
+- Derive exactly one work-item row from each existing remediation dependency
+  row and its source remediation, validation, record contract, store
+  requirement, review input, review, clearance step, clearance plan, claim
+  trace, upstream work item, predecessor, and successor chain.
 
-### Phase 5046 - Dependency Predecessor And Successor Evidence
+### Phase 5066 - Work-Item Predecessor And Successor Evidence
 
-- Expose immediate predecessor/successor remediation refs and derived
-  predecessor/successor dependency refs without resolving order.
+- Expose immediate predecessor/successor dependency refs and derived
+  predecessor/successor dependency work-item refs without resolving order.
 
-### Phase 5047 - Required Work And Required Refs
+### Phase 5067 - Required Work-Item Action And Refs
 
-- Expose required dependency/remediation work and deterministic required refs
-  as blocked read-only evidence.
+- Expose required work-item action and deterministic required dependency,
+  remediation, validation, and work-item refs as blocked read-only evidence.
 
-### Phase 5048 - Dependency Gates And Blockers
+### Phase 5068 - Work-Item Gates And Blockers
 
-- Expose dependency gate, validation gate, replay gate, blocker chain, and
-  blocked/not-ready status without satisfying any gate.
+- Expose dependency work-item gate, validation gate, replay gate, blocker
+  chain, and blocked/unclaimed/not-ready status without satisfying any gate.
 
-### Phase 5049 - Summary Aggregation
+### Phase 5069 - Summary Aggregation
 
-- Aggregate counts, refs, statuses, source remediation/validation refs, gates,
-  predecessors, successors, dependency predecessors, dependency successors,
-  required work, required refs, validation gates, replay gates, and blockers.
+- Aggregate counts, refs, statuses, source dependency/remediation/validation
+  refs, gates, predecessors, successors, required actions, required refs,
+  validation gates, replay gates, and blockers.
 
-### Phase 5050 - Backend Assertions
+### Phase 5070 - Backend Assertions
 
-- Extend focused Admin API regression assertions for nested dependency rows and
-  summary no-authority invariants.
+- Extend focused Admin API regression assertions for nested dependency
+  work-item rows and summary no-authority invariants.
 
-### Phase 5051 - OpenAPI Regeneration
+### Phase 5071 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 5052 - Frontend Schema Sync
+### Phase 5072 - Frontend Schema Sync
 
 - Regenerate frontend TypeScript schema from backend OpenAPI.
 
-### Phase 5053 - Frontend Adapter Dependency Mapping
+### Phase 5073 - Frontend Adapter Work-Item Mapping
 
 - Map nested clearance-step review-input store record-validation remediation
-  dependency rows and summary fields through the existing command-suite
-  adapter.
+  dependency work-item rows and summary fields through the existing
+  command-suite adapter.
 
-### Phase 5054 - Frontend Mock Dependency Sync
+### Phase 5074 - Frontend Mock Work-Item Sync
 
-- Sync frontend mock command-suite remediation dependency evidence and summary
-  totals.
+- Sync frontend mock command-suite remediation dependency work-item evidence
+  and summary totals.
 
-### Phase 5055 - UI Dependency Summary
+### Phase 5075 - UI Work-Item Summary
 
 - Render clearance-step review-input store record-validation remediation
-  dependency summary evidence in the M55 ledger.
+  dependency work-item summary evidence in the M55 ledger.
 
-### Phase 5056 - UI Dependency Rows
+### Phase 5076 - UI Work-Item Rows
 
 - Render row-level clearance-step review-input store record-validation
-  remediation dependency evidence and no-authority flags nested under source
-  remediations.
+  remediation dependency work-item evidence and no-authority flags nested
+  under source dependency rows.
 
-### Phase 5057 - Quality Metadata And Regression-Policy Guard
+### Phase 5077 - Quality Metadata And Regression-Policy Guard
 
-- Update active range metadata to phases 5041-5060 and keep
+- Update active range metadata to phases 5061-5080 and keep
   `python tools/run_parallel_regression.py --workers 4` as the canonical
   closeout gate while sequential full regression remains fallback-only.
 
-### Phase 5058 - Documentation
+### Phase 5078 - Documentation
 
 - Update Admin API, frontend, testing, examples, milestones, handoff, and
-  expanded context so contextless readers see 5041-5060 as active and
-  5021-5040 as completed.
+  expanded context so contextless readers see 5061-5080 as active and
+  5041-5060 as completed.
 
-### Phase 5059 - Contextless Review
+### Phase 5079 - Contextless Review
 
 - Run blind/contextless review for discoverability, no-execution posture, and
   regression-policy clarity.
 
-### Phase 5060 - Focused Gates, UI Smoke, No-Live Report, Commit, And Push
+### Phase 5080 - Focused Gates, UI Smoke, No-Live Report, Commit, And Push
 
 - Run focused backend/frontend gates and browser smoke for
-  `http://127.0.0.1:3001/?phaseSmoke=5041-5060`, then commit and push both
+  `http://127.0.0.1:3001/?phaseSmoke=5061-5080`, then commit and push both
   repositories with `0` USDC submitted/executed notional and note full
   regression remains deferred unless this closes a durable milestone.
+
+## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Dependency Batch - Phases 5041-5060
+
+This batch derived blocked backend-owned remediation dependency rows under
+existing remediation dependency work-item claim-trace clearance-step
+review-input store record-validation remediation rows. It completed with
+backend commit `53684951`, frontend commit `2dd2750`, focused gates,
+blind/contextless review, UI smoke at
+`http://127.0.0.1:3001/?phaseSmoke=5041-5060`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-5041-5060.png`, and no live
+Coinbase execution. Submitted notional: `0` USDC. Executed notional: `0`
+USDC.
 
 ## Completed M55 Closure-Readiness Review-Input Store Record-Validation Remediation Batch - Phases 5021-5040
 

@@ -205,6 +205,7 @@ from .models import (
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyRow,
+    StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRow,
     StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementRow,
@@ -318,7 +319,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5041-5060"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5061-5080"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -16302,6 +16303,102 @@ class AdminApiReadService:
                 remediation.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_rows
             )
         ]
+        for remediation_dependency in (
+            dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_rows
+        ):
+            remediation_dependency_ref = (
+                remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_ref
+            )
+            remediation_dependency_work_item_ref = (
+                f"{remediation_dependency_ref}::work_item"
+            )
+            predecessor_dependency_refs = (
+                remediation_dependency.predecessor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_refs
+            )
+            successor_dependency_refs = (
+                remediation_dependency.successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_refs
+            )
+            remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows = [
+                StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemRow(
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ref=remediation_dependency_work_item_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_gate=f"{remediation_dependency_work_item_ref}::gate",
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_ref=remediation_dependency_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref,
+                    record_validation_remediation_dependency_work_item_claim_trace_ref=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_ref,
+                    record_validation_remediation_dependency_work_item_ref=remediation_dependency.record_validation_remediation_dependency_work_item_ref,
+                    upstream_record_validation_remediation_dependency_ref=remediation_dependency.upstream_record_validation_remediation_dependency_ref,
+                    upstream_record_validation_remediation_ref=remediation_dependency.upstream_record_validation_remediation_ref,
+                    upstream_record_validation_ref=remediation_dependency.upstream_record_validation_ref,
+                    upstream_record_contract_ref=remediation_dependency.upstream_record_contract_ref,
+                    store_requirement_ref=remediation_dependency.store_requirement_ref,
+                    input_ref=remediation_dependency.input_ref,
+                    review_ref=remediation_dependency.review_ref,
+                    step_ref=remediation_dependency.step_ref,
+                    dependency_ref=remediation_dependency.dependency_ref,
+                    dependency_class=remediation_dependency.dependency_class,
+                    claim_id=remediation_dependency.claim_id,
+                    clearance_target_ref=remediation_dependency.clearance_target_ref,
+                    clearance_step_name=remediation_dependency.clearance_step_name,
+                    input_name=remediation_dependency.input_name,
+                    requirement_name=remediation_dependency.requirement_name,
+                    record_contract_name=remediation_dependency.record_contract_name,
+                    record_validation_name=remediation_dependency.record_validation_name,
+                    record_validation_remediation_name=remediation_dependency.record_validation_remediation_name,
+                    required_backend_refs=sorted(
+                        {
+                            *remediation_dependency.required_backend_refs,
+                            remediation_dependency_work_item_ref,
+                        }
+                    ),
+                    required_remediation_work=remediation_dependency.required_remediation_work,
+                    required_remediation_refs=remediation_dependency.required_remediation_refs,
+                    required_work_item_refs=sorted(
+                        {
+                            remediation_dependency_ref,
+                            remediation_dependency_work_item_ref,
+                            *remediation_dependency.required_remediation_refs,
+                        }
+                    ),
+                    required_validation_gate=remediation_dependency.required_validation_gate,
+                    required_replay_gate=remediation_dependency.required_replay_gate,
+                    clearance_step_review_input_gate=remediation_dependency.clearance_step_review_input_gate,
+                    clearance_step_review_gate=remediation_dependency.clearance_step_review_gate,
+                    store_requirement_gate=remediation_dependency.store_requirement_gate,
+                    record_contract_gate=remediation_dependency.record_contract_gate,
+                    record_validation_gate=remediation_dependency.record_validation_gate,
+                    record_replay_protection_gate=remediation_dependency.record_replay_protection_gate,
+                    record_validation_remediation_gate=remediation_dependency.record_validation_remediation_gate,
+                    record_validation_remediation_dependency_gate=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_gate,
+                    predecessor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_refs=predecessor_dependency_refs,
+                    successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_refs=successor_dependency_refs,
+                    predecessor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_refs=[
+                        f"{predecessor_ref}::work_item"
+                        for predecessor_ref in predecessor_dependency_refs
+                    ],
+                    successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_refs=[
+                        f"{successor_ref}::work_item"
+                        for successor_ref in successor_dependency_refs
+                    ],
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_order=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_order,
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_order=remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_order,
+                )
+            ]
+        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows = [
+            work_item
+            for remediation_dependency in (
+                dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_rows
+            )
+            for work_item in (
+                remediation_dependency.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+            )
+        ]
         blocker_closure_summary = StealthCommandSuiteBlockerClosureSummary(
             total_blocker_count=len(blocker_closures),
             blocked_blocker_count=sum(1 for item in blocker_closures if item.blocking),
@@ -18744,6 +18841,133 @@ class AdminApiReadService:
                     remediation_dependency.record_replay_protection_gate
                     for remediation_dependency in (
                         dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count=len(
+                dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+            ),
+            closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count=sum(
+                1
+                for work_item in (
+                    dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                )
+                if work_item.status == AdminApiGateStatus.BLOCKED
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_refs=sorted(
+                {
+                    work_item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ref
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_statuses=sorted(
+                {
+                    work_item.status
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                },
+                key=lambda value: value.value,
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_dependency_refs=sorted(
+                {
+                    work_item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_ref
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_remediation_refs=sorted(
+                {
+                    work_item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_ref
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_validation_refs=sorted(
+                {
+                    work_item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_gates=sorted(
+                {
+                    work_item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_gate
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_predecessors=sorted(
+                {
+                    predecessor
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                    for predecessor in (
+                        work_item.predecessor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_refs
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_successors=sorted(
+                {
+                    successor
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                    for successor in (
+                        work_item.successor_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_refs
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_blockers=sorted(
+                {
+                    blocker
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                    for blocker in (
+                        work_item.blocker,
+                        work_item.work_item_blocker,
+                        work_item.record_validation_remediation_dependency_blocker,
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_required_actions=sorted(
+                {
+                    work_item.required_work_item_action
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_required_refs=sorted(
+                {
+                    required_ref
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                    for required_ref in work_item.required_work_item_refs
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_validation_gates=sorted(
+                {
+                    work_item.record_validation_gate
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
+                    )
+                }
+            ),
+            closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_replay_gates=sorted(
+                {
+                    work_item.record_replay_protection_gate
+                    for work_item in (
+                        dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_rows
                     )
                 }
             ),

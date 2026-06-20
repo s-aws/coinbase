@@ -20,6 +20,10 @@ STEALTH_COMMAND_SUITE_EXAMPLES_DOC = (
 )
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
+AGENT_STATE_DOC = PROJECT_ROOT / "genai_data" / "agent_state.md"
+CONTEXTLESS_REVIEW_LOG_DOC = (
+    PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_CONTEXTLESS_REVIEW_LOG.md"
+)
 REGRESSION_GATE_POLICY_DOCS = (
     PROJECT_ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md",
     PROJECT_ROOT / ".github" / "workflows" / "public-agent-checks.yml",
@@ -52,9 +56,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5041-5060"
-APPROVED_PHASES = tuple(range(5041, 5061))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5021-5040"
+APPROVED_PHASE_RANGE = "5061-5080"
+APPROVED_PHASES = tuple(range(5061, 5081))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5041-5060"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -101,6 +105,8 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_regression_gate_policy_docs(),
         _check_frontend_release_docs(),
         _check_maintainer_handoff_docs(),
+        _check_agent_state_docs(),
+        _check_contextless_review_log_docs(),
     ]
     passed = all(check.passed for check in checks)
     return {
@@ -205,15 +211,15 @@ def _check_example_phase_range_docs() -> QueueCheck:
                 "closure_readiness_dependency_clearance_step_review_input_store_"
                 "record_validation_remediation_dependency_work_item_claim_trace_"
                 "clearance_step_review_input_store_record_validation_remediation_"
-                "dependency_row_count"
+                "dependency_work_item_count"
             ),
             (
-                "record_validation_remediation_dependency_work_item_claim_trace_clearance_"
-                "step_review_input_store_record_validation_remediation_dependency_rows"
+                "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_"
+                "review_input_store_record_validation_remediation_dependency_work_item_rows"
             ),
             (
                 "claim_trace_clearance_step_review_input_store_record_validation_"
-                "remediation_dependency_blocked"
+                "remediation_dependency_work_item_blocked"
             ),
         ],
     }
@@ -224,6 +230,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "4981-5000"',
         "active 5021-5040 range",
         '"approved_phase_range": "5021-5040"',
+        "active 5041-5060 range",
+        '"approved_phase_range": "5041-5060"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -372,6 +380,88 @@ def _check_maintainer_handoff_docs() -> QueueCheck:
         passed=not missing,
         evidence={"missing_evidence_text": missing},
     )
+
+
+def _check_agent_state_docs() -> QueueCheck:
+    required = [
+        f"current active range is `{APPROVED_PHASE_RANGE}`",
+        f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
+        f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
+        f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
+        f"Active `{APPROVED_PHASE_RANGE}` derives blocked backend",
+        f"complete active phases `{APPROVED_PHASE_RANGE}`",
+    ]
+    stale = [
+        "Active `5041-5060`",
+        "complete active phases `5041-5060`",
+        "current active range is `5041-5060`",
+        "Active autonomous range: `5041-5060`",
+    ]
+    body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
+    missing = [text for text in required if text not in body]
+    stale_matches = [text for text in stale if text in body]
+    return QueueCheck(
+        name="agent_state_current_range_docs",
+        passed=AGENT_STATE_DOC.exists() and not missing and not stale_matches,
+        evidence={
+            "path": str(AGENT_STATE_DOC.relative_to(PROJECT_ROOT)),
+            "missing_current_state_text": missing,
+            "stale_current_state_text": stale_matches,
+        },
+    )
+
+
+def _check_contextless_review_log_docs() -> QueueCheck:
+    body = (
+        CONTEXTLESS_REVIEW_LOG_DOC.read_text(encoding="utf-8")
+        if CONTEXTLESS_REVIEW_LOG_DOC.exists()
+        else ""
+    )
+    heading, section = _first_review_section(body)
+    required = [
+        APPROVED_PHASE_RANGE,
+        "Result: PASS after remediation.",
+        PREVIOUS_COMPLETED_PHASE_RANGE,
+        "completed history",
+        "No live Coinbase execution was run",
+        "Full backend regression was not run because phases",
+    ]
+    stale = [
+        f"active range and `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
+        f"approved_phase_range: \"{PREVIOUS_COMPLETED_PHASE_RANGE}\"",
+        f"validator evidence make `{PREVIOUS_COMPLETED_PHASE_RANGE}` the active range",
+        f"now leads with `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
+    ]
+    missing = [text for text in required if text not in section]
+    stale_matches = [text for text in stale if text in section]
+    return QueueCheck(
+        name="contextless_review_log_current_range",
+        passed=CONTEXTLESS_REVIEW_LOG_DOC.exists()
+        and APPROVED_PHASE_RANGE in heading
+        and not missing
+        and not stale_matches,
+        evidence={
+            "path": str(CONTEXTLESS_REVIEW_LOG_DOC.relative_to(PROJECT_ROOT)),
+            "first_review_heading": heading,
+            "missing_current_review_text": missing,
+            "stale_current_review_text": stale_matches,
+        },
+    )
+
+
+def _first_review_section(body: str) -> tuple[str, str]:
+    heading = ""
+    section_lines: list[str] = []
+    in_section = False
+    for line in body.splitlines():
+        if line.startswith("## "):
+            if in_section:
+                break
+            heading = line
+            in_section = True
+        if in_section:
+            section_lines.append(line)
+    return heading, "\n".join(section_lines)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

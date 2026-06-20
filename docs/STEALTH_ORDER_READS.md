@@ -66,9 +66,10 @@ record-contract rows. For phases 5001-5020, each claim-trace clearance-step
 review-input store record contract also has blocked backend record-validation
 rows. For phases 5021-5040, each claim-trace clearance-step review-input
 store record validation also has blocked backend record-validation remediation
-rows. For active phases 5041-5060, each claim-trace clearance-step review-input
-store record-validation remediation also has blocked backend remediation
-dependency rows.
+rows. For completed phases 5041-5060, each claim-trace clearance-step
+review-input store record-validation remediation also has blocked backend
+remediation dependency rows. For active phases 5061-5080, each remediation
+dependency row also has blocked backend remediation dependency work-item rows.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store
