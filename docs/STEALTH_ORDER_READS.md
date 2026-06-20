@@ -64,9 +64,11 @@ validation gate, and replay gate. For phases 4981-5000, each claim-trace
 clearance-step review-input store requirement also has blocked backend
 record-contract rows. For phases 5001-5020, each claim-trace clearance-step
 review-input store record contract also has blocked backend record-validation
-rows. For active phases 5021-5040, each claim-trace clearance-step
-review-input store record validation also has blocked backend
-record-validation remediation rows.
+rows. For phases 5021-5040, each claim-trace clearance-step review-input
+store record validation also has blocked backend record-validation remediation
+rows. For active phases 5041-5060, each claim-trace clearance-step review-input
+store record-validation remediation also has blocked backend remediation
+dependency rows.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store

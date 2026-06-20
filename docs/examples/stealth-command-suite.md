@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "5021-5040",
+  "approved_phase_range": "5041-5060",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -109,14 +109,16 @@ through clearance-step reviews, review inputs, store requirements, and store
 record validations. The completed 4981-5000 range derives a blocked store
 record-contract row for each claim-trace clearance-step review-input store
 requirement. The completed 5001-5020 range derives a blocked store
-record-validation row for each record contract. In the active 5021-5040 range,
-each of those validations exposes blocked store record-validation remediation
-evidence without performing remediation, validating records, creating
+record-validation row for each record contract. The completed 5021-5040 range
+derives a blocked store record-validation remediation row for each validation.
+In the active 5041-5060 range, each of those remediations exposes a blocked
+store record-validation remediation dependency row without resolving
+dependency order, performing remediation, validating records, creating
 contracts, schemas, append-only logs, stores, writers, records, idempotency
 bindings, payload validation, replay protection, accepted inputs, completed
 reviews/steps, resolved claims, state mutation, Coinbase calls, browser
-authority, or BFF execution authority. Nested validation rows include
-`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_rows`.
+authority, or BFF execution authority. Nested remediation rows include
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_rows`.
 
 ```json
 {
@@ -222,6 +224,19 @@ authority, or BFF execution authority. Nested validation rows include
     "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_blockers": [
       "claim_trace_clearance_step_review_input_store_record_validation_remediation_blocked",
       "record_validation_remediation_not_performed"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_row_count": 549,
+    "closure_readiness_blocked_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_row_count": 549,
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_refs": [
+      "application/admin_api/live_execution.py::evaluate_live_execution_gate::clearance_step_review_input::store_requirement::record_contract::record_validation::remediation::dependency"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_statuses": [
+      "blocked"
+    ],
+    "closure_readiness_dependency_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_blockers": [
+      "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_blocked",
+      "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_not_ready",
+      "claim_trace_clearance_step_review_input_store_record_validation_remediation_blocked"
     ],
     "closure_readiness_trace_source_refs": [
       "live_enablement.paths",

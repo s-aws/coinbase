@@ -52,9 +52,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5021-5040"
-APPROVED_PHASES = tuple(range(5021, 5041))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5001-5020"
+APPROVED_PHASE_RANGE = "5041-5060"
+APPROVED_PHASES = tuple(range(5041, 5061))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5021-5040"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -204,13 +204,17 @@ def _check_example_phase_range_docs() -> QueueCheck:
             (
                 "closure_readiness_dependency_clearance_step_review_input_store_"
                 "record_validation_remediation_dependency_work_item_claim_trace_"
-                "clearance_step_review_input_store_record_validation_remediation_count"
+                "clearance_step_review_input_store_record_validation_remediation_"
+                "dependency_row_count"
             ),
             (
-                "record_validation_remediation_dependency_work_item_claim_trace_"
-                "clearance_step_review_input_store_record_validation_remediation_rows"
+                "record_validation_remediation_dependency_work_item_claim_trace_clearance_"
+                "step_review_input_store_record_validation_remediation_dependency_rows"
             ),
-            "claim_trace_clearance_step_review_input_store_record_validation_remediation_blocked",
+            (
+                "claim_trace_clearance_step_review_input_store_record_validation_"
+                "remediation_dependency_blocked"
+            ),
         ],
     }
     stale_active_range_text = (
@@ -218,6 +222,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "4901-4920"',
         "active 4981-5000 range",
         '"approved_phase_range": "4981-5000"',
+        "active 5021-5040 range",
+        '"approved_phase_range": "5021-5040"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}

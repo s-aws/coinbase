@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5001-5020` under M55.
-- Active autonomous range: `5021-5040` under M55.
+- Latest completed autonomous range: `5021-5040` under M55.
+- Active autonomous range: `5041-5060` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -508,13 +508,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   record-validation rows from those record contracts without validating
   records, creating schemas/logs/stores, binding idempotency, accepting inputs,
   completing reviews/steps, resolving claims, clearing remediation, calling
-  Coinbase, invoking managers, or changing execution authority. Active
+  Coinbase, invoking managers, or changing execution authority. Completed
   5021-5040 work derives blocked backend claim-trace clearance-step
   review-input store record-validation remediation rows from those validations
   without performing remediation, validating records, creating schemas/logs/
   stores, binding idempotency, accepting inputs, completing reviews/steps,
   resolving claims, calling Coinbase, invoking managers, or changing execution
-  authority.
+  authority. Active 5041-5060 work derives blocked backend claim-trace
+  clearance-step review-input store record-validation remediation dependency
+  rows from those remediations without resolving dependency order, performing
+  remediation, validating records, creating schemas/logs/stores, binding
+  idempotency, accepting inputs, completing reviews/steps, resolving claims,
+  calling Coinbase, invoking managers, or changing execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

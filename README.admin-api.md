@@ -1,4 +1,4 @@
-# Admin API
+﻿# Admin API
 
 This repository exposes the professional backend API for the separate
 enterprise admin platform at `C:\coinbase-frontend`.
@@ -370,11 +370,15 @@ executing steps, resolving claims, reconciling, calling Coinbase, invoking
 managers, or changing execution authority. Completed phases 5001-5020 derive
 blocked backend claim-trace clearance-step review-input store record-validation
 rows from those record contracts without validating records or changing
-execution authority. Active phases 5021-5040 derive blocked backend
+execution authority. Completed phases 5021-5040 derive blocked backend
 claim-trace clearance-step review-input store record-validation remediation
 rows from those validations without performing remediation, validating records,
 writing evidence, reconciling, calling Coinbase, invoking managers, or changing
-execution authority.
+execution authority. Active phases 5041-5060 derive blocked backend
+claim-trace clearance-step review-input store record-validation remediation
+dependency rows from those remediations without resolving dependency order,
+performing remediation, validating records, writing evidence, reconciling,
+calling Coinbase, invoking managers, or changing execution authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their
