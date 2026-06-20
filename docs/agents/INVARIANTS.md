@@ -95,8 +95,11 @@ authoritative enough for fresh public clones.
   explicit user request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+  Use `pytest tests/regression/ -v --tb=short` only as an intentional
+  sequential fallback when `pytest-xdist` is unavailable.
 
 - Focused tests in `.agents/ownership.yaml` are the normal phase-level checks.
   They do not replace full regression when a milestone is being marked

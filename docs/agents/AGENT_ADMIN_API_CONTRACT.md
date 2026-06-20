@@ -215,8 +215,11 @@ release-hardening closeout, Admin API/backend association closeout, or explicit
 full-gate request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 Focused tests must cover auth denial, RBAC denial, idempotent retry,
 idempotency conflict, approval/live-disabled gate evidence, no live REST call

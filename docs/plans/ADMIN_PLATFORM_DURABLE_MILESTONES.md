@@ -3096,11 +3096,16 @@ Current backend evidence:
   execution authority. Completed phases 4721-4740 derive blocked backend
   clearance-step review input rows from those reviews without accepting inputs,
   validating inputs, completing reviews, making steps ready, clearing
-  dependencies, or changing execution authority. Active phases 4741-4760 derive
-  blocked backend clearance-step review-input store-requirement rows from those
-  inputs without making stores available, allowing writers, writing records,
-  validating records, accepting inputs, completing reviews, making steps ready,
-  clearing dependencies, or changing execution authority.
+  dependencies, or changing execution authority. Completed phases 4741-4760
+  derive blocked backend clearance-step review-input store-requirement rows
+  from those inputs without making stores available, allowing writers, writing
+  records, validating records, accepting inputs, completing reviews, making
+  steps ready, clearing dependencies, or changing execution authority. Active
+  phases 4761-4780 derive blocked backend clearance-step review-input store
+  record-contract rows from those store requirements without creating record
+  contracts, schemas, logs, idempotency bindings, payload validation, replay
+  protection, records, stores, accepted inputs, completed reviews, ready
+  steps, cleared dependencies, or execution authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

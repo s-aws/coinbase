@@ -128,7 +128,7 @@ pytest tests/ -v
 # Run specific category
 pytest tests/unit/ -v
 pytest tests/integration/ -v
-pytest tests/regression/ -v
+python tools/run_parallel_regression.py --workers 4
 
 # Run with coverage
 pytest tests/ --cov=. --cov-report=html

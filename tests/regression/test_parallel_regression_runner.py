@@ -1,3 +1,4 @@
+import re
 import pytest
 from pathlib import Path
 
@@ -10,6 +11,47 @@ from tools.run_parallel_regression import (
 
 
 pytestmark = pytest.mark.regression
+
+
+REGRESSION_POLICY_DOCS = (
+    "AGENTS.md",
+    "agent.md",
+    "docs/agents/README.md",
+    "docs/agents/INVARIANTS.md",
+    "docs/agents/AGENT_ADMIN_API_CONTRACT.md",
+    "docs/STEALTH_ORDER_READS.md",
+    "genai_data/TESTING_STRATEGY.md",
+    "tests/README.md",
+    "tests/DEPLOYMENT_CHECKLIST.md",
+    "tests/SETUP_SUMMARY.md",
+    "tests/TEST_COVERAGE_SUMMARY.md",
+)
+
+
+def test_regression_policy_docs_make_parallel_runner_canonical():
+    root = Path(__file__).resolve().parents[2]
+    canonical_command = "python tools/run_parallel_regression.py --workers 4"
+    stale_default_markers = (
+        "Default full Bash regression command",
+        "python3 -m pytest tests/regression/ -v",
+    )
+    sequential_full_regression = re.compile(
+        r"(?:python(?:3)? -m )?pytest tests[\\/]+regression[\\/]* -v(?: --tb=short)?"
+    )
+
+    for relative_path in REGRESSION_POLICY_DOCS:
+        text = (root / relative_path).read_text(encoding="utf-8")
+
+        assert canonical_command in text, relative_path
+        for marker in stale_default_markers:
+            assert marker not in text, relative_path
+
+        for match in sequential_full_regression.finditer(text):
+            context = text[max(0, match.start() - 160) : match.end() + 160].lower()
+            assert "fallback" in context, (
+                f"{relative_path} names sequential regression without fallback "
+                f"context: {match.group(0)}"
+            )
 
 
 def test_parallel_regression_runner_defaults_to_split_lanes():

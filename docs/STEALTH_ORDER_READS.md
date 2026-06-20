@@ -38,13 +38,17 @@ authority evidence. For phases 4681-4700, each clearance plan also has blocked
 backend clearance-step rows. For phases 4701-4720, each clearance step also has
 blocked backend review rows. For phases 4721-4740, each clearance-step review
 also has blocked backend review-input rows. For phases 4741-4760, each review
-input also has a blocked backend review-input store-requirement row. Readiness
-criteria, traces, clearance rows, steps, step reviews, review inputs, and
-review-input store requirements are planning evidence only: they do not close
-blockers, satisfy missing contracts, make stores available, allow writers,
-write or validate records, accept or validate inputs, make steps ready,
-complete reviews, enable live execution, call Coinbase, invoke managers,
-execute reconciliation, or mutate state.
+input also has a blocked backend review-input store-requirement row. For
+phases 4761-4780, each store requirement also has a blocked backend
+review-input store record-contract row. Readiness criteria, traces, clearance
+rows, steps, step reviews, review inputs, review-input store requirements, and
+review-input store record contracts are planning evidence only: they do not
+close blockers, satisfy missing contracts, make record contracts available,
+make schemas available, make append-only logs available, bind idempotency,
+validate payloads, protect replay, make stores available, allow writers, write
+or validate records, accept or validate inputs, make steps ready, complete
+reviews, enable live execution, call Coinbase, invoke managers, execute
+reconciliation, or mutate state.
 
 ## Identity Rules
 
@@ -383,5 +387,8 @@ phase gate. Run it before marking a milestone complete, before
 public/release-candidate handoff, or when explicitly requested:
 
 ```powershell
-python -m pytest tests\regression\ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `python -m pytest tests\regression\ -v --tb=short` only as an intentional
+sequential fallback when `pytest-xdist` is unavailable.

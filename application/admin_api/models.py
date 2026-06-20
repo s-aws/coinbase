@@ -48,6 +48,7 @@ from core.enums import (
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureClearanceStepReviewInputName,
+    AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName,
     AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName,
     AdminApiStealthClosureClearanceStepReviewName,
     AdminApiStealthClosureDependencyClass,
@@ -13957,6 +13958,79 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordContractRow(
+    BaseModel
+):
+    """Blocked backend record contract required by one M55 review-input store."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record_contract_ref: str
+    store_requirement_ref: str
+    input_ref: str
+    review_ref: str
+    step_ref: str
+    dependency_ref: str
+    dependency_class: AdminApiStealthClosureDependencyClass
+    record_contract_name: (
+        AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName
+    )
+    requirement_name: AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName
+    input_name: AdminApiStealthClosureClearanceStepReviewInputName
+    review_name: AdminApiStealthClosureClearanceStepReviewName
+    clearance_owner: AdminApiStealthClosureClearanceOwner
+    required_artifact_ref: str
+    required_store_ref: str
+    required_writer_ref: str
+    required_record_key: str
+    required_record_schema_ref: str
+    required_append_only_log_ref: str
+    required_payload_fields: list[str] = Field(default_factory=list)
+    required_idempotency_key: str
+    required_validation_gate: str
+    required_replay_gate: str
+    record_contract_gate: str
+    clearance_order: int = Field(ge=1)
+    step_order: int = Field(ge=1)
+    review_order: int = Field(ge=1)
+    input_order: int = Field(ge=1)
+    store_requirement_order: int = Field(ge=1)
+    record_contract_order: int = Field(ge=1)
+    record_contract_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    record_contract_required: bool = True
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_required: bool = True
+    store_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
+    input_present: bool = False
+    input_accepted: bool = False
+    input_validated: bool = False
+    review_ready: bool = False
+    review_complete: bool = False
+    review_allowed: bool = False
+    step_ready: bool = False
+    step_complete: bool = False
+    clearance_allowed: bool = False
+    resolution_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequirementRow(
     BaseModel
 ):
@@ -14010,6 +14084,18 @@ class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRequireme
     bff_authority: str = "forward_only_no_execution"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    store_record_contract_rows: list[
+        StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordContractRow
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Read-only backend-owned record contracts derived from this missing "
+            "store requirement. Contracts remain blocked and cannot create "
+            "schemas, bind idempotency, validate payloads, write records, "
+            "accept inputs, complete reviews, clear dependencies, or grant "
+            "execution authority."
+        ),
+    )
     detail: str
 
 
@@ -14529,6 +14615,33 @@ class StealthCommandSuiteBlockerClosureSummary(BaseModel):
         str
     ] = Field(default_factory=list)
     closure_readiness_dependency_clearance_step_review_input_store_required_replay_gates: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_count: int = Field(
+        ge=0
+    )
+    closure_readiness_blocked_dependency_clearance_step_review_input_store_record_contract_count: int = Field(
+        ge=0
+    )
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_names: list[
+        AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_statuses: list[
+        AdminApiGateStatus
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_schema_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_log_refs: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_payload_fields: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_idempotency_keys: list[
+        str
+    ] = Field(default_factory=list)
+    closure_readiness_dependency_clearance_step_review_input_store_record_contract_gates: list[
         str
     ] = Field(default_factory=list)
     missing_backend_contracts: list[str]

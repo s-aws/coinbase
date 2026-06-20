@@ -134,20 +134,20 @@ When extending UI behavior, update both dashboard handler logic and the correspo
 
 ## Testing Commands (PowerShell)
 
-Use focused tests and validators for ordinary phases. Full
-`pytest tests/regression/ -v --tb=short` is reserved for major milestone
-closeout, public/release-candidate handoff, deployment approval/closeout,
-release-hardening closeout, Admin API/backend association closeout, or explicit
-user request.
+Use focused tests and validators for ordinary phases. The full regression gate
+is reserved for major milestone closeout, public/release-candidate handoff,
+deployment approval/closeout, release-hardening closeout, Admin API/backend
+association closeout, or explicit user request. The canonical closeout command
+is the process-parallel helper; use the sequential pytest command only as an
+intentional fallback when `pytest-xdist` is unavailable.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell
-# Full regression - major milestone closeout only unless explicitly requested
-pytest tests/regression/ -v --tb=short
-
-# Process-parallel full regression closeout helper. Runs non-serial tests
-# through pytest-xdist and tests marked serial in a separate sequential lane.
+# Full regression closeout gate - major milestone closeout only unless explicitly requested
 python tools/run_parallel_regression.py --workers 4
+
+# Sequential fallback only when pytest-xdist is unavailable
+pytest tests/regression/ -v --tb=short
 
 # Full suite - recommended for major or cross-module changes
 pytest tests/ -v --tb=short --cov=.

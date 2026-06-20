@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "4741-4760",
+  "approved_phase_range": "4761-4780",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -73,10 +73,14 @@ proof route, or gate-chain work still required before the dependency can be
 cleared. In the completed 4701-4720 range, each clearance step also exposes a
 blocked backend review row. In the completed 4721-4740 range, each review
 exposes a blocked backend review-input row naming the missing input still
-required before the review can become ready. In the current 4741-4760 range,
+required before the review can become ready. In the completed 4741-4760 range,
 each review input exposes a blocked backend review-input store-requirement row
 naming the missing evidence store, writer, record, validation, and replay gates
-required before the input can be accepted.
+required before the input can be accepted. In the current 4761-4780 range,
+each store requirement exposes a blocked backend review-input store
+record-contract row naming the missing record contract, schema, append-only
+log, payload fields, idempotency key, validation gate, and replay gate required
+before records can be accepted.
 
 ```json
 {

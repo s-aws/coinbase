@@ -47,8 +47,15 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 - Cross-cutting, release-candidate, model-portability, skill-library-scale, or unbounded-blast-radius changes: run the focused checks that cover the changed behavior before ordinary phase completion.
 - Full `tests/regression/` is a major-milestone closeout gate, not an ordinary phase gate. Run it before marking a durable milestone complete, before public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or when explicitly requested.
 
-Default full Bash regression command:
+Canonical full regression closeout command:
 
 ```bash
-python3 -m pytest tests/regression/ -v
+python tools/run_parallel_regression.py --workers 4
+```
+
+Use the sequential fallback only when `pytest-xdist` is unavailable and the
+fallback is intentional:
+
+```bash
+pytest tests/regression/ -v --tb=short
 ```

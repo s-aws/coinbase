@@ -47,7 +47,7 @@ pytest tests/ -v
 ```bash
 pytest tests/unit/ -v              # Unit tests only
 pytest tests/integration/ -v       # Integration tests
-pytest tests/regression/ -v        # Full milestone/release regression gate
+python tools/run_parallel_regression.py --workers 4  # Full milestone/release regression gate
 pytest tests/external/ -v          # Coinbase API tests (requires API key)
 ```
 
@@ -58,9 +58,12 @@ pytest tests/ --cov=. --cov-report=html
 
 ### Run Regression For Milestone Closeout Or Release Candidate
 ```bash
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 # Must pass before closing a durable milestone or releasing/deploying changes
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 ## Test Categories
 
@@ -219,7 +222,7 @@ candidate handoff, deployment approval, or explicit user request.
 
 **Run for milestone closeout or release/deployment handoff:**
 ```bash
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 exit_code=$?
 if [ $exit_code -ne 0 ]; then
     echo "REGRESSION TESTS FAILED - DO NOT CLOSE OUT OR DEPLOY"
@@ -312,7 +315,7 @@ test:
     - pytest tests/integration/ -v
     
     # Regression tests (must pass)
-    - pytest tests/regression/ -v
+    - python tools/run_parallel_regression.py --workers 4
     
   only:
     - merge_requests

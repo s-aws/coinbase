@@ -317,11 +317,16 @@ from those steps without completing reviews, making steps ready, clearing
 dependencies, or changing execution authority. Completed phases 4721-4740
 derive blocked backend review-input rows from those reviews without accepting
 inputs, validating inputs, completing reviews, making steps ready, clearing
-dependencies, or changing execution authority. Active phases 4741-4760 derive
-blocked backend review-input store-requirement rows from those inputs without
-making stores available, allowing writers, writing records, validating records,
-accepting inputs, completing reviews, making steps ready, clearing
-dependencies, or changing execution authority.
+dependencies, or changing execution authority. Completed phases 4741-4760
+derive blocked backend review-input store-requirement rows from those inputs
+without making stores available, allowing writers, writing records, validating
+records, accepting inputs, completing reviews, making steps ready, clearing
+dependencies, or changing execution authority. Active phases 4761-4780 derive
+blocked backend review-input store record-contract rows from those store
+requirements without creating record contracts, schemas, logs, idempotency
+bindings, payload validation, replay protection, records, stores, accepted
+inputs, completed reviews, ready steps, cleared dependencies, or execution
+authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, and store record-validation detail arrays are bounded
 representative readbacks. Their

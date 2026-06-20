@@ -12,7 +12,7 @@ API/backend association closeout, or explicit user request, run the full
 regression gate:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
 
 Must exit `0` before the milestone or release handoff is considered complete.
@@ -86,14 +86,14 @@ Live/sandbox Coinbase contract tests (opt-in, credential-gated).
 
 ## Standard Command Set (PowerShell)
 
-### Full regression gate
-```powershell
-pytest tests/regression/ -v --tb=short
-```
-
-### Process-parallel full regression gate
+### Full regression closeout gate
 ```powershell
 python tools/run_parallel_regression.py --workers 4
+```
+
+### Sequential fallback for missing pytest-xdist
+```powershell
+pytest tests/regression/ -v --tb=short
 ```
 
 ### Full validation

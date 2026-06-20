@@ -89,7 +89,7 @@ candidate handoff, deployment approval/closeout, release-hardening closeout,
 Admin API/backend association closeout, or explicit-request gate:
 
 ```powershell
-pytest tests\regression\ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 python tools\run_autonomous_work_queue_check.py --summary-only
 ```
 
@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `4721-4740` under M55.
-- Active autonomous range: `4741-4760` under M55.
+- Latest completed autonomous range: `4741-4760` under M55.
+- Active autonomous range: `4761-4780` under M55.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -443,12 +443,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   dependencies, or changing execution authority. Completed 4721-4740 work
   derives blocked backend clearance-step review input rows from those reviews
   without accepting inputs, validating inputs, completing reviews, making steps
-  ready, clearing dependencies, or changing execution authority. Active
+  ready, clearing dependencies, or changing execution authority. Completed
   4741-4760 work derives blocked backend clearance-step review-input
   store-requirement rows from those inputs without making stores available,
   allowing writers, writing records, validating records, accepting inputs,
   completing reviews, making steps ready, clearing dependencies, or changing
-  execution authority.
+  execution authority. Active 4761-4780 work derives blocked backend
+  clearance-step review-input store record-contract rows from those store
+  requirements without creating record contracts, schemas, logs, idempotency
+  bindings, payload validation, replay protection, records, stores, accepted
+  inputs, completed reviews, ready steps, cleared dependencies, or execution
+  authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

@@ -65,5 +65,8 @@ regression is reserved for durable milestone closeout, public/release-candidate
 handoff, or explicit user request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.

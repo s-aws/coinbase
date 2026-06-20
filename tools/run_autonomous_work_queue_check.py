@@ -42,9 +42,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "4741-4760"
-APPROVED_PHASES = tuple(range(4741, 4761))
-PREVIOUS_COMPLETED_PHASE_RANGE = "4721-4740"
+APPROVED_PHASE_RANGE = "4761-4780"
+APPROVED_PHASES = tuple(range(4761, 4781))
+PREVIOUS_COMPLETED_PHASE_RANGE = "4741-4760"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -153,7 +153,7 @@ def _check_live_caps(body: str) -> QueueCheck:
 
 def _check_stop_conditions(body: str) -> QueueCheck:
     required = [
-        "pytest tests\\regression\\ -v --tb=short",
+        "python tools/run_parallel_regression.py --workers 4",
         "npm run release:gate",
         "blind/contextless review",
         "Live Coinbase reconciliation fails",
@@ -170,8 +170,7 @@ def _check_stop_conditions(body: str) -> QueueCheck:
 def _check_required_gates(body: str) -> QueueCheck:
     required = [
         "python tools\\run_autonomous_work_queue_check.py --summary-only",
-        "pytest tests\\regression\\ -v --tb=short",
-        "python3 -m pytest tests/regression/ -v",
+        "python tools/run_parallel_regression.py --workers 4",
         "npm run release:gate",
     ]
     missing = [text for text in required if text not in body]
@@ -245,7 +244,7 @@ def _check_maintainer_handoff_docs() -> QueueCheck:
             "Adding An Admin Module",
             "Contextless Task Card",
             "docs/LIVE_ORDER_SURFACES.md",
-            "pytest tests\\regression\\ -v --tb=short",
+            "python tools/run_parallel_regression.py --workers 4",
             "npm run release:gate",
             (
                 "Latest completed autonomous range: "

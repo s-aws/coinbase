@@ -49,127 +49,142 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Closure-Readiness Review-Input Store Requirement Batch - Phases 4741-4760
+## Active M55 Closure-Readiness Review-Input Store Record-Contract Batch - Phases 4761-4780
 
-These phases derive blocked backend-owned store-requirement rows from the
-existing closure-readiness clearance-step review-input rows. The store
-requirements remain blocked and unresolved. The range must not enable service,
-construct adapters, invoke managers, call Coinbase, cancel or submit orders,
-repair or roll back state, execute reconciliation, mutate state, grant browser
-authority, grant BFF execution authority, make stores available, allow writers,
-write records, validate records, accept inputs, validate inputs, complete
-reviews, make steps ready, or clear dependencies.
+These phases derive blocked backend-owned record-contract rows from the
+existing closure-readiness clearance-step review-input store-requirement rows.
+The record contracts remain blocked and unresolved. The range must not enable
+service, construct adapters, invoke managers, call Coinbase, cancel or submit
+orders, repair or roll back state, execute reconciliation, mutate state, grant
+browser authority, grant BFF execution authority, make record contracts
+available, make schemas available, make append-only logs available, bind
+idempotency, validate payloads, protect replay, make stores available, allow
+writers, write records, validate records, accept inputs, validate inputs,
+complete reviews, make steps ready, or clear dependencies.
 
-### Phase 4741 - Prior Range Completion Evidence
+### Phase 4761 - Prior Range Completion Evidence
 
-- Record completed phases 4721-4740 with backend commit `af5f5a78`, frontend
-  commit `2f7e2a5`, focused gates, blind/contextless review, UI smoke at
-  `http://127.0.0.1:3125/?phaseSmoke=4721-4740`, and `0` USDC live Coinbase
+- Record completed phases 4741-4760 with backend commit `fa4ffef4`, frontend
+  commit `dcbb3db`, focused gates, blind/contextless review, UI smoke at
+  `http://127.0.0.1:3126/?phaseSmoke=4741-4760`, and `0` USDC live Coinbase
   submitted/executed notional.
 
-### Phase 4742 - Advance Active Queue Range
+### Phase 4762 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 4721-4740 to active
-  phases 4741-4760 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 4741-4760 to active
+  phases 4761-4780 while preserving no-live defaults and cap policy.
 
-### Phase 4743 - Store Requirement Scope
+### Phase 4763 - Store Record-Contract Scope
 
-- Add store-requirement fields to existing clearance-step review-input rows
-  without changing blocker status, input presence/acceptance/validation,
-  review readiness/completion, step readiness/completion, clearance allowance,
-  resolution allowance, or execution flags.
+- Add record-contract fields to existing store-requirement rows without
+  changing blocker status, store availability, writer allowance, write
+  allowance, record presence/acceptance/validation, input
+  presence/acceptance/validation, review readiness/completion, step
+  readiness/completion, clearance allowance, resolution allowance, or execution
+  flags.
 
-### Phase 4744 - Backend Store Requirement Model
+### Phase 4764 - Backend Record-Contract Model
 
-- Extend the Admin API input and summary schemas with typed store requirement
-  name, store requirement ref, input/review/step/dependency refs, required
-  store/writer/record/validation/replay refs, order, blocked status, and
-  authority evidence fields.
+- Extend the Admin API store-requirement and summary schemas with typed record
+  contract name, record contract ref, store/input/review/step/dependency refs,
+  required schema/log/payload/idempotency/validation/replay refs, order,
+  blocked status, and authority evidence fields.
 
-### Phase 4745 - Backend Store Requirement Derivation
+### Phase 4765 - Backend Record-Contract Derivation
 
-- Derive one store-requirement row from each existing clearance-step
-  review-input ref only.
+- Derive one record-contract row from each existing store-requirement ref only.
 
-### Phase 4746 - Store Requirement Name Mapping
+### Phase 4766 - Record Contract Name Mapping
 
-- Map every review input to the backend-owned `input_evidence_store`
-  requirement name.
+- Map every store requirement to the backend-owned
+  `input_evidence_record_contract` contract name.
 
-### Phase 4747 - Store Requirement Artifact And Ordering
+### Phase 4767 - Schema Log Payload And Ordering
 
-- Record deterministic store, writer, record, validation, and replay refs plus
-  clearance, step, review, input, and store-requirement order.
+- Record deterministic schema, append-only log, payload field, idempotency,
+  validation, replay, and record-contract gate refs plus clearance, step,
+  review, input, store-requirement, and record-contract order.
 
-### Phase 4748 - Store Requirement Status Evidence
+### Phase 4768 - Record-Contract Status Evidence
 
-- Report blocked requirement status, `store_available=false`,
-  `writer_allowed=false`, `write_allowed=false`, `record_present=false`,
-  `record_accepted=false`, `record_validated=false`,
-  `validation_configured=false`, `replay_protection_configured=false`,
-  `input_present=false`, `input_accepted=false`, `input_validated=false`,
-  `review_ready=false`, `review_complete=false`, `step_ready=false`,
-  `clearance_allowed=false`, and `resolution_allowed=false` for every
-  requirement.
+- Report blocked record-contract status, `record_contract_available=false`,
+  `record_schema_available=false`, `append_only_log_available=false`,
+  `idempotency_key_bound=false`, `payload_schema_validated=false`,
+  `replay_protected=false`, `store_available=false`, `writer_allowed=false`,
+  `write_allowed=false`, `record_present=false`, `record_accepted=false`,
+  `record_validated=false`, `input_present=false`, `input_accepted=false`,
+  `input_validated=false`, `review_ready=false`, `review_complete=false`,
+  `step_ready=false`, `clearance_allowed=false`, and
+  `resolution_allowed=false` for every contract.
 
-### Phase 4749 - Backend Store Requirement Assertions
+### Phase 4769 - Backend Record-Contract Assertions
 
-- Extend Admin API regression coverage proving store-requirement rows mirror
-  input rows and do not close blockers or grant live, manager, Coinbase,
-  reconciliation, writer, record, validation, replay, or state mutation
-  authority.
+- Extend Admin API regression coverage proving record-contract rows mirror
+  store-requirement rows and do not close blockers or grant record, schema,
+  log, idempotency, payload, replay, live, manager, Coinbase, reconciliation,
+  writer, validation, or state mutation authority.
 
-### Phase 4750 - OpenAPI Regeneration
+### Phase 4770 - OpenAPI Regeneration
 
 - Regenerate `openapi/coinbase-admin-api.yaml`.
 
-### Phase 4751 - Frontend Generated Schema Sync
+### Phase 4771 - Frontend Generated Schema Sync
 
 - Regenerate frontend TypeScript schema from the backend artifact.
 
-### Phase 4752 - Frontend Adapter Store Requirement Mapping
+### Phase 4772 - Frontend Adapter Record-Contract Mapping
 
-- Map store-requirement rows and summary fields through the existing
+- Map record-contract rows and summary fields through the existing
   command-suite adapter.
 
-### Phase 4753 - Frontend Mock Store Requirement Evidence
+### Phase 4773 - Frontend Mock Record-Contract Evidence
 
 - Sync frontend mock command-suite rows and summary totals.
 
-### Phase 4754 - Frontend UI Store Requirement Summary
+### Phase 4774 - Frontend UI Record-Contract Summary
 
-- Render store-requirement counts, blocked counts, names, statuses, store refs,
-  writer refs, record keys, validation gates, and replay gates as read-only
-  evidence.
+- Render record-contract counts, blocked counts, names, statuses, schema refs,
+  log refs, payload fields, idempotency keys, and record-contract gates as
+  read-only evidence.
 
-### Phase 4755 - Frontend UI Store Requirement Rows
+### Phase 4775 - Frontend UI Record-Contract Rows
 
-- Render row-level store requirement ref, input ref, review ref, step ref,
-  dependency ref, requirement name, store/writer/record/validation/replay refs,
-  order, status, false state flags, authority flags, and no-live evidence.
+- Render row-level record-contract ref, store requirement ref, input ref,
+  review ref, step ref, dependency ref, contract name, schema/log/payload/
+  idempotency/validation/replay refs, order, status, false state flags,
+  authority flags, and no-live evidence.
 
-### Phase 4756 - Quality Metadata Sync
+### Phase 4776 - Quality Metadata Sync
 
-- Update active range metadata to phases 4741-4760.
+- Update active range metadata to phases 4761-4780.
 
-### Phase 4757 - Documentation Sync
+### Phase 4777 - Documentation Sync
 
 - Update Admin API, frontend API, testing, roadmap, maintainer handoff,
   examples, expanded context, and agent-state docs.
 
-### Phase 4758 - Contextless Review
+### Phase 4778 - Contextless Review
 
-- Record contextless review evidence for the clearance-step review-input
-  store-requirement boundary.
+- Record contextless review evidence for the clearance-step review-input store
+  record-contract boundary.
 
-### Phase 4759 - Focused Gates And Browser Smoke
+### Phase 4779 - Focused Gates And Browser Smoke
 
 - Run focused backend/frontend validators and browser smoke for rendered
-  store-requirement evidence.
+  record-contract evidence.
 
-### Phase 4760 - Commit And Push
+### Phase 4780 - Commit And Push
 
 - Commit and push backend/frontend work and summarize evidence.
+
+## Completed M55 Closure-Readiness Review-Input Store Requirement Batch - Phases 4741-4760
+
+Backend commit `fa4ffef4` and frontend commit `dcbb3db` derived blocked
+backend-owned store-requirement rows from existing closure-readiness
+clearance-step review-input rows. Focused backend/frontend gates,
+blind/contextless review, and UI smoke passed at
+`http://127.0.0.1:3126/?phaseSmoke=4741-4760`. Live Coinbase execution was not
+run; submitted and executed notional were `0` USDC.
 
 ## Completed M55 Closure-Readiness Dependency Clearance Step Review Input Batch - Phases 4721-4740
 

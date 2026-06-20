@@ -170,11 +170,11 @@ pytest tests/ -v --tb=short --cov=.
 # Run all tests
 pytest tests/ -v
 
-# Run only regression tests
-pytest tests/regression/ -v
-
 # Run process-parallel full regression closeout gate
 python tools/run_parallel_regression.py --workers 4
+
+# Sequential fallback only when pytest-xdist is unavailable
+pytest tests/regression/ -v --tb=short
 
 # Run without external tests (faster)
 pytest tests/ -v -m "not external"
