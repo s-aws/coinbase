@@ -51,6 +51,12 @@ If a recommendation would land softer than the evidence warrants, the recommenda
    (`AGENTS.md`, `agent.md`, `ai-context.md`, `docs/agents/*.md`,
    `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may
    be skipped.
+8. At phase end, close subagents spawned for that phase and any stale or
+   previously unused subagents found during the sweep, after their findings
+   have been consumed, remediated, or explicitly deferred. At durable milestone
+   closeout, perform a final stale-subagent sweep. Do not close a subagent that
+   is still running required validation, producing required evidence, or
+   awaiting a user decision.
 
 ## Session Start Checklist
 
@@ -76,6 +82,8 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 ## Handoff Standard
 
 At pause or completion, write a handoff using `genai_data/AGENT_HANDOFF_TEMPLATE.md` and copy durable facts into `genai_data/agent_state.md`.
+Record whether the phase-end or milestone-closeout subagent sweep was
+performed, including any intentionally open handoff agents.
 
 ## Forced Reset Triggers
 

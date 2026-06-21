@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5601-5620",
+  "approved_phase_range": "5621-5640",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5601-5620",
+  "approved_phase_range": "5621-5640",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5601-5620",
+  "approved_phase_range": "5621-5640",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1965,6 +1965,10 @@ Expected command-suite posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 1440,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 0,
   "configured_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
+  "recorded_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -2113,6 +2117,24 @@ rows remain blocked with `record_validation_required=true`,
 `record_accepted=false`, `record_validated=false`,
 `accepts_evidence=false`, `writes_evidence=false`, and
 `execution_allowed=false`.
+Each store record-validation row also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"`
+for the blocked backend-owned remediation work and evidence attachment that
+would be required before a validation row could ever be remediated or
+recorded:
+
+```json
+{
+  "record_validation_remediation_required": true,
+  "record_validation_remediation_ready": false,
+  "record_validation_remediation_performed": false,
+  "record_validation_remediation_recorded": false,
+  "accepts_evidence": false,
+  "writes_evidence": false,
+  "execution_allowed": false
+}
+```
+
 Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority

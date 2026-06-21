@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5601-5620"
-APPROVED_PHASES = tuple(range(5601, 5621))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5581-5600"
+APPROVED_PHASE_RANGE = "5621-5640"
+APPROVED_PHASES = tuple(range(5621, 5641))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5601-5620"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -223,6 +223,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -250,6 +251,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
             '"record_contract_required": true',
             '"record_contract_available": false',
             '"record_schema_available": false',
@@ -259,6 +261,10 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"replay_protected": false',
             '"record_validation_required": true',
             '"record_validation_ready": false',
+            '"record_validation_remediation_required": true',
+            '"record_validation_remediation_ready": false',
+            '"record_validation_remediation_performed": false',
+            '"record_validation_remediation_recorded": false',
             '"validation_checks_passed": false',
             '"validation_configured": false',
             '"claim_trace_created": false',
@@ -685,6 +691,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store requirement",
         "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record contract",
         "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation",
+        "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation remediation",
         "record_contract_required=true",
         "record_contract_available=false",
         "record_schema_available=false",
@@ -694,11 +701,16 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "replay_protected=false",
         "record_validation_required=true",
         "record_validation_ready=false",
+        "record_validation_remediation_required=true",
+        "record_validation_remediation_ready=false",
+        "record_validation_remediation_performed=false",
+        "record_validation_remediation_recorded=false",
         "validation_checks_passed=false",
         "validation_configured=false",
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements",
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts",
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations",
         "store_required=true",
         "store_available=false",
         "writer_available=false",

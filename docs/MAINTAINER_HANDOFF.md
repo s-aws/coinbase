@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5581-5600` under M57.
-- Active autonomous range: `5601-5620` under M57.
+- Latest completed autonomous range: `5601-5620` under M57.
+- Active autonomous range: `5621-5640` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -672,14 +672,21 @@ notional, retained inventory, reconciliation result, and audit ids.
   creation, schema creation, log creation, idempotency binding, payload
   validation, replay protection, record acceptance, evidence writing,
   Coinbase calls, state mutation, browser authority, or BFF execution
-  authority. Active 5601-5620 work adds blocked clearance-step review input
+  authority. Completed 5601-5620 work adds blocked clearance-step review input
   store record-validation rows over those store record-contracts so future
   input-record acceptance work names validation checks, record-validation
   gates, inherited record-contract blockers, and required backend
   store-record-validation contracts while still adding no validator
   registration, validation-gate passing, record acceptance, evidence writing,
   Coinbase calls, state mutation, browser authority, or BFF execution
-  authority.
+  authority. Active 5621-5640 work adds blocked clearance-step review input
+  store record-validation remediation rows over those validation rows so
+  future validation-remediation work names required remediation work,
+  remediation refs, validation-remediation gates, inherited validation
+  blockers, and backend remediation contracts while still adding no
+  remediation execution, evidence attachment, evidence writing, record
+  acceptance, Coinbase calls, state mutation, browser authority, or BFF
+  execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

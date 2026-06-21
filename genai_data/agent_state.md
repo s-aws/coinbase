@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-21
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5581-5600` is backend `96a7a850` and
-  frontend `a1e5ecd`; current active range is `5601-5620`.
+- Commit (optional): completed range `5601-5620` is backend `d8834c81` and
+  frontend `799d73c`; current active range is `5621-5640`.
 
 ## Current Objective
 
@@ -44,16 +44,25 @@ Keep it short. Keep it factual.
 - If only agent-instruction/context files changed (`AGENTS.md`, `agent.md`,
   `ai-context.md`, `docs/agents/*.md`, `genai_data/AGENT_*.md`,
   `genai_data/agent_state.md`), regression tests may be skipped.
+- At phase end, close subagents spawned for that phase and any stale or
+  previously unused subagents found during the sweep after their findings have
+  been consumed, remediated, or explicitly deferred. At durable milestone
+  closeout, perform a final stale-subagent sweep. Do not close a subagent that
+  is still running required validation, producing required evidence, or awaiting
+  a user decision.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5581-5600`.
-- Active autonomous range: `5601-5620`.
-- Active `5601-5620` extends the M57 futures/perpetual command-suite contract
+- Latest completed autonomous range before current work: `5601-5620`.
+- Active autonomous range: `5621-5640`.
+- Active `5621-5640` extends the M57 futures/perpetual command-suite contract
   with backend-owned risk proof record-validation remediation dependency
   work-item claim-trace clearance-step review input store record-validation
-  rows derived from every blocked clearance-step review input store
-  record-contract row.
+  remediation evidence rows derived from every blocked clearance-step review
+  input store record-validation row.
+- Phase-end subagent sweep for the current `5621-5640` work was performed:
+  the blind/contextless reviewer was closed after its findings were consumed
+  and remediated. No phase-scoped subagent remains intentionally open.
   It must not add futures command routes, command drafts, live execution,
   Coinbase calls, reconciliation execution, state mutation, record-contract
   creation, record schema creation, append-only log creation, idempotency
@@ -670,9 +679,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5601-5620`.
+- Active autonomous range: `5621-5640`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `5601-5620`.
+- Current direction: complete phases `5621-5640`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -878,6 +887,16 @@ Keep it short. Keep it factual.
   or grant BFF execution authority.
 
 ## Decisions (Durable)
+
+- [2026-06-21] Decision: Subagent cleanup is a phase-end hygiene gate with a
+  final durable milestone sweep.
+  - Reason: Completed, failed, superseded, or unused subagents create stale
+    context and can confuse later contextless agents.
+  - Impact: Each phase must close phase-spawned subagents and stale/unused
+    subagents after their findings are consumed, remediated, or explicitly
+    deferred. Milestone closeout must run a final sweep. Agents still running
+    required validation, producing required evidence, or awaiting a user
+    decision stay open.
 
 - [2026-05-16] Decision: Treat cancel/re-entry as policy-cancel/re-entry, not general hide-again behavior.
   - Reason: It cancels no-fill revealed placements and later re-enters through the normal reveal path, but it is not a general operator hide-again feature.
@@ -1503,15 +1522,16 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5601-5620` by adding
+- Exact next command: complete active phases `5621-5640` by adding
   backend-owned futures/perpetual risk proof record-validation remediation
   dependency work-item claim-trace clearance-step review input store
-  record-validation evidence to the existing command-suite read contract,
-  syncing OpenAPI and frontend generated schema, mapping runtime/mock/read-model
-  display, updating docs and validators, then running focused gates,
-  blind/contextless review, and no-live UI smoke. The active gap is proof
-  record-validation remediation dependency work-item claim-trace
-  clearance-step review input store record-validation visibility only; no
+  record-validation remediation evidence to the existing command-suite read
+  contract, syncing OpenAPI and frontend generated schema, mapping runtime/mock/
+  read-model display, updating docs and validators, then running focused gates,
+  blind/contextless review, phase-end stale-subagent sweep, and no-live UI
+  smoke. The active gap is proof record-validation remediation dependency
+  work-item claim-trace clearance-step review input store record-validation
+  remediation visibility only; no
   futures command route, command draft, exchange order placement/cancellation,
   reconciliation execution, Coinbase read/write, state mutation, record
   contract creation, record schema creation, append-only log creation,
