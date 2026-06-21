@@ -29,6 +29,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandRiskProofPayloadField,
+    AdminFuturesCommandRiskProofRecordContractKind,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -113,6 +114,7 @@ from .models import (
     AdminFuturesCommandRiskProofAcceptanceCriterionItem,
     AdminFuturesCommandRiskProofContractItem,
     AdminFuturesCommandRiskProofPayloadFieldItem,
+    AdminFuturesCommandRiskProofRecordContractItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -347,7 +349,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5341-5360"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5361-5380"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -21065,6 +21067,156 @@ class AdminApiReadService:
                     )
                 ]
 
+            def record_contracts(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                identity_key: str,
+            ) -> list[AdminFuturesCommandRiskProofRecordContractItem]:
+                required_payload_fields = [
+                    AdminFuturesCommandRiskProofPayloadField.COMMAND,
+                    AdminFuturesCommandRiskProofPayloadField.PROOF_KIND,
+                    AdminFuturesCommandRiskProofPayloadField.IDENTITY_KEY,
+                    AdminFuturesCommandRiskProofPayloadField.IDENTITY_VALUE,
+                    AdminFuturesCommandRiskProofPayloadField.REQUIRED_EVIDENCE_REFS,
+                    AdminFuturesCommandRiskProofPayloadField.SOURCE_SNAPSHOT_REF,
+                    AdminFuturesCommandRiskProofPayloadField.VALIDATION_STATUS,
+                    AdminFuturesCommandRiskProofPayloadField.IDEMPOTENCY_KEY,
+                    AdminFuturesCommandRiskProofPayloadField.CORRELATION_ID,
+                    AdminFuturesCommandRiskProofPayloadField.AUDIT_ID,
+                ]
+                store_ref = (
+                    f"futures_proof_records.{command_id.value}.{proof_kind.value}"
+                )
+                record_key = (
+                    f"proof_record.{command_id.value}.{proof_kind.value}."
+                    f"{identity_key}.idempotency_key.correlation_id"
+                )
+                specs = [
+                    (
+                        AdminFuturesCommandRiskProofRecordContractKind.STORE_SCHEMA,
+                        (
+                            "application/admin_api/futures_proof_records.py::"
+                            f"{command_id.value}_{proof_kind.value}_store_schema"
+                        ),
+                        "store_schema_registered",
+                        (
+                            "A backend-owned proof record schema must be "
+                            "registered before any futures/perpetual proof "
+                            "record can be persisted."
+                        ),
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofRecordContractKind.APPEND_ONLY_LOG,
+                        (
+                            "application/admin_api/futures_proof_records.py::"
+                            f"{command_id.value}_{proof_kind.value}_append_only_log"
+                        ),
+                        "append_only_log_configured",
+                        (
+                            "A backend-owned append-only proof log must exist "
+                            "before proof records can become durable evidence."
+                        ),
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofRecordContractKind.IDEMPOTENCY_BINDING,
+                        (
+                            "application/admin_api/futures_proof_records.py::"
+                            f"{command_id.value}_{proof_kind.value}_idempotency_binding"
+                        ),
+                        "idempotency_key_bound",
+                        (
+                            "Proof records must bind idempotency keys before "
+                            "replay-safe acceptance can be considered."
+                        ),
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofRecordContractKind.PAYLOAD_VALIDATION_GATE,
+                        (
+                            "application/admin_api/futures_proof_validation.py::"
+                            f"{command_id.value}_{proof_kind.value}_payload_validation_gate"
+                        ),
+                        "payload_validation_registered",
+                        (
+                            "A backend validation gate must verify the proof "
+                            "payload fields before records can be accepted."
+                        ),
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofRecordContractKind.REPLAY_GUARD,
+                        (
+                            "application/admin_api/futures_proof_records.py::"
+                            f"{command_id.value}_{proof_kind.value}_replay_guard"
+                        ),
+                        "replay_guard_registered",
+                        (
+                            "Proof record read/write contracts must include a "
+                            "backend replay guard before acceptance."
+                        ),
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofRecordContractKind.AUDIT_LINK,
+                        (
+                            "application/admin_api/futures_proof_records.py::"
+                            f"{command_id.value}_{proof_kind.value}_audit_link"
+                        ),
+                        "audit_linked",
+                        (
+                            "Proof records must link to backend audit evidence "
+                            "before they can satisfy command readiness."
+                        ),
+                    ),
+                ]
+                return [
+                    AdminFuturesCommandRiskProofRecordContractItem(
+                        contract_kind=contract_kind,
+                        sequence=index + 1,
+                        required_backend_contract=required_backend_contract,
+                        required_store_ref=store_ref,
+                        required_record_key=record_key,
+                        required_payload_fields=required_payload_fields,
+                        validation_gate=(
+                            f"{command_id.value}_{proof_kind.value}_record_"
+                            f"{contract_kind.value}_gate"
+                        ),
+                        required_evidence_ref=(
+                            f"{command_id.value}_{proof_kind.value}_record_"
+                            f"{contract_kind.value}_ready"
+                        ),
+                        missing_evidence_ref=(
+                            f"{command_id.value}_{proof_kind.value}_record_"
+                            f"{contract_kind.value}_ready"
+                        ),
+                        store_registered=False,
+                        append_only_log_configured=False,
+                        idempotency_bound=False,
+                        payload_validation_registered=False,
+                        replay_guard_registered=False,
+                        audit_linked=False,
+                        proof_record_accepted=False,
+                        command_route_registered=False,
+                        command_draft_allowed=False,
+                        execution_allowed=False,
+                        proof_route_registered=False,
+                        proof_writer_enabled=False,
+                        detail=(
+                            f"{command_id.value} {proof_kind.value} record "
+                            f"contract {contract_kind.value} requires "
+                            f"{required_backend_contract} and remains blocked. "
+                            f"{_detail} "
+                            f"The required record key is {record_key}; this "
+                            "row does not create a store, validate payloads, "
+                            "write proof records, accept proof evidence, or "
+                            "enable futures/perpetual command execution."
+                        ),
+                    )
+                    for index, (
+                        contract_kind,
+                        required_backend_contract,
+                        _registration_flag,
+                        _detail,
+                    ) in enumerate(specs)
+                ]
+
             def acceptance_criteria(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -21160,6 +21312,10 @@ class AdminApiReadService:
                     proof_kind=proof_kind,
                     identity_key=identity_key,
                 )
+                proof_record_contracts = record_contracts(
+                    proof_kind=proof_kind,
+                    identity_key=identity_key,
+                )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -21202,6 +21358,28 @@ class AdminApiReadService:
                             if field.validation_registered
                         ),
                         payload_fields=proof_payload_fields,
+                        record_contract_count=len(proof_record_contracts),
+                        blocking_record_contract_count=sum(
+                            1
+                            for contract in proof_record_contracts
+                            if contract.blocking
+                        ),
+                        registered_record_store_count=sum(
+                            1
+                            for contract in proof_record_contracts
+                            if contract.store_registered
+                        ),
+                        registered_record_validation_count=sum(
+                            1
+                            for contract in proof_record_contracts
+                            if contract.payload_validation_registered
+                        ),
+                        accepted_record_contract_count=sum(
+                            1
+                            for contract in proof_record_contracts
+                            if contract.proof_record_accepted
+                        ),
+                        record_contracts=proof_record_contracts,
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -21331,6 +21509,25 @@ class AdminApiReadService:
                 ),
                 registered_risk_proof_payload_validation_count=sum(
                     item.registered_payload_validation_count
+                    for item in proof_requirements
+                ),
+                risk_proof_record_contract_count=sum(
+                    item.record_contract_count for item in proof_requirements
+                ),
+                blocking_risk_proof_record_contract_count=sum(
+                    item.blocking_record_contract_count
+                    for item in proof_requirements
+                ),
+                registered_risk_proof_record_store_count=sum(
+                    item.registered_record_store_count
+                    for item in proof_requirements
+                ),
+                registered_risk_proof_record_validation_count=sum(
+                    item.registered_record_validation_count
+                    for item in proof_requirements
+                ),
+                accepted_risk_proof_record_contract_count=sum(
+                    item.accepted_record_contract_count
                     for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
@@ -21471,6 +21668,25 @@ class AdminApiReadService:
             ),
             registered_risk_proof_payload_validation_count=sum(
                 command.registered_risk_proof_payload_validation_count
+                for command in commands
+            ),
+            risk_proof_record_contract_count=sum(
+                command.risk_proof_record_contract_count for command in commands
+            ),
+            blocking_risk_proof_record_contract_count=sum(
+                command.blocking_risk_proof_record_contract_count
+                for command in commands
+            ),
+            registered_risk_proof_record_store_count=sum(
+                command.registered_risk_proof_record_store_count
+                for command in commands
+            ),
+            registered_risk_proof_record_validation_count=sum(
+                command.registered_risk_proof_record_validation_count
+                for command in commands
+            ),
+            accepted_risk_proof_record_contract_count=sum(
+                command.accepted_risk_proof_record_contract_count
                 for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(

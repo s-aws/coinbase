@@ -11,15 +11,15 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5341-5360 range adds read-only M57 futures/perpetual risk proof
-payload field and validation contract evidence to the existing command-suite
-evidence. Each readiness decision, ordered closure step, risk proof
-requirement, proof contract, payload field, and acceptance criterion is
+The active 5361-5380 range adds read-only M57 futures/perpetual risk proof
+record/store contract evidence to the existing command-suite evidence. Each
+readiness decision, ordered closure step, risk proof requirement, proof
+contract, payload field, record/store contract, and acceptance criterion is
 derived from backend-owned
 prerequisites, request fields, semantic guards, evidence routes, missing
 evidence refs, and missing backend contracts. It is not a command route,
-enabled proof writer, registered payload validator, command draft surface, or
-execution approval.
+enabled proof writer, registered payload validator, registered record store,
+command draft surface, or execution approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -34,7 +34,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5341-5360",
+  "approved_phase_range": "5361-5380",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -62,6 +62,11 @@ Expected response posture:
   "blocking_risk_proof_payload_field_count": 200,
   "present_risk_proof_payload_field_count": 0,
   "registered_risk_proof_payload_validation_count": 0,
+  "risk_proof_record_contract_count": 120,
+  "blocking_risk_proof_record_contract_count": 120,
+  "registered_risk_proof_record_store_count": 0,
+  "registered_risk_proof_record_validation_count": 0,
+  "accepted_risk_proof_record_contract_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -338,6 +343,47 @@ Expected response posture:
               "missing_evidence_ref": "futures_place_product_scope_payload_identity_key_validated",
               "payload_field_present": false,
               "validation_registered": false,
+              "execution_allowed": false,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            }
+          ],
+          "record_contract_count": 6,
+          "blocking_record_contract_count": 6,
+          "registered_record_store_count": 0,
+          "registered_record_validation_count": 0,
+          "accepted_record_contract_count": 0,
+          "record_contracts": [
+            {
+              "contract_kind": "store_schema",
+              "sequence": 1,
+              "status": "blocked",
+              "required_backend_contract": "application/admin_api/futures_proof_records.py::futures_place_product_scope_store_schema",
+              "required_store_ref": "futures_proof_records.futures_place.product_scope",
+              "required_record_key": "proof_record.futures_place.product_scope.product_id.idempotency_key.correlation_id",
+              "required_payload_fields": [
+                "command",
+                "proof_kind",
+                "identity_key",
+                "identity_value",
+                "required_evidence_refs",
+                "source_snapshot_ref",
+                "validation_status",
+                "idempotency_key",
+                "correlation_id",
+                "audit_id"
+              ],
+              "validation_gate": "futures_place_product_scope_record_store_schema_gate",
+              "required_evidence_ref": "futures_place_product_scope_record_store_schema_ready",
+              "missing_evidence_ref": "futures_place_product_scope_record_store_schema_ready",
+              "store_registered": false,
+              "append_only_log_configured": false,
+              "idempotency_bound": false,
+              "payload_validation_registered": false,
+              "replay_guard_registered": false,
+              "audit_linked": false,
+              "proof_record_accepted": false,
               "execution_allowed": false,
               "spot_rule_authority": false,
               "browser_authority": "display_only",

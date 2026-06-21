@@ -1,5 +1,51 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk Proof Record/Store Contract Review - Phases 5361-5380
+
+Scope: phases `5361-5380`, after adding backend-owned risk proof
+record/store contracts under the read-only futures/perpetual command-suite.
+
+Result: PASS after remediation.
+
+- REMEDIATED: blind/contextless review initially failed because this log still
+  led with phases `5341-5360`, which made the completed payload-field slice
+  look active. This entry now leads with `5361-5380` and keeps phases
+  `5341-5360` as completed history.
+- PASS: `GET /api/v1/futures/command-suite` remains a read-only
+  futures/perpetual command-suite evidence route. It exposes readiness
+  decision, semantic guards, risk proof requirements, risk proof route/writer
+  contracts, `proof_contracts`, risk proof payload fields, `payload_fields`,
+  risk proof record/store contracts, `record_contracts`, registered payload
+  validation, registered record validation, risk proof acceptance criteria,
+  and forbidden spot assumptions as backend-owned evidence only.
+- PASS: Required exact review terms are present for validators and
+  contextless readers: readiness decision; risk proof route/writer contracts;
+  registered payload validation; risk proof record/store contracts;
+  `record_contracts`; registered record validation.
+- PASS: each risk proof requirement exposes blocked record/store contract rows
+  for store schema, append-only log, idempotency binding, payload validation
+  gate, replay guard, and audit link with no registered store, no registered
+  record validation, no accepted proof record, no command draft, no BFF
+  execution authority, and no Coinbase call.
+- PASS: planned futures cancel record contracts remain keyed by
+  `client_order_id`; exchange `order_id` and `exchange_order_id` remain
+  exchange-native evidence only.
+- PASS: the capability matrix, examples, queue docs, backend tests, and
+  frontend contract docs continue to reject spot wallet availability, spot
+  no-shorting, spot USDC quote scope, spot cost-basis, average-cost, and
+  inventory-lot assumptions as futures/perpetual authority.
+- PASS: No live Coinbase execution was run. Submitted notional: `0` USDC.
+  Executed notional: `0` USDC.
+- PASS: no-live UI smoke captured
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5361-5380-futures-risk-proof-record-contracts.png`
+  and
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5361-5380-futures-risk-proof-record-contracts-mobile.png`.
+- NOTE: Full backend regression was not run because phases `5361-5380` are
+  ordinary contract/read-model phase work; focused backend and frontend gates
+  cover the changed record/store contract surface. The full regression gate
+  remains reserved for durable milestone closeout, release/deployment
+  closeout, Admin API/backend association closeout, or explicit request.
+
 ## M57 Futures/Perpetual Risk Proof Payload Field Contract Review - Phases 5341-5360
 
 Scope: phases `5341-5360`, after adding backend-owned risk proof payload

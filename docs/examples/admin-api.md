@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5341-5360",
+  "approved_phase_range": "5361-5380",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5341-5360",
+  "approved_phase_range": "5361-5380",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1867,12 +1867,12 @@ commands, including blocked request-field rows, semantic guard rows, evidence
 routes, command-level readiness decisions, ordered closure steps, risk proof
 requirements, and risk proof acceptance criteria. The readiness decisions,
 risk proof requirements, proof route/writer contracts, proof payload field
-contracts, and acceptance criteria
+contracts, risk proof record/store contracts, and acceptance criteria
 are derived from existing backend evidence and missing contracts. The response
 is still read-only: it registers no command routes, allows no command drafts,
-enables no proof writers, registers no proof routes, performs no
-reconciliation execution, calls no Coinbase reads or writes, and grants no
-browser/BFF execution authority.
+enables no proof writers, registers no proof routes, registers no proof
+record stores, performs no reconciliation execution, calls no Coinbase reads
+or writes, and grants no browser/BFF execution authority.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -1887,7 +1887,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5341-5360",
+  "approved_phase_range": "5361-5380",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1915,6 +1915,11 @@ Expected command-suite posture:
   "blocking_risk_proof_payload_field_count": 200,
   "present_risk_proof_payload_field_count": 0,
   "registered_risk_proof_payload_validation_count": 0,
+  "risk_proof_record_contract_count": 120,
+  "blocking_risk_proof_record_contract_count": 120,
+  "registered_risk_proof_record_store_count": 0,
+  "registered_risk_proof_record_validation_count": 0,
+  "accepted_risk_proof_record_contract_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -1946,7 +1951,12 @@ also includes
 `"payload_fields"` for the future backend-owned proof record payload fields,
 payload paths, validation evidence refs, idempotency, correlation, and audit
 bindings. Payload rows remain blocked with `payload_field_present=false` and
-`validation_registered=false`. Each proof also includes
+`validation_registered=false`. Each proof also includes `"record_contracts"`
+for the future backend-owned proof record schema, append-only log,
+idempotency binding, payload validation gate, replay guard, and audit-link
+contracts. Record/store rows remain blocked with `store_registered=false`,
+`payload_validation_registered=false`, and `proof_record_accepted=false`.
+Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
 review. These rows are blocked evidence only. They do not register command

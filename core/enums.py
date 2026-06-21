@@ -1199,6 +1199,17 @@ class AdminFuturesCommandRiskProofPayloadField(str, Enum):
     AUDIT_ID = "audit_id"
 
 
+class AdminFuturesCommandRiskProofRecordContractKind(str, Enum):
+    """Backend record/store contracts required before futures proofs can persist."""
+
+    STORE_SCHEMA = "store_schema"
+    APPEND_ONLY_LOG = "append_only_log"
+    IDEMPOTENCY_BINDING = "idempotency_binding"
+    PAYLOAD_VALIDATION_GATE = "payload_validation_gate"
+    REPLAY_GUARD = "replay_guard"
+    AUDIT_LINK = "audit_link"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 
