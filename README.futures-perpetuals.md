@@ -41,6 +41,10 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   each planned command family. These fields are blocked backend contract
   evidence only; they are not accepted payloads and do not create executable
   routes.
+- The command-suite route exposes semantic guard metadata for each planned
+  command family. These rows identify identity, risk, audit, reconciliation,
+  and live-boundary blockers; they are not browser validation authority and do
+  not make commands executable.
 - Spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
   inventory-lot assumptions are explicitly forbidden as futures/perpetual
   command authority.
@@ -65,6 +69,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 - Do not treat command-suite request fields as browser-side form authority.
   The backend must own validation, audit, idempotency, risk checks, and future
   service mapping before any command can become executable.
+- Do not treat command-suite semantic guards as satisfied checks. They are
+  blocked contract evidence until backend-owned guard/risk/admission/audit,
+  reconciliation, approval, cap, and live-service prerequisites are built.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

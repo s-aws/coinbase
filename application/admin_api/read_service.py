@@ -22,6 +22,7 @@ from core.enums import (
     AdminFuturesCommandAction,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandRequestField,
+    AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminFuturesPositionSide,
@@ -100,6 +101,7 @@ from .models import (
     AdminFuturesCommandContractItem,
     AdminFuturesCommandPrerequisiteItem,
     AdminFuturesCommandRequestFieldItem,
+    AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
     AdminLiveAdmissionAuditFactItem,
     AdminLiveAdmissionAuditTrailEvidence,
@@ -332,7 +334,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5181-5200"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5201-5220"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -19872,6 +19874,26 @@ class AdminApiReadService:
                 detail=detail,
             )
 
+        def semantic_guard(
+            semantic_guard_id: AdminFuturesCommandSemanticGuard,
+            *,
+            applies_to_fields: list[AdminFuturesCommandRequestField],
+            identity_semantic: bool = False,
+            risk_semantic: bool = False,
+            audit_semantic: bool = False,
+            execution_semantic: bool = False,
+            detail: str,
+        ) -> AdminFuturesCommandSemanticGuardItem:
+            return AdminFuturesCommandSemanticGuardItem(
+                semantic_guard=semantic_guard_id,
+                applies_to_fields=applies_to_fields,
+                identity_semantic=identity_semantic,
+                risk_semantic=risk_semantic,
+                audit_semantic=audit_semantic,
+                execution_semantic=execution_semantic,
+                detail=detail,
+            )
+
         def prerequisite(
             prerequisite_id: AdminFuturesCommandPrerequisite,
             *,
@@ -20159,6 +20181,282 @@ class AdminApiReadService:
             ),
         ]
 
+        placement_semantic_guards = [
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.PRODUCT_SCOPE,
+                applies_to_fields=[AdminFuturesCommandRequestField.PRODUCT_ID],
+                identity_semantic=True,
+                detail="Placement product scope must come from backend futures metadata and cannot be inferred from spot USDC products.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.MARGIN_COLLATERAL,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.SIZE,
+                    AdminFuturesCommandRequestField.LIMIT_PRICE,
+                ],
+                risk_semantic=True,
+                detail="Placement size and price require backend margin and collateral checks before any command route can accept them.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.LIQUIDATION_BUFFER,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.SIZE,
+                    AdminFuturesCommandRequestField.LIMIT_PRICE,
+                ],
+                risk_semantic=True,
+                detail="Placement risk must prove liquidation-buffer semantics in the backend, not in browser code.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.FUNDING_FEE,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.SIZE,
+                    AdminFuturesCommandRequestField.LIMIT_PRICE,
+                ],
+                risk_semantic=True,
+                detail="Funding and fee semantics must be backend-owned before placement sizing can be executable.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.IDEMPOTENCY,
+                applies_to_fields=[AdminFuturesCommandRequestField.CLIENT_ORDER_ID],
+                identity_semantic=True,
+                audit_semantic=True,
+                detail="Placement idempotency must bind backend-generated client_order_id, request id, payload hash, actor, and audit evidence.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.APPROVAL_SNAPSHOT,
+                applies_to_fields=placement_request_fields and [
+                    item.field for item in placement_request_fields
+                ],
+                audit_semantic=True,
+                detail="A futures approval snapshot must bind product, side, type, size, price, time-in-force, and backend client_order_id.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.CAP_GUARD,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.PRODUCT_ID,
+                    AdminFuturesCommandRequestField.SIZE,
+                    AdminFuturesCommandRequestField.LIMIT_PRICE,
+                ],
+                risk_semantic=True,
+                detail="Futures placement cap/guard must evaluate margin, collateral, liquidation, funding, and route caps in the backend.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.ADMISSION_AUDIT,
+                applies_to_fields=placement_request_fields and [
+                    item.field for item in placement_request_fields
+                ],
+                audit_semantic=True,
+                detail="Placement admission must write append-only backend audit evidence before any exchange-intent adapter can run.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.RECONCILIATION_PLAN,
+                applies_to_fields=[AdminFuturesCommandRequestField.CLIENT_ORDER_ID],
+                execution_semantic=True,
+                detail="Placement requires a backend reconciliation plan and post-submit proof path before live submission can be enabled.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.LIVE_EXECUTION_BOUNDARY,
+                applies_to_fields=placement_request_fields and [
+                    item.field for item in placement_request_fields
+                ],
+                execution_semantic=True,
+                detail="No futures placement live execution boundary is enabled; rows remain blocked evidence only.",
+            ),
+        ]
+        close_reduce_semantic_guards = [
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.POSITION_SCOPE,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.POSITION_KEY,
+                    AdminFuturesCommandRequestField.PRODUCT_ID,
+                ],
+                identity_semantic=True,
+                detail="Close/reduce identity must resolve from backend position_key and product evidence, not wallet inventory.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.REDUCE_ONLY,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.ORDER_SIDE,
+                    AdminFuturesCommandRequestField.SIZE,
+                    AdminFuturesCommandRequestField.REDUCE_ONLY,
+                ],
+                risk_semantic=True,
+                detail="Reduce-only semantics must be derived and enforced by backend position evidence before close/reduce execution.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.CLOSE_ONLY,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.ORDER_SIDE,
+                    AdminFuturesCommandRequestField.SIZE,
+                    AdminFuturesCommandRequestField.CLOSE_ONLY,
+                ],
+                risk_semantic=True,
+                detail="Close-only semantics require backend position-side and size bounds; browser flags are not authority.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.MARGIN_COLLATERAL,
+                applies_to_fields=[AdminFuturesCommandRequestField.SIZE],
+                risk_semantic=True,
+                detail="Close/reduce sizing must remain margin and collateral aware even when reducing exposure.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.LIQUIDATION_BUFFER,
+                applies_to_fields=[AdminFuturesCommandRequestField.SIZE],
+                risk_semantic=True,
+                detail="Close/reduce must account for liquidation-buffer effects through backend risk contracts.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.IDEMPOTENCY,
+                applies_to_fields=[AdminFuturesCommandRequestField.CLIENT_ORDER_ID],
+                identity_semantic=True,
+                audit_semantic=True,
+                detail="Close/reduce idempotency must bind backend client_order_id to position_key, payload hash, actor, and audit evidence.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.APPROVAL_SNAPSHOT,
+                applies_to_fields=close_reduce_request_fields and [
+                    item.field for item in close_reduce_request_fields
+                ],
+                audit_semantic=True,
+                detail="Close/reduce approval must bind position identity, backend-derived side, size, reduce-only, and close-only intent.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.CAP_GUARD,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.POSITION_KEY,
+                    AdminFuturesCommandRequestField.SIZE,
+                    AdminFuturesCommandRequestField.REDUCE_ONLY,
+                    AdminFuturesCommandRequestField.CLOSE_ONLY,
+                ],
+                risk_semantic=True,
+                detail="Close/reduce cap/guard must evaluate position bounds, reduce-only, close-only, and account risk in the backend.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.ADMISSION_AUDIT,
+                applies_to_fields=close_reduce_request_fields and [
+                    item.field for item in close_reduce_request_fields
+                ],
+                audit_semantic=True,
+                detail="Close/reduce admission must write append-only backend audit evidence before exchange intent is allowed.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.RECONCILIATION_PLAN,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.POSITION_KEY,
+                    AdminFuturesCommandRequestField.CLIENT_ORDER_ID,
+                ],
+                execution_semantic=True,
+                detail="Close/reduce requires a backend reconciliation plan for position and order evidence before execution.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.LIVE_EXECUTION_BOUNDARY,
+                applies_to_fields=close_reduce_request_fields and [
+                    item.field for item in close_reduce_request_fields
+                ],
+                execution_semantic=True,
+                detail="No futures close/reduce live execution boundary is enabled; rows remain blocked evidence only.",
+            ),
+        ]
+        cancel_semantic_guards = [
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.IDEMPOTENCY,
+                applies_to_fields=[AdminFuturesCommandRequestField.CLIENT_ORDER_ID],
+                identity_semantic=True,
+                audit_semantic=True,
+                detail="Futures cancel idempotency must bind client_order_id to backend submission evidence and cannot use exchange order_id as identity.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.PRODUCT_SCOPE,
+                applies_to_fields=[AdminFuturesCommandRequestField.PRODUCT_ID],
+                identity_semantic=True,
+                detail="Optional cancel product context is backend evidence only and cannot be inferred by the browser.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.ADMISSION_AUDIT,
+                applies_to_fields=cancel_request_fields and [
+                    item.field for item in cancel_request_fields
+                ],
+                audit_semantic=True,
+                detail="Cancel admission must record append-only backend audit evidence before calling the project cancel_order(client_order_id) wrapper.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.RECONCILIATION_PLAN,
+                applies_to_fields=[AdminFuturesCommandRequestField.CLIENT_ORDER_ID],
+                execution_semantic=True,
+                detail="Cancel requires exchange-truth and reconciliation evidence for the tracked client_order_id before state changes are accepted.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.LIVE_EXECUTION_BOUNDARY,
+                applies_to_fields=cancel_request_fields and [
+                    item.field for item in cancel_request_fields
+                ],
+                execution_semantic=True,
+                detail="No futures cancel live execution boundary is enabled; rows remain blocked evidence only.",
+            ),
+        ]
+        reconciliation_semantic_guards = [
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.POSITION_SCOPE,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.POSITION_KEY,
+                    AdminFuturesCommandRequestField.PRODUCT_ID,
+                ],
+                identity_semantic=True,
+                detail="Reconciliation scope must bind backend position_key and product evidence before any local state repair is allowed.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.MARGIN_COLLATERAL,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.EXPECTED_POSITION_STATE
+                ],
+                risk_semantic=True,
+                detail="Expected position state must be evaluated against backend margin and collateral evidence.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.LIQUIDATION_BUFFER,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.EXPECTED_POSITION_STATE
+                ],
+                risk_semantic=True,
+                detail="Reconciliation must account for liquidation-buffer evidence before accepting a position-state proof.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.FUNDING_FEE,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.EXPECTED_POSITION_STATE
+                ],
+                risk_semantic=True,
+                detail="Funding and fee state must be backend evidence in any future futures reconciliation proof.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.ADMISSION_AUDIT,
+                applies_to_fields=reconciliation_request_fields and [
+                    item.field for item in reconciliation_request_fields
+                ],
+                audit_semantic=True,
+                detail="Reconciliation admission must write append-only backend audit evidence before any local state repair can run.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.RECONCILIATION_PLAN,
+                applies_to_fields=[
+                    AdminFuturesCommandRequestField.POSITION_KEY,
+                    AdminFuturesCommandRequestField.EXPECTED_POSITION_STATE,
+                    AdminFuturesCommandRequestField.RECONCILIATION_REASON,
+                ],
+                audit_semantic=True,
+                execution_semantic=True,
+                detail="A futures reconciliation plan must be backend-owned and cannot be created or executed by the browser.",
+            ),
+            semantic_guard(
+                AdminFuturesCommandSemanticGuard.LIVE_EXECUTION_BOUNDARY,
+                applies_to_fields=reconciliation_request_fields and [
+                    item.field for item in reconciliation_request_fields
+                ],
+                execution_semantic=True,
+                detail="No futures reconciliation executor is enabled; rows remain blocked evidence only.",
+            ),
+        ]
+
         def command(
             command_id: AdminFuturesCommandAction,
             *,
@@ -20168,6 +20466,7 @@ class AdminApiReadService:
             permission: AdminApiPermission,
             prerequisites: list[AdminFuturesCommandPrerequisiteItem],
             request_fields: list[AdminFuturesCommandRequestFieldItem],
+            semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
             return AdminFuturesCommandContractItem(
@@ -20196,6 +20495,16 @@ class AdminApiReadService:
                     if item.status != AdminApiGateStatus.PASSED
                 ),
                 request_fields=request_fields,
+                semantic_guard_count=len(semantic_guards),
+                blocking_semantic_guard_count=sum(
+                    1
+                    for item in semantic_guards
+                    if item.status != AdminApiGateStatus.PASSED
+                ),
+                risk_semantic_guard_count=sum(
+                    1 for item in semantic_guards if item.risk_semantic
+                ),
+                semantic_guards=semantic_guards,
                 required_backend_contracts=backend_contracts,
                 missing_backend_contracts=backend_contracts,
                 forbidden_spot_assumptions=forbidden_spot_assumptions,
@@ -20211,6 +20520,7 @@ class AdminApiReadService:
                 permission=AdminApiPermission.ORDER_CREATE,
                 prerequisites=placement_prerequisites,
                 request_fields=placement_request_fields,
+                semantic_guards=placement_semantic_guards,
                 detail="Futures placement requires futures-specific risk contracts before any command route or draft exists.",
             ),
             command(
@@ -20221,6 +20531,7 @@ class AdminApiReadService:
                 permission=AdminApiPermission.ORDER_CREATE,
                 prerequisites=close_reduce_prerequisites,
                 request_fields=close_reduce_request_fields,
+                semantic_guards=close_reduce_semantic_guards,
                 detail="Futures close/reduce must derive sides from backend position evidence and reduce-only/close-only contracts.",
             ),
             command(
@@ -20231,6 +20542,7 @@ class AdminApiReadService:
                 permission=AdminApiPermission.ORDER_CANCEL,
                 prerequisites=cancel_prerequisites,
                 request_fields=cancel_request_fields,
+                semantic_guards=cancel_semantic_guards,
                 detail=(
                     "Futures cancel requires backend-owned client_order_id "
                     "discipline and exchange-reality reconciliation before a "
@@ -20245,6 +20557,7 @@ class AdminApiReadService:
                 permission=AdminApiPermission.RECONCILIATION_RECORD,
                 prerequisites=reconciliation_prerequisites,
                 request_fields=reconciliation_request_fields,
+                semantic_guards=reconciliation_semantic_guards,
                 detail="Futures reconciliation must be position, margin, collateral, funding, and liquidation aware before any executor exists.",
             ),
         ]
@@ -20266,6 +20579,15 @@ class AdminApiReadService:
             ),
             blocking_request_field_count=sum(
                 command.blocking_request_field_count for command in commands
+            ),
+            semantic_guard_count=sum(
+                command.semantic_guard_count for command in commands
+            ),
+            blocking_semantic_guard_count=sum(
+                command.blocking_semantic_guard_count for command in commands
+            ),
+            risk_semantic_guard_count=sum(
+                command.risk_semantic_guard_count for command in commands
             ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],

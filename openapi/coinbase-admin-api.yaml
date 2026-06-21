@@ -12528,6 +12528,26 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRequestFieldItem'
           type: array
           title: Request Fields
+        semantic_guard_count:
+          type: integer
+          minimum: 0.0
+          title: Semantic Guard Count
+          default: 0
+        blocking_semantic_guard_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Semantic Guard Count
+          default: 0
+        risk_semantic_guard_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Semantic Guard Count
+          default: 0
+        semantic_guards:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandSemanticGuardItem'
+          type: array
+          title: Semantic Guards
         required_backend_contracts:
           items:
             type: string
@@ -12740,6 +12760,85 @@ components:
       - detail
       title: AdminFuturesCommandRequestFieldItem
       description: One planned futures/perpetual command request field row.
+    AdminFuturesCommandSemanticGuard:
+      type: string
+      enum:
+      - product_scope
+      - position_scope
+      - margin_collateral
+      - liquidation_buffer
+      - funding_fee
+      - reduce_only
+      - close_only
+      - idempotency
+      - approval_snapshot
+      - cap_guard
+      - admission_audit
+      - reconciliation_plan
+      - live_execution_boundary
+      title: AdminFuturesCommandSemanticGuard
+      description: Backend-owned futures/perpetual command semantic guard categories.
+    AdminFuturesCommandSemanticGuardItem:
+      properties:
+        semantic_guard:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticGuard'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        applies_to_fields:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+          type: array
+          title: Applies To Fields
+        required:
+          type: boolean
+          title: Required
+          default: true
+        identity_semantic:
+          type: boolean
+          title: Identity Semantic
+          default: false
+        risk_semantic:
+          type: boolean
+          title: Risk Semantic
+          default: false
+        audit_semantic:
+          type: boolean
+          title: Audit Semantic
+          default: false
+        execution_semantic:
+          type: boolean
+          title: Execution Semantic
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - semantic_guard
+      - detail
+      title: AdminFuturesCommandSemanticGuardItem
+      description: One backend-owned futures/perpetual command semantic guard row.
     AdminFuturesCommandSuiteResponse:
       properties:
         type:
@@ -12805,6 +12904,21 @@ components:
           type: integer
           minimum: 0.0
           title: Blocking Request Field Count
+          default: 0
+        semantic_guard_count:
+          type: integer
+          minimum: 0.0
+          title: Semantic Guard Count
+          default: 0
+        blocking_semantic_guard_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Semantic Guard Count
+          default: 0
+        risk_semantic_guard_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Semantic Guard Count
           default: 0
         commands:
           items:

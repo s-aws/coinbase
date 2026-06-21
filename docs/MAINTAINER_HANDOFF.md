@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5161-5180` under M57.
-- Active autonomous range: `5181-5200` under M57.
+- Latest completed autonomous range: `5181-5200` under M57.
+- Active autonomous range: `5201-5220` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -547,11 +547,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   registering no futures command routes, allowing no command drafts, running
   no reconciliation executor, calling no Coinbase reads/writes, mutating no
   state, and forbidding spot wallet, no-shorting, USDC quote, cost-basis, and
-  inventory-lot assumptions as futures/perpetual authority. Active 5181-5200
-  work extends that same read-only route with backend-owned request-field
-  metadata for those planned futures command families; it must not add command
-  routes, command drafts, Coinbase calls, reconciliation execution, state
-  mutation, browser authority, or BFF execution authority.
+  inventory-lot assumptions as futures/perpetual authority. Completed
+  5181-5200 work extends that same read-only route with backend-owned
+  request-field metadata for those planned futures command families. Active
+  5201-5220 work adds backend-owned semantic guard metadata for identity,
+  risk, audit, reconciliation, and live-boundary blockers; it must not add
+  command routes, command drafts, Coinbase calls, reconciliation execution,
+  state mutation, browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

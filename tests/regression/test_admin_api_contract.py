@@ -7336,6 +7336,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "request_field_count" in futures_command_item_schema["properties"]
     assert "required_request_field_count" in futures_command_item_schema["properties"]
     assert "blocking_request_field_count" in futures_command_item_schema["properties"]
+    assert "semantic_guards" in futures_command_item_schema["properties"]
+    assert "semantic_guard_count" in futures_command_item_schema["properties"]
+    assert "blocking_semantic_guard_count" in futures_command_item_schema["properties"]
+    assert "risk_semantic_guard_count" in futures_command_item_schema["properties"]
     assert "command_route_registered" in futures_command_item_schema["properties"]
     assert "command_draft_allowed" in futures_command_item_schema["properties"]
     assert "execution_allowed" in futures_command_item_schema["properties"]
@@ -7346,6 +7350,14 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "identity_field" in futures_request_field_schema["properties"]
     assert "risk_field" in futures_request_field_schema["properties"]
     assert "spot_rule_authority" in futures_request_field_schema["properties"]
+    futures_semantic_guard_schema = written["components"]["schemas"][
+        "AdminFuturesCommandSemanticGuardItem"
+    ]
+    assert "semantic_guard" in futures_semantic_guard_schema["properties"]
+    assert "applies_to_fields" in futures_semantic_guard_schema["properties"]
+    assert "risk_semantic" in futures_semantic_guard_schema["properties"]
+    assert "execution_semantic" in futures_semantic_guard_schema["properties"]
+    assert "spot_rule_authority" in futures_semantic_guard_schema["properties"]
     risk_policy_schema = written["components"]["schemas"][
         "AdminRiskPolicyReadResponse"
     ]
@@ -46166,7 +46178,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5181-5200",
+            "approved_phase_range": "5201-5220",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -46178,6 +46190,9 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             "request_field_count": 2,
             "required_request_field_count": 2,
             "blocking_request_field_count": 2,
+            "semantic_guard_count": 2,
+            "blocking_semantic_guard_count": 2,
+            "risk_semantic_guard_count": 1,
             "commands": [
                 {
                     "command": "futures_place",
@@ -46253,6 +46268,43 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                             "browser_authority": "display_only",
                             "bff_authority": "forward_only_no_execution",
                             "detail": "Internal tracking uses client_order_id.",
+                        },
+                    ],
+                    "semantic_guard_count": 2,
+                    "blocking_semantic_guard_count": 2,
+                    "risk_semantic_guard_count": 1,
+                    "semantic_guards": [
+                        {
+                            "semantic_guard": "product_scope",
+                            "status": "blocked",
+                            "source": "backend_contract",
+                            "applies_to_fields": ["product_id"],
+                            "required": True,
+                            "identity_semantic": True,
+                            "risk_semantic": False,
+                            "audit_semantic": False,
+                            "execution_semantic": False,
+                            "backend_owned": True,
+                            "spot_rule_authority": False,
+                            "browser_authority": "display_only",
+                            "bff_authority": "forward_only_no_execution",
+                            "detail": "Product scope is backend-owned futures metadata.",
+                        },
+                        {
+                            "semantic_guard": "margin_collateral",
+                            "status": "blocked",
+                            "source": "backend_contract",
+                            "applies_to_fields": ["product_id"],
+                            "required": True,
+                            "identity_semantic": False,
+                            "risk_semantic": True,
+                            "audit_semantic": False,
+                            "execution_semantic": False,
+                            "backend_owned": True,
+                            "spot_rule_authority": False,
+                            "browser_authority": "display_only",
+                            "bff_authority": "forward_only_no_execution",
+                            "detail": "Margin and collateral are backend-owned futures risk semantics.",
                         },
                     ],
                     "required_backend_contracts": [
@@ -46371,16 +46423,23 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5181-5200"
+    assert command_suite["approved_phase_range"] == "5201-5220"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
     assert command_suite["blocking_request_field_count"] == 2
+    assert command_suite["semantic_guard_count"] == 2
+    assert command_suite["blocking_semantic_guard_count"] == 2
+    assert command_suite["risk_semantic_guard_count"] == 1
     assert command_suite["spot_rule_authority"] is False
     assert command_suite["live_coinbase_orders_ran"] is False
     assert command_suite["commands"][0]["command"] == "futures_place"
     assert command_suite["commands"][0]["execution_allowed"] is False
     assert command_suite["commands"][0]["request_fields"][0]["field"] == "product_id"
+    assert command_suite["commands"][0]["semantic_guards"][0]["semantic_guard"] == (
+        "product_scope"
+    )
+    assert command_suite["commands"][0]["semantic_guards"][1]["risk_semantic"] is True
     assert "spot_no_shorting" in command_suite["forbidden_spot_assumptions"]
     assert positions_response.status_code == 200
     position = positions_response.json()["items"][0]
@@ -46496,7 +46555,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5181-5200"
+    assert command_suite.approved_phase_range == "5201-5220"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -46505,6 +46564,9 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.request_field_count == 22
     assert command_suite.required_request_field_count == 22
     assert command_suite.blocking_request_field_count == 22
+    assert command_suite.semantic_guard_count == 33
+    assert command_suite.blocking_semantic_guard_count == 33
+    assert command_suite.risk_semantic_guard_count == 12
     assert command_suite.spot_rule_authority is False
     assert command_suite.live_coinbase_orders_ran is False
     assert "spot_no_shorting" in command_suite.forbidden_spot_assumptions
@@ -46521,6 +46583,8 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert place.execution_allowed is False
     assert place.identity_key == "product_id"
     assert place.request_field_count == 7
+    assert place.semantic_guard_count == 10
+    assert place.risk_semantic_guard_count == 4
     place_request_fields = {item.field.value: item for item in place.request_fields}
     assert set(place_request_fields) == {
         "product_id",
@@ -46539,8 +46603,20 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert place_prerequisites["margin"].resolved is True
     assert place_prerequisites["collateral"].resolved is False
     assert place_prerequisites["funding"].resolved is False
+    place_semantic_guards = {
+        item.semantic_guard.value: item for item in place.semantic_guards
+    }
+    assert place_semantic_guards["product_scope"].identity_semantic is True
+    assert place_semantic_guards["product_scope"].spot_rule_authority is False
+    assert "product_id" in [
+        field.value for field in place_semantic_guards["product_scope"].applies_to_fields
+    ]
+    assert place_semantic_guards["margin_collateral"].risk_semantic is True
+    assert "spot USDC" in place_semantic_guards["product_scope"].detail
     close_reduce = commands_by_id["futures_close_reduce"]
     assert close_reduce.identity_key == "position_key"
+    assert close_reduce.semantic_guard_count == 11
+    assert close_reduce.risk_semantic_guard_count == 5
     close_reduce_request_fields = {
         item.field.value: item for item in close_reduce.request_fields
     }
@@ -46551,9 +46627,17 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
         item.prerequisite.value: item for item in close_reduce.prerequisites
     }
     assert close_reduce_prerequisites["reduce_only_close_only"].resolved is True
+    close_reduce_semantic_guards = {
+        item.semantic_guard.value: item for item in close_reduce.semantic_guards
+    }
+    assert close_reduce_semantic_guards["reduce_only"].risk_semantic is True
+    assert close_reduce_semantic_guards["close_only"].risk_semantic is True
+    assert "wallet inventory" in close_reduce_semantic_guards["position_scope"].detail
     cancel = commands_by_id["futures_cancel"]
     assert cancel.identity_key == "client_order_id"
     assert "client_order_id discipline" in cancel.detail
+    assert cancel.semantic_guard_count == 5
+    assert cancel.risk_semantic_guard_count == 0
     cancel_request_fields = {item.field.value: item for item in cancel.request_fields}
     assert set(cancel_request_fields) == {
         "client_order_id",
@@ -46563,10 +46647,23 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert "order_id" not in cancel_request_fields
     assert cancel_request_fields["client_order_id"].identity_field is True
     assert "client_order_id" in cancel_request_fields["client_order_id"].detail
+    cancel_semantic_guards = {
+        item.semantic_guard.value: item for item in cancel.semantic_guards
+    }
+    assert cancel_semantic_guards["idempotency"].identity_semantic is True
+    assert "order_id" in cancel_semantic_guards["idempotency"].detail
+    assert cancel_semantic_guards["idempotency"].spot_rule_authority is False
     reconcile = commands_by_id["futures_reconcile"]
+    assert reconcile.semantic_guard_count == 7
+    assert reconcile.risk_semantic_guard_count == 3
     reconcile_request_fields = {item.field.value: item for item in reconcile.request_fields}
     assert reconcile_request_fields["position_key"].identity_field is True
     assert reconcile_request_fields["expected_position_state"].risk_field is True
+    reconcile_semantic_guards = {
+        item.semantic_guard.value: item for item in reconcile.semantic_guards
+    }
+    assert reconcile_semantic_guards["reconciliation_plan"].execution_semantic is True
+    assert "browser" in reconcile_semantic_guards["reconciliation_plan"].detail
     assert command_suite.submitted_notional_usdc == "0"
     assert command_suite.executed_notional_usdc == "0"
 

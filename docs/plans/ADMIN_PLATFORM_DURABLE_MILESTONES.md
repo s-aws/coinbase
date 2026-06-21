@@ -3172,10 +3172,12 @@ Current backend evidence:
   futures/perpetual command-suite contract evidence for placement,
   close/reduce, cancel, and reconciliation without adding command routes,
   command drafts, live execution, Coinbase calls, or spot-rule authority.
-  Active phases 5181-5200 extend that same futures/perpetual command-suite
+  Completed phases 5181-5200 extend that same futures/perpetual command-suite
   route with backend-owned request-field metadata while keeping every field
   blocked, read-only, no-live, and non-authoritative for browser/BFF command
-  execution.
+  execution. Active phases 5201-5220 add semantic guard metadata for identity,
+  risk, audit, reconciliation, and live-boundary blockers while preserving
+  blocked/no-live/no-command-route authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

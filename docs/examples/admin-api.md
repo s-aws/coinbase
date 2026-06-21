@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5181-5200",
+  "approved_phase_range": "5201-5220",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5181-5200",
+  "approved_phase_range": "5201-5220",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1863,9 +1863,10 @@ cancel, or liquidate positions.
 
 Futures/perpetual command-suite reads expose backend-owned M57 contract
 evidence for future placement, close/reduce, cancel, and reconciliation
-commands. The response is still read-only: it registers no command routes,
-allows no command drafts, performs no reconciliation execution, calls no
-Coinbase reads or writes, and grants no browser/BFF execution authority.
+commands, including blocked request-field rows and semantic guard rows. The
+response is still read-only: it registers no command routes, allows no command
+drafts, performs no reconciliation execution, calls no Coinbase reads or
+writes, and grants no browser/BFF execution authority.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -1880,13 +1881,19 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5181-5200",
+  "approved_phase_range": "5201-5220",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
   "executable_command_count": 0,
   "command_route_count": 0,
   "command_draft_allowed_count": 0,
+  "request_field_count": 22,
+  "required_request_field_count": 22,
+  "blocking_request_field_count": 22,
+  "semantic_guard_count": 33,
+  "blocking_semantic_guard_count": 33,
+  "risk_semantic_guard_count": 12,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",

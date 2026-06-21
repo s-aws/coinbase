@@ -11,7 +11,7 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5181-5200 range adds read-only M57 futures/perpetual request-field
+The active 5201-5220 range adds read-only M57 futures/perpetual semantic guard
 contract metadata to the existing command-suite evidence. It is not a command
 route and does not make command drafts available.
 
@@ -28,7 +28,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5181-5200",
+  "approved_phase_range": "5201-5220",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -38,6 +38,9 @@ Expected response posture:
   "request_field_count": 22,
   "required_request_field_count": 22,
   "blocking_request_field_count": 22,
+  "semantic_guard_count": 33,
+  "blocking_semantic_guard_count": 33,
+  "risk_semantic_guard_count": 12,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -55,6 +58,9 @@ Expected response posture:
       "identity_key": "product_id",
       "request_field_count": 7,
       "blocking_request_field_count": 7,
+      "semantic_guard_count": 10,
+      "blocking_semantic_guard_count": 10,
+      "risk_semantic_guard_count": 4,
       "request_fields": [
         {
           "field": "product_id",
@@ -81,6 +87,32 @@ Expected response posture:
           "browser_authority": "display_only"
         }
       ],
+      "semantic_guards": [
+        {
+          "semantic_guard": "product_scope",
+          "status": "blocked",
+          "identity_semantic": true,
+          "risk_semantic": false,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only"
+        },
+        {
+          "semantic_guard": "margin_collateral",
+          "status": "blocked",
+          "identity_semantic": false,
+          "risk_semantic": true,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only"
+        },
+        {
+          "semantic_guard": "live_execution_boundary",
+          "status": "blocked",
+          "execution_semantic": true,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        }
+      ],
       "command_route_registered": false,
       "command_draft_allowed": false,
       "execution_allowed": false
@@ -103,6 +135,9 @@ Expected response posture:
       "route": null,
       "service_method": "cancel_futures_order_contract_required",
       "identity_key": "client_order_id",
+      "semantic_guard_count": 5,
+      "blocking_semantic_guard_count": 5,
+      "risk_semantic_guard_count": 0,
       "request_fields": [
         {
           "field": "client_order_id",
@@ -119,6 +154,20 @@ Expected response posture:
           "field": "operator_notes",
           "status": "blocked",
           "identity_field": false
+        }
+      ],
+      "semantic_guards": [
+        {
+          "semantic_guard": "idempotency",
+          "status": "blocked",
+          "identity_semantic": true,
+          "detail": "Futures cancel must call cancel_order with client_order_id; exchange order_id is exchange evidence only."
+        },
+        {
+          "semantic_guard": "admission_audit",
+          "status": "blocked",
+          "audit_semantic": true,
+          "spot_rule_authority": false
         }
       ],
       "command_route_registered": false,

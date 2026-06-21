@@ -25,6 +25,7 @@ from core.enums import (
     AdminFuturesCommandAction,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandRequestField,
+    AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminApiGateStatus,
@@ -3918,6 +3919,29 @@ class AdminFuturesCommandRequestFieldItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandSemanticGuardItem(BaseModel):
+    """One backend-owned futures/perpetual command semantic guard row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    semantic_guard: AdminFuturesCommandSemanticGuard
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    applies_to_fields: list[AdminFuturesCommandRequestField] = Field(
+        default_factory=list
+    )
+    required: bool = True
+    identity_semantic: bool = False
+    risk_semantic: bool = False
+    audit_semantic: bool = False
+    execution_semantic: bool = False
+    backend_owned: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandContractItem(BaseModel):
     """One planned futures/perpetual command contract row."""
 
@@ -3944,6 +3968,12 @@ class AdminFuturesCommandContractItem(BaseModel):
     required_request_field_count: int = Field(default=0, ge=0)
     blocking_request_field_count: int = Field(default=0, ge=0)
     request_fields: list[AdminFuturesCommandRequestFieldItem] = Field(
+        default_factory=list
+    )
+    semantic_guard_count: int = Field(default=0, ge=0)
+    blocking_semantic_guard_count: int = Field(default=0, ge=0)
+    risk_semantic_guard_count: int = Field(default=0, ge=0)
+    semantic_guards: list[AdminFuturesCommandSemanticGuardItem] = Field(
         default_factory=list
     )
     required_backend_contracts: list[str] = Field(default_factory=list)
@@ -3979,6 +4009,9 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     request_field_count: int = Field(default=0, ge=0)
     required_request_field_count: int = Field(default=0, ge=0)
     blocking_request_field_count: int = Field(default=0, ge=0)
+    semantic_guard_count: int = Field(default=0, ge=0)
+    blocking_semantic_guard_count: int = Field(default=0, ge=0)
+    risk_semantic_guard_count: int = Field(default=0, ge=0)
     commands: list[AdminFuturesCommandContractItem] = Field(default_factory=list)
     account_evidence_routes: list[str] = Field(default_factory=list)
     position_evidence_routes: list[str] = Field(default_factory=list)

@@ -1100,6 +1100,24 @@ class AdminFuturesCommandRequestField(str, Enum):
     OPERATOR_NOTES = "operator_notes"
 
 
+class AdminFuturesCommandSemanticGuard(str, Enum):
+    """Backend-owned futures/perpetual command semantic guard categories."""
+
+    PRODUCT_SCOPE = "product_scope"
+    POSITION_SCOPE = "position_scope"
+    MARGIN_COLLATERAL = "margin_collateral"
+    LIQUIDATION_BUFFER = "liquidation_buffer"
+    FUNDING_FEE = "funding_fee"
+    REDUCE_ONLY = "reduce_only"
+    CLOSE_ONLY = "close_only"
+    IDEMPOTENCY = "idempotency"
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    CAP_GUARD = "cap_guard"
+    ADMISSION_AUDIT = "admission_audit"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    LIVE_EXECUTION_BOUNDARY = "live_execution_boundary"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5181-5200**.
+- Approved phase range: **5201-5220**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5161-5180`.
+- Previous completed range: `5181-5200`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5180`.
+- `current_phase`: `5200`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,131 +67,151 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5181-5200
+## Active Phases 5201-5220
 
-Batch label: Futures/Perpetuals Command Request-Field Contract Metadata.
+Batch label: Futures/Perpetuals Command Semantic Guard Contract Metadata.
 
 These phases extend the existing read-only M57 futures/perpetual
-command-suite route with per-command request-field metadata. The concrete gap
-is that a contextless maintainer can now see which futures actions exist, but
-not which request fields would be required before a future command path can be
-specified. The work must remain read-only and no-live: no futures command
-route, no command draft, no manager invocation, no exchange order
-placement/cancellation, no Coinbase read, no reconciliation execution, no
-state mutation, and no browser/BFF execution authority. Spot wallet,
-no-shorting, USDC, cost-basis, average-cost, and inventory-lot rules remain
-explicitly forbidden as futures/perpetual authority.
+command-suite route with backend-owned semantic guard metadata for each
+planned command family. The concrete gap is that request fields now exist,
+but a contextless maintainer still needs to know which field groups are
+identity, risk, audit, reconciliation, and live-boundary blockers before any
+future command path can be specified. The work must remain read-only and
+no-live: no futures command route, no command draft, no manager invocation,
+no exchange order placement/cancellation, no Coinbase read, no reconciliation
+execution, no state mutation, and no browser/BFF execution authority. Spot
+wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot rules
+remain explicitly forbidden as futures/perpetual authority.
 
-### Phase 5181 - Prior Range Completion Evidence
+### Phase 5201 - Prior Range Completion Evidence
 
-- Record completed phases 5161-5180 with backend commit `f0fdef3e`, frontend
-  commit `5209e34`, focused backend/frontend gates, no-live UI smoke at
-  `http://127.0.0.1:3002/#futures-perpetuals`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5161-5180-futures-command-suite.png`,
+- Record completed phases 5181-5200 with backend commit `f4b032c4`,
+  frontend commit `01be05d`, focused backend/frontend gates, no-live UI smoke
+  at `http://127.0.0.1:3002/#futures-perpetuals`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5181-5200-futures-request-fields-table.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5182 - Advance Active Queue Range
+### Phase 5202 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5161-5180 to active phases
-  5181-5200 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5181-5200 to active phases
+  5201-5220 while preserving no-live defaults and cap policy.
 
-### Phase 5183 - Request-Field Gap Declaration
+### Phase 5203 - Semantic Guard Gap Declaration
 
-- Document that the futures command-suite has action/prerequisite rows but
-  lacks backend-owned request-field contract metadata for placement,
-  close/reduce, cancel, and reconciliation.
+- Document that futures/perpetual request-field metadata exists but lacks
+  backend-owned semantic guard rows for product scope, position scope,
+  margin/collateral, liquidation, funding fees, reduce-only, close-only,
+  idempotency, approval snapshots, cap guards, admission audit,
+  reconciliation planning, and live execution boundaries.
 
-### Phase 5184 - Request-Field Enums And Models
+### Phase 5204 - Semantic Guard Enums And Models
 
-- Add enum-backed backend request-field metadata models without introducing
+- Add enum-backed backend semantic guard metadata models without introducing
   magic strings, command drafts, or executable payload acceptance.
 
-### Phase 5185 - Placement Field Contract Rows
+### Phase 5205 - Placement Semantic Guard Rows
 
-- Add read-only placement request-field rows for product scope, side, order
-  type, size, price, time-in-force, and backend-owned `client_order_id`.
+- Add read-only placement semantic guard rows for product scope,
+  margin/collateral, liquidation buffer, funding fee, idempotency, approval
+  snapshot, cap guard, admission audit, reconciliation plan, and live
+  execution boundary semantics.
 
-### Phase 5186 - Close/Reduce Field Contract Rows
+### Phase 5206 - Close/Reduce Semantic Guard Rows
 
-- Add read-only close/reduce request-field rows for position identity,
-  backend-derived side, size, reduce-only, close-only, product context, and
-  backend-owned `client_order_id`.
+- Add read-only close/reduce semantic guard rows for position scope,
+  reduce-only, close-only, margin/collateral, liquidation buffer,
+  idempotency, approval snapshot, cap guard, admission audit, reconciliation
+  plan, and live execution boundary semantics.
 
-### Phase 5187 - Cancel Field Contract Rows
+### Phase 5207 - Cancel Semantic Guard Rows
 
-- Add read-only cancel request-field rows proving future futures cancellation
-  is keyed by `client_order_id`; exchange `order_id` remains exchange evidence
-  only and must not become internal request identity.
+- Add read-only cancel semantic guard rows proving future futures cancellation
+  remains keyed by `client_order_id`; exchange `order_id` remains exchange
+  evidence only and must not become internal request identity.
 
-### Phase 5188 - Reconciliation Field Contract Rows
+### Phase 5208 - Reconciliation Semantic Guard Rows
 
-- Add read-only reconciliation request-field rows for `position_key`,
-  product scope, expected position state, reconciliation reason, and operator
-  notes.
+- Add read-only reconciliation semantic guard rows for position scope,
+  margin/collateral, liquidation buffer, funding fee, admission audit,
+  reconciliation plan, and live execution boundary semantics.
 
-### Phase 5189 - Suite-Level Field Counts
+### Phase 5209 - Suite-Level Semantic Guard Counts
 
-- Add suite and command-level request-field counts, required-field counts, and
-  blocking-field counts while keeping executable, route, and draft counts at
-  zero.
+- Add suite and command-level semantic guard counts, blocking counts, and risk
+  semantic counts while keeping executable, route, and draft counts at zero.
 
-### Phase 5190 - OpenAPI Sync
+### Phase 5210 - OpenAPI Sync
 
-- Regenerate the Admin API OpenAPI artifact and assert request-field schemas
+- Regenerate the Admin API OpenAPI artifact and assert semantic guard schemas
   and counts are present on `GET /api/v1/futures/command-suite`.
 
-### Phase 5191 - Backend Focused Regression
+### Phase 5211 - Backend Focused Regression
 
-- Run focused Admin API contract tests covering request-field schema, counts,
-  cancel `client_order_id` discipline, no `order_id` internal identity, no-live
-  posture, and no spot-rule leakage.
+- Run focused Admin API contract tests covering semantic guard schema,
+  counts, cancel `client_order_id` discipline, no `order_id` internal
+  identity, no-live posture, and no spot-rule leakage.
 
-### Phase 5192 - Frontend Schema Sync
+### Phase 5212 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5193 - Frontend Adapter And Runtime Mapping
+### Phase 5213 - Frontend Adapter And Runtime Mapping
 
-- Map request-field rows and counts into the Futures / Perpetuals read-model
+- Map semantic guard rows and counts into the Futures / Perpetuals read-model
   adapter without adding command drafts or BFF mutation forwarding.
 
-### Phase 5194 - Mock Backend Fixture
+### Phase 5214 - Mock Backend Fixture
 
-- Update mock futures command-suite evidence with request-field rows for all
+- Update mock futures command-suite evidence with semantic guard rows for all
   four planned command families and explicit forbidden spot assumptions.
 
-### Phase 5195 - Futures Read Model Display
+### Phase 5215 - Futures Read Model Display
 
-- Display request-field contract evidence in the Futures / Perpetuals admin
+- Display semantic guard contract evidence in the Futures / Perpetuals admin
   view as backend-owned, blocked, read-only evidence with no command controls.
 
-### Phase 5196 - Frontend Coverage
+### Phase 5216 - Frontend Coverage
 
 - Add focused frontend assertions for generated type consumption, runtime
-  snapshot, mock backend, and read-model request-field display.
+  snapshot, mock backend, and read-model semantic guard display.
 
-### Phase 5197 - Documentation And Examples
+### Phase 5217 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
-  handoff, and expanded context for the M57 request-field contract slice.
+  handoff, and expanded context for the M57 semantic guard contract slice.
 
-### Phase 5198 - Contextless Review
+### Phase 5218 - Contextless Review
 
 - Run blind/contextless review focused on whether a maintainer can explain how
-  futures placement, close/reduce, cancel, and reconciliation would be shaped
-  without importing spot-only rules or assuming executable command authority.
+  futures placement, close/reduce, cancel, and reconciliation semantic guards
+  block execution without importing spot-only rules or assuming command
+  authority.
 
-### Phase 5199 - Focused Gates And UI Smoke
+### Phase 5219 - Focused Gates And UI Smoke
 
 - Run focused backend/frontend gates, autonomous validators, release/deployment
-  checks, and a no-live UI smoke for the Futures / Perpetuals request-field
+  checks, and a no-live UI smoke for the Futures / Perpetuals semantic guard
   display. Full backend regression remains reserved for milestone/release
   closeout or explicit request.
 
-### Phase 5200 - Commit And Push
+### Phase 5220 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI URL, and the next M57 enablement step.
+
+## Completed Phases 5181-5200
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with per-command request-field metadata for placement, close/reduce, cancel,
+and reconciliation. The request-field rows are backend-owned blocked evidence
+only; they are not accepted payloads, browser form authority, command drafts,
+command routes, Coinbase calls, state mutation, or BFF execution authority.
+The range completed with backend commit `f4b032c4`, frontend commit
+`01be05d`, focused backend/frontend gates, blind/contextless review, UI smoke
+at `http://127.0.0.1:3002/#futures-perpetuals`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-5181-5200-futures-request-fields-table.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed Phases 5161-5180
 
