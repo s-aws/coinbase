@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5501-5520",
+  "approved_phase_range": "5521-5540",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5501-5520",
+  "approved_phase_range": "5521-5540",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5501-5520",
+  "approved_phase_range": "5521-5540",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1945,6 +1945,10 @@ Expected command-suite posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 720,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
   "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 720,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 720,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
+  "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -2036,6 +2040,19 @@ missing step-review refs, missing contextless-review refs, and blockers. They
 remain blocked with `clearance_step_ready=false`,
 `clearance_step_complete=false`, `clearance_plan_ready=false`,
 `claim_trace_ready=false`, and `claim_resolved=false`.
+Each clearance step also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews"`
+for the blocked backend-owned clearance-step review rows that would be required
+before the step could ever be accepted as reviewed. Clearance-step review rows
+name review refs, source step refs, predecessor/successor review refs,
+required owner/contextless review inputs, missing backend review contracts,
+missing review-gate refs, and blockers. They remain blocked with
+`clearance_step_review_ready=false`,
+`clearance_step_review_complete=false`,
+`clearance_step_review_inputs_present=false`,
+`clearance_step_review_gates_passed=false`, `accepts_evidence=false`,
+`writes_evidence=false`, `clearance_step_ready=false`, and
+`claim_resolved=false`.
 Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
@@ -2044,7 +2061,7 @@ routes, create drafts, validate payloads, write proofs, enable writers,
 resolve dependencies, create remediation or dependency work items, claim work
 items, create or resolve claim traces, create or execute clearance plans,
 execute clearance steps, complete clearance-step reviews, clear claim traces,
-register claim ledgers, perform remediation, call Coinbase, execute
+accept review inputs, register claim ledgers, perform remediation, call Coinbase, execute
 reconciliation, or grant browser/BFF authority.
 
 ```http
