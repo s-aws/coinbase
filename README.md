@@ -58,8 +58,10 @@ This project is tested on:
 - Coinbase Advanced Trade API (REST + WebSocket)
 
 Run focused tests and validators for ordinary changes. Full regression is a
-major-milestone, release, deployment, Admin API/backend association closeout, or
-explicit-request gate. Use the process-parallel runner for that closeout gate:
+durable milestone closeout, public/release-candidate handoff, deployment
+approval/closeout, release-hardening closeout, Admin API/backend association
+closeout, or explicit user request gate. Use the process-parallel runner for
+that closeout gate:
 ```powershell
 python tools\run_parallel_regression.py --workers 4
 ```

@@ -45,7 +45,7 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 - Shared controller, router, formatter, tool-selection, model-routing, mutation, fixture, or approval behavior: run focused tests that cover the changed behavior before completion.
 - Runtime-facing behavior: run focused tests, live validation through the relevant localhost ports, AnythingLLM proof when applicable, and both frozen fixture checks when those surfaces are affected.
 - Cross-cutting, release-candidate, model-portability, skill-library-scale, or unbounded-blast-radius changes: run the focused checks that cover the changed behavior before ordinary phase completion.
-- Full `tests/regression/` is a major-milestone closeout gate, not an ordinary phase gate. Run it before marking a durable milestone complete, before public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or when explicitly requested.
+- Full `tests/regression/` is a durable milestone closeout gate, not an ordinary phase gate. Run it before durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request.
 
 Canonical full regression closeout command:
 

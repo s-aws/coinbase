@@ -135,7 +135,7 @@ When extending UI behavior, update both dashboard handler logic and the correspo
 ## Testing Commands (PowerShell)
 
 Use focused tests and validators for ordinary phases. The full regression gate
-is reserved for major milestone closeout, public/release-candidate handoff,
+is reserved for durable milestone closeout, public/release-candidate handoff,
 deployment approval/closeout, release-hardening closeout, Admin API/backend
 association closeout, or explicit user request. The canonical closeout command
 is the process-parallel helper; use the sequential pytest command only as an
@@ -143,7 +143,7 @@ intentional fallback when `pytest-xdist` is unavailable.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell
-# Full regression closeout gate - major milestone closeout only unless explicitly requested
+# Full regression closeout gate - durable milestone closeout only unless explicitly requested
 python tools/run_parallel_regression.py --workers 4
 
 # Sequential fallback only when pytest-xdist is unavailable

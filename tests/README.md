@@ -25,8 +25,9 @@ tests/
 
 Use focused tests and validators for ordinary phase work. The full
 `tests/regression/` gate is reserved for durable milestone closeout,
-public/release-candidate handoff, deployment approval, or explicit user
-request.
+public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or explicit
+user request.
 
 When the full regression gate is required, prefer the process-parallel helper:
 

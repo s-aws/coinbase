@@ -62,7 +62,8 @@ python tools/classify_repo_files.py --format markdown
 
 Focused checks are the normal validation path for ordinary phase work. Full
 regression is reserved for durable milestone closeout, public/release-candidate
-handoff, or explicit user request:
+handoff, deployment approval/closeout, release-hardening closeout,
+Admin API/backend association closeout, or explicit user request:
 
 ```powershell
 python tools/run_parallel_regression.py --workers 4

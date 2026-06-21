@@ -31,7 +31,7 @@ Before deploying any changes to the platform (architectural changes, new feature
 
 ## Phase 4: Full Regression Closeout
 
-- [ ] Run full regression before durable milestone closeout, release-candidate handoff, or deployment approval
+- [ ] Run full regression before durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request
   ```bash
   python tools/run_parallel_regression.py --workers 4
   ```

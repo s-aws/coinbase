@@ -39,6 +39,26 @@ REGRESSION_POLICY_DOCS = (
     "tests/TEST_FILES_INDEX.md",
 )
 
+PRIMARY_REGRESSION_POLICY_DOCS = (
+    "README.md",
+    "AGENTS.md",
+    "agent.md",
+    "docs/agents/README.md",
+    "docs/agents/INVARIANTS.md",
+    "docs/agents/AGENT_ADMIN_API_CONTRACT.md",
+    "tests/README.md",
+    "tests/DEPLOYMENT_CHECKLIST.md",
+)
+
+REQUIRED_FULL_REGRESSION_TRIGGERS = (
+    "durable milestone closeout",
+    "public/release-candidate handoff",
+    "deployment approval/closeout",
+    "release-hardening closeout",
+    "Admin API/backend association closeout",
+    "explicit user request",
+)
+
 
 def test_regression_policy_docs_make_parallel_runner_canonical():
     root = Path(__file__).resolve().parents[2]
@@ -64,6 +84,18 @@ def test_regression_policy_docs_make_parallel_runner_canonical():
             assert "fallback" in context, (
                 f"{relative_path} names sequential regression without fallback "
                 f"context: {match.group(0)}"
+            )
+
+
+def test_primary_regression_policy_docs_name_required_closeout_triggers():
+    root = Path(__file__).resolve().parents[2]
+
+    for relative_path in PRIMARY_REGRESSION_POLICY_DOCS:
+        text = (root / relative_path).read_text(encoding="utf-8")
+        normalized_text = " ".join(text.split())
+        for trigger in REQUIRED_FULL_REGRESSION_TRIGGERS:
+            assert trigger in normalized_text, (
+                f"{relative_path} missing full regression trigger: {trigger}"
             )
 
 

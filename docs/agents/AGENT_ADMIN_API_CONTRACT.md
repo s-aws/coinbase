@@ -212,7 +212,7 @@ pytest tests/regression/test_admin_api_contract.py -v --tb=short
 Run the full backend regression gate before durable milestone closeout,
 public/release-candidate handoff, deployment approval/closeout,
 release-hardening closeout, Admin API/backend association closeout, or explicit
-full-gate request:
+user request:
 
 ```powershell
 python tools/run_parallel_regression.py --workers 4
