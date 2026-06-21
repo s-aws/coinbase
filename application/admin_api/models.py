@@ -29,6 +29,7 @@ from core.enums import (
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandRiskProofAcceptanceCheck,
+    AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
@@ -4044,6 +4045,36 @@ class AdminFuturesCommandRiskProofAcceptanceCriterionItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRiskProofContractItem(BaseModel):
+    """One blocked backend contract required for a futures risk proof."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_kind: AdminFuturesCommandRiskProofContractKind
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required_backend_contract: str
+    required_route_path: str | None = None
+    required_method: str | None = None
+    required_evidence_ref: str
+    missing_evidence_ref: str
+    route_registered: bool = False
+    writer_enabled: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     """One backend-owned futures/perpetual proof requirement before commands."""
 
@@ -4070,6 +4101,13 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     proof_route_required: bool = True
     proof_route_registered: bool = False
     proof_writer_enabled: bool = False
+    proof_contract_count: int = Field(default=0, ge=0)
+    blocking_proof_contract_count: int = Field(default=0, ge=0)
+    registered_proof_route_count: int = Field(default=0, ge=0)
+    enabled_proof_writer_count: int = Field(default=0, ge=0)
+    proof_contracts: list[AdminFuturesCommandRiskProofContractItem] = Field(
+        default_factory=list
+    )
     acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4131,6 +4169,10 @@ class AdminFuturesCommandContractItem(BaseModel):
     )
     risk_proof_requirement_count: int = Field(default=0, ge=0)
     blocking_risk_proof_requirement_count: int = Field(default=0, ge=0)
+    risk_proof_contract_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
+    registered_risk_proof_route_count: int = Field(default=0, ge=0)
+    enabled_risk_proof_writer_count: int = Field(default=0, ge=0)
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4177,6 +4219,10 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     blocking_readiness_closure_step_count: int = Field(default=0, ge=0)
     risk_proof_requirement_count: int = Field(default=0, ge=0)
     blocking_risk_proof_requirement_count: int = Field(default=0, ge=0)
+    risk_proof_contract_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
+    registered_risk_proof_route_count: int = Field(default=0, ge=0)
+    enabled_risk_proof_writer_count: int = Field(default=0, ge=0)
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)

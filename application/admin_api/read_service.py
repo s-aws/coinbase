@@ -26,6 +26,7 @@ from core.enums import (
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandRiskProofAcceptanceCheck,
+    AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
@@ -109,6 +110,7 @@ from .models import (
     AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
     AdminFuturesCommandRiskProofAcceptanceCriterionItem,
+    AdminFuturesCommandRiskProofContractItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -343,7 +345,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5301-5320"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5321-5340"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20892,6 +20894,84 @@ class AdminApiReadService:
             prerequisites: list[AdminFuturesCommandPrerequisiteItem],
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
         ) -> list[AdminFuturesCommandRiskProofRequirementItem]:
+            def proof_contracts(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+            ) -> list[AdminFuturesCommandRiskProofContractItem]:
+                route_ref = (
+                    f"{command_id.value}_{proof_kind.value}_proof_route_registered"
+                )
+                writer_ref = (
+                    f"{command_id.value}_{proof_kind.value}_proof_writer_reviewed"
+                )
+                route_path = (
+                    f"/api/v1/futures/proofs/{command_id.value}/"
+                    f"{proof_kind.value}"
+                )
+                specs = [
+                    (
+                        AdminFuturesCommandRiskProofContractKind.PROOF_ROUTE,
+                        (
+                            "application/admin_api/futures_proof_routes.py::"
+                            f"post_{command_id.value}_{proof_kind.value}_proof"
+                        ),
+                        route_path,
+                        "POST",
+                        route_ref,
+                        (
+                            f"{command_id.value} {proof_kind.value} requires a "
+                            "backend-owned proof route contract before proof "
+                            "evidence can be accepted. This row does not "
+                            "register a route, accept command payloads, or "
+                            "enable execution."
+                        ),
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofContractKind.PROOF_WRITER,
+                        (
+                            "application/admin_api/futures_proof_writer.py::"
+                            f"write_{command_id.value}_{proof_kind.value}_proof"
+                        ),
+                        None,
+                        "LOCAL",
+                        writer_ref,
+                        (
+                            f"{command_id.value} {proof_kind.value} requires a "
+                            "reviewed backend proof writer before proof "
+                            "evidence can be accepted. This row keeps the "
+                            "writer disabled and cannot mutate exchange or "
+                            "local trading state."
+                        ),
+                    ),
+                ]
+                return [
+                    AdminFuturesCommandRiskProofContractItem(
+                        contract_kind=contract_kind,
+                        sequence=index + 1,
+                        required_backend_contract=required_backend_contract,
+                        required_route_path=required_route_path,
+                        required_method=required_method,
+                        required_evidence_ref=required_evidence_ref,
+                        missing_evidence_ref=required_evidence_ref,
+                        route_registered=False,
+                        writer_enabled=False,
+                        command_route_registered=False,
+                        command_draft_allowed=False,
+                        execution_allowed=False,
+                        proof_route_registered=False,
+                        proof_writer_enabled=False,
+                        detail=detail,
+                    )
+                    for index, (
+                        contract_kind,
+                        required_backend_contract,
+                        required_route_path,
+                        required_method,
+                        required_evidence_ref,
+                        detail,
+                    ) in enumerate(specs)
+                ]
+
             def acceptance_criteria(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -20982,6 +21062,7 @@ class AdminApiReadService:
                     proof_kind=proof_kind,
                     guard=guard,
                 )
+                contracts = proof_contracts(proof_kind=proof_kind)
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -20998,6 +21079,17 @@ class AdminApiReadService:
                         proof_route_required=True,
                         proof_route_registered=False,
                         proof_writer_enabled=False,
+                        proof_contract_count=len(contracts),
+                        blocking_proof_contract_count=sum(
+                            1 for contract in contracts if contract.blocking
+                        ),
+                        registered_proof_route_count=sum(
+                            1 for contract in contracts if contract.route_registered
+                        ),
+                        enabled_proof_writer_count=sum(
+                            1 for contract in contracts if contract.writer_enabled
+                        ),
+                        proof_contracts=contracts,
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -21098,6 +21190,20 @@ class AdminApiReadService:
                 risk_proof_requirement_count=len(proof_requirements),
                 blocking_risk_proof_requirement_count=sum(
                     1 for item in proof_requirements if item.blocking
+                ),
+                risk_proof_contract_count=sum(
+                    item.proof_contract_count for item in proof_requirements
+                ),
+                blocking_risk_proof_contract_count=sum(
+                    item.blocking_proof_contract_count
+                    for item in proof_requirements
+                ),
+                registered_risk_proof_route_count=sum(
+                    item.registered_proof_route_count
+                    for item in proof_requirements
+                ),
+                enabled_risk_proof_writer_count=sum(
+                    item.enabled_proof_writer_count for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
                     item.acceptance_criterion_count for item in proof_requirements
@@ -21211,6 +21317,18 @@ class AdminApiReadService:
             ),
             blocking_risk_proof_requirement_count=sum(
                 command.blocking_risk_proof_requirement_count for command in commands
+            ),
+            risk_proof_contract_count=sum(
+                command.risk_proof_contract_count for command in commands
+            ),
+            blocking_risk_proof_contract_count=sum(
+                command.blocking_risk_proof_contract_count for command in commands
+            ),
+            registered_risk_proof_route_count=sum(
+                command.registered_risk_proof_route_count for command in commands
+            ),
+            enabled_risk_proof_writer_count=sum(
+                command.enabled_risk_proof_writer_count for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(
                 command.risk_proof_acceptance_criterion_count

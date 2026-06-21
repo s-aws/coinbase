@@ -49,135 +49,150 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Phases 5301-5320
+## Active Phases 5321-5340
 
-Batch label: Futures/Perpetuals Risk Proof Acceptance Criteria Evidence.
+Batch label: Futures/Perpetuals Risk Proof Route/Writer Contract Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual
-command-suite route so every blocked risk proof requirement exposes the
-backend-owned acceptance criteria that would have to pass before the proof can
-satisfy command readiness. The concrete gap is that operators can now see
-proof requirements, but not the required acceptance checks for required
-evidence, proof-route registration, proof-writer review, spot-rule boundary
-review, and browser/BFF authority review. The work must remain read-only and
-no-live: no futures command route, command draft, accepted payload, proof
-writer, manager invocation, exchange order placement/cancellation, Coinbase
-read, reconciliation execution, state mutation, browser execution authority,
-or BFF execution authority. Spot wallet, no-shorting, USDC, cost-basis,
-average-cost, and inventory-lot rules remain explicitly forbidden as
-futures/perpetual authority.
+command-suite route so every blocked risk proof requirement exposes the exact
+backend proof-route and proof-writer contracts required before proof evidence
+can ever be accepted. The concrete gap is that operators can see proof
+requirements and acceptance checks, but not the route/writer contract artifacts
+behind the `proof_route_registered` and `proof_writer_reviewed` blockers. The
+work must remain read-only and no-live: no futures command route, command
+draft, accepted payload, proof writer, manager invocation, exchange order
+placement/cancellation, Coinbase read, reconciliation execution, state
+mutation, browser execution authority, or BFF execution authority. Spot wallet,
+no-shorting, USDC, cost-basis, average-cost, and inventory-lot rules remain
+explicitly forbidden as futures/perpetual authority.
 
-### Phase 5301 - Prior Range Completion Evidence
+### Phase 5321 - Prior Range Completion Evidence
 
-- Record completed phases 5281-5300 with backend commit `85ddaf2a`, frontend
-  commit `40f6a92`, focused backend/frontend gates, no-live UI smoke
+- Record completed phases 5301-5320 with backend commit `c1a5ec38`, frontend
+  commit `2b372c5`, focused backend/frontend gates, no-live UI smoke
   screenshots
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5281-5300-futures-risk-proof-requirements.png`
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5301-5320-futures-risk-proof-acceptance-criteria.png`
   and
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5281-5300-futures-risk-proof-requirements-mobile.png`,
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5301-5320-futures-risk-proof-acceptance-criteria-mobile.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5302 - Advance Active Queue Range
+### Phase 5322 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5281-5300 to active phases
-  5301-5320 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5301-5320 to active phases
+  5321-5340 while preserving no-live defaults and cap policy.
 
-### Phase 5303 - Risk Proof Acceptance Gap
+### Phase 5323 - Proof Route/Writer Contract Gap
 
-- Document that each futures/perpetual risk proof requirement needs explicit
-  backend-owned acceptance criteria before any later command-route enablement
-  can be reviewed.
+- Document that each futures/perpetual risk proof needs explicit backend
+  proof-route and proof-writer contract artifacts before any later proof
+  acceptance or command-route enablement can be reviewed.
 
-### Phase 5304 - Acceptance Check Enum
+### Phase 5324 - Proof Contract Enum
 
-- Add enum-backed futures/perpetual risk proof acceptance check kinds without
-  creating command routes, accepted payloads, command drafts, proof writers,
-  or live adapters.
+- Add enum-backed futures/perpetual risk proof contract kinds without creating
+  command routes, accepted payloads, command drafts, proof writers, or live
+  adapters.
 
-### Phase 5305 - Acceptance Criterion Model
+### Phase 5325 - Proof Contract Model
 
-- Add nested blocked acceptance criterion rows to each futures/perpetual risk
-  proof requirement and suite/command-level acceptance criterion counts.
+- Add nested blocked proof contract rows to each futures/perpetual risk proof
+  requirement and suite/command-level proof contract counts.
 
-### Phase 5306 - Backend Acceptance Builder
+### Phase 5326 - Backend Proof Contract Builder
 
-- Derive acceptance criteria from existing proof requirements and semantic
-  guard evidence instead of adding a second futures command-readiness path.
+- Derive proof-route and proof-writer contract rows from existing proof
+  requirements and semantic guard evidence instead of adding a second futures
+  command-readiness path.
 
-### Phase 5307 - Required Evidence Acceptance Check
+### Phase 5327 - Proof Route Contract Rows
 
-- Expose the required-evidence-present acceptance check for every risk proof
-  while keeping accepted and satisfies-risk-proof flags false.
+- Expose required future proof-route contract refs, proposed route paths,
+  evidence refs, and route-registered false posture for every risk proof.
 
-### Phase 5308 - Proof Route Registration Acceptance Check
+### Phase 5328 - Proof Writer Contract Rows
 
-- Expose the proof-route-registered acceptance check without registering any
-  route or enabling proof-route authority.
+- Expose required future proof-writer contract refs, evidence refs, and
+  writer-enabled false posture for every risk proof.
 
-### Phase 5309 - Proof Writer Review Acceptance Check
+### Phase 5329 - Proof Contract Aggregates
 
-- Expose the proof-writer-reviewed acceptance check without creating or
-  enabling a proof writer.
+- Expose suite, command, and risk-proof aggregate counts proving all proof
+  contracts remain blocked with zero registered routes and zero enabled
+  writers.
 
-### Phase 5310 - Spot-Rule Boundary Acceptance Check
+### Phase 5330 - Cancel Identity Discipline
 
-- Expose a negative acceptance check proving futures/perpetual proofs must not
-  use spot wallet, no-shorting, USDC, cost-basis, average-cost, or
-  inventory-lot authority.
+- Assert planned futures cancel proof contracts remain keyed by
+  `client_order_id` discipline and do not introduce `order_id` refs.
 
-### Phase 5311 - Browser And BFF Authority Acceptance Check
+### Phase 5331 - OpenAPI Sync
 
-- Expose a negative acceptance check proving browser authority remains
-  `display_only` and BFF authority remains `forward_only_no_execution`.
+- Regenerate the Admin API OpenAPI artifact and assert proof contract fields
+  are present on the command-suite contract.
 
-### Phase 5312 - OpenAPI Sync
+### Phase 5332 - Backend Focused Regression
 
-- Regenerate the Admin API OpenAPI artifact and assert risk proof acceptance
-  criterion fields are present on the command-suite contract.
-
-### Phase 5313 - Backend Focused Regression
-
-- Run focused Admin API contract tests covering acceptance criteria, blocked
-  satisfaction state, no-live posture, cancel identity discipline, and no
+- Run focused Admin API contract tests covering proof contracts, blocked
+  route/writer state, no-live posture, cancel identity discipline, and no
   spot-rule leakage.
 
-### Phase 5314 - Frontend Schema Sync
+### Phase 5333 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5315 - Frontend Adapter And Runtime Mapping
+### Phase 5334 - Frontend Adapter And Mock Mapping
 
-- Map risk proof acceptance criteria through the canonical backend adapter
+- Map proof contracts through the canonical backend adapter and mock backend
   without command drafts, feature-local fetches, proof writers, or BFF
   mutation forwarding.
 
-### Phase 5316 - Mock Backend Fixture
+### Phase 5335 - Futures Read Model Contract Display
 
-- Update mock futures command-suite evidence so offline UI tests include
-  realistic blocked acceptance criteria for every risk proof requirement.
+- Display ordered risk proof route/writer contract rows in the Futures /
+  Perpetuals admin view with no command controls.
 
-### Phase 5317 - Futures Read Model Acceptance Display
+### Phase 5336 - Frontend Focused Gates
 
-- Display ordered risk proof acceptance criteria in the Futures / Perpetuals
-  admin view with no command controls.
+- Run focused frontend typecheck, API freshness, unit, quality, release,
+  deployment, autonomous, command-security, and lint gates for the contract
+  display slice.
 
-### Phase 5318 - Documentation And Examples
+### Phase 5337 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
-  handoff, and expanded context for the M57 acceptance-criteria slice.
+  handoff, and expanded context for the M57 route/writer-contract slice.
 
-### Phase 5319 - Contextless Review And Focused Gates
+### Phase 5338 - Contextless Review
 
-- Run blind/contextless review, focused backend/frontend gates, autonomous
-  validators, release/deployment checks, and no-live UI smoke. Full backend
-  regression remains reserved for milestone/release closeout or explicit
-  request.
+- Run blind/contextless backend and frontend reviews and remediate any blocker
+  before advancing.
 
-### Phase 5320 - Commit And Push
+### Phase 5339 - UI Smoke
+
+- Run no-live browser smoke for the Futures / Perpetuals proof contract table
+  and capture desktop/mobile screenshots.
+
+### Phase 5340 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
-  live posture, UI URL, and the next M57 enablement step.
+  live posture, UI smoke evidence, and the next M57 enablement step.
 
+## Completed Phases 5301-5320
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with backend-owned risk proof acceptance criteria for required evidence,
+proof route registration, proof-writer review, spot-rule boundary review, and
+browser/BFF authority review. The acceptance rows are blocked evidence only:
+they are not command routes, command drafts, accepted payloads, proof writers,
+Coinbase calls, state mutation, browser authority, or BFF execution authority.
+The range completed with backend commit `c1a5ec38`, frontend commit
+`2b372c5`, focused backend/frontend gates, blind/contextless review, UI smoke
+at `http://127.0.0.1:3002/#futures-perpetuals`, screenshots
+`C:\coinbase-frontend\output\playwright\ui-smoke-5301-5320-futures-risk-proof-acceptance-criteria.png`
+and
+`C:\coinbase-frontend\output\playwright\ui-smoke-5301-5320-futures-risk-proof-acceptance-criteria-mobile.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 ## Completed Phases 5281-5300
 
 These phases extended the read-only M57 futures/perpetual command-suite route

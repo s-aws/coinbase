@@ -62,6 +62,11 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   funding fee, reduce-only, close-only, cap guard, and reconciliation-plan
   semantics. These rows are blocked evidence requirements only; they do not
   write proofs, register proof routes, or make a command executable.
+- Each risk proof requirement also exposes backend-owned proof route/writer
+  contract rows. These rows name required future proof-route and proof-writer
+  artifacts, evidence refs, proposed route paths, and disabled
+  route/writer/execution flags. They do not register routes, enable writers,
+  accept proof payloads, or make a command executable.
 - Each risk proof requirement also exposes five backend-owned acceptance
   criteria: required evidence present, proof route registered, proof writer
   reviewed, spot-rule boundary reviewed, and browser/BFF authority reviewed.
@@ -112,6 +117,10 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 - Do not treat command risk proof requirements as completed guard proofs.
   They are backend-owned evidence requirements and remain blocked until
   implemented and reviewed through backend contracts.
+- Do not treat risk proof route/writer contracts as registered routes or
+  enabled writers. They are blocked contract targets for future backend work
+  and keep route registration, writer enablement, command drafts, execution,
+  browser authority, and BFF execution authority disabled.
 - Do not treat risk proof acceptance criteria as completed proof reviews.
   They are blocked acceptance checks that name what a later backend-owned
   proof route and proof writer must satisfy; they do not enable routes,

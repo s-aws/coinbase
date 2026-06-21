@@ -12590,6 +12590,26 @@ components:
           minimum: 0.0
           title: Blocking Risk Proof Requirement Count
           default: 0
+        risk_proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Contract Count
+          default: 0
+        blocking_risk_proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Contract Count
+          default: 0
+        registered_risk_proof_route_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Route Count
+          default: 0
+        enabled_risk_proof_writer_count:
+          type: integer
+          minimum: 0.0
+          title: Enabled Risk Proof Writer Count
+          default: 0
         risk_proof_acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -13122,6 +13142,112 @@ components:
       - detail
       title: AdminFuturesCommandRiskProofAcceptanceCriterionItem
       description: One blocked acceptance check for a futures risk proof requirement.
+    AdminFuturesCommandRiskProofContractItem:
+      properties:
+        contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofContractKind'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_route_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Route Path
+        required_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Method
+        required_evidence_ref:
+          type: string
+          title: Required Evidence Ref
+        missing_evidence_ref:
+          type: string
+          title: Missing Evidence Ref
+        route_registered:
+          type: boolean
+          title: Route Registered
+          default: false
+        writer_enabled:
+          type: boolean
+          title: Writer Enabled
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - contract_kind
+      - sequence
+      - required_backend_contract
+      - required_evidence_ref
+      - missing_evidence_ref
+      - detail
+      title: AdminFuturesCommandRiskProofContractItem
+      description: One blocked backend contract required for a futures risk proof.
+    AdminFuturesCommandRiskProofContractKind:
+      type: string
+      enum:
+      - proof_route
+      - proof_writer
+      title: AdminFuturesCommandRiskProofContractKind
+      description: Backend contracts required before a futures risk proof can be accepted.
     AdminFuturesCommandRiskProofKind:
       type: string
       enum:
@@ -13207,6 +13333,31 @@ components:
           type: boolean
           title: Proof Writer Enabled
           default: false
+        proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Contract Count
+          default: 0
+        blocking_proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Proof Contract Count
+          default: 0
+        registered_proof_route_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Proof Route Count
+          default: 0
+        enabled_proof_writer_count:
+          type: integer
+          minimum: 0.0
+          title: Enabled Proof Writer Count
+          default: 0
+        proof_contracts:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofContractItem'
+          type: array
+          title: Proof Contracts
         acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -13515,6 +13666,26 @@ components:
           type: integer
           minimum: 0.0
           title: Blocking Risk Proof Requirement Count
+          default: 0
+        risk_proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Contract Count
+          default: 0
+        blocking_risk_proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Contract Count
+          default: 0
+        registered_risk_proof_route_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Route Count
+          default: 0
+        enabled_risk_proof_writer_count:
+          type: integer
+          minimum: 0.0
+          title: Enabled Risk Proof Writer Count
           default: 0
         risk_proof_acceptance_criterion_count:
           type: integer

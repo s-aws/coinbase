@@ -1177,6 +1177,13 @@ class AdminFuturesCommandRiskProofAcceptanceCheck(str, Enum):
     BROWSER_BFF_AUTHORITY_REVIEWED = "browser_bff_authority_reviewed"
 
 
+class AdminFuturesCommandRiskProofContractKind(str, Enum):
+    """Backend contracts required before a futures risk proof can be accepted."""
+
+    PROOF_ROUTE = "proof_route"
+    PROOF_WRITER = "proof_writer"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

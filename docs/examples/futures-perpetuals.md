@@ -11,13 +11,13 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5301-5320 range adds read-only M57 futures/perpetual risk proof
-acceptance criteria to the existing command-suite evidence. Each readiness
-decision, ordered closure step, risk proof requirement, and acceptance
-criterion is derived from backend-owned prerequisites, request fields,
-semantic guards, evidence routes, missing evidence refs, and missing backend
-contracts. It is not a command route, proof writer, command draft surface, or
-execution approval.
+The active 5321-5340 range adds read-only M57 futures/perpetual risk proof
+route/writer contract evidence to the existing command-suite evidence. Each
+readiness decision, ordered closure step, risk proof requirement, proof
+contract, and acceptance criterion is derived from backend-owned
+prerequisites, request fields, semantic guards, evidence routes, missing
+evidence refs, and missing backend contracts. It is not a command route,
+enabled proof writer, command draft surface, or execution approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -32,7 +32,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5301-5320",
+  "approved_phase_range": "5321-5340",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -52,6 +52,10 @@ Expected response posture:
   "blocking_readiness_closure_step_count": 28,
   "risk_proof_requirement_count": 20,
   "blocking_risk_proof_requirement_count": 20,
+  "risk_proof_contract_count": 40,
+  "blocking_risk_proof_contract_count": 40,
+  "registered_risk_proof_route_count": 0,
+  "enabled_risk_proof_writer_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -242,6 +246,10 @@ Expected response posture:
       ],
       "risk_proof_requirement_count": 6,
       "blocking_risk_proof_requirement_count": 6,
+      "risk_proof_contract_count": 12,
+      "blocking_risk_proof_contract_count": 12,
+      "registered_risk_proof_route_count": 0,
+      "enabled_risk_proof_writer_count": 0,
       "risk_proof_acceptance_criterion_count": 30,
       "blocking_risk_proof_acceptance_criterion_count": 30,
       "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -270,6 +278,34 @@ Expected response posture:
           "proof_route_required": true,
           "proof_route_registered": false,
           "proof_writer_enabled": false,
+          "proof_contract_count": 2,
+          "blocking_proof_contract_count": 2,
+          "registered_proof_route_count": 0,
+          "enabled_proof_writer_count": 0,
+          "proof_contracts": [
+            {
+              "contract_kind": "proof_route",
+              "required_backend_contract": "application/admin_api/futures_proof_routes.py::post_futures_place_product_scope_proof",
+              "required_route_path": "/api/v1/futures/proofs/futures_place/product_scope",
+              "required_method": "POST",
+              "required_evidence_ref": "futures_place_product_scope_proof_route_registered",
+              "missing_evidence_ref": "futures_place_product_scope_proof_route_registered",
+              "route_registered": false,
+              "writer_enabled": false,
+              "execution_allowed": false
+            },
+            {
+              "contract_kind": "proof_writer",
+              "required_backend_contract": "application/admin_api/futures_proof_writer.py::write_futures_place_product_scope_proof",
+              "required_route_path": null,
+              "required_method": "LOCAL",
+              "required_evidence_ref": "futures_place_product_scope_proof_writer_reviewed",
+              "missing_evidence_ref": "futures_place_product_scope_proof_writer_reviewed",
+              "route_registered": false,
+              "writer_enabled": false,
+              "execution_allowed": false
+            }
+          ],
           "acceptance_criterion_count": 5,
           "blocking_acceptance_criterion_count": 5,
           "accepted_acceptance_criterion_count": 0,
