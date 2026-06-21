@@ -24,6 +24,7 @@ from core.enums import (
     AdminApiFunctionalityWorkflowType,
     AdminFuturesCommandAction,
     AdminFuturesCommandPrerequisite,
+    AdminFuturesCommandRequestField,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminApiGateStatus,
@@ -3898,6 +3899,25 @@ class AdminFuturesCommandPrerequisiteItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRequestFieldItem(BaseModel):
+    """One planned futures/perpetual command request field row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    identity_field: bool = False
+    risk_field: bool = False
+    payload_field: bool = True
+    backend_owned: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandContractItem(BaseModel):
     """One planned futures/perpetual command contract row."""
 
@@ -3918,6 +3938,12 @@ class AdminFuturesCommandContractItem(BaseModel):
     resolved_prerequisite_count: int = Field(default=0, ge=0)
     blocking_prerequisite_count: int = Field(default=0, ge=0)
     prerequisites: list[AdminFuturesCommandPrerequisiteItem] = Field(
+        default_factory=list
+    )
+    request_field_count: int = Field(default=0, ge=0)
+    required_request_field_count: int = Field(default=0, ge=0)
+    blocking_request_field_count: int = Field(default=0, ge=0)
+    request_fields: list[AdminFuturesCommandRequestFieldItem] = Field(
         default_factory=list
     )
     required_backend_contracts: list[str] = Field(default_factory=list)
@@ -3950,6 +3976,9 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     command_draft_allowed_count: int = Field(default=0, ge=0)
     prerequisite_count: int = Field(default=0, ge=0)
     blocking_prerequisite_count: int = Field(default=0, ge=0)
+    request_field_count: int = Field(default=0, ge=0)
+    required_request_field_count: int = Field(default=0, ge=0)
+    blocking_request_field_count: int = Field(default=0, ge=0)
     commands: list[AdminFuturesCommandContractItem] = Field(default_factory=list)
     account_evidence_routes: list[str] = Field(default_factory=list)
     position_evidence_routes: list[str] = Field(default_factory=list)

@@ -1,5 +1,72 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Request-Field Contract Review - Phases 5181-5200
+
+Scope: phases `5181-5200`, after completing the M57 futures/perpetual
+command-suite foundation in phases `5161-5180`. The active batch extends
+`GET /api/v1/futures/command-suite` with blocked backend-owned request-field
+metadata for futures placement, close/reduce, cancel, and reconciliation. It
+must remain no-live and must not add futures command routes, command drafts,
+exchange placement or cancellation, reconciliation execution, Coinbase reads,
+local state mutation, browser execution authority, or BFF execution authority.
+The review must prove request-field rows are not accepted payloads and that
+spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
+inventory-lot authority cannot govern futures or perpetual commands.
+
+- Initial status: active range advanced from completed phases `5161-5180`.
+- Completed history: phases `5161-5180` are completed history; the active
+  futures/perpetual command-suite work is phases `5181-5200`.
+- Completion evidence for prior range: backend `f0fdef3e`, frontend
+  `5209e34`, UI `http://127.0.0.1:3002/#futures-perpetuals`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5161-5180-futures-command-suite.png`,
+  live Coinbase submitted/executed notional `0` USDC.
+- Required blind/contextless review: a fresh reviewer must be able to explain
+  that request-field rows are backend-owned read evidence only, that cancel is
+  keyed by `client_order_id`, that exchange `order_id` is not internal
+  futures request identity, and that no spot-only rule supplies futures
+  command authority.
+
+Reviewer: blind/contextless subagent Laplace inspection, 2026-06-20.
+
+Result: PASS after remediation.
+
+- REMEDIATION: frontend `docs/TESTING.md` contained stale active-range wording
+  that described phases `5181-5200` as selected-`stealth_create` work. The
+  testing doc now identifies the active range as futures/perpetual
+  request-field contract metadata.
+- PASS: the reviewer could identify `GET /api/v1/futures/command-suite` as a
+  read-only `analytics:read` route backed by
+  `AdminApiReadService.build_futures_command_suite()`, not a command executor.
+- PASS: backend models and read-service rows make request fields blocked,
+  backend-owned metadata with `browser_authority="display_only"` and
+  `bff_authority="forward_only_no_execution"`. The fields are not accepted
+  payloads, command drafts, command routes, or executable live behavior.
+- PASS: the futures cancel request contract is keyed by `client_order_id`, and
+  exchange `order_id` is not internal futures request identity.
+- PASS: forbidden spot assumptions remain explicit: spot wallet, no-shorting,
+  USDC quote scope, average/cost-basis, and inventory-lot authority cannot
+  govern futures or perpetual command authority.
+- PASS: frontend generated schema, canonical wrapper, adapter, mock fixture,
+  runtime/UI display, docs, and tests were traceable without chat context.
+- Focused backend verification passed:
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_export_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_names_required_shared_methods_and_doc tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_and_openapi_paths_stay_in_sync tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch tests\regression\test_parallel_regression_runner.py -v --tb=short`
+  with `13 passed`.
+- Backend autonomous queue validation passed:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Frontend focused verification passed for the generated schema, adapter,
+  mock/runtime/UI, release readiness, deployment readiness, and autonomous
+  queue checks.
+- UI smoke evidence:
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5181-5200-futures-request-fields-table.png`
+  showed the futures request-field table, `client_order_id`,
+  `futures_cancel`, and `forward_only_no_execution`.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5181-5200` are ordinary
+  contract/read-model phase work; use `python tools/run_parallel_regression.py
+  --workers 4` only for milestone/release/deployment/Admin API closeout or
+  explicit request.
+
 ## M57 Futures/Perpetual Command-Suite Contract Foundation Review - Phases 5161-5180
 
 Scope: phases `5161-5180`, after completing the M55 exact

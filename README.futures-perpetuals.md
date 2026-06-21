@@ -37,6 +37,10 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   evidence for placement, close/reduce, cancel, and reconciliation. It does
   not register futures command routes, create command drafts, call Coinbase,
   mutate state, or grant browser/BFF authority.
+- The command-suite route also exposes request-field contract metadata for
+  each planned command family. These fields are blocked backend contract
+  evidence only; they are not accepted payloads and do not create executable
+  routes.
 - Spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
   inventory-lot assumptions are explicitly forbidden as futures/perpetual
   command authority.
@@ -58,6 +62,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 - Do not add futures command routes until backend guard/risk policy evidence,
   command contracts, approval/cap/audit gates, and contextless review are in
   place.
+- Do not treat command-suite request fields as browser-side form authority.
+  The backend must own validation, audit, idempotency, risk checks, and future
+  service mapping before any command can become executable.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

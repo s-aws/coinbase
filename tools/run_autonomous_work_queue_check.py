@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5161-5180"
-APPROVED_PHASES = tuple(range(5161, 5181))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5141-5160"
+APPROVED_PHASE_RANGE = "5181-5200"
+APPROVED_PHASES = tuple(range(5181, 5201))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5161-5180"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -237,6 +237,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5121-5140"',
         "active 5141-5160 range",
         '"approved_phase_range": "5141-5160"',
+        "active 5161-5180 range",
+        '"approved_phase_range": "5161-5180"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -393,7 +395,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` starts the M57 futures/perpetual command-suite contract",
+        f"Active `{APPROVED_PHASE_RANGE}` extends the M57 futures/perpetual command-suite contract",
         f"complete active phases `{APPROVED_PHASE_RANGE}`",
     ]
     stale = [
@@ -406,21 +408,25 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5101-5120`",
         "Active `5121-5140`",
         "Active `5141-5160`",
+        "Active `5161-5180`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
         "complete active phases `5121-5140`",
         "complete active phases `5141-5160`",
+        "complete active phases `5161-5180`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
         "current active range is `5121-5140`",
         "current active range is `5141-5160`",
+        "current active range is `5161-5180`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
         "Active autonomous range: `5121-5140`",
         "Active autonomous range: `5141-5160`",
+        "Active autonomous range: `5161-5180`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]

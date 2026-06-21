@@ -11,9 +11,9 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5161-5180 range adds read-only M57 futures/perpetual command-suite
-contract evidence. It is not a command route and does not make command drafts
-available.
+The active 5181-5200 range adds read-only M57 futures/perpetual request-field
+contract metadata to the existing command-suite evidence. It is not a command
+route and does not make command drafts available.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -28,13 +28,16 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5161-5180",
+  "approved_phase_range": "5181-5200",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
   "executable_command_count": 0,
   "command_route_count": 0,
   "command_draft_allowed_count": 0,
+  "request_field_count": 22,
+  "required_request_field_count": 22,
+  "blocking_request_field_count": 22,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -50,6 +53,34 @@ Expected response posture:
       "route": null,
       "service_method": "place_futures_order_contract_required",
       "identity_key": "product_id",
+      "request_field_count": 7,
+      "blocking_request_field_count": 7,
+      "request_fields": [
+        {
+          "field": "product_id",
+          "status": "blocked",
+          "identity_field": true,
+          "risk_field": false,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only"
+        },
+        {
+          "field": "size",
+          "status": "blocked",
+          "identity_field": false,
+          "risk_field": true,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only"
+        },
+        {
+          "field": "client_order_id",
+          "status": "blocked",
+          "identity_field": true,
+          "risk_field": false,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only"
+        }
+      ],
       "command_route_registered": false,
       "command_draft_allowed": false,
       "execution_allowed": false
@@ -72,6 +103,24 @@ Expected response posture:
       "route": null,
       "service_method": "cancel_futures_order_contract_required",
       "identity_key": "client_order_id",
+      "request_fields": [
+        {
+          "field": "client_order_id",
+          "status": "blocked",
+          "identity_field": true,
+          "detail": "Futures cancel must call the project wrapper with client_order_id; exchange order_id is exchange evidence only."
+        },
+        {
+          "field": "product_id",
+          "status": "blocked",
+          "identity_field": false
+        },
+        {
+          "field": "operator_notes",
+          "status": "blocked",
+          "identity_field": false
+        }
+      ],
       "command_route_registered": false,
       "command_draft_allowed": false,
       "execution_allowed": false

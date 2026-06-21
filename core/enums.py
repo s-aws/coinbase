@@ -1082,6 +1082,24 @@ class AdminFuturesCommandPrerequisite(str, Enum):
     BACKEND_COMMAND_SERVICE = "backend_command_service"
 
 
+class AdminFuturesCommandRequestField(str, Enum):
+    """Planned futures/perpetual command request fields."""
+
+    PRODUCT_ID = "product_id"
+    POSITION_KEY = "position_key"
+    CLIENT_ORDER_ID = "client_order_id"
+    ORDER_SIDE = "order_side"
+    ORDER_TYPE = "order_type"
+    SIZE = "size"
+    LIMIT_PRICE = "limit_price"
+    TIME_IN_FORCE = "time_in_force"
+    REDUCE_ONLY = "reduce_only"
+    CLOSE_ONLY = "close_only"
+    RECONCILIATION_REASON = "reconciliation_reason"
+    EXPECTED_POSITION_STATE = "expected_position_state"
+    OPERATOR_NOTES = "operator_notes"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

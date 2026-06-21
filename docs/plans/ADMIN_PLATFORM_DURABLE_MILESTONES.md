@@ -3168,10 +3168,14 @@ Current backend evidence:
   5141-5160 bind that contract to the exact dry `POST /api/v1/stealth/orders`
   command response while manager invocation, lifecycle/order writes,
   reconciliation execution, Coinbase interaction, and browser/BFF authority
-  remain blocked. Active phases 5161-5180 start M57 by adding read-only
+  remain blocked. Completed phases 5161-5180 start M57 by adding read-only
   futures/perpetual command-suite contract evidence for placement,
   close/reduce, cancel, and reconciliation without adding command routes,
   command drafts, live execution, Coinbase calls, or spot-rule authority.
+  Active phases 5181-5200 extend that same futures/perpetual command-suite
+  route with backend-owned request-field metadata while keeping every field
+  blocked, read-only, no-live, and non-authoritative for browser/BFF command
+  execution.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

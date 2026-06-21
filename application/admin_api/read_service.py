@@ -21,6 +21,7 @@ from core.enums import (
     AdminApiFunctionalityWorkflowType,
     AdminFuturesCommandAction,
     AdminFuturesCommandPrerequisite,
+    AdminFuturesCommandRequestField,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminFuturesPositionSide,
@@ -98,6 +99,7 @@ from .models import (
     AdminFuturesAccountReadResponse,
     AdminFuturesCommandContractItem,
     AdminFuturesCommandPrerequisiteItem,
+    AdminFuturesCommandRequestFieldItem,
     AdminFuturesCommandSuiteResponse,
     AdminLiveAdmissionAuditFactItem,
     AdminLiveAdmissionAuditTrailEvidence,
@@ -330,7 +332,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5161-5180"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5181-5200"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -19856,6 +19858,20 @@ class AdminApiReadService:
             "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         ]
 
+        def request_field(
+            field: AdminFuturesCommandRequestField,
+            *,
+            identity_field: bool = False,
+            risk_field: bool = False,
+            detail: str,
+        ) -> AdminFuturesCommandRequestFieldItem:
+            return AdminFuturesCommandRequestFieldItem(
+                field=field,
+                identity_field=identity_field,
+                risk_field=risk_field,
+                detail=detail,
+            )
+
         def prerequisite(
             prerequisite_id: AdminFuturesCommandPrerequisite,
             *,
@@ -20033,6 +20049,116 @@ class AdminApiReadService:
             *shared_execution_prerequisites,
         ]
 
+        placement_request_fields = [
+            request_field(
+                AdminFuturesCommandRequestField.PRODUCT_ID,
+                identity_field=True,
+                detail="Futures placement product scope must come from backend futures product metadata, not spot USDC product assumptions.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.ORDER_SIDE,
+                detail="Futures placement side requires a futures-specific backend contract before browser drafts can exist.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.ORDER_TYPE,
+                detail="Futures placement order type must be validated by the backend command service contract.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.SIZE,
+                risk_field=True,
+                detail="Futures placement size semantics must be validated against margin, collateral, liquidation, and product contract rules.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.LIMIT_PRICE,
+                risk_field=True,
+                detail="Limit price semantics require futures-specific tick, liquidation, and cap/guard checks in the backend.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.TIME_IN_FORCE,
+                detail="Time-in-force options require a backend futures command contract before any route accepts them.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.CLIENT_ORDER_ID,
+                identity_field=True,
+                detail="Internal tracking must use client_order_id generated and audited by the backend command path.",
+            ),
+        ]
+        close_reduce_request_fields = [
+            request_field(
+                AdminFuturesCommandRequestField.POSITION_KEY,
+                identity_field=True,
+                detail="Close/reduce identity is the backend-derived position_key, not spot wallet inventory or average-cost evidence.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.PRODUCT_ID,
+                detail="Product identity must be resolved from the backend position record before close/reduce commands exist.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.ORDER_SIDE,
+                risk_field=True,
+                detail="Close/reduce side must be backend-derived from observed position side and reduce-only/close-only policy.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.SIZE,
+                risk_field=True,
+                detail="Close/reduce size must be bounded by backend position evidence and futures risk contracts.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.REDUCE_ONLY,
+                risk_field=True,
+                detail="Reduce-only intent is required and must be enforced in the backend command contract.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.CLOSE_ONLY,
+                risk_field=True,
+                detail="Close-only intent requires backend position and reduce-only/close-only evidence before execution.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.CLIENT_ORDER_ID,
+                identity_field=True,
+                detail="Any future close/reduce placement must be tracked by backend-owned client_order_id evidence.",
+            ),
+        ]
+        cancel_request_fields = [
+            request_field(
+                AdminFuturesCommandRequestField.CLIENT_ORDER_ID,
+                identity_field=True,
+                detail="Futures cancel must call the project wrapper with client_order_id; exchange order_id is exchange evidence only.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.PRODUCT_ID,
+                detail="Optional product context must be backend-owned evidence, not browser-side product inference.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.OPERATOR_NOTES,
+                detail="Operator notes are audit context only and cannot authorize futures cancellation.",
+            ),
+        ]
+        reconciliation_request_fields = [
+            request_field(
+                AdminFuturesCommandRequestField.POSITION_KEY,
+                identity_field=True,
+                detail="Reconciliation identity is the backend-derived position_key.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.PRODUCT_ID,
+                detail="Product scope must be resolved from futures position evidence.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.EXPECTED_POSITION_STATE,
+                risk_field=True,
+                detail="Expected position state must be compared against backend futures position, margin, collateral, funding, and liquidation evidence.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.RECONCILIATION_REASON,
+                detail="Reconciliation reason is append-only audit context and cannot execute reconciliation by itself.",
+            ),
+            request_field(
+                AdminFuturesCommandRequestField.OPERATOR_NOTES,
+                detail="Operator notes remain local audit context and do not grant browser or BFF execution authority.",
+            ),
+        ]
+
         def command(
             command_id: AdminFuturesCommandAction,
             *,
@@ -20041,6 +20167,7 @@ class AdminApiReadService:
             identity_key: str,
             permission: AdminApiPermission,
             prerequisites: list[AdminFuturesCommandPrerequisiteItem],
+            request_fields: list[AdminFuturesCommandRequestFieldItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
             return AdminFuturesCommandContractItem(
@@ -20059,6 +20186,16 @@ class AdminApiReadService:
                     1 for item in prerequisites if item.blocking
                 ),
                 prerequisites=prerequisites,
+                request_field_count=len(request_fields),
+                required_request_field_count=sum(
+                    1 for item in request_fields if item.required
+                ),
+                blocking_request_field_count=sum(
+                    1
+                    for item in request_fields
+                    if item.status != AdminApiGateStatus.PASSED
+                ),
+                request_fields=request_fields,
                 required_backend_contracts=backend_contracts,
                 missing_backend_contracts=backend_contracts,
                 forbidden_spot_assumptions=forbidden_spot_assumptions,
@@ -20073,6 +20210,7 @@ class AdminApiReadService:
                 identity_key="product_id",
                 permission=AdminApiPermission.ORDER_CREATE,
                 prerequisites=placement_prerequisites,
+                request_fields=placement_request_fields,
                 detail="Futures placement requires futures-specific risk contracts before any command route or draft exists.",
             ),
             command(
@@ -20082,6 +20220,7 @@ class AdminApiReadService:
                 identity_key="position_key",
                 permission=AdminApiPermission.ORDER_CREATE,
                 prerequisites=close_reduce_prerequisites,
+                request_fields=close_reduce_request_fields,
                 detail="Futures close/reduce must derive sides from backend position evidence and reduce-only/close-only contracts.",
             ),
             command(
@@ -20091,6 +20230,7 @@ class AdminApiReadService:
                 identity_key="client_order_id",
                 permission=AdminApiPermission.ORDER_CANCEL,
                 prerequisites=cancel_prerequisites,
+                request_fields=cancel_request_fields,
                 detail=(
                     "Futures cancel requires backend-owned client_order_id "
                     "discipline and exchange-reality reconciliation before a "
@@ -20104,6 +20244,7 @@ class AdminApiReadService:
                 identity_key="position_key",
                 permission=AdminApiPermission.RECONCILIATION_RECORD,
                 prerequisites=reconciliation_prerequisites,
+                request_fields=reconciliation_request_fields,
                 detail="Futures reconciliation must be position, margin, collateral, funding, and liquidation aware before any executor exists.",
             ),
         ]
@@ -20118,6 +20259,13 @@ class AdminApiReadService:
             prerequisite_count=sum(command.prerequisite_count for command in commands),
             blocking_prerequisite_count=sum(
                 command.blocking_prerequisite_count for command in commands
+            ),
+            request_field_count=sum(command.request_field_count for command in commands),
+            required_request_field_count=sum(
+                command.required_request_field_count for command in commands
+            ),
+            blocking_request_field_count=sum(
+                command.blocking_request_field_count for command in commands
             ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],
