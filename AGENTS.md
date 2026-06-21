@@ -59,3 +59,9 @@ fallback is intentional:
 ```bash
 pytest tests/regression/ -v --tb=short
 ```
+
+## Subagent Hygiene
+
+- At the end of each phase, close subagents that were spawned for that phase after their findings have been consumed, remediated, or explicitly deferred.
+- At durable milestone closeout, perform a final stale-subagent sweep and leave no completed, failed, or superseded subagents open unless they are part of an active handoff.
+- Do not close a subagent that is still running required validation, producing required evidence, or awaiting a user decision.
