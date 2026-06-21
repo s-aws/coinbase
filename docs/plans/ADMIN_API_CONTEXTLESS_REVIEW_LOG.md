@@ -1,5 +1,37 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk Proof Requirement Review - Phases 5281-5300
+
+Scope: phases `5281-5300`, after adding backend-owned
+`risk_proof_requirements` to the read-only futures/perpetual command-suite.
+Previous completed history is phases `5261-5280`, which added
+readiness-closure-step evidence.
+
+Result: PASS after remediation.
+
+- PASS: blind/contextless review confirmed the futures/perpetual
+  command-suite risk proof requirements are understandable from repository
+  files alone and are derived from semantic guards, evidence routes, missing
+  proof refs, readiness decision evidence, and readiness closure steps.
+- PASS: risk proof requirements remain read-only blocked evidence rows. They
+  do not create command routes, command drafts, proof writers, Coinbase calls,
+  reconciliation execution, state mutation, browser authority, or BFF
+  execution authority.
+- PASS: semantic guards, forbidden spot assumptions, and capability-matrix
+  docs continue to reject spot wallet, no-shorting, USDC, cost-basis,
+  average-cost, and inventory-lot rules as futures/perpetual authority.
+- PASS: planned cancel risk proof evidence remains keyed by
+  `client_order_id`; exchange `order_id` remains exchange evidence only.
+- Remediation: added a one-line glossary in `README.futures-perpetuals.md`
+  clarifying that risk proof requirements include identity/product-scope and
+  reconciliation prerequisites, not only pure risk math.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5281-5300` are ordinary
+  contract/read-model phase work; full regression remains reserved for
+  durable milestone/release/deployment/Admin API/backend association closeout
+  or explicit user request.
+
 ## M57 Futures/Perpetual Readiness Closure Plan Review - Phases 5261-5280
 
 Scope: phases `5261-5280`, after completing the M57 futures/perpetual

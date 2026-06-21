@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5261-5280"
-APPROVED_PHASES = tuple(range(5261, 5281))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5241-5260"
+APPROVED_PHASE_RANGE = "5281-5300"
+APPROVED_PHASES = tuple(range(5281, 5301))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5261-5280"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -207,6 +207,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
             "GET /api/v1/futures/command-suite",
             "Futures/perpetual command-suite reads expose backend-owned",
+            '"risk_proof_requirements"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
@@ -217,6 +218,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"missing_evidence_refs"',
             '"readiness_decision"',
             '"readiness_closure_steps"',
+            '"risk_proof_requirements"',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
             '"futures_cancel"',
@@ -252,6 +254,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5221-5240"',
         "active 5241-5260 range",
         '"approved_phase_range": "5241-5260"',
+        "active 5261-5280 range",
+        '"approved_phase_range": "5261-5280"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -426,6 +430,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5201-5220`",
         "Active `5221-5240`",
         "Active `5241-5260`",
+        "Active `5261-5280`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
@@ -436,6 +441,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "complete active phases `5201-5220`",
         "complete active phases `5221-5240`",
         "complete active phases `5241-5260`",
+        "complete active phases `5261-5280`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
@@ -446,6 +452,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "current active range is `5201-5220`",
         "current active range is `5221-5240`",
         "current active range is `5241-5260`",
+        "current active range is `5261-5280`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
@@ -456,6 +463,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `5201-5220`",
         "Active autonomous range: `5221-5240`",
         "Active autonomous range: `5241-5260`",
+        "Active autonomous range: `5261-5280`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -487,6 +495,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "Full backend regression was not run because phases",
         "futures/perpetual command-suite",
         "readiness decision",
+        "risk proof requirements",
         "semantic guards",
         "forbidden spot assumptions",
     ]

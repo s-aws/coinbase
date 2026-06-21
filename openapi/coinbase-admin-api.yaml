@@ -12580,6 +12580,21 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandReadinessClosureStepItem'
           type: array
           title: Readiness Closure Steps
+        risk_proof_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Requirement Count
+          default: 0
+        blocking_risk_proof_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Requirement Count
+          default: 0
+        risk_proof_requirements:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRequirementItem'
+          type: array
+          title: Risk Proof Requirements
         command_route_registered:
           type: boolean
           title: Command Route Registered
@@ -12992,6 +13007,123 @@ components:
       - detail
       title: AdminFuturesCommandRequestFieldItem
       description: One planned futures/perpetual command request field row.
+    AdminFuturesCommandRiskProofKind:
+      type: string
+      enum:
+      - product_scope
+      - position_scope
+      - margin_collateral
+      - liquidation_buffer
+      - funding_fee
+      - reduce_only
+      - close_only
+      - cap_guard
+      - reconciliation_plan
+      title: AdminFuturesCommandRiskProofKind
+      description: Futures/perpetual proof requirement categories before command enablement.
+    AdminFuturesCommandRiskProofRequirementItem:
+      properties:
+        proof_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        semantic_guard:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticGuard'
+        applies_to_fields:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+          type: array
+          title: Applies To Fields
+        evidence_routes:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEvidenceRoute'
+          type: array
+          title: Evidence Routes
+        evidence_route_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Route Count
+          default: 0
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        proof_route_required:
+          type: boolean
+          title: Proof Route Required
+          default: true
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - proof_kind
+      - sequence
+      - semantic_guard
+      - detail
+      title: AdminFuturesCommandRiskProofRequirementItem
+      description: One backend-owned futures/perpetual proof requirement before commands.
     AdminFuturesCommandSemanticGuard:
       type: string
       enum:
@@ -13230,6 +13362,16 @@ components:
           type: integer
           minimum: 0.0
           title: Blocking Readiness Closure Step Count
+          default: 0
+        risk_proof_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Requirement Count
+          default: 0
+        blocking_risk_proof_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Requirement Count
           default: 0
         commands:
           items:

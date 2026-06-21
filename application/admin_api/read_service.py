@@ -25,6 +25,7 @@ from core.enums import (
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
+    AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -106,6 +107,7 @@ from .models import (
     AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
+    AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
     AdminLiveAdmissionAuditFactItem,
@@ -339,7 +341,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5261-5280"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5281-5300"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -19987,6 +19989,64 @@ class AdminApiReadService:
                 "futures_live_adapter_decision_contract",
             ],
         }
+        risk_proof_guard_kinds = {
+            AdminFuturesCommandSemanticGuard.PRODUCT_SCOPE: (
+                AdminFuturesCommandRiskProofKind.PRODUCT_SCOPE
+            ),
+            AdminFuturesCommandSemanticGuard.POSITION_SCOPE: (
+                AdminFuturesCommandRiskProofKind.POSITION_SCOPE
+            ),
+            AdminFuturesCommandSemanticGuard.MARGIN_COLLATERAL: (
+                AdminFuturesCommandRiskProofKind.MARGIN_COLLATERAL
+            ),
+            AdminFuturesCommandSemanticGuard.LIQUIDATION_BUFFER: (
+                AdminFuturesCommandRiskProofKind.LIQUIDATION_BUFFER
+            ),
+            AdminFuturesCommandSemanticGuard.FUNDING_FEE: (
+                AdminFuturesCommandRiskProofKind.FUNDING_FEE
+            ),
+            AdminFuturesCommandSemanticGuard.REDUCE_ONLY: (
+                AdminFuturesCommandRiskProofKind.REDUCE_ONLY
+            ),
+            AdminFuturesCommandSemanticGuard.CLOSE_ONLY: (
+                AdminFuturesCommandRiskProofKind.CLOSE_ONLY
+            ),
+            AdminFuturesCommandSemanticGuard.CAP_GUARD: (
+                AdminFuturesCommandRiskProofKind.CAP_GUARD
+            ),
+            AdminFuturesCommandSemanticGuard.RECONCILIATION_PLAN: (
+                AdminFuturesCommandRiskProofKind.RECONCILIATION_PLAN
+            ),
+        }
+        prerequisite_by_proof_kind = {
+            AdminFuturesCommandRiskProofKind.PRODUCT_SCOPE: (
+                AdminFuturesCommandPrerequisite.POSITION_SCOPE
+            ),
+            AdminFuturesCommandRiskProofKind.POSITION_SCOPE: (
+                AdminFuturesCommandPrerequisite.POSITION_SCOPE
+            ),
+            AdminFuturesCommandRiskProofKind.MARGIN_COLLATERAL: (
+                AdminFuturesCommandPrerequisite.MARGIN
+            ),
+            AdminFuturesCommandRiskProofKind.LIQUIDATION_BUFFER: (
+                AdminFuturesCommandPrerequisite.LIQUIDATION
+            ),
+            AdminFuturesCommandRiskProofKind.FUNDING_FEE: (
+                AdminFuturesCommandPrerequisite.FUNDING
+            ),
+            AdminFuturesCommandRiskProofKind.REDUCE_ONLY: (
+                AdminFuturesCommandPrerequisite.REDUCE_ONLY_CLOSE_ONLY
+            ),
+            AdminFuturesCommandRiskProofKind.CLOSE_ONLY: (
+                AdminFuturesCommandPrerequisite.REDUCE_ONLY_CLOSE_ONLY
+            ),
+            AdminFuturesCommandRiskProofKind.CAP_GUARD: (
+                AdminFuturesCommandPrerequisite.CAP_GUARD
+            ),
+            AdminFuturesCommandRiskProofKind.RECONCILIATION_PLAN: (
+                AdminFuturesCommandPrerequisite.RECONCILIATION_PLAN
+            ),
+        }
 
         def request_field(
             field: AdminFuturesCommandRequestField,
@@ -20824,6 +20884,52 @@ class AdminApiReadService:
             )
             return rows
 
+        def risk_proof_requirements(
+            command_id: AdminFuturesCommandAction,
+            *,
+            prerequisites: list[AdminFuturesCommandPrerequisiteItem],
+            semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
+        ) -> list[AdminFuturesCommandRiskProofRequirementItem]:
+            prerequisites_by_id = {
+                item.prerequisite: item for item in prerequisites
+            }
+            rows: list[AdminFuturesCommandRiskProofRequirementItem] = []
+            for guard in semantic_guards:
+                proof_kind = risk_proof_guard_kinds.get(guard.semantic_guard)
+                if proof_kind is None:
+                    continue
+                prerequisite_id = prerequisite_by_proof_kind[proof_kind]
+                prerequisite_item = prerequisites_by_id.get(prerequisite_id)
+                runtime_evidence_observed = (
+                    prerequisite_item.resolved if prerequisite_item else False
+                )
+                rows.append(
+                    AdminFuturesCommandRiskProofRequirementItem(
+                        proof_kind=proof_kind,
+                        sequence=len(rows) + 1,
+                        semantic_guard=guard.semantic_guard,
+                        applies_to_fields=guard.applies_to_fields,
+                        evidence_routes=guard.evidence_routes,
+                        evidence_route_count=guard.evidence_route_count,
+                        required_evidence_refs=guard.required_evidence_refs,
+                        required_evidence_count=guard.required_evidence_count,
+                        missing_evidence_refs=guard.missing_evidence_refs,
+                        missing_evidence_count=guard.missing_evidence_count,
+                        runtime_evidence_observed=runtime_evidence_observed,
+                        proof_route_required=True,
+                        proof_route_registered=False,
+                        proof_writer_enabled=False,
+                        detail=(
+                            f"{command_id.value} requires backend-owned "
+                            f"{proof_kind.value} proof evidence before a "
+                            "future command route can accept payloads. "
+                            "Observed runtime reads are evidence only and do "
+                            "not create browser, BFF, or spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
         def command(
             command_id: AdminFuturesCommandAction,
             *,
@@ -20843,6 +20949,11 @@ class AdminApiReadService:
                 request_fields=request_fields,
                 semantic_guards=semantic_guards,
                 missing_backend_contracts=missing_backend_contracts,
+            )
+            proof_requirements = risk_proof_requirements(
+                command_id,
+                prerequisites=prerequisites,
+                semantic_guards=semantic_guards,
             )
             return AdminFuturesCommandContractItem(
                 command=command_id,
@@ -20895,6 +21006,11 @@ class AdminApiReadService:
                     1 for item in closure_steps if item.blocking
                 ),
                 readiness_closure_steps=closure_steps,
+                risk_proof_requirement_count=len(proof_requirements),
+                blocking_risk_proof_requirement_count=sum(
+                    1 for item in proof_requirements if item.blocking
+                ),
+                risk_proof_requirements=proof_requirements,
                 detail=detail,
             )
 
@@ -20989,6 +21105,12 @@ class AdminApiReadService:
             blocking_readiness_closure_step_count=sum(
                 command.blocking_readiness_closure_step_count
                 for command in commands
+            ),
+            risk_proof_requirement_count=sum(
+                command.risk_proof_requirement_count for command in commands
+            ),
+            blocking_risk_proof_requirement_count=sum(
+                command.blocking_risk_proof_requirement_count for command in commands
             ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],

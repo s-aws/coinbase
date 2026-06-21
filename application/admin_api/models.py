@@ -28,6 +28,7 @@ from core.enums import (
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
+    AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -4014,6 +4015,40 @@ class AdminFuturesCommandReadinessClosureStepItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
+    """One backend-owned futures/perpetual proof requirement before commands."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proof_kind: AdminFuturesCommandRiskProofKind
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    semantic_guard: AdminFuturesCommandSemanticGuard
+    applies_to_fields: list[AdminFuturesCommandRequestField] = Field(
+        default_factory=list
+    )
+    evidence_routes: list[AdminFuturesCommandEvidenceRoute] = Field(
+        default_factory=list
+    )
+    evidence_route_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    runtime_evidence_observed: bool = False
+    proof_route_required: bool = True
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandContractItem(BaseModel):
     """One planned futures/perpetual command contract row."""
 
@@ -4057,6 +4092,11 @@ class AdminFuturesCommandContractItem(BaseModel):
     readiness_closure_steps: list[AdminFuturesCommandReadinessClosureStepItem] = (
         Field(default_factory=list)
     )
+    risk_proof_requirement_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_requirement_count: int = Field(default=0, ge=0)
+    risk_proof_requirements: list[AdminFuturesCommandRiskProofRequirementItem] = (
+        Field(default_factory=list)
+    )
     command_route_registered: bool = False
     command_draft_allowed: bool = False
     execution_allowed: bool = False
@@ -4095,6 +4135,8 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     ready_readiness_decision_count: int = Field(default=0, ge=0)
     readiness_closure_step_count: int = Field(default=0, ge=0)
     blocking_readiness_closure_step_count: int = Field(default=0, ge=0)
+    risk_proof_requirement_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_requirement_count: int = Field(default=0, ge=0)
     commands: list[AdminFuturesCommandContractItem] = Field(default_factory=list)
     account_evidence_routes: list[str] = Field(default_factory=list)
     position_evidence_routes: list[str] = Field(default_factory=list)

@@ -7337,6 +7337,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "blocking_readiness_closure_step_count" in (
         futures_command_suite_schema["properties"]
     )
+    assert "risk_proof_requirement_count" in (
+        futures_command_suite_schema["properties"]
+    )
+    assert "blocking_risk_proof_requirement_count" in (
+        futures_command_suite_schema["properties"]
+    )
     assert "forbidden_spot_assumptions" in futures_command_suite_schema[
         "properties"
     ]
@@ -7361,6 +7367,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         futures_command_item_schema["properties"]
     )
     assert "readiness_closure_steps" in futures_command_item_schema["properties"]
+    assert "risk_proof_requirement_count" in futures_command_item_schema[
+        "properties"
+    ]
+    assert "blocking_risk_proof_requirement_count" in (
+        futures_command_item_schema["properties"]
+    )
+    assert "risk_proof_requirements" in futures_command_item_schema["properties"]
     assert "command_route_registered" in futures_command_item_schema["properties"]
     assert "command_draft_allowed" in futures_command_item_schema["properties"]
     assert "execution_allowed" in futures_command_item_schema["properties"]
@@ -7390,6 +7403,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "properties"
     ]
     assert "execution_allowed" in futures_readiness_closure_schema["properties"]
+    futures_risk_proof_schema = written["components"]["schemas"][
+        "AdminFuturesCommandRiskProofRequirementItem"
+    ]
+    assert "proof_kind" in futures_risk_proof_schema["properties"]
+    assert "semantic_guard" in futures_risk_proof_schema["properties"]
+    assert "runtime_evidence_observed" in futures_risk_proof_schema["properties"]
+    assert "proof_route_registered" in futures_risk_proof_schema["properties"]
+    assert "proof_writer_enabled" in futures_risk_proof_schema["properties"]
+    assert "spot_rule_authority" in futures_risk_proof_schema["properties"]
     futures_request_field_schema = written["components"]["schemas"][
         "AdminFuturesCommandRequestFieldItem"
     ]
@@ -25958,7 +25980,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26185,7 +26207,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26425,7 +26447,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26684,7 +26706,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -26909,7 +26931,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27814,7 +27836,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31004,7 +31026,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31219,7 +31241,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5261-5280"
+    assert readback_payload["approved_phase_range"] == "5281-5300"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -34461,7 +34483,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "5261-5280"
+    assert payload["approved_phase_range"] == "5281-5300"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -41522,7 +41544,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "5261-5280"
+    assert live_payload["approved_phase_range"] == "5281-5300"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -42180,7 +42202,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "5261-5280"
+    assert enterprise_payload["approved_phase_range"] == "5281-5300"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -42955,7 +42977,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "5261-5280"
+    assert recovery_preview_payload["approved_phase_range"] == "5281-5300"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -46234,7 +46256,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5261-5280",
+            "approved_phase_range": "5281-5300",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -46549,7 +46571,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5261-5280"
+    assert command_suite["approved_phase_range"] == "5281-5300"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -46705,7 +46727,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5261-5280"
+    assert command_suite.approved_phase_range == "5281-5300"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -46722,6 +46744,8 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.ready_readiness_decision_count == 0
     assert command_suite.readiness_closure_step_count == 28
     assert command_suite.blocking_readiness_closure_step_count == 28
+    assert command_suite.risk_proof_requirement_count == 20
+    assert command_suite.blocking_risk_proof_requirement_count == 20
     assert command_suite.spot_rule_authority is False
     assert command_suite.live_coinbase_orders_ran is False
     assert "spot_no_shorting" in command_suite.forbidden_spot_assumptions
@@ -46752,6 +46776,36 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         ],
     }
+    expected_risk_proof_kinds = {
+        "futures_place": [
+            "product_scope",
+            "margin_collateral",
+            "liquidation_buffer",
+            "funding_fee",
+            "cap_guard",
+            "reconciliation_plan",
+        ],
+        "futures_close_reduce": [
+            "position_scope",
+            "reduce_only",
+            "close_only",
+            "margin_collateral",
+            "liquidation_buffer",
+            "cap_guard",
+            "reconciliation_plan",
+        ],
+        "futures_cancel": [
+            "product_scope",
+            "reconciliation_plan",
+        ],
+        "futures_reconcile": [
+            "position_scope",
+            "margin_collateral",
+            "liquidation_buffer",
+            "funding_fee",
+            "reconciliation_plan",
+        ],
+    }
     for command_id, expected_contracts in expected_command_backend_contracts.items():
         command_item = commands_by_id[command_id]
         assert command_item.required_backend_contracts == expected_contracts
@@ -46768,6 +46822,26 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
         assert len(backend_service_steps) == 1
         assert backend_service_steps[0].required_backend_contract == expected_contracts[0]
         assert backend_service_steps[0].required_evidence_refs == expected_contracts
+        assert command_item.risk_proof_requirement_count == len(
+            expected_risk_proof_kinds[command_id]
+        )
+        assert command_item.blocking_risk_proof_requirement_count == len(
+            expected_risk_proof_kinds[command_id]
+        )
+        assert [
+            item.proof_kind.value for item in command_item.risk_proof_requirements
+        ] == expected_risk_proof_kinds[command_id]
+        assert [
+            item.sequence for item in command_item.risk_proof_requirements
+        ] == list(range(1, len(expected_risk_proof_kinds[command_id]) + 1))
+        assert all(
+            item.proof_route_registered is False
+            and item.proof_writer_enabled is False
+            and item.spot_rule_authority is False
+            and item.browser_authority == "display_only"
+            and item.bff_authority == "forward_only_no_execution"
+            for item in command_item.risk_proof_requirements
+        )
     place = commands_by_id["futures_place"]
     assert place.command_route_registered is False
     assert place.command_draft_allowed is False
@@ -46851,6 +46925,15 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert place_semantic_guards["product_scope"].proof_writer_enabled is False
     assert place_semantic_guards["product_scope"].proof_evidence_only is True
     assert place_semantic_guards["margin_collateral"].risk_semantic is True
+    place_risk_proofs = {
+        item.proof_kind.value: item for item in place.risk_proof_requirements
+    }
+    assert place_risk_proofs["margin_collateral"].runtime_evidence_observed is True
+    assert place_risk_proofs["liquidation_buffer"].runtime_evidence_observed is False
+    assert "futures_cap_guard_margin_collateral_link" in (
+        place_risk_proofs["margin_collateral"].missing_evidence_refs
+    )
+    assert "spot-rule authority" in place_risk_proofs["product_scope"].detail
     assert (
         "/api/v1/admin/cap-guard/decisions"
         in [
@@ -46882,6 +46965,16 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     }
     assert close_reduce_semantic_guards["reduce_only"].risk_semantic is True
     assert close_reduce_semantic_guards["close_only"].risk_semantic is True
+    close_reduce_risk_proofs = {
+        item.proof_kind.value: item for item in close_reduce.risk_proof_requirements
+    }
+    assert close_reduce_risk_proofs["position_scope"].semantic_guard.value == (
+        "position_scope"
+    )
+    assert close_reduce_risk_proofs["reduce_only"].proof_route_required is True
+    assert "futures_reduce_only_position_contract" in (
+        close_reduce_risk_proofs["reduce_only"].required_evidence_refs
+    )
     assert (
         "/api/v1/futures/positions/{position_key}"
         in [
@@ -46925,6 +47018,16 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
         for ref in cancel_semantic_guards["idempotency"].required_evidence_refs
     )
     assert cancel_semantic_guards["idempotency"].proof_writer_enabled is False
+    cancel_risk_proofs = {
+        item.proof_kind.value: item for item in cancel.risk_proof_requirements
+    }
+    assert set(cancel_risk_proofs) == {"product_scope", "reconciliation_plan"}
+    assert cancel_risk_proofs["reconciliation_plan"].applies_to_fields[0].value == (
+        "client_order_id"
+    )
+    assert "order_id" not in [
+        field.value for item in cancel.risk_proof_requirements for field in item.applies_to_fields
+    ]
     reconcile = commands_by_id["futures_reconcile"]
     assert reconcile.semantic_guard_count == 7
     assert reconcile.risk_semantic_guard_count == 3
@@ -46944,6 +47047,13 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
         in reconcile_semantic_guards["reconciliation_plan"].missing_evidence_refs
     )
     assert "browser" in reconcile_semantic_guards["reconciliation_plan"].detail
+    reconcile_risk_proofs = {
+        item.proof_kind.value: item for item in reconcile.risk_proof_requirements
+    }
+    assert reconcile_risk_proofs["funding_fee"].runtime_evidence_observed is False
+    assert "futures_funding_fee_risk_contract" in (
+        reconcile_risk_proofs["funding_fee"].required_evidence_refs
+    )
     assert command_suite.submitted_notional_usdc == "0"
     assert command_suite.executed_notional_usdc == "0"
 

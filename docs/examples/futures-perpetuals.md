@@ -11,12 +11,12 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5261-5280 range adds read-only M57 futures/perpetual readiness
-closure plans to the existing command-suite evidence. Each readiness decision
-and ordered closure step is derived from backend-owned prerequisites, request
-fields, semantic guards, evidence routes, missing evidence refs, and missing
-backend contracts. It is not a command route, proof writer, command draft
-surface, or execution approval.
+The active 5281-5300 range adds read-only M57 futures/perpetual risk proof
+requirements to the existing command-suite evidence. Each readiness decision,
+ordered closure step, and risk proof requirement is derived from backend-owned
+prerequisites, request fields, semantic guards, evidence routes, missing
+evidence refs, and missing backend contracts. It is not a command route, proof
+writer, command draft surface, or execution approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -31,7 +31,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5261-5280",
+  "approved_phase_range": "5281-5300",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -49,6 +49,8 @@ Expected response posture:
   "ready_readiness_decision_count": 0,
   "readiness_closure_step_count": 28,
   "blocking_readiness_closure_step_count": 28,
+  "risk_proof_requirement_count": 20,
+  "blocking_risk_proof_requirement_count": 20,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -232,6 +234,95 @@ Expected response posture:
           "execution_allowed": false,
           "proof_writer_enabled": false,
           "spot_rule_authority": false
+        }
+      ],
+      "risk_proof_requirement_count": 6,
+      "blocking_risk_proof_requirement_count": 6,
+      "risk_proof_requirements": [
+        {
+          "proof_kind": "product_scope",
+          "sequence": 1,
+          "status": "blocked",
+          "blocking": true,
+          "source": "semantic_guard",
+          "semantic_guard": "product_scope",
+          "applies_to_fields": ["product_id"],
+          "evidence_routes": [
+            "/api/v1/futures/account",
+            "/api/v1/futures/positions"
+          ],
+          "required_evidence_refs": [
+            "futures_product_scope_readback",
+            "futures_command_product_scope_contract"
+          ],
+          "missing_evidence_refs": [
+            "futures_product_scope_readback",
+            "futures_command_product_scope_contract"
+          ],
+          "runtime_evidence_observed": false,
+          "proof_route_required": true,
+          "proof_route_registered": false,
+          "proof_writer_enabled": false,
+          "backend_owned": true,
+          "read_only": true,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        },
+        {
+          "proof_kind": "margin_collateral",
+          "sequence": 2,
+          "status": "blocked",
+          "blocking": true,
+          "source": "semantic_guard",
+          "semantic_guard": "margin_collateral",
+          "applies_to_fields": ["margin_mode", "leverage"],
+          "evidence_routes": [
+            "/api/v1/futures/account",
+            "/api/v1/admin/cap-guard/decisions"
+          ],
+          "required_evidence_refs": [
+            "futures_margin_collateral_risk_contract",
+            "futures_cap_guard_margin_collateral_link"
+          ],
+          "missing_evidence_refs": [
+            "futures_margin_collateral_risk_contract",
+            "futures_cap_guard_margin_collateral_link"
+          ],
+          "runtime_evidence_observed": true,
+          "proof_route_required": true,
+          "proof_route_registered": false,
+          "proof_writer_enabled": false,
+          "backend_owned": true,
+          "read_only": true,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        },
+        {
+          "proof_kind": "reconciliation_plan",
+          "sequence": 6,
+          "status": "blocked",
+          "blocking": true,
+          "source": "semantic_guard",
+          "semantic_guard": "reconciliation_plan",
+          "applies_to_fields": ["client_order_id"],
+          "evidence_routes": ["/api/v1/admin/reconciliation/plans"],
+          "required_evidence_refs": [
+            "futures_reconciliation_plan_contract"
+          ],
+          "missing_evidence_refs": [
+            "futures_reconciliation_plan_contract"
+          ],
+          "runtime_evidence_observed": false,
+          "proof_route_required": true,
+          "proof_route_registered": false,
+          "proof_writer_enabled": false,
+          "backend_owned": true,
+          "read_only": true,
+          "spot_rule_authority": false,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
         }
       ],
       "command_route_registered": false,

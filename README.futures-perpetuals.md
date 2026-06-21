@@ -57,6 +57,15 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   route, live-adapter, and contextless-review work. These steps are planning
   evidence only; they do not register a route, write proofs, call Coinbase, or
   make the browser an execution authority.
+- Each command row also exposes backend-owned risk proof requirements for
+  product scope, position scope, margin, collateral, liquidation buffer,
+  funding fee, reduce-only, close-only, cap guard, and reconciliation-plan
+  semantics. These rows are blocked evidence requirements only; they do not
+  write proofs, register proof routes, or make a command executable.
+- In this contract, "risk proof requirements" is the umbrella for command
+  safety prerequisites, including identity/product-scope and reconciliation
+  proof requirements that must exist before risk-sensitive commands can be
+  reviewed for enablement.
 - Spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
   inventory-lot assumptions are explicitly forbidden as futures/perpetual
   command authority.
@@ -94,6 +103,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.
+- Do not treat command risk proof requirements as completed guard proofs.
+  They are backend-owned evidence requirements and remain blocked until
+  implemented and reviewed through backend contracts.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

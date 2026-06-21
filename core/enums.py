@@ -1153,6 +1153,20 @@ class AdminFuturesCommandReadinessClosureStep(str, Enum):
     RUN_CONTEXTLESS_REVIEW_GATE = "run_contextless_review_gate"
 
 
+class AdminFuturesCommandRiskProofKind(str, Enum):
+    """Futures/perpetual proof requirement categories before command enablement."""
+
+    PRODUCT_SCOPE = "product_scope"
+    POSITION_SCOPE = "position_scope"
+    MARGIN_COLLATERAL = "margin_collateral"
+    LIQUIDATION_BUFFER = "liquidation_buffer"
+    FUNDING_FEE = "funding_fee"
+    REDUCE_ONLY = "reduce_only"
+    CLOSE_ONLY = "close_only"
+    CAP_GUARD = "cap_guard"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

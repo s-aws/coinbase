@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5261-5280",
+  "approved_phase_range": "5281-5300",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5261-5280",
+  "approved_phase_range": "5281-5300",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1864,11 +1864,12 @@ cancel, or liquidate positions.
 Futures/perpetual command-suite reads expose backend-owned M57 contract
 evidence for future placement, close/reduce, cancel, and reconciliation
 commands, including blocked request-field rows, semantic guard rows, evidence
-routes, and command-level readiness decisions. The readiness decisions are
+routes, command-level readiness decisions, ordered closure steps, and risk
+proof requirements. The readiness decisions and risk proof requirements are
 derived from existing backend evidence and missing contracts. The response is
 still read-only: it registers no command routes, allows no command drafts,
-performs no reconciliation execution, calls no Coinbase reads or writes, and
-grants no browser/BFF execution authority.
+enables no proof writers, performs no reconciliation execution, calls no
+Coinbase reads or writes, and grants no browser/BFF execution authority.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -1883,7 +1884,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5261-5280",
+  "approved_phase_range": "5281-5300",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1901,6 +1902,8 @@ Expected command-suite posture:
   "ready_readiness_decision_count": 0,
   "readiness_closure_step_count": 28,
   "blocking_readiness_closure_step_count": 28,
+  "risk_proof_requirement_count": 20,
+  "blocking_risk_proof_requirement_count": 20,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -1917,11 +1920,14 @@ Expected command-suite posture:
 }
 ```
 
-Command rows include `readiness_closure_steps`, an ordered backend-owned plan
+Command rows include `"readiness_closure_steps"`, an ordered backend-owned plan
 for the remaining prerequisite, payload, semantic-guard, command-service,
-route, live-adapter, and contextless-review work. These rows are blocked
-evidence only. They do not register command routes, create drafts, write
-proofs, call Coinbase, execute reconciliation, or grant browser/BFF authority.
+route, live-adapter, and contextless-review work. They also include
+`"risk_proof_requirements"` for product scope, position scope, margin,
+collateral, liquidation buffer, funding fee, reduce-only, close-only,
+cap-guard, and reconciliation-plan semantics. These rows are blocked evidence
+only. They do not register command routes, create drafts, write proofs, call
+Coinbase, execute reconciliation, or grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account
