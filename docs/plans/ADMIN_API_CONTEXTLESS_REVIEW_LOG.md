@@ -1,41 +1,45 @@
 # Admin API Contextless Review Log
 
-## M55 Stealth Create Candidate Pre-Execution Contract Review - Phases 5121-5140
+## M55 Stealth Create Exact Command Pre-Execution Contract Binding Review - Phases 5141-5160
 
-Scope: phases `5121-5140`, after completing route-level enablement candidate
-review. The selected first candidate is `stealth_create`, but this batch is
-still no-live and must only produce backend-owned pre-execution contract
-evidence for `POST /api/v1/stealth/orders`.
+Scope: phases `5141-5160`, after completing selected-create planning/read
+evidence in phases `5121-5140`. The active batch binds
+`selected_create_pre_execution_contract` to the exact dry
+`POST /api/v1/stealth/orders` command response with command-envelope and
+payload-present evidence. It must remain no-live and must not invoke
+`StealthOrderManager`, write lifecycle/order rows, execute reconciliation, call
+Coinbase, or grant browser/BFF execution authority.
 
-- Initial status: active range advanced from completed phases `5101-5120`.
-- Completion evidence for prior range: backend `b3a9bba2`, frontend
-  `65073bd`, UI `http://127.0.0.1:3002/#stealth-orders`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5101-5120-stealth-candidate-review.png`,
+- Initial status: active range advanced from completed phases `5121-5140`.
+- Completion evidence for prior range: backend `886c44ab`, frontend
+  `977b658`, UI `http://127.0.0.1:3002/#stealth-orders`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5121-5140-selected-create-preexecution.png`,
   live Coinbase submitted/executed notional `0` USDC.
 - Required blind/contextless review: a fresh reviewer must be able to explain
-  that `stealth_create` is a selected planning target only, that the route
-  still cannot invoke `StealthOrderManager`, write lifecycle/order rows,
-  execute reconciliation, call Coinbase, or grant browser/BFF execution
-  authority, and that `5101-5120` is completed history.
+  that command-suite read evidence is planning context
+  (`exact_command_context_present=false`) while the dry command response is
+  exact command context (`exact_command_context_present=true`), and that
+  `5121-5140` is completed history.
 
-Reviewer: contextless documentation/validator pass, 2026-06-20.
+Reviewer: blind/contextless subagent remediation pass, 2026-06-20.
 
 Result: PASS after remediation.
 
-- REMEDIATION: the active roadmap, examples, maintainer handoff, and
-  agent-state records now identify `5121-5140` as active and `5101-5120` as
-  completed history.
-- PASS: the current entry explains the move from route-level candidate review
-  to selected-create pre-execution contract review without enabling live
-  command execution.
-- PASS: blind/contextless subagent review confirmed that a fresh maintainer can
-  find the entry points, see that `GET /api/v1/stealth/command-suite` exposes
-  `selected_create_pre_execution_contract` as backend-owned read-only
-  evidence, and verify the no-manager, no-lifecycle-write, no-reconciliation,
-  no-Coinbase, display-only, and forward-only flags.
+- REMEDIATION: initial blind/contextless review found stale phase metadata in
+  the backend regression assertion, autonomous validators, examples, and
+  contextless review logs. The active roadmap, examples, maintainer handoff,
+  agent-state records, and validator assertions now identify `5141-5160` as
+  active and `5121-5140` as completed history.
+- PASS: the current docs explain the move from selected-create planning/read
+  evidence to exact dry command-response pre-execution evidence without
+  enabling live command execution.
+- PASS: code references keep one backend evidence builder and attach the exact
+  command response in `AdminApiCommandService.create_stealth_order` while all
+  manager invocation, lifecycle/order writes, reconciliation, Coinbase,
+  browser execution, and BFF execution authority flags remain disabled.
 - No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
   notional: `0` USDC.
-- Full backend regression was not run because phases `5121-5140` are ordinary
+- Full backend regression was not run because phases `5141-5160` are ordinary
   planning/contract phase work; use `python tools/run_parallel_regression.py
   --workers 4` only for milestone/release/deployment/Admin API closeout or
   explicit request.

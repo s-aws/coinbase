@@ -399,11 +399,10 @@ browser/BFF execution authority. The command-suite response now includes
 Every row is blocked and non-executable; the current first review target is
 `stealth_create` at `/api/v1/stealth/orders` because it has zero
 exchange-facing blockers, not because create is executable.
-Active phases 5121-5140 turn that selected `stealth_create` planning target
-into exact backend-owned pre-execution contract evidence for
-`POST /api/v1/stealth/orders` while keeping manager invocation, lifecycle
-writes, reconciliation execution, Coinbase interaction, and browser/BFF
-authority blocked.
+Completed phases 5121-5140 turn that selected `stealth_create` planning target
+into backend-owned pre-execution contract evidence on the command-suite read
+route while keeping manager invocation, lifecycle writes, reconciliation
+execution, Coinbase interaction, and browser/BFF authority blocked.
 The command-suite response exposes that work as
 `selected_create_pre_execution_contract`. It is a read-only contract object
 for the selected create route only; it lists route identity, payload,
@@ -411,6 +410,12 @@ approval/admission, guard, lifecycle-write, manager, idempotency/audit,
 reconciliation, and Coinbase non-interaction boundaries, but it does not call
 `StealthOrderManager`, write `stealth_orders` or `order_parent`, execute
 reconciliation, call Coinbase, or allow browser/BFF execution.
+Active phases 5141-5160 bind that same selected-create pre-execution contract
+to the exact dry `POST /api/v1/stealth/orders` command response, including
+correlation id, idempotency key, actor id, operator intent, request identity,
+and payload-present fields. The command still returns live-disabled evidence
+and remains no-manager, no-write, no-reconciliation, no-Coinbase, display-only,
+and BFF forward-only.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their

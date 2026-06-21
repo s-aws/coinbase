@@ -82,7 +82,7 @@ count, blocked admission evidence, missing gates, and route. The current first
 review target is `stealth_create` at `/api/v1/stealth/orders`; it remains
 `blocked`, `candidate_executable=false`, and
 `candidate_execution_allowed=false`.
-For active phases 5121-5140, the selected `stealth_create` candidate is the
+For completed phases 5121-5140, the selected `stealth_create` candidate is the
 only planning target. The work is pre-execution contract evidence for the
 create route and still cannot invoke managers, write lifecycle/order rows,
 execute reconciliation, call Coinbase, or grant browser/BFF authority.
@@ -96,6 +96,11 @@ proof. The object remains blocked evidence: it does not create a stealth
 order, call `StealthOrderManager`, write `stealth_orders` or `order_parent`,
 submit/cancel/read Coinbase orders, execute reconciliation, mutate state, or
 grant browser/BFF authority.
+For active phases 5141-5160, the same selected-create pre-execution contract is
+also attached to the exact dry `POST /api/v1/stealth/orders` command response
+with command-envelope and payload-present fields. That response evidence
+distinguishes exact command context from read/planning context, but it remains
+blocked, no-live, no-write, display-only, and BFF forward-only.
 Readiness criteria, traces, clearance rows, steps, step reviews, review
 inputs, review-input store requirements, review-input store record contracts,
 review-input store record validations, and review-input store

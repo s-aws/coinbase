@@ -117,8 +117,10 @@ workflow surfaces may display it only and must not use it to execute, call
 Coinbase, cancel/replace placements, reconcile, mutate state, or broaden BFF
 authority.
 The read-only stealth command-suite may also expose
-`selected_create_pre_execution_contract` for active phases 5121-5140. That
-object is a selected-create review aid only. It names the backend route,
+`selected_create_pre_execution_contract` from completed phases 5121-5140 as a
+selected-create planning/read review aid. For active phases 5141-5160, the dry
+`POST /api/v1/stealth/orders` command response may expose the same contract
+with exact command-envelope and payload-present fields. It names the backend route,
 payload, approval/admission, lifecycle-write, manager, idempotency/audit,
 guard/account-condition, reconciliation, and Coinbase non-interaction
 boundaries required before future create execution. It must not become a

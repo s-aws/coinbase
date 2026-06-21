@@ -49,125 +49,135 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Phases 5121-5140
+## Active Phases 5141-5160
 
-These phases continue M55 after route-level candidate review selected
-`stealth_create` as the first no-live planning target because it has zero
-exchange-facing blockers. The batch turns that selection into exact
-backend-owned pre-execution contract evidence for `POST /api/v1/stealth/orders`
-without enabling execution, invoking `StealthOrderManager`, writing
-`stealth_orders` or `order_parent`, dispatching lifecycle events, executing
-reconciliation, calling Coinbase, or granting browser/BFF authority.
+These phases continue M55 after selected-create planning evidence was exposed
+in the read model. The batch binds that same backend-owned pre-execution
+contract to the exact dry `POST /api/v1/stealth/orders` command response,
+including command envelope and payload-present evidence, without enabling
+execution, invoking `StealthOrderManager`, writing lifecycle/order state,
+executing reconciliation, calling Coinbase, or granting browser/BFF authority.
 
-### Phase 5121 - Prior Range Completion Evidence
+### Phase 5141 - Prior Range Completion Evidence
 
-- Record completed phases 5101-5120 with backend commit `b3a9bba2`, frontend
-  commit `65073bd`, focused backend/frontend gates, browser smoke at
+- Record completed phases 5121-5140 with backend commit `886c44ab`, frontend
+  commit `977b658`, focused backend/frontend gates, browser smoke at
   `http://127.0.0.1:3002/#stealth-orders`, screenshot
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5101-5120-stealth-candidate-review.png`,
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5121-5140-selected-create-preexecution.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5122 - Advance Active Queue Range
+### Phase 5142 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5101-5120 to active phases
-  5121-5140 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5121-5140 to active phases
+  5141-5160 while preserving no-live defaults and cap policy.
 
-### Phase 5123 - Selected Candidate Scope
+### Phase 5143 - Exact Command-Response Gap
 
-- Document that only the selected `stealth_create` candidate is in scope for
-  this batch. Reveal, cancel, move, reprice, recovery, and reconciliation
-  remain blocked behind their existing candidate-review evidence.
+- Document that command-suite read evidence exists but the dry
+  `stealth_create` command response needs exact envelope and payload-bound
+  pre-execution evidence.
 
-### Phase 5124 - Create Route Identity Contract
+### Phase 5144 - Shared Builder Extraction
 
-- Verify the create route template, method, module id, mutation family,
-  service method, actor identity, idempotency key, and operator-intent fields
-  are exact and single-sourced.
+- Keep one backend code path for selected-create pre-execution contract
+  evidence and consume it from both read service and command service.
 
-### Phase 5125 - Create Payload Contract
+### Phase 5145 - Command Response Model
 
-- Define the backend-owned create payload fields and validation boundaries
-  required before a future manager call can exist.
+- Add typed command-response support for
+  `selected_create_pre_execution_contract` without changing live execution
+  status or accepted-response semantics.
 
-### Phase 5126 - Approval And Admission Preconditions
+### Phase 5146 - Exact Envelope Binding
 
-- Map the selected create route to required approval request, approval
-  decision, admission audit, cap/guard decision, and reconciliation-plan
-  evidence without resolving those gates.
+- Bind correlation id, idempotency key, actor id, operator intent, route,
+  method, service method, and `stealth_order_id` identity into the command
+  response evidence.
 
-### Phase 5127 - Lifecycle-Write Boundary
+### Phase 5147 - Payload Context Exposure
 
-- Name the exact stealth/order lifecycle writes that a future create execution
-  would perform and keep each write blocked until backend proof and locks are
-  complete.
+- Expose which backend request payload fields were present and count them so a
+  contextless reviewer can distinguish exact command evidence from planning
+  evidence.
 
-### Phase 5128 - Manager Invocation Boundary
+### Phase 5148 - No-Live And No-Write Proof Preservation
 
-- Identify the existing manager/bridge path that would own create execution
-  and record why the current Admin API route must not invoke it yet.
+- Assert the exact command contract still reports execution blocked, manager
+  invocation false, local writes false, reconciliation false, Coinbase
+  interaction false, and notional `0`.
 
-### Phase 5129 - Idempotency And Audit Boundary
+### Phase 5149 - Backend OpenAPI Sync
 
-- Verify create pre-execution evidence includes request id, correlation id,
-  idempotency key, actor id, audit id, and replay/conflict posture.
+- Regenerate the Admin API OpenAPI artifact and assert the schema contains the
+  new command-response contract fields.
 
-### Phase 5130 - Guard And Account-Condition Boundary
+### Phase 5150 - Backend Focused Regression
 
-- Record how action-condition guards, artificial account caps, spot/futures
-  applicability, and product capability checks are backend-owned for the
-  create route.
+- Run focused Admin API contract tests covering schema, read evidence, exact
+  command response evidence, and no-live posture.
 
-### Phase 5131 - Reconciliation Planning Boundary
+### Phase 5151 - Frontend Schema Sync
 
-- Define the post-write reconciliation plan and proof prerequisites that must
-  exist before any future create execution can be considered complete.
+- Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5132 - Coinbase Non-Interaction Proof
+### Phase 5152 - Mock Exact Command Fixture
 
-- Assert the create pre-execution contract does not read, submit, cancel, or
-  replace Coinbase orders and reports submitted/executed notional as `0`.
+- Update mock backend `stealth.orders.create` to return exact-context
+  selected-create pre-execution evidence with command-envelope fields.
 
-### Phase 5133 - Backend Contract Model
+### Phase 5153 - Dry-Submit Evidence Mapper
 
-- Add or update typed backend response models for selected-create
-  pre-execution contract evidence only if the existing command-suite model is
-  insufficient.
+- Render selected-create exact pre-execution rows from the shared dry-submit
+  evidence mapper so command workflow panels display the backend evidence.
 
-### Phase 5134 - Backend Read Service Evidence
+### Phase 5154 - Read-Model Context Display
 
-- Expose selected-create pre-execution evidence from the existing Admin API
-  read path without adding a new execution route or parallel behavior path.
+- Keep read-model selected-create evidence visibly marked as planning evidence
+  with no request identity or command envelope.
 
-### Phase 5135 - Backend Focused Assertions
+### Phase 5155 - Command Workflow Coverage
 
-- Add focused assertions proving selected-create pre-execution evidence is
-  present, blocked, no-live, no-manager, no-reconciliation, and no-Coinbase.
+- Add focused frontend assertions proving dry stealth-create submit displays
+  exact command context, payload-present fields, no-write proof, and no-live
+  proof.
 
-### Phase 5136 - Frontend Contract Sync
-
-- Regenerate frontend schema and update the adapter only if the backend
-  response shape changes.
-
-### Phase 5137 - Frontend Display Scope
-
-- Display selected-create pre-execution evidence as read-only backend evidence
-  without adding create controls, proof inputs, or BFF execution authority.
-
-### Phase 5138 - Documentation And Examples
+### Phase 5156 - Documentation And Examples
 
 - Update Admin API, stealth command-suite, command workflow, examples,
-  maintainer handoff, expanded context, and roadmap docs for the
-  selected-create pre-execution contract.
+  maintainer handoff, expanded context, and frontend API contract docs for the
+  exact command-response contract.
 
-### Phase 5139 - Contextless Review And Focused Gates
+### Phase 5157 - Validator And Artifact Sync
 
-- Run blind/contextless review plus focused backend/frontend validators for
-  selected-create contract clarity, no-live posture, and queue metadata.
+- Update backend and frontend autonomous queue validators, artifact contracts,
+  release checks, and deployment checks to recognize phases 5141-5160.
 
-### Phase 5140 - Commit And Push
+### Phase 5158 - Contextless Review
+
+- Run blind/contextless review focused on whether a maintainer can understand
+  how read planning evidence and exact command-response evidence relate.
+
+### Phase 5159 - Focused Gates And UI Smoke
+
+- Run focused backend/frontend gates, autonomous validators, and no-live UI
+  smoke. Full regression remains reserved for milestone/release closeout or
+  explicit request.
+
+### Phase 5160 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI URL, and the next M55 enablement step.
+
+## Completed Phases 5121-5140
+
+These phases exposed selected-`stealth_create` pre-execution contract evidence
+from the Admin API read path and displayed it in the frontend stealth read
+model as backend-owned planning evidence. The range completed with backend
+commit `886c44ab`, frontend commit `977b658`, focused backend/frontend gates,
+browser smoke at `http://127.0.0.1:3002/#stealth-orders`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-5121-5140-selected-create-preexecution.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed Phases 5101-5120
 

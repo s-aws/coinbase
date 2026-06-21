@@ -9813,6 +9813,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandAdmissionContextEvidence'
           - type: 'null'
+        selected_create_pre_execution_contract:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCreatePreExecutionContractEvidence'
+          - type: 'null'
         stealth_lifecycle_execution_contract:
           anyOf:
           - $ref: '#/components/schemas/StealthCreateLifecycleWriteExecutionContractEvidence'
@@ -71824,6 +71828,41 @@ components:
           type: boolean
           title: Exact Command Context Present
           default: false
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Id
+        operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Intent
+        payload_fields_present:
+          items:
+            type: string
+          type: array
+          title: Payload Fields Present
+        payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Payload Field Count
+          default: 0
         payload_contract_authority:
           type: string
           title: Payload Contract Authority

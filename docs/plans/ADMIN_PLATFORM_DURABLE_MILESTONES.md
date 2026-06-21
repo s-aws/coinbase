@@ -3163,10 +3163,12 @@ Current backend evidence:
   completed blocked evidence chain. The first ranked candidate is planning
   evidence only; it does not invoke managers, mutate lifecycle/order/exchange
   state, reconcile, call Coinbase, or grant browser/BFF execution authority.
-  Active phases 5121-5140 turn the selected `stealth_create` planning target
-  into backend-owned pre-execution contract evidence while manager invocation,
-  lifecycle/order writes, reconciliation execution, Coinbase interaction, and
-  browser/BFF authority remain blocked.
+  Completed phases 5121-5140 turn the selected `stealth_create` planning
+  target into backend-owned pre-execution contract evidence. Active phases
+  5141-5160 bind that contract to the exact dry `POST /api/v1/stealth/orders`
+  command response while manager invocation, lifecycle/order writes,
+  reconciliation execution, Coinbase interaction, and browser/BFF authority
+  remain blocked.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

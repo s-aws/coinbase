@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "5121-5140",
+  "approved_phase_range": "5141-5160",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -140,7 +140,20 @@ This route-level enablement candidate review is still no-live and cannot make
 stealth create, reveal, move, cancel, recovery, reconciliation, or movement
 reprice executable.
 
-In the active 5121-5140 range, the stealth create candidate pre-execution contract review work starts from the selected first candidate, `stealth_create`, as a pre-execution contract target only. The create route must still prove exact payload, approval, admission, cap/guard, idempotency, audit, lifecycle-write, manager-boundary, and reconciliation contracts before execution authority can exist.
+In the completed 5121-5140 range, the stealth create candidate
+pre-execution contract review work starts from the selected first candidate,
+`stealth_create`, as a pre-execution contract target only. The create route
+must still prove exact payload, approval, admission, cap/guard, idempotency,
+audit, lifecycle-write, manager-boundary, and reconciliation contracts before
+execution authority can exist.
+
+In the active 5141-5160 range, the stealth create exact command pre-execution contract binding
+work makes the exact dry
+`POST /api/v1/stealth/orders` command response also includes
+`selected_create_pre_execution_contract`. Command-response evidence sets
+`exact_command_context_present=true` and includes command-envelope and
+payload-present fields; command-suite read evidence keeps those exact-context
+fields empty because it is planning evidence.
 
 ```json
 {
@@ -206,6 +219,16 @@ In the active 5121-5140 range, the stealth create candidate pre-execution contra
     "module_id": "stealth_orders",
     "identity_key": "stealth_order_id",
     "service_method": "create_stealth_order",
+    "command_context_required": true,
+    "exact_command_context_present": false,
+    "command_context_bound": false,
+    "identity_value": null,
+    "correlation_id": null,
+    "idempotency_key": null,
+    "actor_id": null,
+    "operator_intent": null,
+    "payload_fields_present": [],
+    "payload_field_count": 0,
     "payload_contract_authority": "backend_contract_only",
     "payload_required_fields": [
       "stealth_order_id",
@@ -247,6 +270,45 @@ invocation, Coinbase reads/submits/cancels, reconciliation execution, or state
 mutation. The `selected_create_pre_execution_contract` object makes the
 selected create route easier to review by humans and contextless agents, but
 it remains evidence only and cannot be used as an execution adapter.
+
+The dry command response for the same route has the same no-live/no-write
+contract plus exact command evidence:
+
+```json
+{
+  "status": "not_implemented",
+  "service_method": "create_stealth_order",
+  "stealth_order_id": "stealth-create-abc",
+  "selected_create_pre_execution_contract": {
+    "candidate_id": "m55_selected_candidate::stealth_create::command_response",
+    "exact_command_context_present": true,
+    "command_context_bound": true,
+    "identity_value": "stealth-create-abc",
+    "correlation_id": "corr-001",
+    "idempotency_key": "idem-stealth-create",
+    "actor_id": "operator-001",
+    "operator_intent": "manual_one_off",
+    "payload_fields_present": [
+      "stealth_order_id",
+      "product_id",
+      "side",
+      "total_size",
+      "limit_price",
+      "reveal_condition"
+    ],
+    "execution_allowed": false,
+    "manager_invocation_ran": false,
+    "stealth_row_write_ran": false,
+    "order_parent_write_ran": false,
+    "coinbase_order_submitted": false,
+    "coinbase_order_cancel_submitted": false,
+    "live_coinbase_read_ran": false,
+    "reconciliation_executed": false,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0"
+  }
+}
+```
 
 ```json
 {

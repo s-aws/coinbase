@@ -56,9 +56,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5121-5140"
-APPROVED_PHASES = tuple(range(5121, 5141))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5101-5120"
+APPROVED_PHASE_RANGE = "5141-5160"
+APPROVED_PHASES = tuple(range(5141, 5161))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5121-5140"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -210,7 +210,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"commands"',
             '"admission_readiness"',
             '"blocker_closures"',
-            "stealth create candidate pre-execution contract review",
+            "stealth create exact command pre-execution contract binding",
         ],
     }
     stale_active_range_text = (
@@ -225,9 +225,11 @@ def _check_example_phase_range_docs() -> QueueCheck:
         "active 5061-5080 range",
         "active 5081-5100 range",
         "active 5101-5120 range",
+        "active 5121-5140 range",
         '"approved_phase_range": "5061-5080"',
         '"approved_phase_range": "5081-5100"',
         '"approved_phase_range": "5101-5120"',
+        '"approved_phase_range": "5121-5140"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -395,15 +397,19 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5061-5080`",
         "Active `5081-5100`",
         "Active `5101-5120`",
+        "Active `5121-5140`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
+        "complete active phases `5121-5140`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
+        "current active range is `5121-5140`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
+        "Active autonomous range: `5121-5140`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]

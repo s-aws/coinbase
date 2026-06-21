@@ -2120,6 +2120,9 @@ class AdminApiCommandResponse(BaseModel):
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     stealth_admission_context: StealthCommandAdmissionContextEvidence | None = None
+    selected_create_pre_execution_contract: (
+        StealthCreatePreExecutionContractEvidence | None
+    ) = None
     stealth_lifecycle_execution_contract: (
         StealthCreateLifecycleWriteExecutionContractEvidence | None
     ) = None
@@ -19751,6 +19754,13 @@ class StealthCreatePreExecutionContractEvidence(BaseModel):
     required_permission: AdminApiPermission | str
     command_context_required: bool = True
     exact_command_context_present: bool = False
+    identity_value: str | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    actor_id: str | None = None
+    operator_intent: str | None = None
+    payload_fields_present: list[str] = Field(default_factory=list)
+    payload_field_count: int = Field(default=0, ge=0)
     payload_contract_authority: str = "backend_contract_only"
     payload_required_fields: list[str] = Field(default_factory=list)
     payload_optional_fields: list[str] = Field(default_factory=list)
