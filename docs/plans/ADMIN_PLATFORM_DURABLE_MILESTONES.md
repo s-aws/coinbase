@@ -25,6 +25,16 @@ A milestone is complete only when all of these are true:
 Do not mark a milestone complete because the docs exist. Completion requires
 working contract, test, gate, and review evidence for the claimed scope.
 
+## Subagent Hygiene
+
+Phase-end cleanup is mandatory. Close subagents spawned for the completed phase
+after their findings have been consumed, remediated, or explicitly deferred,
+and close any stale or previously unused subagents found during that sweep. Do
+not close subagents that are still running required validation, producing
+required evidence, awaiting a user decision, or part of an active handoff.
+Durable milestone closeout requires a final stale-subagent sweep before the
+milestone can be marked complete.
+
 ## End-State Functionality Commitment
 
 The enterprise admin platform is not complete at read-only visibility. The

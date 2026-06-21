@@ -15,6 +15,16 @@ user request. Use `python tools/run_parallel_regression.py --workers 4` for
 full closeout runs; do not use Python threads to parallelize the regression
 suite.
 
+## Subagent Hygiene Policy
+
+Close phase-scoped subagents at the end of the phase after their findings have
+been consumed, remediated, or explicitly deferred. During that phase-end sweep,
+also close any stale or previously unused subagents discovered from earlier
+work unless they are still running required validation, producing required
+evidence, awaiting a user decision, or part of an active handoff. Durable
+milestone closeout requires one final stale-subagent sweep before the milestone
+can be marked complete.
+
 ## Approved Range Status
 
 - Approved phase range: **5581-5600**.
