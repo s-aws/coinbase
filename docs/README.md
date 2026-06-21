@@ -65,6 +65,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin API Contract Agent](agents/AGENT_ADMIN_API_CONTRACT.md)
 - [Public Release Readiness](PUBLIC_RELEASE_READINESS.md)
 - [External Testing Runbook](EXTERNAL_TESTING_RUNBOOK.md)
+- [Regression Process](REGRESSION_PROCESS.md)
 - [Testing Strategy](../genai_data/TESTING_STRATEGY.md)
 - [Spot Readiness Test Gate](SPOT_READINESS_TEST_GATE.md)
 - [Spot Contextless Agent Testing](SPOT_CONTEXTLESS_AGENT_TESTING.md)

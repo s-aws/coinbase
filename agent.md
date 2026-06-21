@@ -138,7 +138,8 @@ Use focused tests and validators for ordinary phases. The full regression gate
 is reserved for durable milestone closeout, public/release-candidate handoff,
 deployment approval/closeout, release-hardening closeout, Admin API/backend
 association closeout, or explicit user request. The canonical closeout command
-is the process-parallel helper; use the sequential pytest command only as an
+is the process-parallel helper. The durable policy lives in
+`docs/REGRESSION_PROCESS.md`; use the sequential pytest command only as an
 intentional fallback when `pytest-xdist` is unavailable.
 The helper validates serial-lane classification before running pytest. Mark
 regression files `pytest.mark.serial` when they touch shared DB cursors, fixed

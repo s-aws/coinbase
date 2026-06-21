@@ -7391,6 +7391,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "ready_risk_proof_record_validation_count" in (
         futures_command_suite_schema["properties"]
     )
+    for property_name in (
+        "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count",
+    ):
+        assert property_name in futures_command_suite_schema["properties"]
     assert "risk_proof_acceptance_criterion_count" in (
         futures_command_suite_schema["properties"]
     )
@@ -7478,6 +7484,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "ready_risk_proof_record_validation_count" in (
         futures_command_item_schema["properties"]
     )
+    for property_name in (
+        "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count",
+    ):
+        assert property_name in futures_command_item_schema["properties"]
     assert "risk_proof_acceptance_criterion_count" in (
         futures_command_item_schema["properties"]
     )
@@ -7563,6 +7575,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         futures_risk_proof_schema["properties"]
     )
     assert "record_validations" in futures_risk_proof_schema["properties"]
+    for property_name in (
+        "record_validation_remediation_dependency_work_item_claim_trace_count",
+        "blocking_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "ready_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "record_validation_remediation_dependency_work_item_claim_traces",
+    ):
+        assert property_name in futures_risk_proof_schema["properties"]
     assert "acceptance_criteria" in futures_risk_proof_schema["properties"]
     assert "acceptance_criterion_count" in futures_risk_proof_schema["properties"]
     assert "blocking_acceptance_criterion_count" in (
@@ -7663,6 +7682,42 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     )
     assert "execution_allowed" in futures_record_validation_schema["properties"]
     assert "spot_rule_authority" in futures_record_validation_schema["properties"]
+    futures_work_item_claim_trace_schema = written["components"]["schemas"][
+        "AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTrace"
+    ]
+    for property_name in (
+        "contract_kind",
+        "sequence",
+        "record_validation_ref",
+        "record_contract_ref",
+        "remediation_ref",
+        "remediation_dependency_ref",
+        "remediation_dependency_work_item_ref",
+        "remediation_dependency_work_item_claim_trace_ref",
+        "remediation_dependency_work_item_claim_trace_gate",
+        "required_backend_contract",
+        "required_work_item_contract",
+        "required_claim_trace_store_ref",
+        "required_work_item_store_ref",
+        "claim_trace_claim",
+        "claim_trace_target_ref",
+        "claim_trace_source_ref",
+        "predecessor_claim_trace_refs",
+        "successor_claim_trace_refs",
+        "claim_trace_blockers",
+        "claim_trace_created",
+        "claim_trace_ready",
+        "claim_allowed",
+        "claim_resolved",
+        "work_item_created",
+        "work_item_claimed",
+        "claim_ledger_registered",
+        "execution_allowed",
+        "spot_rule_authority",
+        "browser_authority",
+        "bff_authority",
+    ):
+        assert property_name in futures_work_item_claim_trace_schema["properties"]
     futures_acceptance_schema = written["components"]["schemas"][
         "AdminFuturesCommandRiskProofAcceptanceCriterionItem"
     ]
@@ -26240,7 +26295,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26467,7 +26522,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26707,7 +26762,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26966,7 +27021,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -27191,7 +27246,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -28096,7 +28151,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31286,7 +31341,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31501,7 +31556,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5441-5460"
+    assert readback_payload["approved_phase_range"] == "5461-5480"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -34743,7 +34798,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "5441-5460"
+    assert payload["approved_phase_range"] == "5461-5480"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -41804,7 +41859,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "5441-5460"
+    assert live_payload["approved_phase_range"] == "5461-5480"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -42462,7 +42517,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "5441-5460"
+    assert enterprise_payload["approved_phase_range"] == "5461-5480"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -43237,7 +43292,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "5441-5460"
+    assert recovery_preview_payload["approved_phase_range"] == "5461-5480"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -43323,7 +43378,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "5441-5460"
+    assert futures_command_suite_fixture["approved_phase_range"] == "5461-5480"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 0
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
@@ -46526,7 +46581,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5441-5460",
+            "approved_phase_range": "5461-5480",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -46841,7 +46896,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5441-5460"
+    assert command_suite["approved_phase_range"] == "5461-5480"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -46997,7 +47052,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5441-5460"
+    assert command_suite.approved_phase_range == "5461-5480"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -47051,6 +47106,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     )
     assert (
         command_suite.ready_risk_proof_record_validation_remediation_dependency_work_item_count
+        == 0
+    )
+    assert (
+        command_suite.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count
+        == 120
+    )
+    assert (
+        command_suite.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count
+        == 120
+    )
+    assert (
+        command_suite.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count
         == 0
     )
     assert command_suite.risk_proof_acceptance_criterion_count == 100
@@ -47203,6 +47270,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             command_item.ready_risk_proof_record_validation_remediation_dependency_work_item_count
             == 0
         )
+        assert (
+            command_item.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count
+            == len(expected_risk_proof_kinds[command_id]) * 6
+        )
+        assert (
+            command_item.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count
+            == len(expected_risk_proof_kinds[command_id]) * 6
+        )
+        assert (
+            command_item.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 0
+        )
         assert command_item.blocking_risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -47242,6 +47321,12 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             and item.blocking_record_validation_remediation_dependency_work_item_count
             == 6
             and item.ready_record_validation_remediation_dependency_work_item_count == 0
+            and item.record_validation_remediation_dependency_work_item_claim_trace_count
+            == 6
+            and item.blocking_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 6
+            and item.ready_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 0
             and item.acceptance_criterion_count == 5
             and item.blocking_acceptance_criterion_count == 5
             and item.accepted_acceptance_criterion_count == 0
@@ -47816,6 +47901,162 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                 and work_item.browser_authority == "display_only"
                 and work_item.bff_authority == "forward_only_no_execution"
                 for work_item in item.record_validation_remediation_dependency_work_items
+            )
+            assert [
+                claim_trace.sequence
+                for claim_trace in (
+                    item.record_validation_remediation_dependency_work_item_claim_traces
+                )
+            ] == list(range(1, 7))
+            assert [
+                claim_trace.contract_kind.value
+                for claim_trace in (
+                    item.record_validation_remediation_dependency_work_item_claim_traces
+                )
+            ] == [
+                "store_schema",
+                "append_only_log",
+                "idempotency_binding",
+                "payload_validation_gate",
+                "replay_guard",
+                "audit_link",
+            ]
+            assert [
+                claim_trace.remediation_dependency_work_item_claim_trace_ref
+                for claim_trace in (
+                    item.record_validation_remediation_dependency_work_item_claim_traces
+                )
+            ] == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.store_schema",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.append_only_log",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.idempotency_binding",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.payload_validation_gate",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.replay_guard",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.audit_link",
+            ]
+            assert (
+                item.record_validation_remediation_dependency_work_item_claim_traces[0]
+                .predecessor_claim_trace_refs
+                == []
+            )
+            assert item.record_validation_remediation_dependency_work_item_claim_traces[
+                -1
+            ].successor_claim_trace_refs == []
+            assert item.record_validation_remediation_dependency_work_item_claim_traces[
+                1
+            ].predecessor_claim_trace_refs == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.store_schema"
+            ]
+            assert item.record_validation_remediation_dependency_work_item_claim_traces[
+                0
+            ].successor_claim_trace_refs == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency_work_item_claim_trace.append_only_log"
+            ]
+            assert all(
+                claim_trace.status.value == "blocked"
+                and claim_trace.blocking is True
+                and claim_trace.record_validation_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    f"record_validation.{claim_trace.contract_kind.value}"
+                )
+                and claim_trace.record_contract_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    f"record_contract.{claim_trace.contract_kind.value}"
+                )
+                and claim_trace.remediation_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    "record_validation_remediation."
+                    f"{claim_trace.contract_kind.value}"
+                )
+                and claim_trace.remediation_dependency_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    "record_validation_remediation_dependency."
+                    f"{claim_trace.contract_kind.value}"
+                )
+                and claim_trace.remediation_dependency_work_item_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    "record_validation_remediation_dependency_work_item."
+                    f"{claim_trace.contract_kind.value}"
+                )
+                and claim_trace.required_backend_contract
+                == (
+                    "application/admin_api/"
+                    "futures_proof_validation_remediation_dependency_work_item_claim_trace.py::"
+                    f"{command_id}_{item.proof_kind.value}_"
+                    f"{claim_trace.contract_kind.value}_"
+                    "record_validation_remediation_dependency_work_item_claim_trace"
+                )
+                and claim_trace.required_work_item_contract
+                == (
+                    "application/admin_api/"
+                    "futures_proof_validation_remediation_dependency_work_item.py::"
+                    f"{command_id}_{item.proof_kind.value}_"
+                    f"{claim_trace.contract_kind.value}_"
+                    "record_validation_remediation_dependency_work_item"
+                )
+                and claim_trace.required_claim_trace_store_ref
+                == (
+                    "admin_futures_remediation_dependency_work_item_claim_traces."
+                    f"{command_id}.{item.proof_kind.value}"
+                )
+                and claim_trace.required_work_item_store_ref
+                == (
+                    "admin_futures_remediation_dependency_work_items."
+                    f"{command_id}.{item.proof_kind.value}"
+                )
+                and claim_trace.required_store_ref
+                == f"futures_proof_records.{command_id}.{item.proof_kind.value}"
+                and claim_trace.required_record_key
+                == (
+                    f"proof_record.{command_id}.{item.proof_kind.value}."
+                    f"{command_item.identity_key}.idempotency_key.correlation_id"
+                )
+                and claim_trace.claim_trace_claim == "work_item_availability_claim"
+                and claim_trace.claim_trace_target_ref
+                == claim_trace.remediation_dependency_work_item_ref
+                and claim_trace.claim_trace_source_ref
+                == claim_trace.required_work_item_contract
+                and claim_trace.claim_trace_blockers
+                == [
+                    "work_item_not_created",
+                    "work_item_not_claimed",
+                    "claim_ledger_missing",
+                    "claim_trace_store_missing",
+                    "dependency_not_ready",
+                    "dependency_unresolved",
+                    "claim_review_missing",
+                    "contextless_review_missing",
+                ]
+                and claim_trace.claim_trace_created is False
+                and claim_trace.claim_trace_ready is False
+                and claim_trace.claim_allowed is False
+                and claim_trace.claim_resolved is False
+                and claim_trace.work_item_created is False
+                and claim_trace.work_item_claimed is False
+                and claim_trace.claim_ledger_registered is False
+                and claim_trace.dependency_ready is False
+                and claim_trace.dependency_resolved is False
+                and claim_trace.dependency_performed is False
+                and claim_trace.remediation_ready is False
+                and claim_trace.remediation_performed is False
+                and claim_trace.record_validation_ready is False
+                and claim_trace.proof_record_accepted is False
+                and claim_trace.command_route_registered is False
+                and claim_trace.command_draft_allowed is False
+                and claim_trace.execution_allowed is False
+                and claim_trace.proof_route_registered is False
+                and claim_trace.proof_writer_enabled is False
+                and claim_trace.spot_rule_authority is False
+                and claim_trace.browser_authority == "display_only"
+                and claim_trace.bff_authority == "forward_only_no_execution"
+                for claim_trace in (
+                    item.record_validation_remediation_dependency_work_item_claim_traces
+                )
             )
             assert [criterion.sequence for criterion in item.acceptance_criteria] == [
                 1,

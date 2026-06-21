@@ -97,6 +97,15 @@ browser, BFF, and notional evidence fields.
   work items, register claim ledgers, resolve dependencies, perform
   remediation, accept proof records, register routes, enable writers, or make
   commands executable.
+- Each risk proof requirement also exposes backend-owned record-validation
+  remediation dependency work-item claim-trace rows. These rows name the
+  backend claim-trace contract, claim-trace store, claim target, claim-ledger
+  blocker, claim-review blocker, contextless-review blocker, and
+  predecessor/successor claim-trace refs needed before dependency work could
+  ever be claimed or used as clearance evidence. They do not create claim
+  traces, allow claims, resolve claims, claim work items, register claim
+  ledgers, resolve dependencies, perform remediation, accept proof records,
+  register routes, enable writers, or make commands executable.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -151,11 +160,13 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   drafts, proof writers, live adapters, browser execution, or BFF execution.
 - Do not treat risk proof record/store contracts, record-validation rows,
   record-validation remediation rows, record-validation remediation dependency
-  rows, or record-validation remediation dependency work-item rows as
+  rows, record-validation remediation dependency work-item rows, or
+  record-validation remediation dependency work-item claim-trace rows as
   registered stores, registered validators, created or claimed work items,
-  registered claim ledgers, resolved dependencies, performed remediation,
-  proof writes, accepted proof evidence, or command authority. They are
-  blocked backend contract evidence for future work only.
+  created or resolved claim traces, registered claim ledgers, resolved
+  dependencies, performed remediation, proof writes, accepted proof evidence,
+  or command authority. They are blocked backend contract evidence for future
+  work only.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

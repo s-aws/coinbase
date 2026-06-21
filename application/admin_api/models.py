@@ -36,6 +36,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofRecordValidationRemediationAction,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyBlocker,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceBlocker,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -4362,6 +4363,75 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem(
     detail: str
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTrace(
+    BaseModel
+):
+    """One blocked claim-trace contract for a futures remediation work item."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_kind: AdminFuturesCommandRiskProofRecordContractKind
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    record_validation_ref: str
+    record_contract_ref: str
+    remediation_ref: str
+    remediation_dependency_ref: str
+    remediation_dependency_work_item_ref: str
+    remediation_dependency_work_item_claim_trace_ref: str
+    remediation_dependency_work_item_claim_trace_gate: str
+    remediation_dependency_work_item_gate: str
+    remediation_dependency_gate: str
+    remediation_gate: str
+    required_backend_contract: str
+    required_work_item_contract: str
+    required_claim_trace_store_ref: str
+    required_work_item_store_ref: str
+    required_store_ref: str
+    required_record_key: str
+    validation_gate: str
+    replay_gate: str
+    claim_trace_claim: str
+    claim_trace_target_ref: str
+    claim_trace_source_ref: str
+    predecessor_dependency_work_item_refs: list[str] = Field(default_factory=list)
+    successor_dependency_work_item_refs: list[str] = Field(default_factory=list)
+    predecessor_claim_trace_refs: list[str] = Field(default_factory=list)
+    successor_claim_trace_refs: list[str] = Field(default_factory=list)
+    claim_trace_blockers: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceBlocker
+    ] = Field(default_factory=list)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    claim_trace_created: bool = False
+    claim_trace_ready: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    work_item_created: bool = False
+    work_item_claimed: bool = False
+    claim_ledger_registered: bool = False
+    dependency_ready: bool = False
+    dependency_resolved: bool = False
+    dependency_performed: bool = False
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    record_validation_ready: bool = False
+    proof_record_accepted: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     """One backend-owned futures/perpetual proof requirement before commands."""
 
@@ -4448,6 +4518,21 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     )
     record_validation_remediation_dependency_work_items: list[
         AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem
+    ] = Field(default_factory=list)
+    record_validation_remediation_dependency_work_item_claim_trace_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_record_validation_remediation_dependency_work_item_claim_trace_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_record_validation_remediation_dependency_work_item_claim_trace_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_work_item_claim_traces: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTrace
     ] = Field(default_factory=list)
     acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4563,6 +4648,22 @@ class AdminFuturesCommandContractItem(BaseModel):
             ge=0,
         )
     )
+    risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4657,6 +4758,22 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         )
     )
     ready_risk_proof_record_validation_remediation_dependency_work_item_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count: int = (
         Field(
             default=0,
             ge=0,
@@ -16090,14 +16207,17 @@ class StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordVal
         "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_blocked"
     )
     record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_rows: list[
-        StealthCommandSuiteClosureDependencyClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceRow
+        Any
     ] = Field(
         default_factory=list,
         description=(
-            "Read-only backend-owned claim traces derived from this remediation "
-            "dependency work item. They remain blocked and cannot resolve "
-            "claims, claim or perform work items, clear dependencies, perform "
-            "remediation, write evidence, call Coinbase, or execute anything."
+            "Read-only backend-owned terminal claim traces derived from this "
+            "remediation dependency work item. The items are finite terminal "
+            "rows so the public schema does not recursively expand another "
+            "claim-trace clearance chain. They remain blocked and cannot "
+            "resolve claims, claim or perform work items, clear dependencies, "
+            "perform remediation, write evidence, call Coinbase, or execute "
+            "anything."
         ),
     )
     detail: str = (
@@ -20619,6 +20739,11 @@ class StealthCreatePreExecutionContractEvidence(BaseModel):
 
 class StealthCommandSuiteResponse(AdminApiReadPayload):
     """Read-only M55 stealth command-suite readiness evidence."""
+
+    # This response embeds the deepest typed admin evidence graph. Deferring
+    # Pydantic's build keeps Python 3.13 imports stable while FastAPI still owns
+    # response validation/schema generation for the route.
+    model_config = ConfigDict(extra="forbid", defer_build=True)
 
     type: str = "stealth_command_suite"
     module_id: str = "stealth_orders"

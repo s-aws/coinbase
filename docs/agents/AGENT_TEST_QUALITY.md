@@ -21,7 +21,8 @@ safety guards are owned here.
   for changed behavior and reserve full regression for durable milestone
   closeout, public/release-candidate handoff, deployment approval/closeout,
   release-hardening closeout, Admin API/backend association closeout, or
-  explicit user request.
+  explicit user request. The canonical policy lives in
+  `docs/REGRESSION_PROCESS.md`.
 - Do not parallelize the regression suite with threads. Use process workers
   through `tools/run_parallel_regression.py`, and mark shared-state tests
   `serial`.
@@ -33,6 +34,8 @@ pytest tests/regression/test_db_prod_guard.py -v --tb=short
 ```
 
 ## Milestone Closeout Acceleration
+
+See `docs/REGRESSION_PROCESS.md` for the canonical regression policy.
 
 ```powershell
 python tools/run_parallel_regression.py --workers 4

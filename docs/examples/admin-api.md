@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5441-5460",
+  "approved_phase_range": "5461-5480",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5441-5460",
+  "approved_phase_range": "5461-5480",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1873,8 +1873,9 @@ are derived from existing backend evidence and missing contracts. The response
 is still read-only: it registers no command routes, allows no command drafts,
 enables no proof writers, registers no proof routes, registers no proof
 record stores, registers no record validators, performs no remediation,
-creates no remediation work items, performs no reconciliation execution, calls
-no Coinbase reads or writes, and grants no browser/BFF execution authority.
+creates no remediation work items, creates no dependency work items, creates
+or resolves no claim traces, performs no reconciliation execution, calls no
+Coinbase reads or writes, and grants no browser/BFF execution authority.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -1889,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5441-5460",
+  "approved_phase_range": "5461-5480",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1931,6 +1932,12 @@ Expected command-suite posture:
   "risk_proof_record_validation_remediation_dependency_count": 120,
   "blocking_risk_proof_record_validation_remediation_dependency_count": 120,
   "ready_risk_proof_record_validation_remediation_dependency_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -1995,13 +2002,23 @@ backend contracts, actions, and blockers. They remain blocked with
 `work_item_created=false`, `work_item_claimed=false`,
 `claim_ledger_registered=false`, and `dependency_ready=false`.
 Each proof also includes
+`"record_validation_remediation_dependency_work_item_claim_traces"` for the
+blocked backend-owned claim-trace contract that would be required before a
+dependency work item could be claimed or used as dependency-clearance
+evidence. Claim-trace rows name claim-trace store refs, claim-ledger blockers,
+claim-review blockers, predecessor/successor claim-trace refs, required
+backend contracts, claim targets, and blockers. They remain blocked with
+`claim_trace_created=false`, `claim_allowed=false`,
+`claim_resolved=false`, and `work_item_claimed=false`.
+Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
 review. These rows are blocked evidence only. They do not register command
 routes, create drafts, validate payloads, write proofs, enable writers,
 resolve dependencies, create remediation or dependency work items, claim work
-items, register claim ledgers, perform remediation, call Coinbase, execute
-reconciliation, or grant browser/BFF authority.
+items, create or resolve claim traces, register claim ledgers, perform
+remediation, call Coinbase, execute reconciliation, or grant browser/BFF
+authority.
 
 ```http
 GET /api/v1/futures/account

@@ -89,7 +89,8 @@ authoritative enough for fresh public clones.
 
 - Ordinary phase work requires focused tests and validators for the changed
   behavior.
-- Full regression is reserved for durable milestone closeout,
+- Full regression follows [Regression Process](../REGRESSION_PROCESS.md) and is
+  reserved for durable milestone closeout,
   public/release-candidate handoff, deployment approval/closeout,
   release-hardening closeout, Admin API/backend association closeout, or
   explicit user request:

@@ -3206,12 +3206,18 @@ Current backend evidence:
   Completed phases 5421-5440 add blocked remediation dependency rows so later
   work-item, validator-ready, proof-writer, acceptance, or command-route
   enablement work can see the ordered predecessor/successor dependency chain
-  that must remain unresolved until backend-owned evidence exists. Active
+  that must remain unresolved until backend-owned evidence exists. Completed
   phases 5441-5460 add blocked remediation dependency work-item evidence so
   later claim-ledger, validator-ready, proof-writer, acceptance, or
   command-route enablement work can see the backend-owned work-item store,
   claim, owner-review, and contextless-review blockers that must remain
-  unresolved until backend-owned evidence exists.
+  unresolved until backend-owned evidence exists. Active phases 5461-5480 add
+  blocked remediation dependency work-item claim-trace evidence so later
+  claim-ledger, validator-ready, proof-writer, acceptance, or command-route
+  enablement work can see the backend-owned claim-trace store, claim target,
+  claim-review, claim-ledger, predecessor/successor claim-trace, and
+  contextless-review blockers that must remain unresolved until backend-owned
+  evidence exists.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

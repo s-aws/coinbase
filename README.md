@@ -60,8 +60,10 @@ This project is tested on:
 Run focused tests and validators for ordinary changes. Full regression is a
 durable milestone closeout, public/release-candidate handoff, deployment
 approval/closeout, release-hardening closeout, Admin API/backend association
-closeout, or explicit user request gate. Use the process-parallel runner for
-that closeout gate:
+closeout, or explicit user request gate. See
+[Regression Process](docs/REGRESSION_PROCESS.md) for the durable policy.
+
+Use the process-parallel runner for that closeout gate:
 ```powershell
 python tools\run_parallel_regression.py --workers 4
 ```

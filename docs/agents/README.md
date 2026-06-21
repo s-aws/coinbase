@@ -60,10 +60,12 @@ Use the cleanup classifier before moving or archiving files:
 python tools/classify_repo_files.py --format markdown
 ```
 
-Focused checks are the normal validation path for ordinary phase work. Full
-regression is reserved for durable milestone closeout, public/release-candidate
-handoff, deployment approval/closeout, release-hardening closeout,
-Admin API/backend association closeout, or explicit user request:
+Focused checks are the normal validation path for ordinary phase work. The
+canonical regression policy lives in [Regression Process](../REGRESSION_PROCESS.md).
+Full regression is reserved for durable milestone closeout,
+public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or explicit
+user request:
 
 ```powershell
 python tools/run_parallel_regression.py --workers 4

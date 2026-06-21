@@ -458,7 +458,8 @@ python -m pytest tests\regression\test_admin_api_contract.py -v --tb=short
 
 Full backend regression is a durable milestone closeout gate, not an ordinary
 phase gate. Run it before marking a milestone complete, before
-public/release-candidate handoff, or when explicitly requested:
+public/release-candidate handoff, or when explicitly requested. See
+[Regression Process](REGRESSION_PROCESS.md) for the canonical policy:
 
 ```powershell
 python tools/run_parallel_regression.py --workers 4
