@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5261-5280` under M57.
-- Active autonomous range: `5281-5300` under M57.
+- Latest completed autonomous range: `5281-5300` under M57.
+- Active autonomous range: `5301-5320` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -561,12 +561,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   Completed 5261-5280 work adds ordered backend-owned readiness closure plans
   for the remaining prerequisite, payload, semantic-guard, command-service,
   route, live-adapter, and contextless-review work while still adding no
-  executable futures/perpetual authority. Active 5281-5300 work adds
+  executable futures/perpetual authority. Completed 5281-5300 work adds
   backend-owned risk proof requirements for product scope, position scope,
   margin, collateral, liquidation buffer, funding fee, reduce-only,
-  close-only, cap-guard, and reconciliation-plan semantics while still adding
-  no command routes, proof writers, Coinbase calls, state mutation, browser
-  authority, or BFF execution authority.
+  close-only, cap-guard, and reconciliation-plan semantics. Active
+  5301-5320 work adds blocked backend-owned risk proof acceptance criteria
+  for required evidence, proof route registration, proof-writer review,
+  spot-rule boundary review, and browser/BFF authority review while still
+  adding no command routes, proof writers, Coinbase calls, state mutation,
+  browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

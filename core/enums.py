@@ -1167,6 +1167,16 @@ class AdminFuturesCommandRiskProofKind(str, Enum):
     RECONCILIATION_PLAN = "reconciliation_plan"
 
 
+class AdminFuturesCommandRiskProofAcceptanceCheck(str, Enum):
+    """Acceptance checks required before a futures risk proof can satisfy readiness."""
+
+    REQUIRED_EVIDENCE_PRESENT = "required_evidence_present"
+    PROOF_ROUTE_REGISTERED = "proof_route_registered"
+    PROOF_WRITER_REVIEWED = "proof_writer_reviewed"
+    SPOT_RULE_BOUNDARY_REVIEWED = "spot_rule_boundary_reviewed"
+    BROWSER_BFF_AUTHORITY_REVIEWED = "browser_bff_authority_reviewed"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

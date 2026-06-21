@@ -49,133 +49,150 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Phases 5281-5300
+## Active Phases 5301-5320
 
-Batch label: Futures/Perpetuals Risk Proof Requirement Evidence.
+Batch label: Futures/Perpetuals Risk Proof Acceptance Criteria Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual
-command-suite route so each blocked planned command exposes concrete
-backend-owned risk proof requirements derived from semantic guards, evidence
-routes, missing proof refs, readiness decisions, and closure steps. The work
-must remain read-only and no-live: no futures command route, command draft,
-accepted payload, proof writer, manager invocation, exchange order
-placement/cancellation, Coinbase read, reconciliation execution, state
-mutation, browser execution authority, or BFF execution authority. Spot
-wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot rules
-remain explicitly forbidden as futures/perpetual authority.
+command-suite route so every blocked risk proof requirement exposes the
+backend-owned acceptance criteria that would have to pass before the proof can
+satisfy command readiness. The concrete gap is that operators can now see
+proof requirements, but not the required acceptance checks for required
+evidence, proof-route registration, proof-writer review, spot-rule boundary
+review, and browser/BFF authority review. The work must remain read-only and
+no-live: no futures command route, command draft, accepted payload, proof
+writer, manager invocation, exchange order placement/cancellation, Coinbase
+read, reconciliation execution, state mutation, browser execution authority,
+or BFF execution authority. Spot wallet, no-shorting, USDC, cost-basis,
+average-cost, and inventory-lot rules remain explicitly forbidden as
+futures/perpetual authority.
 
-### Phase 5281 - Prior Range Completion Evidence
+### Phase 5301 - Prior Range Completion Evidence
 
-- Record completed phases 5261-5280 with backend commit `bc9dca69`,
-  frontend commit `5243b7f`, focused backend/frontend gates, no-live UI smoke
+- Record completed phases 5281-5300 with backend commit `85ddaf2a`, frontend
+  commit `40f6a92`, focused backend/frontend gates, no-live UI smoke
   screenshots
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5261-5280-futures-closure-plan.png`
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5281-5300-futures-risk-proof-requirements.png`
   and
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5261-5280-futures-closure-plan-mobile.png`,
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5281-5300-futures-risk-proof-requirements-mobile.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5282 - Advance Active Queue Range
+### Phase 5302 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5261-5280 to active phases
-  5281-5300 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5281-5300 to active phases
+  5301-5320 while preserving no-live defaults and cap policy.
 
-### Phase 5283 - Risk Proof Contract Gap
+### Phase 5303 - Risk Proof Acceptance Gap
 
-- Document that readiness decisions and closure steps need concrete
-  backend-owned risk proof requirements before any later command-route
-  enablement can be reviewed.
+- Document that each futures/perpetual risk proof requirement needs explicit
+  backend-owned acceptance criteria before any later command-route enablement
+  can be reviewed.
 
-### Phase 5284 - Risk Proof Enum
+### Phase 5304 - Acceptance Check Enum
 
-- Add enum-backed futures/perpetual risk proof requirement kinds without
+- Add enum-backed futures/perpetual risk proof acceptance check kinds without
   creating command routes, accepted payloads, command drafts, proof writers,
   or live adapters.
 
-### Phase 5285 - Risk Proof Model
+### Phase 5305 - Acceptance Criterion Model
 
-- Add nested risk proof requirement rows to each futures/perpetual command and
-  suite-level risk proof requirement counts.
+- Add nested blocked acceptance criterion rows to each futures/perpetual risk
+  proof requirement and suite/command-level acceptance criterion counts.
 
-### Phase 5286 - Backend Risk Proof Builder
+### Phase 5306 - Backend Acceptance Builder
 
-- Derive risk proof requirements from existing semantic guard evidence,
-  evidence routes, missing proof refs, readiness decisions, and closure-step
-  blockers.
+- Derive acceptance criteria from existing proof requirements and semantic
+  guard evidence instead of adding a second futures command-readiness path.
 
-### Phase 5287 - Placement Risk Proof Evidence
+### Phase 5307 - Required Evidence Acceptance Check
 
-- Expose placement risk proof requirements for product scope, margin,
-  collateral, liquidation buffer, funding fee, cap guard, and reconciliation
-  plan while keeping placement route/draft/execution false.
+- Expose the required-evidence-present acceptance check for every risk proof
+  while keeping accepted and satisfies-risk-proof flags false.
 
-### Phase 5288 - Close/Reduce Risk Proof Evidence
+### Phase 5308 - Proof Route Registration Acceptance Check
 
-- Expose close/reduce risk proof requirements keyed by `position_key` and
-  reduce-only/close-only semantics without importing spot inventory rules.
+- Expose the proof-route-registered acceptance check without registering any
+  route or enabling proof-route authority.
 
-### Phase 5289 - Cancel Risk Proof Evidence
+### Phase 5309 - Proof Writer Review Acceptance Check
 
-- Expose cancel risk proof requirements keyed by `client_order_id`;
-  exchange `order_id` remains exchange evidence only and not an internal
-  identity.
+- Expose the proof-writer-reviewed acceptance check without creating or
+  enabling a proof writer.
 
-### Phase 5290 - Reconciliation Risk Proof Evidence
+### Phase 5310 - Spot-Rule Boundary Acceptance Check
 
-- Expose reconciliation risk proof requirements for position, margin,
-  collateral, funding, liquidation, and reconciliation-plan contracts without
-  executing reconciliation or mutating state.
+- Expose a negative acceptance check proving futures/perpetual proofs must not
+  use spot wallet, no-shorting, USDC, cost-basis, average-cost, or
+  inventory-lot authority.
 
-### Phase 5291 - OpenAPI Sync
+### Phase 5311 - Browser And BFF Authority Acceptance Check
 
-- Regenerate the Admin API OpenAPI artifact and assert risk proof requirement
-  fields are present on the command-suite contract.
+- Expose a negative acceptance check proving browser authority remains
+  `display_only` and BFF authority remains `forward_only_no_execution`.
 
-### Phase 5292 - Backend Focused Regression
+### Phase 5312 - OpenAPI Sync
 
-- Run focused Admin API contract tests covering risk proof requirements,
-  no-live posture, cancel identity discipline, and no spot-rule leakage.
+- Regenerate the Admin API OpenAPI artifact and assert risk proof acceptance
+  criterion fields are present on the command-suite contract.
 
-### Phase 5293 - Frontend Schema Sync
+### Phase 5313 - Backend Focused Regression
+
+- Run focused Admin API contract tests covering acceptance criteria, blocked
+  satisfaction state, no-live posture, cancel identity discipline, and no
+  spot-rule leakage.
+
+### Phase 5314 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5294 - Frontend Adapter And Runtime Mapping
+### Phase 5315 - Frontend Adapter And Runtime Mapping
 
-- Map risk proof requirements through the canonical backend adapter without
-  command drafts, feature-local fetches, proof writers, or BFF mutation
-  forwarding.
+- Map risk proof acceptance criteria through the canonical backend adapter
+  without command drafts, feature-local fetches, proof writers, or BFF
+  mutation forwarding.
 
-### Phase 5295 - Mock Backend Fixture
+### Phase 5316 - Mock Backend Fixture
 
 - Update mock futures command-suite evidence so offline UI tests include
-  realistic blocked risk proof requirements.
+  realistic blocked acceptance criteria for every risk proof requirement.
 
-### Phase 5296 - Futures Read Model Display
+### Phase 5317 - Futures Read Model Acceptance Display
 
-- Display ordered risk proof requirements in the Futures / Perpetuals admin
-  view with no command controls.
+- Display ordered risk proof acceptance criteria in the Futures / Perpetuals
+  admin view with no command controls.
 
-### Phase 5297 - Frontend Coverage
-
-- Add focused frontend assertions for generated type consumption, runtime
-  snapshot, mock backend, and read-model risk-proof display.
-
-### Phase 5298 - Documentation And Examples
+### Phase 5318 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
-  handoff, and expanded context for the M57 risk-proof slice.
+  handoff, and expanded context for the M57 acceptance-criteria slice.
 
-### Phase 5299 - Contextless Review And Focused Gates
+### Phase 5319 - Contextless Review And Focused Gates
 
 - Run blind/contextless review, focused backend/frontend gates, autonomous
   validators, release/deployment checks, and no-live UI smoke. Full backend
   regression remains reserved for milestone/release closeout or explicit
   request.
 
-### Phase 5300 - Commit And Push
+### Phase 5320 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI URL, and the next M57 enablement step.
+
+## Completed Phases 5281-5300
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with backend-owned risk proof requirements for placement, close/reduce,
+cancel, and reconciliation. The risk-proof rows are blocked evidence only:
+they are not command routes, command drafts, accepted payloads, proof writers,
+Coinbase calls, state mutation, browser authority, or BFF execution authority.
+The range completed with backend commit `85ddaf2a`, frontend commit
+`40f6a92`, focused backend/frontend gates, blind/contextless review, UI smoke
+at `http://127.0.0.1:3002/#futures-perpetuals`, screenshots
+`C:\coinbase-frontend\output\playwright\ui-smoke-5281-5300-futures-risk-proof-requirements.png`
+and
+`C:\coinbase-frontend\output\playwright\ui-smoke-5281-5300-futures-risk-proof-requirements-mobile.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed Phases 5261-5280
 

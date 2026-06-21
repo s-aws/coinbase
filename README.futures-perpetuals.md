@@ -62,6 +62,12 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   funding fee, reduce-only, close-only, cap guard, and reconciliation-plan
   semantics. These rows are blocked evidence requirements only; they do not
   write proofs, register proof routes, or make a command executable.
+- Each risk proof requirement also exposes five backend-owned acceptance
+  criteria: required evidence present, proof route registered, proof writer
+  reviewed, spot-rule boundary reviewed, and browser/BFF authority reviewed.
+  All acceptance criteria remain blocked and unaccepted in the current
+  contract; `satisfies_risk_proof=false` means later command enablement still
+  has no proof authority.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -106,6 +112,10 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 - Do not treat command risk proof requirements as completed guard proofs.
   They are backend-owned evidence requirements and remain blocked until
   implemented and reviewed through backend contracts.
+- Do not treat risk proof acceptance criteria as completed proof reviews.
+  They are blocked acceptance checks that name what a later backend-owned
+  proof route and proof writer must satisfy; they do not enable routes,
+  drafts, proof writers, live adapters, browser execution, or BFF execution.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

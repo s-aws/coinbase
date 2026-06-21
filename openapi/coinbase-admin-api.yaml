@@ -12590,6 +12590,21 @@ components:
           minimum: 0.0
           title: Blocking Risk Proof Requirement Count
           default: 0
+        risk_proof_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Acceptance Criterion Count
+          default: 0
+        blocking_risk_proof_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Acceptance Criterion Count
+          default: 0
+        accepted_risk_proof_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Risk Proof Acceptance Criterion Count
+          default: 0
         risk_proof_requirements:
           items:
             $ref: '#/components/schemas/AdminFuturesCommandRiskProofRequirementItem'
@@ -13007,6 +13022,106 @@ components:
       - detail
       title: AdminFuturesCommandRequestFieldItem
       description: One planned futures/perpetual command request field row.
+    AdminFuturesCommandRiskProofAcceptanceCheck:
+      type: string
+      enum:
+      - required_evidence_present
+      - proof_route_registered
+      - proof_writer_reviewed
+      - spot_rule_boundary_reviewed
+      - browser_bff_authority_reviewed
+      title: AdminFuturesCommandRiskProofAcceptanceCheck
+      description: Acceptance checks required before a futures risk proof can satisfy
+        readiness.
+    AdminFuturesCommandRiskProofAcceptanceCriterionItem:
+      properties:
+        check:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofAcceptanceCheck'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required_evidence_ref:
+          type: string
+          title: Required Evidence Ref
+        missing_evidence_ref:
+          type: string
+          title: Missing Evidence Ref
+        negative_check:
+          type: boolean
+          title: Negative Check
+          default: false
+        accepted:
+          type: boolean
+          title: Accepted
+          default: false
+        satisfies_risk_proof:
+          type: boolean
+          title: Satisfies Risk Proof
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - check
+      - sequence
+      - required_evidence_ref
+      - missing_evidence_ref
+      - detail
+      title: AdminFuturesCommandRiskProofAcceptanceCriterionItem
+      description: One blocked acceptance check for a futures risk proof requirement.
     AdminFuturesCommandRiskProofKind:
       type: string
       enum:
@@ -13091,6 +13206,34 @@ components:
         proof_writer_enabled:
           type: boolean
           title: Proof Writer Enabled
+          default: false
+        acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Acceptance Criterion Count
+          default: 0
+        blocking_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Acceptance Criterion Count
+          default: 0
+        accepted_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Acceptance Criterion Count
+          default: 0
+        acceptance_criteria:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofAcceptanceCriterionItem'
+          type: array
+          title: Acceptance Criteria
+        all_acceptance_criteria_accepted:
+          type: boolean
+          title: All Acceptance Criteria Accepted
+          default: false
+        satisfies_risk_proof:
+          type: boolean
+          title: Satisfies Risk Proof
           default: false
         backend_owned:
           type: boolean
@@ -13372,6 +13515,21 @@ components:
           type: integer
           minimum: 0.0
           title: Blocking Risk Proof Requirement Count
+          default: 0
+        risk_proof_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Acceptance Criterion Count
+          default: 0
+        blocking_risk_proof_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Acceptance Criterion Count
+          default: 0
+        accepted_risk_proof_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Risk Proof Acceptance Criterion Count
           default: 0
         commands:
           items:

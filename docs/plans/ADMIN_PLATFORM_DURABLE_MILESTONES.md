@@ -3187,10 +3187,15 @@ Current backend evidence:
   authority. Completed phases 5261-5280 add ordered backend-owned readiness
   closure plans for each blocked futures/perpetual command so the remaining
   route, service, adapter, evidence, and review work is explicit before any
-  later command-enable slice. Active phases 5281-5300 add backend-owned risk
-  proof requirements for product scope, position scope, margin, collateral,
-  liquidation buffer, funding fee, reduce-only, close-only, cap guard, and
-  reconciliation-plan semantics before any later command-enable slice.
+  later command-enable slice. Completed phases 5281-5300 add backend-owned
+  risk proof requirements for product scope, position scope, margin,
+  collateral, liquidation buffer, funding fee, reduce-only, close-only, cap
+  guard, and reconciliation-plan semantics before any later command-enable
+  slice. Active phases 5301-5320 add blocked backend-owned risk proof
+  acceptance criteria for required evidence, proof route registration,
+  proof-writer review, spot-rule boundary review, and browser/BFF authority
+  review so later command-enable work can see exactly why every proof still
+  fails closed.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

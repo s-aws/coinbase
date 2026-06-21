@@ -25,6 +25,7 @@ from core.enums import (
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
+    AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
@@ -107,6 +108,7 @@ from .models import (
     AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
+    AdminFuturesCommandRiskProofAcceptanceCriterionItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -341,7 +343,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5281-5300"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5301-5320"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20890,6 +20892,79 @@ class AdminApiReadService:
             prerequisites: list[AdminFuturesCommandPrerequisiteItem],
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
         ) -> list[AdminFuturesCommandRiskProofRequirementItem]:
+            def acceptance_criteria(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                guard: AdminFuturesCommandSemanticGuardItem,
+            ) -> list[AdminFuturesCommandRiskProofAcceptanceCriterionItem]:
+                primary_evidence_ref = (
+                    guard.required_evidence_refs[0]
+                    if guard.required_evidence_refs
+                    else f"{command_id.value}_{proof_kind.value}_risk_contract"
+                )
+                checks = [
+                    (
+                        AdminFuturesCommandRiskProofAcceptanceCheck.REQUIRED_EVIDENCE_PRESENT,
+                        primary_evidence_ref,
+                        False,
+                        "Required backend evidence must exist and match this exact "
+                        "futures/perpetual command context before the proof can "
+                        "satisfy readiness.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofAcceptanceCheck.PROOF_ROUTE_REGISTERED,
+                        f"{command_id.value}_{proof_kind.value}_proof_route_registered",
+                        False,
+                        "A backend-owned proof route must be registered before "
+                        "this proof requirement can be accepted.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofAcceptanceCheck.PROOF_WRITER_REVIEWED,
+                        f"{command_id.value}_{proof_kind.value}_proof_writer_reviewed",
+                        False,
+                        "The backend proof writer must be reviewed and explicitly "
+                        "enabled before this proof requirement can be accepted.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofAcceptanceCheck.SPOT_RULE_BOUNDARY_REVIEWED,
+                        f"{command_id.value}_{proof_kind.value}_spot_rule_boundary_reviewed",
+                        True,
+                        "Review must prove this requirement does not use spot "
+                        "wallet, no-shorting, USDC, cost-basis, average-cost, or "
+                        "inventory-lot authority.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofAcceptanceCheck.BROWSER_BFF_AUTHORITY_REVIEWED,
+                        f"{command_id.value}_{proof_kind.value}_browser_bff_authority_reviewed",
+                        True,
+                        "Review must prove browser authority stays display-only "
+                        "and BFF authority stays forward-only with no execution.",
+                    ),
+                ]
+                return [
+                    AdminFuturesCommandRiskProofAcceptanceCriterionItem(
+                        check=check,
+                        sequence=index + 1,
+                        required_evidence_ref=required_ref,
+                        missing_evidence_ref=required_ref,
+                        negative_check=negative_check,
+                        accepted=False,
+                        satisfies_risk_proof=False,
+                        command_route_registered=False,
+                        command_draft_allowed=False,
+                        execution_allowed=False,
+                        proof_route_registered=False,
+                        proof_writer_enabled=False,
+                        detail=detail,
+                    )
+                    for index, (
+                        check,
+                        required_ref,
+                        negative_check,
+                        detail,
+                    ) in enumerate(checks)
+                ]
+
             prerequisites_by_id = {
                 item.prerequisite: item for item in prerequisites
             }
@@ -20902,6 +20977,10 @@ class AdminApiReadService:
                 prerequisite_item = prerequisites_by_id.get(prerequisite_id)
                 runtime_evidence_observed = (
                     prerequisite_item.resolved if prerequisite_item else False
+                )
+                criteria = acceptance_criteria(
+                    proof_kind=proof_kind,
+                    guard=guard,
                 )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
@@ -20919,6 +20998,16 @@ class AdminApiReadService:
                         proof_route_required=True,
                         proof_route_registered=False,
                         proof_writer_enabled=False,
+                        acceptance_criterion_count=len(criteria),
+                        blocking_acceptance_criterion_count=sum(
+                            1 for criterion in criteria if criterion.blocking
+                        ),
+                        accepted_acceptance_criterion_count=sum(
+                            1 for criterion in criteria if criterion.accepted
+                        ),
+                        acceptance_criteria=criteria,
+                        all_acceptance_criteria_accepted=False,
+                        satisfies_risk_proof=False,
                         detail=(
                             f"{command_id.value} requires backend-owned "
                             f"{proof_kind.value} proof evidence before a "
@@ -21009,6 +21098,17 @@ class AdminApiReadService:
                 risk_proof_requirement_count=len(proof_requirements),
                 blocking_risk_proof_requirement_count=sum(
                     1 for item in proof_requirements if item.blocking
+                ),
+                risk_proof_acceptance_criterion_count=sum(
+                    item.acceptance_criterion_count for item in proof_requirements
+                ),
+                blocking_risk_proof_acceptance_criterion_count=sum(
+                    item.blocking_acceptance_criterion_count
+                    for item in proof_requirements
+                ),
+                accepted_risk_proof_acceptance_criterion_count=sum(
+                    item.accepted_acceptance_criterion_count
+                    for item in proof_requirements
                 ),
                 risk_proof_requirements=proof_requirements,
                 detail=detail,
@@ -21111,6 +21211,18 @@ class AdminApiReadService:
             ),
             blocking_risk_proof_requirement_count=sum(
                 command.blocking_risk_proof_requirement_count for command in commands
+            ),
+            risk_proof_acceptance_criterion_count=sum(
+                command.risk_proof_acceptance_criterion_count
+                for command in commands
+            ),
+            blocking_risk_proof_acceptance_criterion_count=sum(
+                command.blocking_risk_proof_acceptance_criterion_count
+                for command in commands
+            ),
+            accepted_risk_proof_acceptance_criterion_count=sum(
+                command.accepted_risk_proof_acceptance_criterion_count
+                for command in commands
             ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],

@@ -11,12 +11,13 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5281-5300 range adds read-only M57 futures/perpetual risk proof
-requirements to the existing command-suite evidence. Each readiness decision,
-ordered closure step, and risk proof requirement is derived from backend-owned
-prerequisites, request fields, semantic guards, evidence routes, missing
-evidence refs, and missing backend contracts. It is not a command route, proof
-writer, command draft surface, or execution approval.
+The active 5301-5320 range adds read-only M57 futures/perpetual risk proof
+acceptance criteria to the existing command-suite evidence. Each readiness
+decision, ordered closure step, risk proof requirement, and acceptance
+criterion is derived from backend-owned prerequisites, request fields,
+semantic guards, evidence routes, missing evidence refs, and missing backend
+contracts. It is not a command route, proof writer, command draft surface, or
+execution approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -31,7 +32,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5281-5300",
+  "approved_phase_range": "5301-5320",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -51,6 +52,9 @@ Expected response posture:
   "blocking_readiness_closure_step_count": 28,
   "risk_proof_requirement_count": 20,
   "blocking_risk_proof_requirement_count": 20,
+  "risk_proof_acceptance_criterion_count": 100,
+  "blocking_risk_proof_acceptance_criterion_count": 100,
+  "accepted_risk_proof_acceptance_criterion_count": 0,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -238,6 +242,9 @@ Expected response posture:
       ],
       "risk_proof_requirement_count": 6,
       "blocking_risk_proof_requirement_count": 6,
+      "risk_proof_acceptance_criterion_count": 30,
+      "blocking_risk_proof_acceptance_criterion_count": 30,
+      "accepted_risk_proof_acceptance_criterion_count": 0,
       "risk_proof_requirements": [
         {
           "proof_kind": "product_scope",
@@ -263,6 +270,85 @@ Expected response posture:
           "proof_route_required": true,
           "proof_route_registered": false,
           "proof_writer_enabled": false,
+          "acceptance_criterion_count": 5,
+          "blocking_acceptance_criterion_count": 5,
+          "accepted_acceptance_criterion_count": 0,
+          "acceptance_criteria": [
+            {
+              "check": "required_evidence_present",
+              "sequence": 1,
+              "status": "blocked",
+              "blocking": true,
+              "required_evidence_ref": "futures_product_scope_readback",
+              "missing_evidence_ref": "futures_product_scope_readback",
+              "negative_check": false,
+              "accepted": false,
+              "satisfies_risk_proof": false,
+              "command_route_registered": false,
+              "command_draft_allowed": false,
+              "execution_allowed": false,
+              "proof_route_registered": false,
+              "proof_writer_enabled": false,
+              "backend_owned": true,
+              "read_only": true,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            },
+            {
+              "check": "proof_route_registered",
+              "sequence": 2,
+              "status": "blocked",
+              "blocking": true,
+              "required_evidence_ref": "futures_place_product_scope_proof_route_registered",
+              "missing_evidence_ref": "futures_place_product_scope_proof_route_registered",
+              "negative_check": false,
+              "accepted": false,
+              "satisfies_risk_proof": false,
+              "proof_route_registered": false,
+              "proof_writer_enabled": false
+            },
+            {
+              "check": "proof_writer_reviewed",
+              "sequence": 3,
+              "status": "blocked",
+              "blocking": true,
+              "required_evidence_ref": "futures_place_product_scope_proof_writer_reviewed",
+              "missing_evidence_ref": "futures_place_product_scope_proof_writer_reviewed",
+              "negative_check": false,
+              "accepted": false,
+              "satisfies_risk_proof": false,
+              "proof_route_registered": false,
+              "proof_writer_enabled": false
+            },
+            {
+              "check": "spot_rule_boundary_reviewed",
+              "sequence": 4,
+              "status": "blocked",
+              "blocking": true,
+              "required_evidence_ref": "futures_place_product_scope_spot_rule_boundary_reviewed",
+              "missing_evidence_ref": "futures_place_product_scope_spot_rule_boundary_reviewed",
+              "negative_check": true,
+              "accepted": false,
+              "satisfies_risk_proof": false,
+              "spot_rule_authority": false
+            },
+            {
+              "check": "browser_bff_authority_reviewed",
+              "sequence": 5,
+              "status": "blocked",
+              "blocking": true,
+              "required_evidence_ref": "futures_place_product_scope_browser_bff_authority_reviewed",
+              "missing_evidence_ref": "futures_place_product_scope_browser_bff_authority_reviewed",
+              "negative_check": true,
+              "accepted": false,
+              "satisfies_risk_proof": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            }
+          ],
+          "all_acceptance_criteria_accepted": false,
+          "satisfies_risk_proof": false,
           "backend_owned": true,
           "read_only": true,
           "spot_rule_authority": false,

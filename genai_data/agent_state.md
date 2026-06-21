@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-21
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5261-5280` is backend `bc9dca69` and
-  frontend `5243b7f`; current active range is `5281-5300`.
+- Commit (optional): completed range `5281-5300` is backend `85ddaf2a` and
+  frontend `40f6a92`; current active range is `5301-5320`.
 
 ## Current Objective
 
@@ -47,15 +47,16 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5261-5280`.
-- Active autonomous range: `5281-5300`.
-- Active `5281-5300` extends the M57 futures/perpetual command-suite contract
-  with backend-owned risk proof requirements for placement, close/reduce,
-  cancel, and reconciliation. It must not add futures command routes, command
-  drafts, live execution, Coinbase calls, reconciliation execution, state
-  mutation, proof writers, or browser/BFF authority. Spot wallet,
-  no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
-  are forbidden as futures/perpetual authority.
+- Latest completed autonomous range before current work: `5281-5300`.
+- Active autonomous range: `5301-5320`.
+- Active `5301-5320` extends the M57 futures/perpetual command-suite contract
+  with backend-owned risk proof acceptance criteria for required evidence,
+  proof route registration, proof-writer review, spot-rule boundary review,
+  and browser/BFF authority review. It must not add futures command routes,
+  command drafts, live execution, Coinbase calls, reconciliation execution,
+  state mutation, proof writers, accepted proof payloads, or browser/BFF
+  authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
+  inventory-lot assumptions are forbidden as futures/perpetual authority.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.
@@ -657,9 +658,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5281-5300`.
+- Active autonomous range: `5301-5320`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `5281-5300`.
+- Current direction: complete phases `5301-5320`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1482,12 +1483,12 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5281-5300` by adding
-  backend-owned futures/perpetual risk proof requirements to the existing
-  command-suite read contract, syncing OpenAPI and frontend generated schema,
-  mapping runtime/mock/read-model display, updating docs and validators, then
-  running focused gates, blind/contextless review, and no-live UI smoke. The
-  active gap is concrete risk proof visibility only; no futures command route,
-  command draft, exchange order placement/cancellation, reconciliation
-  execution, Coinbase read/write, state mutation, proof writer, or browser/BFF
-  authority is allowed in this range.
+- Exact next command: complete active phases `5301-5320` by adding
+  backend-owned futures/perpetual risk proof acceptance criteria to the
+  existing command-suite read contract, syncing OpenAPI and frontend generated
+  schema, mapping runtime/mock/read-model display, updating docs and
+  validators, then running focused gates, blind/contextless review, and
+  no-live UI smoke. The active gap is acceptance-check visibility only; no
+  futures command route, command draft, exchange order placement/cancellation,
+  reconciliation execution, Coinbase read/write, state mutation, proof writer,
+  accepted proof payload, or browser/BFF authority is allowed in this range.

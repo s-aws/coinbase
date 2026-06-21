@@ -1,5 +1,57 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk Proof Acceptance Criteria Review - Phases 5301-5320
+
+Scope: phases `5301-5320`, after adding backend-owned risk proof acceptance criteria
+to `risk_proof_requirements` from the read-only futures/perpetual
+command-suite. Previous completed history is phases `5281-5300`, which added
+the risk proof requirements themselves.
+
+Result: PASS after remediation.
+
+- REMEDIATION: blind/contextless review found the implementation evidence was
+  understandable but the review log still led with phases `5281-5300`. This
+  entry now leads with `5301-5320` and keeps phases `5281-5300` as completed
+  history.
+- PASS: blind/contextless review confirmed the futures/perpetual
+  command-suite acceptance criteria are understandable from repository files
+  alone and are derived from backend-owned readiness decision, semantic
+  guards, risk proof requirements, required evidence refs, and missing
+  evidence refs.
+- PASS: acceptance criteria remain read-only blocked evidence rows. They do
+  not create command routes, command drafts, accepted proof payloads, proof
+  writers, Coinbase calls, reconciliation execution, state mutation, browser
+  authority, or BFF execution authority.
+- PASS: each risk proof requirement exposes acceptance checks for required
+  evidence, proof route registration, proof-writer review, spot-rule boundary
+  review, and browser/BFF authority review. The suite reports `100` blocked
+  acceptance criteria, `0` accepted criteria, and every risk proof keeps
+  `satisfies_risk_proof=false`.
+- PASS: semantic guards, forbidden spot assumptions, and capability-matrix
+  docs continue to reject spot wallet, no-shorting, USDC, cost-basis,
+  average-cost, and inventory-lot rules as futures/perpetual authority.
+- PASS: planned futures cancel evidence remains keyed by `client_order_id`;
+  exchange `order_id` remains exchange evidence only.
+- Focused backend verification passed:
+  `python -m py_compile core\enums.py application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py tools\run_autonomous_work_queue_check.py`,
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch -v --tb=short`,
+  `python tools\run_autonomous_work_queue_check.py --summary-only`,
+  `python tools\check_ownership.py`, and `git diff --check`.
+- Frontend focused verification passed for generated API freshness,
+  command-fetch guard, deployment readiness, autonomous queue, release
+  readiness, lint, typecheck, and the futures/mock/runtime/quality unit
+  subset.
+- UI smoke evidence:
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5301-5320-futures-risk-proof-acceptance-criteria.png`
+  and
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5301-5320-futures-risk-proof-acceptance-criteria-mobile.png`.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5301-5320` are ordinary
+  futures/perpetual command-suite contract/read-model phase work; full
+  regression remains reserved for durable milestone/release/deployment/Admin
+  API/backend association closeout or explicit user request.
+
 ## M57 Futures/Perpetual Risk Proof Requirement Review - Phases 5281-5300
 
 Scope: phases `5281-5300`, after adding backend-owned
