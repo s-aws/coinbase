@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5361-5380"
-APPROVED_PHASES = tuple(range(5361, 5381))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5341-5360"
+APPROVED_PHASE_RANGE = "5381-5400"
+APPROVED_PHASES = tuple(range(5381, 5401))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5361-5380"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -534,6 +534,8 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "payload_fields",
         "risk proof record/store contracts",
         "record_contracts",
+        "risk proof record validations",
+        "record_validations",
         "registered payload validation",
         "registered record validation",
         "risk proof acceptance criteria",

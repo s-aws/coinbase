@@ -73,6 +73,11 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   All acceptance criteria remain blocked and unaccepted in the current
   contract; `satisfies_risk_proof=false` means later command enablement still
   has no proof authority.
+- Each risk proof requirement also exposes backend-owned proof record/store
+  contract rows and blocked record-validation rows. These rows name required
+  store refs, record keys, payload fields, validation gates, replay gates, and
+  validation checks, but they do not create stores, register validators, write
+  proof records, accept evidence, or make a command executable.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -125,6 +130,10 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   They are blocked acceptance checks that name what a later backend-owned
   proof route and proof writer must satisfy; they do not enable routes,
   drafts, proof writers, live adapters, browser execution, or BFF execution.
+- Do not treat risk proof record/store contracts or record-validation rows as
+  registered stores, registered validators, proof writes, accepted proof
+  evidence, or command authority. They are blocked backend contract evidence
+  for future work only.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

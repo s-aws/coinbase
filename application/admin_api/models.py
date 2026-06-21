@@ -4145,6 +4145,51 @@ class AdminFuturesCommandRiskProofRecordContractItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRiskProofRecordValidationItem(BaseModel):
+    """One blocked backend validation row for a futures proof record contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_kind: AdminFuturesCommandRiskProofRecordContractKind
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    record_contract_ref: str
+    required_backend_contract: str
+    required_store_ref: str
+    required_record_key: str
+    required_payload_fields: list[AdminFuturesCommandRiskProofPayloadField] = Field(
+        default_factory=list
+    )
+    validation_gate: str
+    replay_gate: str
+    required_validation_checks: list[str] = Field(default_factory=list)
+    required_evidence_ref: str
+    missing_evidence_ref: str
+    record_contract_available: bool = False
+    store_schema_registered: bool = False
+    append_only_log_configured: bool = False
+    idempotency_bound: bool = False
+    payload_validation_registered: bool = False
+    replay_guard_registered: bool = False
+    audit_linked: bool = False
+    record_validation_registered: bool = False
+    record_validation_ready: bool = False
+    proof_record_accepted: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     """One backend-owned futures/perpetual proof requirement before commands."""
 
@@ -4192,6 +4237,12 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     accepted_record_contract_count: int = Field(default=0, ge=0)
     record_contracts: list[AdminFuturesCommandRiskProofRecordContractItem] = Field(
         default_factory=list
+    )
+    record_validation_count: int = Field(default=0, ge=0)
+    blocking_record_validation_count: int = Field(default=0, ge=0)
+    ready_record_validation_count: int = Field(default=0, ge=0)
+    record_validations: list[AdminFuturesCommandRiskProofRecordValidationItem] = (
+        Field(default_factory=list)
     )
     acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4267,6 +4318,9 @@ class AdminFuturesCommandContractItem(BaseModel):
     registered_risk_proof_record_store_count: int = Field(default=0, ge=0)
     registered_risk_proof_record_validation_count: int = Field(default=0, ge=0)
     accepted_risk_proof_record_contract_count: int = Field(default=0, ge=0)
+    risk_proof_record_validation_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_record_validation_count: int = Field(default=0, ge=0)
+    ready_risk_proof_record_validation_count: int = Field(default=0, ge=0)
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4326,6 +4380,9 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     registered_risk_proof_record_store_count: int = Field(default=0, ge=0)
     registered_risk_proof_record_validation_count: int = Field(default=0, ge=0)
     accepted_risk_proof_record_contract_count: int = Field(default=0, ge=0)
+    risk_proof_record_validation_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_record_validation_count: int = Field(default=0, ge=0)
+    ready_risk_proof_record_validation_count: int = Field(default=0, ge=0)
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)

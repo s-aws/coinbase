@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5341-5360` under M57.
-- Active autonomous range: `5361-5380` under M57.
+- Latest completed autonomous range: `5361-5380` under M57.
+- Active autonomous range: `5381-5400` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -577,12 +577,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   required fields, payload paths, validation evidence refs, idempotency,
   correlation, and audit bindings while still adding no registered validators,
   proof writers, command drafts, Coinbase calls, state mutation, browser
-  authority, or BFF execution authority. Active 5361-5380 work adds blocked
+  authority, or BFF execution authority. Completed 5361-5380 work adds blocked
   proof record/store contract rows so future proof records name required
   store schema, append-only log, idempotency binding, payload validation gate,
   replay guard, and audit-link contracts while still adding no registered
   stores, record validators, proof writers, command drafts, Coinbase calls,
-  state mutation, browser authority, or BFF execution authority.
+  state mutation, browser authority, or BFF execution authority. Active
+  5381-5400 work adds blocked proof record-validation rows over those record
+  contracts so future proof records name the validation checks, validation
+  gates, replay gates, and missing readiness required before any proof
+  evidence could be accepted, while still adding no registered validators,
+  accepted proof records, command drafts, Coinbase calls, state mutation,
+  browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

@@ -1,5 +1,56 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk Proof Record Validation Review - Phases 5381-5400
+
+Scope: phases `5381-5400`, after adding backend-owned risk proof
+record validations as `record_validations` under each blocked futures/
+perpetual risk proof requirement. Previous completed history is phases
+`5361-5380`, which added risk proof record/store contracts as
+`record_contracts`.
+
+Result: PASS after remediation.
+
+- REMEDIATED: blind/contextless review initially failed because this log still
+  led with completed phases `5361-5380` and the feature-specific
+  `docs/examples/futures-perpetuals.md` example showed `record_contracts` but
+  omitted nested `record_validations`. This entry now leads with `5381-5400`,
+  keeps `5361-5380` as completed history, and the feature example includes a
+  blocked `record_validations` row.
+- PASS: `GET /api/v1/futures/command-suite` remains a read-only
+  futures/perpetual command-suite evidence route. It exposes readiness decision,
+  semantic guards, risk proof requirements, risk proof route/writer contracts,
+  `proof_contracts`, risk proof payload fields, `payload_fields`, risk proof
+  record/store contracts, `record_contracts`, risk proof record validations,
+  `record_validations`, registered payload validation, registered record
+  validation, risk proof acceptance criteria, and forbidden spot assumptions
+  as backend-owned evidence only.
+- PASS: required exact review terms are present for validators and
+  contextless readers: risk proof requirements; risk proof route/writer
+  contracts; `proof_contracts`; risk proof payload fields; `payload_fields`;
+  risk proof record/store contracts; `record_contracts`; risk proof record
+  validations; `record_validations`; registered payload validation;
+  registered record validation.
+- PASS: each record validation row is derived from an existing record
+  contract and remains blocked with required backend validation contract,
+  store ref, record key, validation gate, replay gate, required validation
+  checks, missing evidence ref, no registered validator, no validation-ready
+  state, no accepted proof record, no command draft, no BFF execution
+  authority, and no Coinbase call.
+- PASS: planned futures cancel record validations remain keyed by
+  `client_order_id`; exchange `order_id` and `exchange_order_id` remain
+  exchange-native evidence only.
+- PASS: the capability matrix, examples, queue docs, backend tests, and
+  frontend contract docs continue to reject spot wallet availability, spot
+  no-shorting, spot USDC quote scope, spot cost-basis, average-cost, and
+  inventory-lot assumptions as futures/perpetual authority.
+- PASS: No live Coinbase execution was run. Submitted notional: `0` USDC.
+  Executed notional: `0` USDC.
+- NOTE: Full backend regression was not run because phases `5381-5400` are
+  ordinary contract/read-model phase work; focused backend and frontend gates
+  cover the changed record-validation surface. The full regression gate
+  remains reserved for durable milestone closeout, release/deployment
+  closeout, Admin API/backend association closeout, or explicit request.
+
 ## M57 Futures/Perpetual Risk Proof Record/Store Contract Review - Phases 5361-5380
 
 Scope: phases `5361-5380`, after adding backend-owned risk proof

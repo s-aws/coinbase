@@ -43,11 +43,11 @@ closeout runs from sharing pytest temp directories.
 
 ## Current Test Layout
 
-As of 2026-05-16:
+As of 2026-06-21:
 - `tests/unit/`: 28 files (`test_*.py`)
 - `tests/integration/`: 7 files
-- `tests/regression/`: 58 files
-- `tests/e2e/`: 2 files
+- `tests/regression/`: 82 files
+- `tests/e2e/`: 4 files
 - `tests/external/`: 1 file
 
 ## What Each Layer Covers
@@ -186,4 +186,4 @@ For same-side post-fill retreat, tests should prove:
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-06-21

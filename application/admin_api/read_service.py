@@ -115,6 +115,7 @@ from .models import (
     AdminFuturesCommandRiskProofContractItem,
     AdminFuturesCommandRiskProofPayloadFieldItem,
     AdminFuturesCommandRiskProofRecordContractItem,
+    AdminFuturesCommandRiskProofRecordValidationItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -349,7 +350,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5361-5380"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5381-5400"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -21217,6 +21218,83 @@ class AdminApiReadService:
                     ) in enumerate(specs)
                 ]
 
+            def record_validations(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                contracts: list[AdminFuturesCommandRiskProofRecordContractItem],
+            ) -> list[AdminFuturesCommandRiskProofRecordValidationItem]:
+                required_validation_checks = [
+                    "record_contract_available",
+                    "store_schema_registered",
+                    "append_only_log_configured",
+                    "idempotency_bound",
+                    "payload_validation_registered",
+                    "replay_guard_registered",
+                    "audit_linked",
+                ]
+                return [
+                    AdminFuturesCommandRiskProofRecordValidationItem(
+                        contract_kind=contract.contract_kind,
+                        sequence=index + 1,
+                        record_contract_ref=(
+                            f"{command_id.value}.{proof_kind.value}."
+                            f"record_contract.{contract.contract_kind.value}"
+                        ),
+                        required_backend_contract=(
+                            "application/admin_api/futures_proof_validation.py::"
+                            f"{command_id.value}_{proof_kind.value}_"
+                            f"{contract.contract_kind.value}_record_validation"
+                        ),
+                        required_store_ref=contract.required_store_ref,
+                        required_record_key=contract.required_record_key,
+                        required_payload_fields=contract.required_payload_fields,
+                        validation_gate=(
+                            f"{command_id.value}_{proof_kind.value}_"
+                            f"{contract.contract_kind.value}_record_validation_gate"
+                        ),
+                        replay_gate=(
+                            f"{command_id.value}_{proof_kind.value}_"
+                            f"{contract.contract_kind.value}_replay_gate"
+                        ),
+                        required_validation_checks=required_validation_checks,
+                        required_evidence_ref=(
+                            f"{command_id.value}_{proof_kind.value}_"
+                            f"{contract.contract_kind.value}_record_validation_ready"
+                        ),
+                        missing_evidence_ref=(
+                            f"{command_id.value}_{proof_kind.value}_"
+                            f"{contract.contract_kind.value}_record_validation_ready"
+                        ),
+                        record_contract_available=False,
+                        store_schema_registered=False,
+                        append_only_log_configured=False,
+                        idempotency_bound=False,
+                        payload_validation_registered=False,
+                        replay_guard_registered=False,
+                        audit_linked=False,
+                        record_validation_registered=False,
+                        record_validation_ready=False,
+                        proof_record_accepted=False,
+                        command_route_registered=False,
+                        command_draft_allowed=False,
+                        execution_allowed=False,
+                        proof_route_registered=False,
+                        proof_writer_enabled=False,
+                        detail=(
+                            f"{command_id.value} {proof_kind.value} record "
+                            f"validation for {contract.contract_kind.value} "
+                            "is blocked until the backend record contract, "
+                            "schema/log, idempotency binding, payload "
+                            "validation, replay guard, and audit link exist. "
+                            "This row does not validate payloads, bind "
+                            "idempotency, protect replay, write or accept "
+                            "proof records, call Coinbase, or enable "
+                            "futures/perpetual command execution."
+                        ),
+                    )
+                    for index, contract in enumerate(contracts)
+                ]
+
             def acceptance_criteria(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -21316,6 +21394,10 @@ class AdminApiReadService:
                     proof_kind=proof_kind,
                     identity_key=identity_key,
                 )
+                proof_record_validations = record_validations(
+                    proof_kind=proof_kind,
+                    contracts=proof_record_contracts,
+                )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -21371,8 +21453,8 @@ class AdminApiReadService:
                         ),
                         registered_record_validation_count=sum(
                             1
-                            for contract in proof_record_contracts
-                            if contract.payload_validation_registered
+                            for validation in proof_record_validations
+                            if validation.record_validation_registered
                         ),
                         accepted_record_contract_count=sum(
                             1
@@ -21380,6 +21462,18 @@ class AdminApiReadService:
                             if contract.proof_record_accepted
                         ),
                         record_contracts=proof_record_contracts,
+                        record_validation_count=len(proof_record_validations),
+                        blocking_record_validation_count=sum(
+                            1
+                            for validation in proof_record_validations
+                            if validation.blocking
+                        ),
+                        ready_record_validation_count=sum(
+                            1
+                            for validation in proof_record_validations
+                            if validation.record_validation_ready
+                        ),
+                        record_validations=proof_record_validations,
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -21528,6 +21622,17 @@ class AdminApiReadService:
                 ),
                 accepted_risk_proof_record_contract_count=sum(
                     item.accepted_record_contract_count
+                    for item in proof_requirements
+                ),
+                risk_proof_record_validation_count=sum(
+                    item.record_validation_count for item in proof_requirements
+                ),
+                blocking_risk_proof_record_validation_count=sum(
+                    item.blocking_record_validation_count
+                    for item in proof_requirements
+                ),
+                ready_risk_proof_record_validation_count=sum(
+                    item.ready_record_validation_count
                     for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
@@ -21687,6 +21792,17 @@ class AdminApiReadService:
             ),
             accepted_risk_proof_record_contract_count=sum(
                 command.accepted_risk_proof_record_contract_count
+                for command in commands
+            ),
+            risk_proof_record_validation_count=sum(
+                command.risk_proof_record_validation_count for command in commands
+            ),
+            blocking_risk_proof_record_validation_count=sum(
+                command.blocking_risk_proof_record_validation_count
+                for command in commands
+            ),
+            ready_risk_proof_record_validation_count=sum(
+                command.ready_risk_proof_record_validation_count
                 for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(

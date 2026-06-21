@@ -12655,6 +12655,21 @@ components:
           minimum: 0.0
           title: Accepted Risk Proof Record Contract Count
           default: 0
+        risk_proof_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Count
+          default: 0
+        blocking_risk_proof_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Record Validation Count
+          default: 0
+        ready_risk_proof_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Record Validation Count
+          default: 0
         risk_proof_acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -13554,6 +13569,157 @@ components:
       title: AdminFuturesCommandRiskProofRecordContractKind
       description: Backend record/store contracts required before futures proofs can
         persist.
+    AdminFuturesCommandRiskProofRecordValidationItem:
+      properties:
+        contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordContractKind'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        record_contract_ref:
+          type: string
+          title: Record Contract Ref
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_store_ref:
+          type: string
+          title: Required Store Ref
+        required_record_key:
+          type: string
+          title: Required Record Key
+        required_payload_fields:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofPayloadField'
+          type: array
+          title: Required Payload Fields
+        validation_gate:
+          type: string
+          title: Validation Gate
+        replay_gate:
+          type: string
+          title: Replay Gate
+        required_validation_checks:
+          items:
+            type: string
+          type: array
+          title: Required Validation Checks
+        required_evidence_ref:
+          type: string
+          title: Required Evidence Ref
+        missing_evidence_ref:
+          type: string
+          title: Missing Evidence Ref
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        store_schema_registered:
+          type: boolean
+          title: Store Schema Registered
+          default: false
+        append_only_log_configured:
+          type: boolean
+          title: Append Only Log Configured
+          default: false
+        idempotency_bound:
+          type: boolean
+          title: Idempotency Bound
+          default: false
+        payload_validation_registered:
+          type: boolean
+          title: Payload Validation Registered
+          default: false
+        replay_guard_registered:
+          type: boolean
+          title: Replay Guard Registered
+          default: false
+        audit_linked:
+          type: boolean
+          title: Audit Linked
+          default: false
+        record_validation_registered:
+          type: boolean
+          title: Record Validation Registered
+          default: false
+        record_validation_ready:
+          type: boolean
+          title: Record Validation Ready
+          default: false
+        proof_record_accepted:
+          type: boolean
+          title: Proof Record Accepted
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - contract_kind
+      - sequence
+      - record_contract_ref
+      - required_backend_contract
+      - required_store_ref
+      - required_record_key
+      - validation_gate
+      - replay_gate
+      - required_evidence_ref
+      - missing_evidence_ref
+      - detail
+      title: AdminFuturesCommandRiskProofRecordValidationItem
+      description: One blocked backend validation row for a futures proof record contract.
     AdminFuturesCommandRiskProofRequirementItem:
       properties:
         proof_kind:
@@ -13705,6 +13871,26 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordContractItem'
           type: array
           title: Record Contracts
+        record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Count
+          default: 0
+        blocking_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Record Validation Count
+          default: 0
+        ready_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Record Validation Count
+          default: 0
+        record_validations:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationItem'
+          type: array
+          title: Record Validations
         acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -14078,6 +14264,21 @@ components:
           type: integer
           minimum: 0.0
           title: Accepted Risk Proof Record Contract Count
+          default: 0
+        risk_proof_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Count
+          default: 0
+        blocking_risk_proof_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Record Validation Count
+          default: 0
+        ready_risk_proof_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Record Validation Count
           default: 0
         risk_proof_acceptance_criterion_count:
           type: integer

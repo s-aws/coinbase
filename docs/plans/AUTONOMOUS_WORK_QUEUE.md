@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5361-5380**.
+- Approved phase range: **5381-5400**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5341-5360`.
+- Previous completed range: `5361-5380`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5360`.
+- `current_phase`: `5380`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,136 +67,154 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5361-5380
+## Active Phases 5381-5400
 
-Batch label: Futures/Perpetuals Risk Proof Record/Store Contract Evidence.
+Batch label: Futures/Perpetuals Risk Proof Record Validation Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual
-command-suite route so every blocked risk proof requirement exposes the
-backend-owned proof record/store contracts required before proof payloads can
-ever become durable accepted evidence. The concrete gap is that operators can
-now see proof requirements, proof route/writer contracts, payload field
-contracts, and acceptance criteria, but not the missing record schema,
-append-only log, idempotency binding, payload validation gate, replay guard,
-or audit-link contracts. The work must remain read-only and no-live: no
-futures command route, command draft, accepted payload, proof record writer,
-proof validation, proof acceptance, registered store, manager invocation,
-exchange order placement or cancellation, Coinbase read, reconciliation
-execution, state mutation, browser execution authority, or BFF execution
-authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
-inventory-lot rules remain explicitly forbidden as futures/perpetual
-authority.
+command-suite route so every blocked proof record/store contract exposes the
+backend-owned record-validation evidence required before proof records can ever
+be accepted. The concrete gap is that operators can now see proof
+requirements, proof route/writer contracts, payload field contracts,
+acceptance criteria, and record/store contracts, but not the blocked
+validation rows that prove schema, append-only log, idempotency, payload
+validation, replay, and audit-link readiness remain missing. The work must
+remain read-only and no-live: no futures command route, command draft, proof
+record writer, proof validation service, proof acceptance, registered store,
+registered validator, manager invocation, exchange order placement or
+cancellation, Coinbase read, reconciliation execution, state mutation, browser
+execution authority, or BFF execution authority. Spot wallet, no-shorting,
+USDC, cost-basis, average-cost, and inventory-lot rules remain explicitly
+forbidden as futures/perpetual authority.
 
-### Phase 5361 - Prior Range Completion Evidence
+### Phase 5381 - Prior Range Completion Evidence
 
-- Record completed phases 5341-5360 with backend commit `6857277e`, frontend
-  commit `f583943`, focused backend/frontend gates, no-live UI smoke
+- Record completed phases 5361-5380 with backend commit `52c87660`, frontend
+  commit `5306407`, focused backend/frontend gates, no-live UI smoke
   screenshots
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5341-5360-futures-risk-proof-payload-fields.png`
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5361-5380-futures-risk-proof-record-contracts.png`
   and
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5341-5360-futures-risk-proof-payload-fields-mobile.png`,
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5361-5380-futures-risk-proof-record-contracts-mobile.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5362 - Advance Active Queue Range
+### Phase 5382 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5341-5360 to active phases
-  5361-5380 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5361-5380 to active phases
+  5381-5400 while preserving no-live defaults and cap policy.
 
-### Phase 5363 - Proof Record/Store Contract Gap
+### Phase 5383 - Record Validation Gap
 
-- Document that each futures/perpetual risk proof needs explicit backend
-  proof record/store contracts before any later proof acceptance,
-  validation, writer, or command-route enablement can be reviewed.
+- Document that each futures/perpetual proof record/store contract needs a
+  blocked backend record-validation row before any later proof writer,
+  acceptance, or command-route enablement can be reviewed.
 
-### Phase 5364 - Record Contract Kind Enum
+### Phase 5384 - Record Validation Model
 
-- Add enum-backed futures/perpetual risk proof record/store contract kinds
-  without creating command routes, accepted payloads, proof writers,
-  validators, record stores, or live adapters.
+- Add nested blocked futures/perpetual proof record-validation rows and
+  suite/command/risk-proof validation counts without creating validators,
+  stores, accepted proof records, command routes, or live adapters.
 
-### Phase 5365 - Record Contract Model
+### Phase 5385 - Backend Validation Builder
 
-- Add nested blocked proof record/store contract rows to each futures/perpetual
-  risk proof requirement and suite/command-level record contract counts.
+- Derive record-validation rows from existing record/store contract rows,
+  command identity keys, required payload fields, validation gates, and replay
+  gates instead of adding a second futures command-readiness path.
 
-### Phase 5366 - Backend Record Contract Builder
-
-- Derive record/store contract rows from existing proof requirements,
-  payload fields, command identity keys, and semantic guard evidence instead
-  of adding a second futures command-readiness path.
-
-### Phase 5367 - Store Schema And Append-Only Log Rows
-
-- Expose blocked store-schema and append-only-log rows without creating
-  stores, logs, writers, proof records, or accepted evidence.
-
-### Phase 5368 - Idempotency And Replay Rows
-
-- Expose blocked idempotency-binding and replay-guard rows without binding
-  replay authority, accepting idempotency keys, or allowing command drafts.
-
-### Phase 5369 - Payload Validation Gate Row
-
-- Expose the blocked payload-validation-gate row with validation registered
-  false and proof record accepted false.
-
-### Phase 5370 - Audit Link Row
-
-- Expose the blocked audit-link row without creating audit proof authority,
-  command authority, or browser/BFF execution authority.
-
-### Phase 5371 - Record Contract Aggregates
+### Phase 5386 - Validation Aggregate Counts
 
 - Expose suite, command, and risk-proof aggregate counts proving all record
-  contracts remain blocked with zero registered stores, zero registered
-  record validators, and zero accepted record contracts.
+  validations remain blocked, zero registered, zero ready, and zero accepted.
 
-### Phase 5372 - Cancel Identity Discipline
+### Phase 5387 - Schema/Log/Idempotency Validation Rows
 
-- Assert planned futures cancel proof record/store contracts remain keyed by
+- Expose blocked validation rows for record contract availability,
+  store-schema registration, append-only log configuration, and idempotency
+  binding without registering any backend validator.
+
+### Phase 5388 - Payload/Replay/Audit Validation Rows
+
+- Expose blocked validation rows for payload validation, replay guard, and
+  audit-link readiness without validating payloads, protecting replay, writing
+  proof records, or accepting evidence.
+
+### Phase 5389 - Cancel Identity Discipline
+
+- Assert planned futures cancel record validations remain keyed by
   `client_order_id` discipline and do not introduce exchange order id refs.
 
-### Phase 5373 - OpenAPI Sync
+### Phase 5390 - OpenAPI Sync
 
-- Regenerate the Admin API OpenAPI artifact and assert record/store contract
+- Regenerate the Admin API OpenAPI artifact and assert record-validation
   schema/counts are present on the command-suite contract.
 
-### Phase 5374 - Backend Focused Regression
+### Phase 5391 - Backend Focused Regression
 
-- Run focused Admin API contract tests covering record/store contracts,
-  blocked registration state, no-live posture, cancel identity discipline,
+- Run focused Admin API contract tests covering record validations, blocked
+  registration/readiness state, no-live posture, cancel identity discipline,
   and no spot-rule leakage.
 
-### Phase 5375 - Frontend Schema Sync
+### Phase 5392 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5376 - Frontend Adapter And Mock Mapping
+### Phase 5393 - Frontend Adapter And Mock Mapping
 
-- Map record/store contracts through the canonical backend adapter and mock
+- Map record validations through the canonical backend adapter and mock
   backend without command drafts, feature-local fetches, proof writers,
   validators, record stores, or BFF mutation forwarding.
 
-### Phase 5377 - Futures Read Model Record Contract Display
+### Phase 5394 - Futures Read Model Validation Display
 
-- Display ordered risk proof record/store contract rows in the Futures /
+- Display ordered risk proof record-validation rows in the Futures /
   Perpetuals admin view with no command controls.
 
-### Phase 5378 - Documentation And Examples
+### Phase 5395 - Frontend Focused Tests
+
+- Update focused frontend tests for validation counts, blocked validator
+  posture, `client_order_id` cancel identity, and no command controls.
+
+### Phase 5396 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
-  handoff, and expanded context for the M57 record/store contract slice.
+  handoff, and expanded context for the M57 record-validation slice.
 
-### Phase 5379 - Contextless Review And UI Smoke
+### Phase 5397 - Stale Range And Drift Scan
+
+- Search backend/frontend docs, fixtures, validators, and examples for stale
+  `5361-5380` active-range wording or record-contract-only wording.
+
+### Phase 5398 - Contextless Review And UI Smoke
 
 - Run blind/contextless backend/frontend reviews and no-live browser smoke for
-  the Futures / Perpetuals record/store contract table; remediate any blocker
+  the Futures / Perpetuals record-validation table; remediate any blocker
   before advancing.
 
-### Phase 5380 - Commit And Push
+### Phase 5399 - Focused Gates
+
+- Run focused backend/frontend gates, autonomous queue validation, OpenAPI/API
+  freshness checks, and ownership/security checks for the changed behavior.
+
+### Phase 5400 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI smoke evidence, and the next M57 enablement step.
+
+## Completed Phases 5361-5380
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with backend-owned proof record/store contract rows for every blocked risk
+proof requirement. The record/store contract rows are blocked evidence only:
+they are not command routes, command drafts, accepted payloads, proof writers,
+record stores, record validators, Coinbase calls, state mutation, browser
+authority, or BFF execution authority. The range completed with backend
+commit `52c87660`, frontend commit `5306407`, focused backend/frontend gates,
+blind/contextless review, UI smoke at
+`http://127.0.0.1:3002/#futures-perpetuals`, screenshots
+`C:\coinbase-frontend\output\playwright\ui-smoke-5361-5380-futures-risk-proof-record-contracts.png`
+and
+`C:\coinbase-frontend\output\playwright\ui-smoke-5361-5380-futures-risk-proof-record-contracts-mobile.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed Phases 5341-5360
 
