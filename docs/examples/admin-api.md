@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5461-5480",
+  "approved_phase_range": "5481-5500",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5461-5480",
+  "approved_phase_range": "5481-5500",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5461-5480",
+  "approved_phase_range": "5481-5500",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1938,6 +1938,9 @@ Expected command-suite posture:
   "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 120,
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 120,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -2011,14 +2014,24 @@ backend contracts, claim targets, and blockers. They remain blocked with
 `claim_trace_created=false`, `claim_allowed=false`,
 `claim_resolved=false`, and `work_item_claimed=false`.
 Each proof also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"`
+for the blocked backend-owned clearance-plan contract that would be required
+before a claim trace could ever be cleared. Clearance-plan rows name
+clearance-plan store refs, upstream claim-trace refs, predecessor/successor
+claim-trace refs, predecessor/successor clearance-plan refs, claim targets,
+required backend contracts, required plan steps, and blockers. They remain
+blocked with `clearance_plan_created=false`,
+`clearance_plan_ready=false`, `clearance_sequence_ready=false`,
+`claim_trace_ready=false`, and `claim_resolved=false`.
+Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
 review. These rows are blocked evidence only. They do not register command
 routes, create drafts, validate payloads, write proofs, enable writers,
 resolve dependencies, create remediation or dependency work items, claim work
-items, create or resolve claim traces, register claim ledgers, perform
-remediation, call Coinbase, execute reconciliation, or grant browser/BFF
-authority.
+items, create or resolve claim traces, create or execute clearance plans,
+clear claim traces, register claim ledgers, perform remediation, call
+Coinbase, execute reconciliation, or grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account

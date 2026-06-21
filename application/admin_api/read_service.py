@@ -34,6 +34,8 @@ from core.enums import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyBlocker,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceBlocker,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -123,6 +125,7 @@ from .models import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTrace,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan,
     AdminFuturesCommandRiskProofRecordValidationRemediationItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
@@ -358,7 +361,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5461-5480"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5481-5500"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -21834,6 +21837,196 @@ class AdminApiReadService:
                     )
                 return rows
 
+            def record_validation_remediation_dependency_work_item_claim_trace_clearance_plans(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                claim_traces: list[
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTrace
+                ],
+            ) -> list[
+                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan
+            ]:
+                clearance_plan_blockers = [
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker.CLAIM_TRACE_NOT_CREATED,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker.CLAIM_TRACE_NOT_READY,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker.CLAIM_UNRESOLVED,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker.CLEARANCE_PLAN_STORE_MISSING,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker.CLEARANCE_SEQUENCE_MISSING,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker.CLAIM_REVIEW_MISSING,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker.CONTEXTLESS_REVIEW_MISSING,
+                ]
+                required_plan_steps = [
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep.INSPECT_CLAIM_TRACE,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep.VERIFY_CLAIM_LEDGER,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep.VERIFY_CLAIM_TRACE_STORE,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep.VERIFY_PREDECESSOR_SUCCESSOR_SEQUENCE,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep.RUN_CONTEXTLESS_REVIEW,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep.RECORD_CLEARANCE_PLAN_EVIDENCE,
+                ]
+                rows: list[
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan
+                ] = []
+                for index, claim_trace in enumerate(claim_traces):
+                    clearance_plan_ref = (
+                        f"{command_id.value}.{proof_kind.value}."
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_plan."
+                        f"{claim_trace.contract_kind.value}"
+                    )
+                    predecessor_clearance_plan_refs = (
+                        [
+                            f"{command_id.value}.{proof_kind.value}."
+                            "record_validation_remediation_dependency_work_item_claim_trace_clearance_plan."
+                            f"{claim_traces[index - 1].contract_kind.value}"
+                        ]
+                        if index > 0
+                        else []
+                    )
+                    successor_clearance_plan_refs = (
+                        [
+                            f"{command_id.value}.{proof_kind.value}."
+                            "record_validation_remediation_dependency_work_item_claim_trace_clearance_plan."
+                            f"{claim_traces[index + 1].contract_kind.value}"
+                        ]
+                        if index < len(claim_traces) - 1
+                        else []
+                    )
+                    required_backend_contract = (
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_plan.py::"
+                        f"{command_id.value}_{proof_kind.value}_"
+                        f"{claim_trace.contract_kind.value}_"
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_plan"
+                    )
+                    rows.append(
+                        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan(
+                            contract_kind=claim_trace.contract_kind,
+                            sequence=index + 1,
+                            record_validation_ref=claim_trace.record_validation_ref,
+                            record_contract_ref=claim_trace.record_contract_ref,
+                            remediation_ref=claim_trace.remediation_ref,
+                            remediation_dependency_ref=(
+                                claim_trace.remediation_dependency_ref
+                            ),
+                            remediation_dependency_work_item_ref=(
+                                claim_trace.remediation_dependency_work_item_ref
+                            ),
+                            remediation_dependency_work_item_claim_trace_ref=(
+                                claim_trace.remediation_dependency_work_item_claim_trace_ref
+                            ),
+                            remediation_dependency_work_item_claim_trace_clearance_plan_ref=(
+                                clearance_plan_ref
+                            ),
+                            remediation_dependency_work_item_claim_trace_clearance_plan_gate=(
+                                f"{command_id.value}_{proof_kind.value}_"
+                                f"{claim_trace.contract_kind.value}_"
+                                "record_validation_remediation_dependency_"
+                                "work_item_claim_trace_clearance_plan_gate"
+                            ),
+                            remediation_dependency_work_item_claim_trace_gate=(
+                                claim_trace.remediation_dependency_work_item_claim_trace_gate
+                            ),
+                            remediation_dependency_work_item_gate=(
+                                claim_trace.remediation_dependency_work_item_gate
+                            ),
+                            remediation_dependency_gate=(
+                                claim_trace.remediation_dependency_gate
+                            ),
+                            remediation_gate=claim_trace.remediation_gate,
+                            required_backend_contract=required_backend_contract,
+                            required_claim_trace_contract=(
+                                claim_trace.required_backend_contract
+                            ),
+                            required_clearance_plan_store_ref=(
+                                "admin_futures_remediation_dependency_"
+                                "work_item_claim_trace_clearance_plans."
+                                f"{command_id.value}.{proof_kind.value}"
+                            ),
+                            required_claim_trace_store_ref=(
+                                claim_trace.required_claim_trace_store_ref
+                            ),
+                            required_work_item_store_ref=(
+                                claim_trace.required_work_item_store_ref
+                            ),
+                            required_store_ref=claim_trace.required_store_ref,
+                            required_record_key=claim_trace.required_record_key,
+                            validation_gate=claim_trace.validation_gate,
+                            replay_gate=claim_trace.replay_gate,
+                            clearance_plan_claim="claim_trace_clearance_plan",
+                            clearance_plan_target_ref=(
+                                claim_trace.remediation_dependency_work_item_claim_trace_ref
+                            ),
+                            clearance_plan_source_ref=(
+                                claim_trace.required_backend_contract
+                            ),
+                            required_plan_steps=required_plan_steps,
+                            predecessor_claim_trace_refs=(
+                                claim_trace.predecessor_claim_trace_refs
+                            ),
+                            successor_claim_trace_refs=(
+                                claim_trace.successor_claim_trace_refs
+                            ),
+                            predecessor_clearance_plan_refs=(
+                                predecessor_clearance_plan_refs
+                            ),
+                            successor_clearance_plan_refs=(
+                                successor_clearance_plan_refs
+                            ),
+                            clearance_plan_blockers=clearance_plan_blockers,
+                            required_evidence_refs=[
+                                claim_trace.remediation_dependency_work_item_claim_trace_ref,
+                                claim_trace.required_backend_contract,
+                                claim_trace.remediation_dependency_work_item_claim_trace_gate,
+                                *claim_trace.required_evidence_refs,
+                            ],
+                            missing_evidence_refs=[
+                                required_backend_contract,
+                                f"{clearance_plan_ref}.clearance_plan_store",
+                                f"{clearance_plan_ref}.sequence",
+                                f"{clearance_plan_ref}.claim_review",
+                                *claim_trace.missing_evidence_refs,
+                            ],
+                            clearance_plan_created=False,
+                            clearance_plan_ready=False,
+                            clearance_plan_sequence_ready=False,
+                            claim_trace_created=False,
+                            claim_trace_ready=False,
+                            claim_allowed=False,
+                            claim_resolved=False,
+                            work_item_created=False,
+                            work_item_claimed=False,
+                            claim_ledger_registered=False,
+                            dependency_ready=False,
+                            dependency_resolved=False,
+                            dependency_performed=False,
+                            remediation_ready=False,
+                            remediation_performed=False,
+                            record_validation_ready=False,
+                            proof_record_accepted=False,
+                            command_route_registered=False,
+                            command_draft_allowed=False,
+                            execution_allowed=False,
+                            proof_route_registered=False,
+                            proof_writer_enabled=False,
+                            detail=(
+                                f"{command_id.value} {proof_kind.value} record "
+                                "validation remediation dependency work-item "
+                                "claim-trace clearance plan for "
+                                f"{claim_trace.contract_kind.value} remains "
+                                "blocked until the claim trace exists, is "
+                                "ready, is resolved through backend-owned "
+                                "claim evidence, and a clearance-plan store, "
+                                "sequence, owner review, and contextless "
+                                "review are present. This row does not "
+                                "create clearance plans, resolve claims, "
+                                "claim work items, resolve dependencies, "
+                                "perform remediation, write or accept proof "
+                                "records, call Coinbase, or enable "
+                                "futures/perpetual command execution."
+                            ),
+                        )
+                    )
+                return rows
+
             def acceptance_criteria(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -21960,6 +22153,14 @@ class AdminApiReadService:
                         proof_kind=proof_kind,
                         work_items=(
                             proof_record_validation_remediation_dependency_work_items
+                        ),
+                    )
+                )
+                proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans = (
+                    record_validation_remediation_dependency_work_item_claim_trace_clearance_plans(
+                        proof_kind=proof_kind,
+                        claim_traces=(
+                            proof_record_validation_remediation_dependency_work_item_claim_traces
                         ),
                     )
                 )
@@ -22117,6 +22318,27 @@ class AdminApiReadService:
                         ),
                         record_validation_remediation_dependency_work_item_claim_traces=(
                             proof_record_validation_remediation_dependency_work_item_claim_traces
+                        ),
+                        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=len(
+                            proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                        ),
+                        blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                            1
+                            for clearance_plan in (
+                                proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                            )
+                            if clearance_plan.blocking
+                        ),
+                        ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                            1
+                            for clearance_plan in (
+                                proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                            )
+                            if clearance_plan.clearance_plan_ready
+                            and clearance_plan.clearance_plan_sequence_ready
+                        ),
+                        record_validation_remediation_dependency_work_item_claim_trace_clearance_plans=(
+                            proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
                         ),
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
@@ -22325,6 +22547,18 @@ class AdminApiReadService:
                 ),
                 ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count=sum(
                     item.ready_record_validation_remediation_dependency_work_item_claim_trace_count
+                    for item in proof_requirements
+                ),
+                risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                    item.record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+                    for item in proof_requirements
+                ),
+                blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                    item.blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+                    for item in proof_requirements
+                ),
+                ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                    item.ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
                     for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
@@ -22543,6 +22777,18 @@ class AdminApiReadService:
             ),
             ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count=sum(
                 command.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count
+                for command in commands
+            ),
+            risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                command.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+                for command in commands
+            ),
+            blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                command.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+                for command in commands
+            ),
+            ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
+                command.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
                 for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(

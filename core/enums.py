@@ -1271,6 +1271,35 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep(
+    str,
+    Enum,
+):
+    """Backend clearance-plan steps before futures proof claim traces can clear."""
+
+    INSPECT_CLAIM_TRACE = "inspect_claim_trace"
+    VERIFY_CLAIM_LEDGER = "verify_claim_ledger"
+    VERIFY_CLAIM_TRACE_STORE = "verify_claim_trace_store"
+    VERIFY_PREDECESSOR_SUCCESSOR_SEQUENCE = "verify_predecessor_successor_sequence"
+    RUN_CONTEXTLESS_REVIEW = "run_contextless_review"
+    RECORD_CLEARANCE_PLAN_EVIDENCE = "record_clearance_plan_evidence"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker(
+    str,
+    Enum,
+):
+    """Blocked plan reasons before futures proof claim traces can clear."""
+
+    CLAIM_TRACE_NOT_CREATED = "claim_trace_not_created"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CLEARANCE_PLAN_STORE_MISSING = "clearance_plan_store_missing"
+    CLEARANCE_SEQUENCE_MISSING = "clearance_sequence_missing"
+    CLAIM_REVIEW_MISSING = "claim_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5441-5460` under M57.
-- Active autonomous range: `5461-5480` under M57.
+- Latest completed autonomous range: `5461-5480` under M57.
+- Active autonomous range: `5481-5500` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -610,12 +610,22 @@ notional, retained inventory, reconciliation result, and audit ids.
   creation, work-item claiming, claim-ledger registration, dependency
   resolution, remediation execution, registered validators, accepted proof
   records, command drafts, Coinbase calls, state mutation, browser authority,
-  or BFF execution authority. Active 5461-5480 work adds blocked proof
+  or BFF execution authority. Completed 5461-5480 work adds blocked proof
   record-validation remediation dependency work-item claim-trace rows over
   those dependency work-item rows so future claim-ledger work names
   claim-trace store refs, claim targets, predecessor/successor claim-trace
   refs, claim-ledger blockers, claim-review blockers, and contextless-review
   blockers while still adding no claim-trace creation, claim allowance, claim
+  resolution, work-item claiming, claim-ledger registration, dependency
+  resolution, remediation execution, registered validators, accepted proof
+  records, command drafts, Coinbase calls, state mutation, browser authority,
+  or BFF execution authority. Active 5481-5500 work adds blocked proof
+  record-validation remediation dependency work-item claim-trace
+  clearance-plan rows over those claim-trace rows so future claim-trace
+  clearance work names clearance-plan store refs, required plan steps,
+  predecessor/successor claim-trace refs, predecessor/successor
+  clearance-plan refs, claim targets, and blockers while still adding no
+  clearance-plan creation, plan execution, claim-trace clearance, claim
   resolution, work-item claiming, claim-ledger registration, dependency
   resolution, remediation execution, registered validators, accepted proof
   records, command drafts, Coinbase calls, state mutation, browser authority,

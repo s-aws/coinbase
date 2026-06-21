@@ -60,6 +60,7 @@ Current route adapters:
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
+- `GET /api/v1/futures/command-suite`
 - `GET /api/v1/futures/account`
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
