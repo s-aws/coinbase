@@ -49,11 +49,149 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Phases 5581-5600
+## Active Phases 5601-5620
+
+Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Evidence.
+
+These phases extend the existing read-only M57 futures/perpetual command-suite
+route so every blocked proof record-validation remediation dependency
+work-item claim-trace clearance-step review input store record contract exposes
+one backend-owned store record-validation row. The rows name the validation
+checks, record-validation gate, upstream record-contract refs, inherited
+blockers, missing evidence, and false authority flags required before later
+input-record acceptance, proof-write, claim-clearance, or command-route
+enablement work can be reviewed. The work remains read-only and no-live: no
+record validator is configured, no schema is registered, no append-only log is
+configured, no idempotency key is bound, no payload validation is enabled, no
+replay protection is configured, no evidence is accepted or written, no futures
+command route or draft is created, no browser/BFF execution authority is
+introduced, and no Coinbase order execution is run. Spot wallet, no-shorting,
+USDC, cost-basis, average-cost, and inventory-lot rules remain forbidden as
+futures/perpetual authority.
+
+### Phase 5601 - Prior Range Completion Evidence
+
+- Record completed phases 5581-5600 with backend commit `96a7a850`,
+  frontend commit `a1e5ecd`, focused backend/frontend gates,
+  blind/contextless review, UI smoke evidence, and `0` USDC live Coinbase
+  submitted/executed notional.
+
+### Phase 5602 - Advance Active Queue Range
+
+- Move active range metadata from completed phases 5581-5600 to phases
+  5601-5620 while preserving no-live defaults and cap policy.
+
+### Phase 5603 - Claim-Trace Clearance-Step Review Input Store Record Validation Gap
+
+- Document that each blocked futures/perpetual clearance-step review input
+  store record contract still lacks validation checks and a record-validation
+  gate before input-record acceptance or proof writes can be reviewed.
+
+### Phase 5604 - Store Record Validation Schema Sync
+
+- Regenerate the backend OpenAPI schema after adding store record-validation
+  rows and aggregate counts.
+
+### Phase 5605 - Store Record Validation Backend Model
+
+- Add backend typed blocked store record-validation rows without adding command
+  authority, validators, record acceptance, or write behavior.
+
+### Phase 5606 - Store Record Validation Backend Builder
+
+- Derive representative store record-validation rows from existing store
+  record-contract rows while preserving aggregate counts and inherited blockers.
+
+### Phase 5607 - Store Record Validation Aggregate Counts
+
+- Surface suite, command, and proof-level total/blocking/ready/configured
+  counts and keep ready/configured counts at zero.
+
+### Phase 5608 - Store Record Validation Linkage
+
+- Display upstream store record-contract refs, store requirement refs,
+  review-input refs, review refs, clearance-step refs, clearance-plan refs,
+  claim-trace refs, predecessor/successor refs, target refs, and source refs.
+
+### Phase 5609 - Validation Checks And Gate Refs
+
+- Display required backend contract refs, validation checks, validation gates,
+  replay gates, schema/log/idempotency refs, payload fields, inherited blockers,
+  and missing evidence refs.
+
+### Phase 5610 - Cancel Identity Discipline
+
+- Prove futures cancel stays keyed by `client_order_id` and no exchange-native
+  `order_id` becomes internal command identity.
+
+### Phase 5611 - Backend Focused Regression
+
+- Run focused backend Admin API contract tests and autonomous validator checks
+  for the store record-validation evidence.
+
+### Phase 5612 - Frontend Schema Sync
+
+- Regenerate frontend Admin API schema from the backend OpenAPI contract.
+
+### Phase 5613 - Frontend Adapter And Mock Mapping
+
+- Map store record-validation counts and rows in frontend adapters and mocks
+  without adding command controls, forms, mutation buttons, browser execution
+  authority, or BFF execution authority.
+
+### Phase 5614 - Futures Read Model Store Record Validation Summary
+
+- Add futures/perpetual read-model metrics that show store record-validation
+  total/blocking/ready/configured counts and display-only status.
+
+### Phase 5615 - Futures Read Model Store Record Validation Rows
+
+- Render representative store record-validation rows with contract refs,
+  validation checks, schema/log/idempotency refs, validation/replay gates,
+  blockers, missing evidence, false flags, and no action controls.
+
+### Phase 5616 - Frontend Focused Tests
+
+- Run frontend typecheck, lint, API drift check, autonomous check, focused unit
+  tests, build, and targeted Playwright smoke for the futures/perpetual read
+  model.
+
+### Phase 5617 - Documentation And Examples
+
+- Update Admin API, futures/perpetual examples, capability matrix, handoff,
+  agent state, and contextless review log so a contextless reader can
+  understand store record-validation evidence without chat history.
+
+### Phase 5618 - Stale Range And Drift Scan
+
+- Scan backend and frontend docs/tests for stale active range strings and text
+  implying store record validations can configure validators, accept records,
+  write evidence, or execute commands.
+
+### Phase 5619 - Contextless Review And UI Smoke
+
+- Run blind/contextless review and targeted UI smoke proving the new store
+  record-validation rows cannot be mistaken for executable futures command
+  authority.
+
+### Phase 5620 - Commit And Push
+
+- Commit and push synchronized backend/frontend work after focused gates pass.
+
+## Completed Phases 5581-5600
 
 Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Contract Evidence.
 
-These phases extend the existing read-only M57 futures/perpetual command-suite
+Phases 5581-5600 added backend-owned risk proof record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-contract rows and frontend display evidence while preserving
+read-only/no-live behavior. Backend commit `96a7a850` and frontend commit
+`a1e5ecd` contain the pushed range. Focused backend/frontend gates,
+blind/contextless review, and targeted UI smoke passed. Live Coinbase
+execution was not run; submitted notional `0` USDC and executed notional `0`
+USDC.
+
+Historical detail: these phases extend the existing read-only M57 futures/perpetual command-suite
 route so every blocked proof record-validation remediation dependency
 work-item claim-trace clearance-step review input store requirement exposes one
 backend-owned store record-contract row. The concrete gap is that operators can

@@ -11,9 +11,9 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5581-5600 range adds read-only M57 futures/perpetual risk proof
+The active 5601-5620 range adds read-only M57 futures/perpetual risk proof
 record-validation remediation dependency work-item claim-trace clearance-step
-review input store record-contract evidence to the existing command-suite
+review input store record-validation evidence to the existing command-suite
 evidence. Each readiness decision, ordered closure step, risk proof
 requirement, proof contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
@@ -27,6 +27,8 @@ row
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements"`),
 clearance-step review input store record-contract row
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts"`),
+clearance-step review input store record-validation row
+(`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"`),
 and acceptance criterion is derived from backend-owned prerequisites, request
 fields, semantic guards, evidence routes, missing evidence refs, and missing
 backend contracts. It is not a command route,
@@ -38,7 +40,8 @@ clearance-step review completer, review-input acceptor,
 review-input store creator, review-input writer, record-key registrar,
 input record-contract creator, record schema creator, append-only log creator,
 idempotency binder, payload validator, replay protector, input validator,
-replay acceptor, command draft surface, or execution approval.
+record-validator registrar, validation-gate passer, replay acceptor, command
+draft surface, or execution approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -53,7 +56,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5581-5600",
+  "approved_phase_range": "5601-5620",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -124,6 +127,10 @@ Expected response posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 1440,
   "available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 0,
   "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 0,
+  "configured_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 0,
   "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": [
     {
       "clearance_plan_created": false,
@@ -188,6 +195,33 @@ Expected response posture:
                           "record_present": false,
                           "record_accepted": false,
                           "record_validated": false,
+                          "clearance_step_review_input_store_record_validation_count": 1,
+                          "blocking_clearance_step_review_input_store_record_validation_count": 1,
+                          "ready_clearance_step_review_input_store_record_validation_count": 0,
+                          "configured_clearance_step_review_input_store_record_validation_count": 0,
+                          "remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations": [
+                            {
+                              "clearance_step_review_input_store_record_validation_claim": "claim_trace_clearance_step_review_input_store_record_validation",
+                              "record_validation_required": true,
+                              "record_validation_ready": false,
+                              "validation_checks": [
+                                "record_contract_available",
+                                "record_schema_available",
+                                "append_only_log_available",
+                                "idempotency_key_bound",
+                                "payload_schema_validated",
+                                "replay_protected",
+                                "record_present",
+                                "record_accepted",
+                                "record_validated"
+                              ],
+                              "validation_checks_passed": false,
+                              "validation_configured": false,
+                              "accepts_evidence": false,
+                              "writes_evidence": false,
+                              "execution_allowed": false
+                            }
+                          ],
                           "accepts_evidence": false,
                           "writes_evidence": false,
                           "execution_allowed": false

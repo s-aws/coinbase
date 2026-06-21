@@ -82,6 +82,13 @@ browser, BFF, and notional evidence fields.
   checks, and required remediation actions, but they do not create stores,
   register validators, create remediation work items, perform remediation,
   write proof records, accept evidence, or make a command executable.
+- Each risk proof requirement also exposes backend-owned clearance-step review
+  input store record-contract rows and store record-validation rows. These
+  rows name required input-record contracts, schemas, append-only logs,
+  idempotency keys, validation checks, validation gates, replay gates, and
+  inherited blockers, but they do not create record contracts, register
+  schemas, configure logs, bind idempotency keys, validate payloads, register
+  validators, accept records, write evidence, or make a command executable.
 - Each risk proof requirement also exposes backend-owned record-validation
   remediation dependency rows. These rows order blocked remediation rows with
   predecessor/successor refs, dependency gates, missing backend contracts,
@@ -197,7 +204,8 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   dependency work-item claim-trace clearance-step review rows, or
   record-validation remediation dependency work-item claim-trace
   clearance-step review input rows, clearance-step review input store
-  requirement rows, or clearance-step review input store record-contract rows
+  requirement rows, clearance-step review input store record-contract rows, or
+  clearance-step review input store record-validation rows
   as
   registered stores, registered validators, created or claimed work items,
   created or resolved claim traces, created or executed clearance plans,
