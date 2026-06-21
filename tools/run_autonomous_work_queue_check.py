@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5481-5500"
-APPROVED_PHASES = tuple(range(5481, 5501))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5461-5480"
+APPROVED_PHASE_RANGE = "5501-5520"
+APPROVED_PHASES = tuple(range(5501, 5521))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5481-5500"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -217,6 +217,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_items"',
             '"record_validation_remediation_dependency_work_item_claim_traces"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -238,11 +239,14 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_items"',
             '"record_validation_remediation_dependency_work_item_claim_traces"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"',
             '"claim_trace_created": false',
             '"claim_allowed": false',
             '"claim_resolved": false',
             '"clearance_plan_created": false',
             '"clearance_plan_ready": false',
+            '"clearance_step_ready": false',
+            '"clearance_step_complete": false',
             '"acceptance_criteria"',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
@@ -301,6 +305,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5441-5460"',
         "active 5461-5480 range",
         '"approved_phase_range": "5461-5480"',
+        "active 5481-5500 range",
+        '"approved_phase_range": "5481-5500"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -595,6 +601,10 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans",
         "clearance_plan_created=false",
         "clearance_plan_ready=false",
+        "risk proof record-validation remediation dependency work-item claim-trace clearance step",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_steps",
+        "clearance_step_ready=false",
+        "clearance_step_complete=false",
         "registered payload validation",
         "registered record validation",
         "remediation_ready=false",

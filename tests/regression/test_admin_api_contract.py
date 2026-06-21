@@ -47098,7 +47098,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5481-5500"
+    assert command_suite.approved_phase_range == "5501-5520"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -47176,6 +47176,22 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     )
     assert (
         command_suite.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+        == 0
+    )
+    assert (
+        command_suite.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+        == 720
+    )
+    assert (
+        command_suite.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+        == 720
+    )
+    assert (
+        command_suite.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+        == 0
+    )
+    assert (
+        command_suite.completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
         == 0
     )
     assert command_suite.risk_proof_acceptance_criterion_count == 100
@@ -47352,6 +47368,22 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             command_item.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
             == 0
         )
+        assert (
+            command_item.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == len(expected_risk_proof_kinds[command_id]) * 36
+        )
+        assert (
+            command_item.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == len(expected_risk_proof_kinds[command_id]) * 36
+        )
+        assert (
+            command_item.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == 0
+        )
+        assert (
+            command_item.completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == 0
+        )
         assert command_item.blocking_risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -47403,6 +47435,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             == 6
             and item.ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
             == 0
+            and item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == 36
+            and item.blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == 36
+            and item.ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == 0
+            and item.completed_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+            == 0
+            and len(
+                item.record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+            )
+            == 36
             and item.acceptance_criterion_count == 5
             and item.blocking_acceptance_criterion_count == 5
             and item.accepted_acceptance_criterion_count == 0
@@ -48313,6 +48357,144 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                     item.record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
                 )
             )
+            for clearance_plan in (
+                item.record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+            ):
+                clearance_steps = (
+                    clearance_plan.remediation_dependency_work_item_claim_trace_clearance_steps
+                )
+                assert clearance_plan.clearance_step_count == 6
+                assert clearance_plan.blocking_clearance_step_count == 6
+                assert clearance_plan.ready_clearance_step_count == 0
+                assert clearance_plan.completed_clearance_step_count == 0
+                assert len(clearance_steps) == len(clearance_plan.required_plan_steps)
+                assert [
+                    step.clearance_step_sequence for step in clearance_steps
+                ] == list(range(1, 7))
+                assert [
+                    step.clearance_step_name.value for step in clearance_steps
+                ] == [
+                    "inspect_claim_trace",
+                    "verify_claim_ledger",
+                    "verify_claim_trace_store",
+                    "verify_predecessor_successor_sequence",
+                    "run_contextless_review",
+                    "record_clearance_plan_evidence",
+                ]
+                assert clearance_steps[0].predecessor_clearance_step_refs == []
+                assert clearance_steps[-1].successor_clearance_step_refs == []
+                assert clearance_steps[1].predecessor_clearance_step_refs == [
+                    f"{clearance_plan.remediation_dependency_work_item_claim_trace_clearance_plan_ref}.clearance_step.inspect_claim_trace"
+                ]
+                assert clearance_steps[0].successor_clearance_step_refs == [
+                    f"{clearance_plan.remediation_dependency_work_item_claim_trace_clearance_plan_ref}.clearance_step.verify_claim_ledger"
+                ]
+                assert all(
+                    step.status.value == "blocked"
+                    and step.blocking is True
+                    and step.sequence == clearance_plan.sequence
+                    and step.contract_kind == clearance_plan.contract_kind
+                    and step.record_validation_ref
+                    == clearance_plan.record_validation_ref
+                    and step.record_contract_ref == clearance_plan.record_contract_ref
+                    and step.remediation_ref == clearance_plan.remediation_ref
+                    and step.remediation_dependency_ref
+                    == clearance_plan.remediation_dependency_ref
+                    and step.remediation_dependency_work_item_ref
+                    == clearance_plan.remediation_dependency_work_item_ref
+                    and step.remediation_dependency_work_item_claim_trace_ref
+                    == clearance_plan.remediation_dependency_work_item_claim_trace_ref
+                    and step.remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                    == clearance_plan.remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                    and step.remediation_dependency_work_item_claim_trace_clearance_step_ref
+                    == (
+                        f"{clearance_plan.remediation_dependency_work_item_claim_trace_clearance_plan_ref}"
+                        f".clearance_step.{step.clearance_step_name.value}"
+                    )
+                    and step.remediation_dependency_work_item_claim_trace_clearance_step_gate
+                    == (
+                        f"{command_id}_{item.proof_kind.value}_"
+                        f"{clearance_plan.contract_kind.value}_"
+                        f"{step.clearance_step_name.value}_record_validation_"
+                        "remediation_dependency_work_item_"
+                        "claim_trace_clearance_step_gate"
+                    )
+                    and step.required_backend_contract
+                    == (
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_step.py::"
+                        f"{command_id}_{item.proof_kind.value}_"
+                        f"{clearance_plan.contract_kind.value}_"
+                        f"{step.clearance_step_name.value}_"
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step"
+                    )
+                    and step.required_clearance_plan_contract
+                    == clearance_plan.required_backend_contract
+                    and step.required_claim_trace_contract
+                    == clearance_plan.required_claim_trace_contract
+                    and step.required_clearance_plan_store_ref
+                    == clearance_plan.required_clearance_plan_store_ref
+                    and step.required_claim_trace_store_ref
+                    == clearance_plan.required_claim_trace_store_ref
+                    and step.required_work_item_store_ref
+                    == clearance_plan.required_work_item_store_ref
+                    and step.required_store_ref == clearance_plan.required_store_ref
+                    and step.required_record_key == clearance_plan.required_record_key
+                    and step.clearance_step_claim == "claim_trace_clearance_step"
+                    and step.clearance_step_target_ref
+                    == clearance_plan.remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                    and step.clearance_step_source_ref
+                    == clearance_plan.required_backend_contract
+                    and step.required_plan_steps == clearance_plan.required_plan_steps
+                    and step.clearance_step_blockers
+                    == [
+                        "clearance_plan_not_created",
+                        "clearance_plan_not_ready",
+                        "clearance_sequence_missing",
+                        "prior_clearance_step_incomplete",
+                        "required_step_review_missing",
+                        "claim_trace_not_ready",
+                        "claim_unresolved",
+                        "contextless_review_missing",
+                    ]
+                    and step.required_backend_contract in step.missing_evidence_refs
+                    and f"{step.remediation_dependency_work_item_claim_trace_clearance_step_ref}.step_review"
+                    in step.missing_evidence_refs
+                    and f"{step.remediation_dependency_work_item_claim_trace_clearance_step_ref}.contextless_review"
+                    in step.missing_evidence_refs
+                    and step.clearance_step_ready is False
+                    and step.clearance_step_complete is False
+                    and step.prior_clearance_step_complete is False
+                    and step.next_clearance_step_enabled is False
+                    and step.clearance_plan_created is False
+                    and step.clearance_plan_ready is False
+                    and step.clearance_plan_sequence_ready is False
+                    and step.claim_trace_created is False
+                    and step.claim_trace_ready is False
+                    and step.claim_allowed is False
+                    and step.claim_resolved is False
+                    and step.work_item_created is False
+                    and step.work_item_claimed is False
+                    and step.claim_ledger_registered is False
+                    and step.dependency_ready is False
+                    and step.dependency_resolved is False
+                    and step.dependency_performed is False
+                    and step.remediation_ready is False
+                    and step.remediation_performed is False
+                    and step.record_validation_ready is False
+                    and step.proof_record_accepted is False
+                    and step.command_route_registered is False
+                    and step.command_draft_allowed is False
+                    and step.execution_allowed is False
+                    and step.proof_route_registered is False
+                    and step.proof_writer_enabled is False
+                    and step.backend_owned is True
+                    and step.read_only is True
+                    and step.spot_rule_authority is False
+                    and step.browser_authority == "display_only"
+                    and step.bff_authority == "forward_only_no_execution"
+                    for step in clearance_steps
+                )
             assert [criterion.sequence for criterion in item.acceptance_criteria] == [
                 1,
                 2,

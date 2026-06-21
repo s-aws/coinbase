@@ -17,6 +17,10 @@ X-Admin-Roles: viewer
 
 Expected posture:
 
+The payload below is a historical stealth command-suite example for the M55
+`5181-5200` slice. It is not the current autonomous phase range. Current
+active phase metadata lives in `docs/plans/AUTONOMOUS_WORK_QUEUE.md`.
+
 ```json
 {
   "type": "stealth_command_suite",

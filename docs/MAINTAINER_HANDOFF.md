@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5461-5480` under M57.
-- Active autonomous range: `5481-5500` under M57.
+- Latest completed autonomous range: `5481-5500` under M57.
+- Active autonomous range: `5501-5520` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -619,7 +619,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   resolution, work-item claiming, claim-ledger registration, dependency
   resolution, remediation execution, registered validators, accepted proof
   records, command drafts, Coinbase calls, state mutation, browser authority,
-  or BFF execution authority. Active 5481-5500 work adds blocked proof
+  or BFF execution authority. Completed 5481-5500 work adds blocked proof
   record-validation remediation dependency work-item claim-trace
   clearance-plan rows over those claim-trace rows so future claim-trace
   clearance work names clearance-plan store refs, required plan steps,
@@ -629,7 +629,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   resolution, work-item claiming, claim-ledger registration, dependency
   resolution, remediation execution, registered validators, accepted proof
   records, command drafts, Coinbase calls, state mutation, browser authority,
-  or BFF execution authority.
+  or BFF execution authority. Active 5501-5520 work adds blocked proof
+  record-validation remediation dependency work-item claim-trace
+  clearance-step rows over those clearance-plan rows so future
+  clearance-step review work names step refs, step-review blockers,
+  contextless-review blockers, predecessor/successor step refs, missing
+  backend contracts, and required gates while still adding no clearance-step
+  execution, clearance-step review completion, clearance-plan execution,
+  claim-trace clearance, claim resolution, work-item claiming, claim-ledger
+  registration, dependency resolution, remediation execution, registered
+  validators, accepted proof records, command drafts, Coinbase calls, state
+  mutation, browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

@@ -115,6 +115,15 @@ browser, BFF, and notional evidence fields.
   clear claim traces, resolve claims, clear work items, resolve dependencies,
   perform remediation, accept proof records, register routes, enable writers,
   or make commands executable.
+- Each risk proof requirement also exposes backend-owned record-validation
+  remediation dependency work-item claim-trace clearance-step rows. These
+  rows name the backend clearance-step contract, step gate, missing
+  step-review/contextless-review evidence, plan refs, and
+  predecessor/successor step refs needed before a clearance plan could ever
+  be reviewed or executed. They do not execute steps, complete reviews, clear
+  claim traces, resolve claims, clear work items, resolve dependencies,
+  perform remediation, accept proof records, register routes, enable writers,
+  or make commands executable.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -171,13 +180,15 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   record-validation remediation rows, record-validation remediation dependency
   rows, record-validation remediation dependency work-item rows, or
   record-validation remediation dependency work-item claim-trace rows, or
-  record-validation remediation dependency work-item claim-trace clearance-plan
-  rows as
+  record-validation remediation dependency work-item claim-trace
+  clearance-plan rows, or record-validation remediation dependency work-item
+  claim-trace clearance-step rows as
   registered stores, registered validators, created or claimed work items,
   created or resolved claim traces, created or executed clearance plans,
-  cleared claim traces, registered claim ledgers, resolved dependencies,
-  performed remediation, proof writes, accepted proof evidence, or command
-  authority. They are blocked backend contract evidence for future work only.
+  executed clearance steps, completed clearance-step reviews, cleared claim
+  traces, registered claim ledgers, resolved dependencies, performed
+  remediation, proof writes, accepted proof evidence, or command authority.
+  They are blocked backend contract evidence for future work only.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

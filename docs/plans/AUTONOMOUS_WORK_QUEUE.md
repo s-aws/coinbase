@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5481-5500**.
+- Approved phase range: **5501-5520**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5461-5480`.
+- Previous completed range: `5481-5500`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5480`.
+- `current_phase`: `5500`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,151 +67,166 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5481-5500
+## Active Phases 5501-5520
 
-Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Plan Evidence.
+Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual
 command-suite route so every blocked proof record-validation remediation
-dependency work-item claim-trace row exposes the backend-owned clearance plan
-that would be required before any later claim-ledger, validator-ready,
-proof-writer, acceptance, or command-route enablement work can be reviewed.
-The concrete gap is that operators can now see blocked claim-trace rows, but
-not the ordered clearance-plan refs, stores, sequencing refs, and blocker
-evidence required before those claim traces could ever be cleared. The work
-must remain read-only and no-live: no futures command route, command draft,
-proof record writer, proof validation service, proof acceptance, dependency
-resolution, dependency work-item creation, work-item claim, work-item claim
-ledger registration, claim trace creation, claim trace clearance, clearance
-plan execution, remediation execution, remediation work-item creation,
+dependency work-item claim-trace clearance plan exposes the backend-owned
+clearance-step rows required before any later clearance-step review,
+review-input, store, validator-ready, proof-writer, acceptance, or
+command-route enablement work can be reviewed. The concrete gap is that
+operators can now see blocked clearance-plan rows, but not the ordered
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_steps`
+that prove each plan remains blocked at the step level. Every step must keep
+`clearance_step_ready=false`, `clearance_step_complete=false`,
+`clearance_plan_created=false`, `clearance_plan_ready=false`,
+`claim_trace_ready=false`, `claim_allowed=false`, `claim_resolved=false`,
+and `execution_allowed=false`. The work must remain read-only and no-live: no
+futures command route, command draft, clearance-step execution,
+clearance-step review completion, proof record writer, proof validation
+service, proof acceptance, dependency resolution, dependency work-item
+creation, work-item claim, claim-ledger registration, claim-trace creation,
+claim-trace clearance, clearance-plan execution, remediation execution,
 registered store, registered validator, manager invocation, exchange order
 placement or cancellation, Coinbase read, reconciliation execution, state
 mutation, browser execution authority, or BFF execution authority. Spot
 wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot rules
 remain explicitly forbidden as futures/perpetual authority.
 
-### Phase 5481 - Prior Range Completion Evidence
+### Phase 5501 - Prior Range Completion Evidence
 
-- Record completed phases 5461-5480 with backend commit `06549568`,
-  frontend commit `4393711`, focused backend/frontend gates, and `0` USDC live
+- Record completed phases 5481-5500 with backend commit `de063c9b`,
+  frontend commit `770e1c9`, focused backend/frontend gates, and `0` USDC live
   Coinbase submitted/executed notional.
 
-### Phase 5482 - Advance Active Queue Range
+### Phase 5502 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5461-5480 to phases
-  5481-5500 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5481-5500 to phases
+  5501-5520 while preserving no-live defaults and cap policy.
 
-### Phase 5483 - Claim-Trace Clearance-Plan Gap
+### Phase 5503 - Claim-Trace Clearance-Step Gap
 
 - Document that each blocked futures/perpetual proof record-validation
-  remediation dependency work-item claim trace needs backend-owned clearance
-  plan evidence before any later claim-trace clearance, claim-ledger,
+  remediation dependency work-item claim-trace clearance plan needs
+  backend-owned clearance-step evidence before any later review-input, store,
   validator-ready, proof-writer, acceptance, or command-route enablement work
   can be reviewed.
 
-### Phase 5484 - Claim-Trace Clearance-Plan Model
+### Phase 5504 - Claim-Trace Clearance-Step Model
 
 - Add nested blocked remediation dependency work-item claim-trace clearance
-  plan rows and suite/command/risk-proof clearance-plan counts without
-  creating clearance plans, claim ledgers, validators, stores, accepted proof
-  records, command routes, or live adapters.
+  step rows and suite/command/risk-proof clearance-step counts without
+  executing steps, creating reviews, creating stores, accepting proof records,
+  registering validators, adding command routes, or enabling live adapters.
 
-### Phase 5485 - Backend Clearance-Plan Builder
+### Phase 5505 - Backend Clearance-Step Builder
 
-- Derive claim-trace clearance plan rows from existing record-validation
-  remediation dependency work-item claim-trace rows, gates, evidence refs,
-  store refs, and command identity keys instead of adding a second futures
-  command-readiness path.
+- Derive clearance-step rows from existing clearance-plan rows and their
+  required plan steps, preserving plan refs, gates, store refs, claim-trace
+  refs, command identity keys, and predecessor/successor step links.
 
-### Phase 5486 - Clearance-Plan Aggregate Counts
+### Phase 5506 - Clearance-Step Aggregate Counts
 
-- Expose suite, command, and risk-proof aggregate counts proving all clearance
-  plans remain blocked, zero created, zero ready, zero sequenced, zero claim
-  traces cleared, zero work items cleared, zero dependencies cleared, and zero
-  accepted.
+- Expose suite, command, risk-proof, and clearance-plan aggregate counts
+  proving all clearance steps remain blocked, zero ready, zero complete, zero
+  claim traces cleared, zero work items cleared, zero dependencies cleared,
+  and zero proof records accepted.
 
-### Phase 5487 - Clearance-Plan Linkage
+### Phase 5507 - Clearance-Step Linkage
 
-- Expose predecessor/successor claim-trace refs, predecessor/successor
-  clearance-plan refs, clearance-plan order, claim target refs, and blocker
-  refs for claim-trace creation, claim-trace readiness, claim resolution,
-  clearance-plan store, sequence readiness, claim review, and contextless
-  review.
+- Expose predecessor/successor clearance-step refs, clearance-step order,
+  clearance-plan refs, claim target refs, and blockers for missing plan
+  creation, plan readiness, sequence readiness, prior-step completion,
+  required step review, claim-trace readiness, claim resolution, and
+  contextless review.
 
-### Phase 5488 - Claim, Store, And Sequence Evidence Refs
+### Phase 5508 - Step Contract And Review Evidence Refs
 
-- Expose clearance-plan rows with clearance-plan gate, upstream claim-trace
-  gate, work-item gate, remediation dependency gate, remediation gate,
-  validation gate, replay gate, required evidence refs, missing
-  clearance-plan store refs, missing claim-review refs, and required backend
-  clearance-plan contract refs.
+- Expose clearance-step rows with clearance-step gate, upstream
+  clearance-plan gate, claim-trace gate, work-item gate, remediation
+  dependency gate, remediation gate, validation gate, replay gate, required
+  evidence refs, missing step-review refs, missing contextless-review refs,
+  and required backend clearance-step contract refs.
 
-### Phase 5489 - Cancel Identity Discipline
+### Phase 5509 - Cancel Identity Discipline
 
-- Assert planned futures cancel clearance-plan rows remain keyed by
-  `client_order_id` discipline through the source work item and claim trace
-  and do not introduce exchange order id refs.
+- Assert planned futures cancel clearance-step rows remain keyed by
+  `client_order_id` discipline through the source work item, claim trace, and
+  clearance plan and do not introduce exchange order id refs.
 
-### Phase 5490 - OpenAPI Sync
+### Phase 5510 - OpenAPI Sync
 
 - Regenerate the Admin API OpenAPI artifact and assert remediation dependency
-  work-item claim-trace clearance-plan schema/counts are present on the
+  work-item claim-trace clearance-step schema/counts are present on the
   command-suite contract.
 
-### Phase 5491 - Backend Focused Regression
+### Phase 5511 - Backend Focused Regression
 
-- Run focused Admin API contract tests covering clearance-plan rows, blocked
-  created/ready/sequenced/claim-trace-cleared state, no-live posture, cancel
-  identity discipline, and no spot-rule leakage.
+- Run focused Admin API contract tests covering clearance-step rows, blocked
+  ready/complete state, no-live posture, cancel identity discipline, no
+  claim-trace clearance, and no spot-rule leakage.
 
-### Phase 5492 - Frontend Schema Sync
+### Phase 5512 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5493 - Frontend Adapter And Mock Mapping
+### Phase 5513 - Frontend Adapter And Mock Mapping
 
-- Map clearance-plan rows through the canonical backend adapter and mock
+- Map clearance-step rows through the canonical backend adapter and mock
   backend without command drafts, feature-local fetches, proof writers,
   validators, record stores, dependency resolution, work-item creation,
-  work-item claims, claim resolution, or BFF mutation forwarding.
+  work-item claims, claim resolution, clearance-step execution, or BFF
+  mutation forwarding.
 
-### Phase 5494 - Futures Read Model Clearance-Plan Summary
+### Phase 5514 - Futures Read Model Clearance-Step Summary
 
-- Display blocked clearance-plan aggregate counts in the Futures /
+- Display blocked clearance-step aggregate counts in the Futures /
   Perpetuals admin view with no command controls.
 
-### Phase 5495 - Futures Read Model Clearance-Plan Rows
+### Phase 5515 - Futures Read Model Clearance-Step Rows
 
 - Display ordered risk proof record-validation remediation dependency
-  work-item claim-trace clearance-plan rows in the Futures / Perpetuals admin
+  work-item claim-trace clearance-step rows in the Futures / Perpetuals admin
   view with no command controls.
 
-### Phase 5496 - Frontend Focused Tests
+### Phase 5516 - Frontend Focused Tests
 
-- Update focused frontend tests for clearance-plan counts, blocked
-  clearance-plan posture, `client_order_id` cancel identity, and no command
+- Update focused frontend tests for clearance-step counts, blocked
+  clearance-step posture, `client_order_id` cancel identity, and no command
   controls.
 
-### Phase 5497 - Documentation And Examples
+### Phase 5517 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
-  handoff, and expanded context for the M57 claim-trace clearance-plan slice.
+  handoff, and expanded context for the M57 claim-trace clearance-step slice.
 
-### Phase 5498 - Stale Range And Drift Scan
+### Phase 5518 - Stale Range And Drift Scan
 
 - Search backend/frontend docs, fixtures, validators, and examples for stale
-  active-range wording or claim-trace-only wording.
+  active-range wording or clearance-plan-only wording.
 
-### Phase 5499 - Contextless Review And UI Smoke
+### Phase 5519 - Contextless Review And UI Smoke
 
 - Run blind/contextless backend/frontend reviews and no-live browser smoke for
   the Futures / Perpetuals remediation dependency work-item claim-trace
-  clearance-plan table; remediate any blocker before advancing.
+  clearance-step table; remediate any blocker before advancing.
 
-### Phase 5500 - Commit And Push
+### Phase 5520 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI smoke evidence, and the next M57 enablement step.
+
+## Completed Phases 5481-5500
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with backend-owned proof record-validation remediation dependency work-item
+claim-trace clearance-plan rows for every blocked proof record-validation
+remediation dependency work-item claim-trace row. The range completed with
+backend commit `de063c9b`, frontend commit `770e1c9`, focused
+backend/frontend gates, blind/contextless review, and `0` USDC live Coinbase
+submitted/executed notional.
 
 ## Completed Phases 5461-5480
 

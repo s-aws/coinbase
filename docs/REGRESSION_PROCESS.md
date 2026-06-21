@@ -12,9 +12,9 @@ behavior. Do not run the full regression suite by default for every phase.
 Examples of ordinary checks:
 
 ```powershell
-python -m pytest tests\regression\test_admin_api_contract.py -q --tb=short
-python tools\run_autonomous_work_queue_check.py --summary-only
-python tools\generate_admin_api_openapi.py
+python -m pytest tests/regression/test_admin_api_contract.py -q --tb=short
+python tools/run_autonomous_work_queue_check.py --summary-only
+python tools/generate_admin_api_openapi.py
 ```
 
 Choose checks from the files, owners, and behavior touched by the change. The
@@ -35,11 +35,15 @@ Run the full backend regression suite before:
 Canonical closeout command:
 
 ```powershell
-python tools\run_parallel_regression.py --workers 4
+python tools/run_parallel_regression.py --workers 4
 ```
 
 This runner is process-parallel. It must not be replaced with thread-based
-parallelism.
+parallelism. Many regression files touch Python process globals, monkeypatch
+environment variables, bind local services, use shared temp paths, or exercise
+database resources that are unsafe inside one threaded interpreter. Separate
+pytest worker processes isolate that state; the serial lane keeps tests with
+shared external resources out of the parallel-safe lane.
 
 ## Serial Lane Classification
 
@@ -60,7 +64,7 @@ When the static classifier reports a false positive, add a documented comment:
 Run only the classification preflight with:
 
 ```powershell
-python tools\run_parallel_regression.py --check-serial-classification-only
+python tools/run_parallel_regression.py --check-serial-classification-only
 ```
 
 ## Sequential Fallback

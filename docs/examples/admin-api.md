@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5481-5500",
+  "approved_phase_range": "5501-5520",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5481-5500",
+  "approved_phase_range": "5501-5520",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5481-5500",
+  "approved_phase_range": "5501-5520",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1941,6 +1941,10 @@ Expected command-suite posture:
   "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 120,
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 120,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 720,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 720,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
+  "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -2023,6 +2027,15 @@ required backend contracts, required plan steps, and blockers. They remain
 blocked with `clearance_plan_created=false`,
 `clearance_plan_ready=false`, `clearance_sequence_ready=false`,
 `claim_trace_ready=false`, and `claim_resolved=false`.
+Each clearance plan also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"`
+for the blocked backend-owned clearance-step rows that would be required
+before the plan could ever be reviewed or executed. Clearance-step rows name
+step refs, predecessor/successor step refs, missing backend step contracts,
+missing step-review refs, missing contextless-review refs, and blockers. They
+remain blocked with `clearance_step_ready=false`,
+`clearance_step_complete=false`, `clearance_plan_ready=false`,
+`claim_trace_ready=false`, and `claim_resolved=false`.
 Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
@@ -2030,8 +2043,9 @@ review. These rows are blocked evidence only. They do not register command
 routes, create drafts, validate payloads, write proofs, enable writers,
 resolve dependencies, create remediation or dependency work items, claim work
 items, create or resolve claim traces, create or execute clearance plans,
-clear claim traces, register claim ledgers, perform remediation, call
-Coinbase, execute reconciliation, or grant browser/BFF authority.
+execute clearance steps, complete clearance-step reviews, clear claim traces,
+register claim ledgers, perform remediation, call Coinbase, execute
+reconciliation, or grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account
@@ -2419,6 +2433,10 @@ that are not command-complete. Gap rows are read-only planning evidence, not
 mutation routes or browser authority. Each gap row may include typed
 `current_read_evidence` rows for existing read-only evidence routes derived
 from backend route inventory.
+
+The payload below is a historical spot command-suite example for the M54
+`3301-3320` slice. It is not the current autonomous phase range. Current
+active phase metadata lives in `docs/plans/AUTONOMOUS_WORK_QUEUE.md`.
 
 ```http
 GET /api/v1/spot/command-suite

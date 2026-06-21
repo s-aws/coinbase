@@ -1300,6 +1300,22 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker(
+    str,
+    Enum,
+):
+    """Blocked step reasons before futures proof claim-trace clearance can run."""
+
+    CLEARANCE_PLAN_NOT_CREATED = "clearance_plan_not_created"
+    CLEARANCE_PLAN_NOT_READY = "clearance_plan_not_ready"
+    CLEARANCE_SEQUENCE_MISSING = "clearance_sequence_missing"
+    PRIOR_CLEARANCE_STEP_INCOMPLETE = "prior_clearance_step_incomplete"
+    REQUIRED_STEP_REVIEW_MISSING = "required_step_review_missing"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

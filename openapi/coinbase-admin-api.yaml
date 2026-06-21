@@ -12753,6 +12753,30 @@ components:
           title: Ready Risk Proof Record Validation Remediation Dependency Work Item
             Claim Trace Clearance Plan Count
           default: 0
+        risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Remediation Dependency Work Item Claim
+            Trace Clearance Step Count
+          default: 0
+        blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Record Validation Remediation Dependency Work
+            Item Claim Trace Clearance Step Count
+          default: 0
+        ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Record Validation Remediation Dependency Work Item
+            Claim Trace Clearance Step Count
+          default: 0
+        completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Completed Risk Proof Record Validation Remediation Dependency Work
+            Item Claim Trace Clearance Step Count
+          default: 0
         risk_proof_acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -14632,6 +14656,350 @@ components:
             type: string
           type: array
           title: Missing Evidence Refs
+        clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Count
+          default: 0
+        blocking_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Clearance Step Count
+          default: 0
+        ready_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Clearance Step Count
+          default: 0
+        completed_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Completed Clearance Step Count
+          default: 0
+        clearance_plan_created:
+          type: boolean
+          title: Clearance Plan Created
+          default: false
+        clearance_plan_ready:
+          type: boolean
+          title: Clearance Plan Ready
+          default: false
+        clearance_plan_sequence_ready:
+          type: boolean
+          title: Clearance Plan Sequence Ready
+          default: false
+        claim_trace_created:
+          type: boolean
+          title: Claim Trace Created
+          default: false
+        claim_trace_ready:
+          type: boolean
+          title: Claim Trace Ready
+          default: false
+        claim_allowed:
+          type: boolean
+          title: Claim Allowed
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        work_item_created:
+          type: boolean
+          title: Work Item Created
+          default: false
+        work_item_claimed:
+          type: boolean
+          title: Work Item Claimed
+          default: false
+        claim_ledger_registered:
+          type: boolean
+          title: Claim Ledger Registered
+          default: false
+        dependency_ready:
+          type: boolean
+          title: Dependency Ready
+          default: false
+        dependency_resolved:
+          type: boolean
+          title: Dependency Resolved
+          default: false
+        dependency_performed:
+          type: boolean
+          title: Dependency Performed
+          default: false
+        remediation_ready:
+          type: boolean
+          title: Remediation Ready
+          default: false
+        remediation_performed:
+          type: boolean
+          title: Remediation Performed
+          default: false
+        record_validation_ready:
+          type: boolean
+          title: Record Validation Ready
+          default: false
+        proof_record_accepted:
+          type: boolean
+          title: Proof Record Accepted
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        remediation_dependency_work_item_claim_trace_clearance_steps:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep'
+          type: array
+          title: Remediation Dependency Work Item Claim Trace Clearance Steps
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - contract_kind
+      - sequence
+      - record_validation_ref
+      - record_contract_ref
+      - remediation_ref
+      - remediation_dependency_ref
+      - remediation_dependency_work_item_ref
+      - remediation_dependency_work_item_claim_trace_ref
+      - remediation_dependency_work_item_claim_trace_clearance_plan_ref
+      - remediation_dependency_work_item_claim_trace_clearance_plan_gate
+      - remediation_dependency_work_item_claim_trace_gate
+      - remediation_dependency_work_item_gate
+      - remediation_dependency_gate
+      - remediation_gate
+      - required_backend_contract
+      - required_claim_trace_contract
+      - required_clearance_plan_store_ref
+      - required_claim_trace_store_ref
+      - required_work_item_store_ref
+      - required_store_ref
+      - required_record_key
+      - validation_gate
+      - replay_gate
+      - clearance_plan_claim
+      - clearance_plan_target_ref
+      - clearance_plan_source_ref
+      - detail
+      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan
+      description: One blocked clearance-plan contract for a futures work-item claim
+        trace.
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker:
+      type: string
+      enum:
+      - claim_trace_not_created
+      - claim_trace_not_ready
+      - claim_unresolved
+      - clearance_plan_store_missing
+      - clearance_sequence_missing
+      - claim_review_missing
+      - contextless_review_missing
+      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker
+      description: Blocked plan reasons before futures proof claim traces can clear.
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep:
+      type: string
+      enum:
+      - inspect_claim_trace
+      - verify_claim_ledger
+      - verify_claim_trace_store
+      - verify_predecessor_successor_sequence
+      - run_contextless_review
+      - record_clearance_plan_evidence
+      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep
+      description: Backend clearance-plan steps before futures proof claim traces
+        can clear.
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep:
+      properties:
+        contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordContractKind'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        clearance_step_sequence:
+          type: integer
+          minimum: 1.0
+          title: Clearance Step Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        record_validation_ref:
+          type: string
+          title: Record Validation Ref
+        record_contract_ref:
+          type: string
+          title: Record Contract Ref
+        remediation_ref:
+          type: string
+          title: Remediation Ref
+        remediation_dependency_ref:
+          type: string
+          title: Remediation Dependency Ref
+        remediation_dependency_work_item_ref:
+          type: string
+          title: Remediation Dependency Work Item Ref
+        remediation_dependency_work_item_claim_trace_ref:
+          type: string
+          title: Remediation Dependency Work Item Claim Trace Ref
+        remediation_dependency_work_item_claim_trace_clearance_plan_ref:
+          type: string
+          title: Remediation Dependency Work Item Claim Trace Clearance Plan Ref
+        remediation_dependency_work_item_claim_trace_clearance_step_ref:
+          type: string
+          title: Remediation Dependency Work Item Claim Trace Clearance Step Ref
+        remediation_dependency_work_item_claim_trace_clearance_step_gate:
+          type: string
+          title: Remediation Dependency Work Item Claim Trace Clearance Step Gate
+        remediation_dependency_work_item_claim_trace_clearance_plan_gate:
+          type: string
+          title: Remediation Dependency Work Item Claim Trace Clearance Plan Gate
+        remediation_dependency_work_item_claim_trace_gate:
+          type: string
+          title: Remediation Dependency Work Item Claim Trace Gate
+        remediation_dependency_work_item_gate:
+          type: string
+          title: Remediation Dependency Work Item Gate
+        remediation_dependency_gate:
+          type: string
+          title: Remediation Dependency Gate
+        remediation_gate:
+          type: string
+          title: Remediation Gate
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_clearance_plan_contract:
+          type: string
+          title: Required Clearance Plan Contract
+        required_claim_trace_contract:
+          type: string
+          title: Required Claim Trace Contract
+        required_clearance_plan_store_ref:
+          type: string
+          title: Required Clearance Plan Store Ref
+        required_claim_trace_store_ref:
+          type: string
+          title: Required Claim Trace Store Ref
+        required_work_item_store_ref:
+          type: string
+          title: Required Work Item Store Ref
+        required_store_ref:
+          type: string
+          title: Required Store Ref
+        required_record_key:
+          type: string
+          title: Required Record Key
+        validation_gate:
+          type: string
+          title: Validation Gate
+        replay_gate:
+          type: string
+          title: Replay Gate
+        clearance_step_name:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep'
+        clearance_step_claim:
+          type: string
+          title: Clearance Step Claim
+        clearance_step_target_ref:
+          type: string
+          title: Clearance Step Target Ref
+        clearance_step_source_ref:
+          type: string
+          title: Clearance Step Source Ref
+        required_plan_steps:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep'
+          type: array
+          title: Required Plan Steps
+        predecessor_clearance_step_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Refs
+        successor_clearance_step_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Refs
+        clearance_step_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker'
+          type: array
+          title: Clearance Step Blockers
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        clearance_step_ready:
+          type: boolean
+          title: Clearance Step Ready
+          default: false
+        clearance_step_complete:
+          type: boolean
+          title: Clearance Step Complete
+          default: false
+        prior_clearance_step_complete:
+          type: boolean
+          title: Prior Clearance Step Complete
+          default: false
+        next_clearance_step_enabled:
+          type: boolean
+          title: Next Clearance Step Enabled
+          default: false
         clearance_plan_created:
           type: boolean
           title: Clearance Plan Created
@@ -14748,6 +15116,7 @@ components:
       required:
       - contract_kind
       - sequence
+      - clearance_step_sequence
       - record_validation_ref
       - record_contract_ref
       - remediation_ref
@@ -14755,12 +15124,15 @@ components:
       - remediation_dependency_work_item_ref
       - remediation_dependency_work_item_claim_trace_ref
       - remediation_dependency_work_item_claim_trace_clearance_plan_ref
+      - remediation_dependency_work_item_claim_trace_clearance_step_ref
+      - remediation_dependency_work_item_claim_trace_clearance_step_gate
       - remediation_dependency_work_item_claim_trace_clearance_plan_gate
       - remediation_dependency_work_item_claim_trace_gate
       - remediation_dependency_work_item_gate
       - remediation_dependency_gate
       - remediation_gate
       - required_backend_contract
+      - required_clearance_plan_contract
       - required_claim_trace_contract
       - required_clearance_plan_store_ref
       - required_claim_trace_store_ref
@@ -14769,37 +15141,27 @@ components:
       - required_record_key
       - validation_gate
       - replay_gate
-      - clearance_plan_claim
-      - clearance_plan_target_ref
-      - clearance_plan_source_ref
+      - clearance_step_name
+      - clearance_step_claim
+      - clearance_step_target_ref
+      - clearance_step_source_ref
       - detail
-      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan
-      description: One blocked clearance-plan contract for a futures work-item claim
-        trace.
-    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker:
+      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep
+      description: One blocked clearance-step contract for a futures claim-trace plan.
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker:
       type: string
       enum:
-      - claim_trace_not_created
+      - clearance_plan_not_created
+      - clearance_plan_not_ready
+      - clearance_sequence_missing
+      - prior_clearance_step_incomplete
+      - required_step_review_missing
       - claim_trace_not_ready
       - claim_unresolved
-      - clearance_plan_store_missing
-      - clearance_sequence_missing
-      - claim_review_missing
       - contextless_review_missing
-      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker
-      description: Blocked plan reasons before futures proof claim traces can clear.
-    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep:
-      type: string
-      enum:
-      - inspect_claim_trace
-      - verify_claim_ledger
-      - verify_claim_trace_store
-      - verify_predecessor_successor_sequence
-      - run_contextless_review
-      - record_clearance_plan_evidence
-      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep
-      description: Backend clearance-plan steps before futures proof claim traces
-        can clear.
+      title: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker
+      description: Blocked step reasons before futures proof claim-trace clearance
+        can run.
     AdminFuturesCommandRiskProofRecordValidationRemediationItem:
       properties:
         contract_kind:
@@ -15259,6 +15621,36 @@ components:
           type: array
           title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
             Plans
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Count
+          default: 0
+        blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Record Validation Remediation Dependency Work Item Claim
+            Trace Clearance Step Count
+          default: 0
+        ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Record Validation Remediation Dependency Work Item Claim Trace
+            Clearance Step Count
+          default: 0
+        completed_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Completed Record Validation Remediation Dependency Work Item Claim
+            Trace Clearance Step Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_steps:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Steps
         acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -15730,6 +16122,30 @@ components:
           minimum: 0.0
           title: Ready Risk Proof Record Validation Remediation Dependency Work Item
             Claim Trace Clearance Plan Count
+          default: 0
+        risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Remediation Dependency Work Item Claim
+            Trace Clearance Step Count
+          default: 0
+        blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Record Validation Remediation Dependency Work
+            Item Claim Trace Clearance Step Count
+          default: 0
+        ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Record Validation Remediation Dependency Work Item
+            Claim Trace Clearance Step Count
+          default: 0
+        completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Completed Risk Proof Record Validation Remediation Dependency Work
+            Item Claim Trace Clearance Step Count
           default: 0
         risk_proof_acceptance_criterion_count:
           type: integer
