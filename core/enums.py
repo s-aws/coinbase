@@ -1210,6 +1210,20 @@ class AdminFuturesCommandRiskProofRecordContractKind(str, Enum):
     AUDIT_LINK = "audit_link"
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationAction(str, Enum):
+    """Backend remediation actions before futures proof record validation can be ready."""
+
+    REGISTER_RECORD_CONTRACT = "register_record_contract"
+    CREATE_STORE_SCHEMA = "create_store_schema"
+    CONFIGURE_APPEND_ONLY_LOG = "configure_append_only_log"
+    BIND_IDEMPOTENCY = "bind_idempotency"
+    REGISTER_PAYLOAD_VALIDATION = "register_payload_validation"
+    REGISTER_REPLAY_GUARD = "register_replay_guard"
+    LINK_AUDIT_EVIDENCE = "link_audit_evidence"
+    REGISTER_RECORD_VALIDATOR = "register_record_validator"
+    RUN_CONTEXTLESS_REVIEW = "run_contextless_review"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

@@ -1,5 +1,71 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk Proof Record Validation Remediation Review - Phases 5401-5420
+
+Scope: phases `5401-5420`, after adding backend-owned risk proof
+record-validation remediation rows as `record_validation_remediations` under
+each blocked futures/perpetual risk proof requirement. Previous completed
+history is phases `5381-5400`, which added risk proof record validations as
+`record_validations`.
+
+Result: PASS after remediation.
+
+- REMEDIATED: blind/contextless review passed and identified only
+  non-blocking documentation ambiguity. `README.futures-perpetuals.md` now
+  clarifies that the command-suite route exposes blocked/no-live posture
+  through disabled route, draft, execution, browser, BFF, and notional fields
+  rather than top-level `command_routes_mode`, and
+  `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` explicitly names risk proof
+  record-validation remediation rows.
+- PASS: `GET /api/v1/futures/command-suite` remains a read-only
+  futures/perpetual command-suite evidence route. It exposes readiness
+  decision, semantic guards, risk proof requirements, risk proof route/writer
+  contracts, `proof_contracts`, risk proof payload fields, `payload_fields`,
+  risk proof record/store contracts, `record_contracts`, risk proof record
+  validations, `record_validations`, risk proof record-validation remediation,
+  `record_validation_remediations`, registered payload validation, registered
+  record validation, risk proof acceptance criteria, and forbidden spot
+  assumptions as backend-owned evidence only.
+- PASS: required exact review terms are present for validators and
+  contextless readers: risk proof requirements; risk proof route/writer
+  contracts; `proof_contracts`; risk proof payload fields; `payload_fields`;
+  risk proof record/store contracts; `record_contracts`; risk proof record
+  validations; `record_validations`; risk proof record-validation
+  remediation; `record_validation_remediations`; registered payload
+  validation; registered record validation.
+- PASS: Exact validator phrases: completed history; readiness decision; risk proof route/writer contracts; forbidden spot assumptions.
+- PASS: each remediation row is derived from an existing record-validation
+  row and remains blocked with required backend remediation contract, record
+  validation ref, record contract ref, store ref, record key, validation gate,
+  replay gate, remediation gate, required remediation actions, required and
+  missing evidence refs, remediation owner, `remediation_ready=false`,
+  `remediation_performed=false`, no created work item, no registered
+  validator, no accepted proof record, no command draft, no BFF execution
+  authority, and no Coinbase call.
+- PASS: planned futures cancel remediation rows remain keyed by
+  `client_order_id`; exchange `order_id` and `exchange_order_id` remain
+  exchange-native evidence only.
+- PASS: the capability matrix, examples, queue docs, backend tests, and
+  frontend contract docs continue to reject spot wallet availability, spot
+  no-shorting, spot USDC quote scope, spot cost-basis, average-cost, and
+  inventory-lot assumptions as futures/perpetual authority.
+- PASS: No live Coinbase execution was run. Submitted notional: `0` USDC.
+  Executed notional: `0` USDC.
+- PASS: no-live Playwright UI smoke passed against the frontend association at
+  `http://127.0.0.1:3002/?phaseSmoke=5401-5420#futures-perpetuals`.
+  Desktop screenshot:
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5401-5420-futures-risk-proof-record-validation-remediations.png`.
+  Mobile screenshot:
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5401-5420-futures-risk-proof-record-validation-remediations-mobile.png`.
+  The smoke found `120` remediation rows, no browser console errors, target
+  remediation refs present, `0` USDC/no-live text present, and no sampled
+  remediation table cell overflow.
+- NOTE: Full backend regression was not run because phases `5401-5420` are
+  ordinary contract/read-model phase work; focused backend and frontend gates
+  cover the changed remediation surface. The full regression gate remains
+  reserved for durable milestone closeout, release/deployment closeout, Admin
+  API/backend association closeout, or explicit request.
+
 ## M57 Futures/Perpetual Risk Proof Record Validation Review - Phases 5381-5400
 
 Scope: phases `5381-5400`, after adding backend-owned risk proof

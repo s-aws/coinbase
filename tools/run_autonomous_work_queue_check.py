@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5381-5400"
-APPROVED_PHASES = tuple(range(5381, 5401))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5361-5380"
+APPROVED_PHASE_RANGE = "5401-5420"
+APPROVED_PHASES = tuple(range(5401, 5421))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5381-5400"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -211,6 +211,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"proof_contracts"',
             '"payload_fields"',
             '"record_contracts"',
+            '"record_validations"',
+            '"record_validation_remediations"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -226,6 +228,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"proof_contracts"',
             '"payload_fields"',
             '"record_contracts"',
+            '"record_validations"',
+            '"record_validation_remediations"',
             '"acceptance_criteria"',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
@@ -272,6 +276,10 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5321-5340"',
         "active 5341-5360 range",
         '"approved_phase_range": "5341-5360"',
+        "active 5361-5380 range",
+        '"approved_phase_range": "5361-5380"',
+        "active 5381-5400 range",
+        '"approved_phase_range": "5381-5400"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -536,8 +544,12 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "record_contracts",
         "risk proof record validations",
         "record_validations",
+        "risk proof record-validation remediation",
+        "record_validation_remediations",
         "registered payload validation",
         "registered record validation",
+        "remediation_ready=false",
+        "remediation_performed=false",
         "risk proof acceptance criteria",
         "semantic guards",
         "forbidden spot assumptions",

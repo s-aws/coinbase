@@ -30,6 +30,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandRiskProofPayloadField,
     AdminFuturesCommandRiskProofRecordContractKind,
+    AdminFuturesCommandRiskProofRecordValidationRemediationAction,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -116,6 +117,7 @@ from .models import (
     AdminFuturesCommandRiskProofPayloadFieldItem,
     AdminFuturesCommandRiskProofRecordContractItem,
     AdminFuturesCommandRiskProofRecordValidationItem,
+    AdminFuturesCommandRiskProofRecordValidationRemediationItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -350,7 +352,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5381-5400"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5401-5420"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -21295,6 +21297,100 @@ class AdminApiReadService:
                     for index, contract in enumerate(contracts)
                 ]
 
+            def record_validation_remediations(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                validations: list[AdminFuturesCommandRiskProofRecordValidationItem],
+            ) -> list[AdminFuturesCommandRiskProofRecordValidationRemediationItem]:
+                required_remediation_actions = [
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.REGISTER_RECORD_CONTRACT,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.CREATE_STORE_SCHEMA,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.CONFIGURE_APPEND_ONLY_LOG,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.BIND_IDEMPOTENCY,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.REGISTER_PAYLOAD_VALIDATION,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.REGISTER_REPLAY_GUARD,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.LINK_AUDIT_EVIDENCE,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.REGISTER_RECORD_VALIDATOR,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationAction.RUN_CONTEXTLESS_REVIEW,
+                ]
+                return [
+                    AdminFuturesCommandRiskProofRecordValidationRemediationItem(
+                        contract_kind=validation.contract_kind,
+                        sequence=index + 1,
+                        record_validation_ref=(
+                            f"{command_id.value}.{proof_kind.value}."
+                            f"record_validation.{validation.contract_kind.value}"
+                        ),
+                        record_contract_ref=validation.record_contract_ref,
+                        remediation_ref=(
+                            f"{command_id.value}.{proof_kind.value}."
+                            f"record_validation_remediation."
+                            f"{validation.contract_kind.value}"
+                        ),
+                        remediation_gate=(
+                            f"{command_id.value}_{proof_kind.value}_"
+                            f"{validation.contract_kind.value}_"
+                            "record_validation_remediation_gate"
+                        ),
+                        required_backend_contract=(
+                            "application/admin_api/"
+                            "futures_proof_validation_remediation.py::"
+                            f"{command_id.value}_{proof_kind.value}_"
+                            f"{validation.contract_kind.value}_"
+                            "record_validation_remediation"
+                        ),
+                        required_store_ref=validation.required_store_ref,
+                        required_record_key=validation.required_record_key,
+                        validation_gate=validation.validation_gate,
+                        replay_gate=validation.replay_gate,
+                        required_validation_checks=validation.required_validation_checks,
+                        required_remediation_actions=required_remediation_actions,
+                        required_evidence_refs=[
+                            validation.record_contract_ref,
+                            validation.required_backend_contract,
+                            validation.required_evidence_ref,
+                        ],
+                        missing_evidence_refs=[
+                            validation.record_contract_ref,
+                            validation.required_backend_contract,
+                            validation.missing_evidence_ref,
+                        ],
+                        remediation_work_item_created=False,
+                        record_contract_available=False,
+                        store_schema_registered=False,
+                        append_only_log_configured=False,
+                        idempotency_bound=False,
+                        payload_validation_registered=False,
+                        replay_guard_registered=False,
+                        audit_linked=False,
+                        record_validation_registered=False,
+                        record_validation_ready=False,
+                        remediation_ready=False,
+                        remediation_performed=False,
+                        proof_record_accepted=False,
+                        command_route_registered=False,
+                        command_draft_allowed=False,
+                        execution_allowed=False,
+                        proof_route_registered=False,
+                        proof_writer_enabled=False,
+                        detail=(
+                            f"{command_id.value} {proof_kind.value} record "
+                            f"validation remediation for "
+                            f"{validation.contract_kind.value} remains "
+                            "blocked until a backend owner creates the "
+                            "record contract, store schema, append-only log, "
+                            "idempotency binding, payload validation, replay "
+                            "guard, audit link, record validator, and "
+                            "contextless review evidence. This row does not "
+                            "perform remediation, create a work item, register "
+                            "validators, write or accept proof records, call "
+                            "Coinbase, or enable futures/perpetual command "
+                            "execution."
+                        ),
+                    )
+                    for index, validation in enumerate(validations)
+                ]
+
             def acceptance_criteria(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -21398,6 +21494,10 @@ class AdminApiReadService:
                     proof_kind=proof_kind,
                     contracts=proof_record_contracts,
                 )
+                proof_record_validation_remediations = record_validation_remediations(
+                    proof_kind=proof_kind,
+                    validations=proof_record_validations,
+                )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -21474,6 +21574,22 @@ class AdminApiReadService:
                             if validation.record_validation_ready
                         ),
                         record_validations=proof_record_validations,
+                        record_validation_remediation_count=len(
+                            proof_record_validation_remediations
+                        ),
+                        blocking_record_validation_remediation_count=sum(
+                            1
+                            for remediation in proof_record_validation_remediations
+                            if remediation.blocking
+                        ),
+                        ready_record_validation_remediation_count=sum(
+                            1
+                            for remediation in proof_record_validation_remediations
+                            if remediation.remediation_ready
+                        ),
+                        record_validation_remediations=(
+                            proof_record_validation_remediations
+                        ),
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -21633,6 +21749,18 @@ class AdminApiReadService:
                 ),
                 ready_risk_proof_record_validation_count=sum(
                     item.ready_record_validation_count
+                    for item in proof_requirements
+                ),
+                risk_proof_record_validation_remediation_count=sum(
+                    item.record_validation_remediation_count
+                    for item in proof_requirements
+                ),
+                blocking_risk_proof_record_validation_remediation_count=sum(
+                    item.blocking_record_validation_remediation_count
+                    for item in proof_requirements
+                ),
+                ready_risk_proof_record_validation_remediation_count=sum(
+                    item.ready_record_validation_remediation_count
                     for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
@@ -21803,6 +21931,18 @@ class AdminApiReadService:
             ),
             ready_risk_proof_record_validation_count=sum(
                 command.ready_risk_proof_record_validation_count
+                for command in commands
+            ),
+            risk_proof_record_validation_remediation_count=sum(
+                command.risk_proof_record_validation_remediation_count
+                for command in commands
+            ),
+            blocking_risk_proof_record_validation_remediation_count=sum(
+                command.blocking_risk_proof_record_validation_remediation_count
+                for command in commands
+            ),
+            ready_risk_proof_record_validation_remediation_count=sum(
+                command.ready_risk_proof_record_validation_remediation_count
                 for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(

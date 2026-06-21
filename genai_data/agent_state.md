@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-21
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5361-5380` is backend `52c87660` and
-  frontend `5306407`; current active range is `5381-5400`.
+- Commit (optional): completed range `5381-5400` is backend `ccefee8d` and
+  frontend `cf3249b`; current active range is `5401-5420`.
 
 ## Current Objective
 
@@ -47,17 +47,17 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5361-5380`.
-- Active autonomous range: `5381-5400`.
-- Active `5381-5400` extends the M57 futures/perpetual command-suite contract
-  with backend-owned risk proof record-validation rows for every blocked
-  proof record/store contract. It must not add futures command routes,
+- Latest completed autonomous range before current work: `5381-5400`.
+- Active autonomous range: `5401-5420`.
+- Active `5401-5420` extends the M57 futures/perpetual command-suite contract
+  with backend-owned risk proof record-validation remediation rows for every
+  blocked proof record-validation row. It must not add futures command routes,
   command drafts, live execution, Coinbase calls, reconciliation execution,
-  state mutation, proof writers, registered proof routes, registered proof
-  stores, registered record validators, accepted proof payloads, accepted
-  proof records, or browser/BFF authority. Spot wallet, no-shorting, USDC,
-  cost-basis, average-cost, and inventory-lot assumptions are forbidden as
-  futures/perpetual authority.
+  state mutation, remediation execution, remediation work-item creation, proof
+  writers, registered proof routes, registered proof stores, registered record
+  validators, accepted proof payloads, accepted proof records, or browser/BFF
+  authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
+  inventory-lot assumptions are forbidden as futures/perpetual authority.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.
@@ -659,9 +659,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5381-5400`.
+- Active autonomous range: `5401-5420`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `5381-5400`.
+- Current direction: complete phases `5401-5420`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1484,14 +1484,16 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5381-5400` by adding
-  backend-owned futures/perpetual risk proof record-validation evidence
-  to the existing command-suite read contract, syncing OpenAPI and frontend
-  generated schema, mapping runtime/mock/read-model display, updating docs
-  and validators, then running focused gates, blind/contextless review, and
-  no-live UI smoke. The active gap is proof record-validation visibility
-  only; no futures command route, command draft, exchange order placement/
-  cancellation, reconciliation execution, Coinbase read/write, state mutation,
-  enabled proof writer, registered proof route, registered proof store,
-  registered record validator, accepted proof payload, accepted proof record,
-  or browser/BFF authority is allowed in this range.
+- Exact next command: complete active phases `5401-5420` by adding
+  backend-owned futures/perpetual risk proof record-validation remediation
+  evidence to the existing command-suite read contract, syncing OpenAPI and
+  frontend generated schema, mapping runtime/mock/read-model display,
+  updating docs and validators, then running focused gates,
+  blind/contextless review, and no-live UI smoke. The active gap is proof
+  record-validation remediation visibility only; no futures command route,
+  command draft, exchange order placement/cancellation, reconciliation
+  execution, Coinbase read/write, state mutation, remediation execution,
+  remediation work-item creation, enabled proof writer, registered proof
+  route, registered proof store, registered record validator, accepted proof
+  payload, accepted proof record, or browser/BFF authority is allowed in this
+  range.

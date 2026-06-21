@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5381-5400",
+  "approved_phase_range": "5401-5420",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5381-5400",
+  "approved_phase_range": "5401-5420",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1872,9 +1872,9 @@ acceptance criteria
 are derived from existing backend evidence and missing contracts. The response
 is still read-only: it registers no command routes, allows no command drafts,
 enables no proof writers, registers no proof routes, registers no proof
-record stores, registers no record validators, performs no reconciliation
-execution, calls no Coinbase reads or writes, and grants no browser/BFF
-execution authority.
+record stores, registers no record validators, performs no remediation,
+creates no remediation work items, performs no reconciliation execution, calls
+no Coinbase reads or writes, and grants no browser/BFF execution authority.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -1889,7 +1889,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5381-5400",
+  "approved_phase_range": "5401-5420",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1925,6 +1925,9 @@ Expected command-suite posture:
   "risk_proof_record_validation_count": 120,
   "blocking_risk_proof_record_validation_count": 120,
   "ready_risk_proof_record_validation_count": 0,
+  "risk_proof_record_validation_remediation_count": 120,
+  "blocking_risk_proof_record_validation_remediation_count": 120,
+  "ready_risk_proof_record_validation_remediation_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -1965,12 +1968,20 @@ Each proof also includes `"record_validations"` for the future backend-owned
 record contract, schema/log, idempotency, payload-validation, replay, and
 audit-link checks. Validation rows remain blocked with
 `record_validation_registered=false` and `record_validation_ready=false`.
+Each proof also includes `"record_validation_remediations"` for the blocked
+backend-owned work needed before a record validator could become ready:
+record-contract registration, store-schema creation, append-only log
+configuration, idempotency binding, payload validation, replay guard, audit
+linking, record-validator registration, and contextless review. Remediation
+rows remain blocked with `remediation_work_item_created=false`,
+`remediation_ready=false`, and `remediation_performed=false`.
 Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
 review. These rows are blocked evidence only. They do not register command
-routes, create drafts, validate payloads, write proofs, enable writers, call
-Coinbase, execute reconciliation, or grant browser/BFF authority.
+routes, create drafts, validate payloads, write proofs, enable writers, create
+remediation work items, perform remediation, call Coinbase, execute
+reconciliation, or grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account

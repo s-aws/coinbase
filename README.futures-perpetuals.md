@@ -17,9 +17,11 @@ Current routes:
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
 
-All routes require Admin API auth/RBAC and `analytics:read`. They return
-`read_only=true`, `command_routes_mode="not_modeled"`, and
-`live_coinbase_orders_ran=false`.
+All routes require Admin API auth/RBAC and `analytics:read`. Account and
+position routes return `read_only=true`, `command_routes_mode="not_modeled"`,
+and `live_coinbase_orders_ran=false`; the command-suite route exposes the
+same blocked/no-live posture through its disabled route, draft, execution,
+browser, BFF, and notional evidence fields.
 
 ## Key Concepts
 
@@ -74,10 +76,12 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   contract; `satisfies_risk_proof=false` means later command enablement still
   has no proof authority.
 - Each risk proof requirement also exposes backend-owned proof record/store
-  contract rows and blocked record-validation rows. These rows name required
-  store refs, record keys, payload fields, validation gates, replay gates, and
-  validation checks, but they do not create stores, register validators, write
-  proof records, accept evidence, or make a command executable.
+  contract rows, blocked record-validation rows, and blocked
+  record-validation remediation rows. These rows name required store refs,
+  record keys, payload fields, validation gates, replay gates, validation
+  checks, and required remediation actions, but they do not create stores,
+  register validators, create remediation work items, perform remediation,
+  write proof records, accept evidence, or make a command executable.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -130,10 +134,11 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   They are blocked acceptance checks that name what a later backend-owned
   proof route and proof writer must satisfy; they do not enable routes,
   drafts, proof writers, live adapters, browser execution, or BFF execution.
-- Do not treat risk proof record/store contracts or record-validation rows as
-  registered stores, registered validators, proof writes, accepted proof
-  evidence, or command authority. They are blocked backend contract evidence
-  for future work only.
+- Do not treat risk proof record/store contracts, record-validation rows, or
+  record-validation remediation rows as registered stores, registered
+  validators, created work items, performed remediation, proof writes,
+  accepted proof evidence, or command authority. They are blocked backend
+  contract evidence for future work only.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

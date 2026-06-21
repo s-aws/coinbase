@@ -3191,11 +3191,18 @@ Current backend evidence:
   risk proof requirements for product scope, position scope, margin,
   collateral, liquidation buffer, funding fee, reduce-only, close-only, cap
   guard, and reconciliation-plan semantics before any later command-enable
-  slice. Active phases 5301-5320 add blocked backend-owned risk proof
+  slice. Completed phases 5301-5320 add blocked backend-owned risk proof
   acceptance criteria for required evidence, proof route registration,
   proof-writer review, spot-rule boundary review, and browser/BFF authority
   review so later command-enable work can see exactly why every proof still
-  fails closed.
+  fails closed. Completed phases 5321-5340 add blocked proof route/writer
+  contract rows, completed phases 5341-5360 add blocked proof payload field
+  rows, completed phases 5361-5380 add blocked proof record/store contract
+  rows, and completed phases 5381-5400 add blocked proof record-validation
+  rows. Active phases 5401-5420 add blocked proof record-validation
+  remediation rows so later validator-readiness work names required backend
+  remediation actions, evidence refs, owner, and disabled work-item/remediate
+  posture before any command-route or proof-writer enablement can be reviewed.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

@@ -12670,6 +12670,21 @@ components:
           minimum: 0.0
           title: Ready Risk Proof Record Validation Count
           default: 0
+        risk_proof_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Remediation Count
+          default: 0
+        blocking_risk_proof_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Record Validation Remediation Count
+          default: 0
+        ready_risk_proof_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Record Validation Remediation Count
+          default: 0
         risk_proof_acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -13720,6 +13735,203 @@ components:
       - detail
       title: AdminFuturesCommandRiskProofRecordValidationItem
       description: One blocked backend validation row for a futures proof record contract.
+    AdminFuturesCommandRiskProofRecordValidationRemediationAction:
+      type: string
+      enum:
+      - register_record_contract
+      - create_store_schema
+      - configure_append_only_log
+      - bind_idempotency
+      - register_payload_validation
+      - register_replay_guard
+      - link_audit_evidence
+      - register_record_validator
+      - run_contextless_review
+      title: AdminFuturesCommandRiskProofRecordValidationRemediationAction
+      description: Backend remediation actions before futures proof record validation
+        can be ready.
+    AdminFuturesCommandRiskProofRecordValidationRemediationItem:
+      properties:
+        contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordContractKind'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        record_validation_ref:
+          type: string
+          title: Record Validation Ref
+        record_contract_ref:
+          type: string
+          title: Record Contract Ref
+        remediation_ref:
+          type: string
+          title: Remediation Ref
+        remediation_gate:
+          type: string
+          title: Remediation Gate
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_store_ref:
+          type: string
+          title: Required Store Ref
+        required_record_key:
+          type: string
+          title: Required Record Key
+        validation_gate:
+          type: string
+          title: Validation Gate
+        replay_gate:
+          type: string
+          title: Replay Gate
+        required_validation_checks:
+          items:
+            type: string
+          type: array
+          title: Required Validation Checks
+        required_remediation_actions:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationAction'
+          type: array
+          title: Required Remediation Actions
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        remediation_work_item_created:
+          type: boolean
+          title: Remediation Work Item Created
+          default: false
+        remediation_owner:
+          type: string
+          title: Remediation Owner
+          default: backend_admin_api_owner
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        store_schema_registered:
+          type: boolean
+          title: Store Schema Registered
+          default: false
+        append_only_log_configured:
+          type: boolean
+          title: Append Only Log Configured
+          default: false
+        idempotency_bound:
+          type: boolean
+          title: Idempotency Bound
+          default: false
+        payload_validation_registered:
+          type: boolean
+          title: Payload Validation Registered
+          default: false
+        replay_guard_registered:
+          type: boolean
+          title: Replay Guard Registered
+          default: false
+        audit_linked:
+          type: boolean
+          title: Audit Linked
+          default: false
+        record_validation_registered:
+          type: boolean
+          title: Record Validation Registered
+          default: false
+        record_validation_ready:
+          type: boolean
+          title: Record Validation Ready
+          default: false
+        remediation_ready:
+          type: boolean
+          title: Remediation Ready
+          default: false
+        remediation_performed:
+          type: boolean
+          title: Remediation Performed
+          default: false
+        proof_record_accepted:
+          type: boolean
+          title: Proof Record Accepted
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - contract_kind
+      - sequence
+      - record_validation_ref
+      - record_contract_ref
+      - remediation_ref
+      - remediation_gate
+      - required_backend_contract
+      - required_store_ref
+      - required_record_key
+      - validation_gate
+      - replay_gate
+      - detail
+      title: AdminFuturesCommandRiskProofRecordValidationRemediationItem
+      description: One blocked backend remediation row for a futures proof record
+        validation.
     AdminFuturesCommandRiskProofRequirementItem:
       properties:
         proof_kind:
@@ -13891,6 +14103,26 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationItem'
           type: array
           title: Record Validations
+        record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Count
+          default: 0
+        blocking_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Record Validation Remediation Count
+          default: 0
+        ready_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Record Validation Remediation Count
+          default: 0
+        record_validation_remediations:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationItem'
+          type: array
+          title: Record Validation Remediations
         acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -14279,6 +14511,21 @@ components:
           type: integer
           minimum: 0.0
           title: Ready Risk Proof Record Validation Count
+          default: 0
+        risk_proof_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Remediation Count
+          default: 0
+        blocking_risk_proof_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Record Validation Remediation Count
+          default: 0
+        ready_risk_proof_record_validation_remediation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Record Validation Remediation Count
           default: 0
         risk_proof_acceptance_criterion_count:
           type: integer
