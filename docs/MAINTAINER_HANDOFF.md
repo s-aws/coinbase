@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5541-5560` under M57.
-- Active autonomous range: `5561-5580` under M57.
+- Latest completed autonomous range: `5561-5580` under M57.
+- Active autonomous range: `5581-5600` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -652,7 +652,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   mutation, browser authority, or BFF execution authority. Completed
   5541-5560 work adds blocked proof record-validation remediation dependency
   work-item claim-trace clearance-step review input rows over those
-  clearance-step review rows. Active 5561-5580 work adds blocked
+  clearance-step review rows. Completed 5561-5580 work adds blocked
   clearance-step review input store requirement rows over those input rows so
   future input-store work names store refs, writer refs, record keys,
   validation gates, replay gates, inherited review-input blockers, and
@@ -663,7 +663,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   resolution, work-item claiming, claim-ledger registration, dependency
   resolution, remediation execution, registered validators, accepted proof
   records, command drafts, Coinbase calls, state mutation, browser authority,
-  or BFF execution
+  or BFF execution authority. Active 5581-5600 work adds blocked
+  clearance-step review input store record-contract rows over those store
+  requirements so future input-record work names record-contract refs, schema
+  refs, append-only log refs, idempotency keys, payload fields, validation
+  gates, replay gates, inherited store-requirement blockers, and required
+  backend store record-contracts while still adding no record-contract
+  creation, schema creation, log creation, idempotency binding, payload
+  validation, replay protection, record acceptance, evidence writing,
+  Coinbase calls, state mutation, browser authority, or BFF execution
   authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail

@@ -124,6 +124,17 @@ browser, BFF, and notional evidence fields.
   claim traces, resolve claims, clear work items, resolve dependencies,
   perform remediation, accept proof records, register routes, enable writers,
   or make commands executable.
+- Each risk proof requirement also exposes backend-owned record-validation
+  remediation dependency work-item claim-trace clearance-step review,
+  review-input, review-input store requirement, and review-input store
+  record-contract rows. These rows name missing review evidence, required
+  input evidence, backend store/writer/record-key refs, record contract refs,
+  record schema refs, append-only log refs, idempotency keys, payload fields,
+  validation gates, replay gates, and blocker chains before evidence could
+  ever be accepted. They do not complete reviews, accept inputs, create
+  stores, enable writers, register schemas, configure logs, bind idempotency,
+  validate payloads, protect replay, write evidence, call Coinbase, grant
+  browser/BFF authority, or make commands executable.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -185,11 +196,15 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   claim-trace clearance-step rows, or record-validation remediation
   dependency work-item claim-trace clearance-step review rows, or
   record-validation remediation dependency work-item claim-trace
-  clearance-step review input rows as
+  clearance-step review input rows, clearance-step review input store
+  requirement rows, or clearance-step review input store record-contract rows
+  as
   registered stores, registered validators, created or claimed work items,
   created or resolved claim traces, created or executed clearance plans,
   executed clearance steps, completed clearance-step reviews, cleared claim
-  traces, accepted review inputs, created review-input stores, written
+  traces, accepted review inputs, created review-input stores, created record
+  contracts, registered schemas, configured append-only logs, bound
+  idempotency, validated payloads, configured replay protection, written
   evidence, registered claim ledgers, resolved dependencies, performed
   remediation, proof writes, accepted proof evidence, or command authority.
   They are blocked backend contract evidence for future work only.

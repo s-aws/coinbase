@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-21
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5541-5560` is backend `3331de7b` and
-  frontend `8c25cff`; current active range is `5561-5580`.
+- Commit (optional): completed range `5561-5580` is backend `d69ff341` and
+  frontend `6659e5b`; current active range is `5581-5600`.
 
 ## Current Objective
 
@@ -47,17 +47,19 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5541-5560`.
-- Active autonomous range: `5561-5580`.
-- Active `5561-5580` extends the M57 futures/perpetual command-suite contract
+- Latest completed autonomous range before current work: `5561-5580`.
+- Active autonomous range: `5581-5600`.
+- Active `5581-5600` extends the M57 futures/perpetual command-suite contract
   with backend-owned risk proof record-validation remediation dependency
-  work-item claim-trace clearance-step review input store requirement rows for
-  every blocked clearance-step review input row. It must not add futures
-  command routes, command drafts, live execution, Coinbase calls,
-  reconciliation execution, state mutation, input store creation, writer
-  enablement, record-key registration, input validation acceptance, replay
-  acceptance, review-input acceptance, evidence writing, dependency
-  resolution, dependency work-item creation, work-item claiming,
+  work-item claim-trace clearance-step review input store record-contract rows
+  derived from every blocked clearance-step review input store requirement row.
+  It must not add futures command routes, command drafts, live execution,
+  Coinbase calls, reconciliation execution, state mutation, record-contract
+  creation, record schema creation, append-only log creation, idempotency
+  binding, payload validation, replay protection, input store creation, writer
+  enablement, record-key registration, record acceptance, input validation
+  acceptance, replay acceptance, review-input acceptance, evidence writing,
+  dependency resolution, dependency work-item creation, work-item claiming,
   claim-ledger registration, claim-trace creation, claim-trace clearance,
   clearance-plan execution, clearance-step execution, clearance-step review
   completion, claim allowance, claim resolution, remediation execution,
@@ -667,9 +669,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5561-5580`.
+- Active autonomous range: `5581-5600`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `5561-5580`.
+- Current direction: complete phases `5581-5600`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1500,23 +1502,24 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5561-5580` by adding
+- Exact next command: complete active phases `5581-5600` by adding
   backend-owned futures/perpetual risk proof record-validation remediation
   dependency work-item claim-trace clearance-step review input store
-  requirement evidence to the existing command-suite read contract, syncing
-  OpenAPI and frontend generated schema, mapping runtime/mock/read-model
+  record-contract evidence to the existing command-suite read contract,
+  syncing OpenAPI and frontend generated schema, mapping runtime/mock/read-model
   display, updating docs and validators, then running focused gates,
   blind/contextless review, and no-live UI smoke. The active gap is proof
   record-validation remediation dependency work-item claim-trace
-  clearance-step review input store requirement visibility
-  only; no futures command route, command draft, exchange order
-  placement/cancellation, reconciliation execution, Coinbase read/write, state
-  mutation, dependency resolution, dependency work-item creation, work-item
-  claiming, claim-ledger registration, claim-trace creation, claim-trace
-  clearance, clearance-plan execution, clearance-step execution,
-  clearance-step review completion, review-input acceptance, review-input
-  store creation, evidence writing, claim allowance, claim resolution,
-  remediation execution, remediation work item creation, enabled proof writer,
-  registered proof route, registered proof store, registered record
-  validator, accepted proof payload, accepted proof record, or browser/BFF
-  authority is allowed in this range.
+  clearance-step review input store record-contract visibility only; no
+  futures command route, command draft, exchange order placement/cancellation,
+  reconciliation execution, Coinbase read/write, state mutation, record
+  contract creation, record schema creation, append-only log creation,
+  idempotency binding, payload validation, replay protection, dependency
+  resolution, dependency work-item creation, work-item claiming, claim-ledger
+  registration, claim-trace creation, claim-trace clearance, clearance-plan
+  execution, clearance-step execution, clearance-step review completion,
+  review-input acceptance, review-input store creation, evidence writing,
+  claim allowance, claim resolution, remediation execution, remediation work
+  item creation, enabled proof writer, registered proof route, registered
+  proof store, registered record validator, accepted proof payload, accepted
+  proof record, or browser/BFF authority is allowed in this range.

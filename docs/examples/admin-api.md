@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5561-5580",
+  "approved_phase_range": "5581-5600",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5561-5580",
+  "approved_phase_range": "5581-5600",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5561-5580",
+  "approved_phase_range": "5581-5600",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1953,6 +1953,14 @@ Expected command-suite posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 1440,
   "present_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
   "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 1440,
+  "available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 0,
+  "writer_available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 1440,
+  "available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 0,
+  "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -2078,6 +2086,18 @@ could ever be accepted. Those rows remain blocked with `store_required=true`,
 `store_available=false`, `writer_available=false`,
 `record_key_registered=false`, `validation_gate_passed=false`,
 `replay_gate_passed=false`, `accepts_evidence=false`,
+`writes_evidence=false`, and `execution_allowed=false`.
+Each clearance-step review input store requirement also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts"`
+for the blocked backend-owned record contract, schema, append-only log,
+idempotency key, payload fields, validation gate, and replay protection that
+would be required before input evidence could ever be recorded. Those rows
+remain blocked with `record_contract_required=true`,
+`record_contract_available=false`, `record_schema_available=false`,
+`append_only_log_available=false`, `idempotency_key_bound=false`,
+`payload_schema_validated=false`, `replay_protected=false`,
+`record_present=false`, `record_accepted=false`,
+`record_validated=false`, `accepts_evidence=false`,
 `writes_evidence=false`, and `execution_allowed=false`.
 Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,

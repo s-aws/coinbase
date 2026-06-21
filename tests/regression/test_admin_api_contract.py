@@ -47098,7 +47098,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5561-5580"
+    assert command_suite.approved_phase_range == "5581-5600"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -47240,6 +47240,22 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     )
     assert (
         command_suite.writer_available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+        == 0
+    )
+    assert (
+        command_suite.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+        == 1440
+    )
+    assert (
+        command_suite.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+        == 1440
+    )
+    assert (
+        command_suite.available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+        == 0
+    )
+    assert (
+        command_suite.accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
         == 0
     )
     assert command_suite.risk_proof_acceptance_criterion_count == 100
@@ -47480,6 +47496,22 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             command_item.writer_available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
             == 0
         )
+        assert (
+            command_item.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == len(expected_risk_proof_kinds[command_id]) * 72
+        )
+        assert (
+            command_item.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == len(expected_risk_proof_kinds[command_id]) * 72
+        )
+        assert (
+            command_item.available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == 0
+        )
+        assert (
+            command_item.accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == 0
+        )
         assert command_item.blocking_risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -47577,6 +47609,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             == 0
             and len(
                 item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements
+            )
+            == 72
+            and item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == 72
+            and item.blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == 72
+            and item.available_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == 0
+            and item.accepted_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
+            == 0
+            and len(
+                item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
             )
             == 72
             and item.acceptance_criterion_count == 5
@@ -48529,6 +48573,28 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                     )
                     == 12
                 )
+                assert (
+                    clearance_plan.clearance_step_review_input_store_record_contract_count
+                    == 12
+                )
+                assert (
+                    clearance_plan.blocking_clearance_step_review_input_store_record_contract_count
+                    == 12
+                )
+                assert (
+                    clearance_plan.available_clearance_step_review_input_store_record_contract_count
+                    == 0
+                )
+                assert (
+                    clearance_plan.accepted_clearance_step_review_input_store_record_contract_count
+                    == 0
+                )
+                assert (
+                    len(
+                        clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+                    )
+                    == 12
+                )
                 assert len(clearance_steps) == len(clearance_plan.required_plan_steps)
                 assert [
                     step.clearance_step_sequence for step in clearance_steps
@@ -48649,6 +48715,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                     == 2
                     and len(
                         step.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements
+                    )
+                    == 2
+                    and step.clearance_step_review_input_store_record_contract_count
+                    == 2
+                    and step.blocking_clearance_step_review_input_store_record_contract_count
+                    == 2
+                    and step.available_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and step.accepted_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and len(
+                        step.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
                     )
                     == 2
                     and step.clearance_step_ready is False
@@ -48823,6 +48901,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                         review.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements
                     )
                     == 2
+                    and review.clearance_step_review_input_store_record_contract_count
+                    == 2
+                    and review.blocking_clearance_step_review_input_store_record_contract_count
+                    == 2
+                    and review.available_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and review.accepted_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and len(
+                        review.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+                    )
+                    == 2
                     and review.clearance_step_review_ready is False
                     and review.clearance_step_review_complete is False
                     and review.clearance_step_review_inputs_present is False
@@ -48984,6 +49074,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                         input_row.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements
                     )
                     == 1
+                    and input_row.clearance_step_review_input_store_record_contract_count
+                    == 1
+                    and input_row.blocking_clearance_step_review_input_store_record_contract_count
+                    == 1
+                    and input_row.available_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and input_row.accepted_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and len(
+                        input_row.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+                    )
+                    == 1
                     and input_row.clearance_step_review_ready is False
                     and input_row.clearance_step_review_complete is False
                     and input_row.clearance_step_review_inputs_present is False
@@ -49133,7 +49235,189 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                     and store_requirement.spot_rule_authority is False
                     and store_requirement.browser_authority == "display_only"
                     and store_requirement.bff_authority == "forward_only_no_execution"
+                    and store_requirement.clearance_step_review_input_store_record_contract_count
+                    == 1
+                    and store_requirement.blocking_clearance_step_review_input_store_record_contract_count
+                    == 1
+                    and store_requirement.available_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and store_requirement.accepted_clearance_step_review_input_store_record_contract_count
+                    == 0
+                    and len(
+                        store_requirement.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+                    )
+                    == 1
                     for store_requirement in clearance_step_review_input_store_requirements
+                )
+                clearance_step_review_input_store_record_contracts = [
+                    record_contract
+                    for store_requirement in (
+                        clearance_step_review_input_store_requirements
+                    )
+                    for record_contract in (
+                        store_requirement.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts
+                    )
+                ]
+                assert len(clearance_step_review_input_store_record_contracts) == 12
+                assert all(
+                    record_contract.status.value == "blocked"
+                    and record_contract.blocking is True
+                    and record_contract.sequence == clearance_plan.sequence
+                    and record_contract.contract_kind == clearance_plan.contract_kind
+                    and record_contract.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref
+                    == (
+                        f"{record_contract.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref}"
+                        ".input_store_record_contract"
+                    )
+                    and record_contract.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_gate
+                    == (
+                        f"{record_contract.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref}"
+                        ".record_contract_gate"
+                    )
+                    and record_contract.required_backend_contract.startswith(
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract.py::"
+                    )
+                    and record_contract.required_backend_contract.endswith(
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract"
+                    )
+                    and record_contract.required_clearance_step_review_input_store_requirement_contract.startswith(
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement.py::"
+                    )
+                    and record_contract.required_clearance_step_review_input_contract.startswith(
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input.py::"
+                    )
+                    and record_contract.required_clearance_step_review_input_store_ref
+                    == (
+                        "admin_futures_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements."
+                        f"{command_id}.{item.proof_kind.value}"
+                    )
+                    and record_contract.required_writer_ref.endswith(".input_writer")
+                    and record_contract.required_record_key.endswith(".input_record")
+                    and record_contract.required_record_schema_ref.endswith(
+                        ".input_store_record_contract.input_record_schema"
+                    )
+                    and record_contract.required_append_only_log_ref.endswith(
+                        ".input_store_record_contract.append_only_log"
+                    )
+                    and record_contract.required_idempotency_key.endswith(
+                        ".input_record.idempotency_key"
+                    )
+                    and record_contract.validation_gate.endswith(
+                        ".input_record_validation_gate"
+                    )
+                    and record_contract.replay_gate.endswith(
+                        ".input_record_replay_gate"
+                    )
+                    and record_contract.record_contract_gate
+                    == record_contract.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_gate
+                    and record_contract.required_payload_fields[:5]
+                    == [
+                        "input_ref",
+                        "review_ref",
+                        "step_ref",
+                        "claim_trace_ref",
+                        "required_review_input",
+                    ]
+                    and record_contract.clearance_step_review_input_store_record_contract_claim
+                    == "claim_trace_clearance_step_review_input_store_record_contract"
+                    and record_contract.clearance_step_review_input_store_record_contract_target_ref
+                    == record_contract.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref
+                    and record_contract.clearance_step_review_input_store_record_contract_source_ref
+                    == record_contract.required_clearance_step_review_input_store_requirement_contract
+                    and record_contract.clearance_step_review_input_store_record_contract_blockers
+                    == [
+                        "store_requirement_not_ready",
+                        "record_contract_missing",
+                        "record_schema_missing",
+                        "append_only_log_missing",
+                        "idempotency_key_missing",
+                        "payload_schema_validation_missing",
+                        "replay_protection_missing",
+                        "review_input_store_missing",
+                        "review_input_writer_missing",
+                        "review_input_record_key_missing",
+                        "clearance_step_review_input_not_accepted",
+                        "claim_trace_not_ready",
+                        "claim_unresolved",
+                        "contextless_review_missing",
+                    ]
+                    and record_contract.inherited_clearance_step_review_input_store_requirement_blockers
+                    == [
+                        "clearance_step_review_input_not_present",
+                        "clearance_step_review_input_not_accepted",
+                        "review_input_store_missing",
+                        "review_input_writer_missing",
+                        "review_input_record_key_missing",
+                        "review_input_validation_gate_missing",
+                        "review_input_replay_gate_missing",
+                        "clearance_step_review_not_ready",
+                        "claim_trace_not_ready",
+                        "claim_unresolved",
+                        "contextless_review_missing",
+                    ]
+                    and record_contract.required_backend_contract
+                    in record_contract.missing_evidence_refs
+                    and record_contract.required_clearance_step_review_input_store_requirement_contract
+                    in record_contract.missing_evidence_refs
+                    and record_contract.required_record_schema_ref
+                    in record_contract.missing_evidence_refs
+                    and record_contract.required_append_only_log_ref
+                    in record_contract.missing_evidence_refs
+                    and record_contract.required_idempotency_key
+                    in record_contract.missing_evidence_refs
+                    and record_contract.record_contract_required is True
+                    and record_contract.record_contract_available is False
+                    and record_contract.record_schema_available is False
+                    and record_contract.append_only_log_available is False
+                    and record_contract.idempotency_key_bound is False
+                    and record_contract.payload_schema_validated is False
+                    and record_contract.replay_protected is False
+                    and record_contract.store_available is False
+                    and record_contract.writer_available is False
+                    and record_contract.writer_allowed is False
+                    and record_contract.write_allowed is False
+                    and record_contract.record_present is False
+                    and record_contract.record_accepted is False
+                    and record_contract.record_validated is False
+                    and record_contract.validation_configured is False
+                    and record_contract.replay_protection_configured is False
+                    and record_contract.clearance_step_review_input_present is False
+                    and record_contract.clearance_step_review_input_accepted is False
+                    and record_contract.clearance_step_review_input_validated is False
+                    and record_contract.clearance_step_review_input_gate_passed
+                    is False
+                    and record_contract.clearance_step_review_ready is False
+                    and record_contract.clearance_step_review_complete is False
+                    and record_contract.claim_trace_created is False
+                    and record_contract.claim_trace_ready is False
+                    and record_contract.claim_allowed is False
+                    and record_contract.claim_resolved is False
+                    and record_contract.work_item_created is False
+                    and record_contract.work_item_claimed is False
+                    and record_contract.claim_ledger_registered is False
+                    and record_contract.dependency_ready is False
+                    and record_contract.dependency_resolved is False
+                    and record_contract.dependency_performed is False
+                    and record_contract.remediation_ready is False
+                    and record_contract.remediation_performed is False
+                    and record_contract.record_validation_ready is False
+                    and record_contract.proof_record_accepted is False
+                    and record_contract.command_route_registered is False
+                    and record_contract.command_draft_allowed is False
+                    and record_contract.execution_allowed is False
+                    and record_contract.proof_route_registered is False
+                    and record_contract.proof_writer_enabled is False
+                    and record_contract.accepts_evidence is False
+                    and record_contract.writes_evidence is False
+                    and record_contract.backend_owned is True
+                    and record_contract.read_only is True
+                    and record_contract.spot_rule_authority is False
+                    and record_contract.browser_authority == "display_only"
+                    and record_contract.bff_authority == "forward_only_no_execution"
+                    for record_contract in clearance_step_review_input_store_record_contracts
                 )
             assert [criterion.sequence for criterion in item.acceptance_criteria] == [
                 1,

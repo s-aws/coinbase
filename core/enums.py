@@ -1372,6 +1372,30 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractBlocker(
+    str,
+    Enum,
+):
+    """Blocked contract reasons before futures proof review-input records can exist."""
+
+    STORE_REQUIREMENT_NOT_READY = "store_requirement_not_ready"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    REVIEW_INPUT_STORE_MISSING = "review_input_store_missing"
+    REVIEW_INPUT_WRITER_MISSING = "review_input_writer_missing"
+    REVIEW_INPUT_RECORD_KEY_MISSING = "review_input_record_key_missing"
+    CLEARANCE_STEP_REVIEW_INPUT_NOT_ACCEPTED = (
+        "clearance_step_review_input_not_accepted"
+    )
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 
