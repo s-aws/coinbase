@@ -2706,6 +2706,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/command-suite:
+    get:
+      tags:
+      - futures
+      summary: Read futures and perpetual command contract readiness
+      description: Read blocked M57 futures/perpetual command contract evidence.
+      operationId: get_futures_command_suite_api_v1_futures_command_suite_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFuturesCommandSuiteResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/account:
     get:
       tags:
@@ -12386,6 +12449,332 @@ components:
       title: AdminFuturesAccountReadResponse
       description: Read-only futures/perpetual account, collateral, margin, and risk
         evidence.
+    AdminFuturesCommandAction:
+      type: string
+      enum:
+      - futures_place
+      - futures_close_reduce
+      - futures_cancel
+      - futures_reconcile
+      title: AdminFuturesCommandAction
+      description: Planned futures/perpetual command contract actions.
+    AdminFuturesCommandContractItem:
+      properties:
+        command:
+          $ref: '#/components/schemas/AdminFuturesCommandAction'
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          default: futures_contract_required
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        service_method:
+          type: string
+          title: Service Method
+        identity_key:
+          type: string
+          title: Identity Key
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        prerequisite_count:
+          type: integer
+          minimum: 0.0
+          title: Prerequisite Count
+          default: 0
+        resolved_prerequisite_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Prerequisite Count
+          default: 0
+        blocking_prerequisite_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Prerequisite Count
+          default: 0
+        prerequisites:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandPrerequisiteItem'
+          type: array
+          title: Prerequisites
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        missing_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Backend Contracts
+        forbidden_spot_assumptions:
+          items:
+            type: string
+          type: array
+          title: Forbidden Spot Assumptions
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - command
+      - action_class
+      - service_method
+      - identity_key
+      - required_permission
+      - detail
+      title: AdminFuturesCommandContractItem
+      description: One planned futures/perpetual command contract row.
+    AdminFuturesCommandPrerequisite:
+      type: string
+      enum:
+      - position_scope
+      - margin
+      - collateral
+      - liquidation
+      - funding
+      - reduce_only_close_only
+      - approval_snapshot
+      - cap_guard
+      - admission_audit
+      - reconciliation_plan
+      - live_execution_service
+      - live_execution_adapter
+      - backend_command_service
+      title: AdminFuturesCommandPrerequisite
+      description: Backend-owned prerequisites before futures/perpetual commands exist.
+    AdminFuturesCommandPrerequisiteItem:
+      properties:
+        prerequisite:
+          $ref: '#/components/schemas/AdminFuturesCommandPrerequisite'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+        evidence_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence Route
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        resolved:
+          type: boolean
+          title: Resolved
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - prerequisite
+      - status
+      - source
+      - detail
+      title: AdminFuturesCommandPrerequisiteItem
+      description: One backend-owned futures/perpetual command prerequisite row.
+    AdminFuturesCommandSuiteResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_futures_command_suite
+        module_id:
+          type: string
+          title: Module Id
+          default: futures_perpetuals
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        blocked_command_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Command Count
+          default: 0
+        executable_command_count:
+          type: integer
+          minimum: 0.0
+          title: Executable Command Count
+          default: 0
+        command_route_count:
+          type: integer
+          minimum: 0.0
+          title: Command Route Count
+          default: 0
+        command_draft_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Allowed Count
+          default: 0
+        prerequisite_count:
+          type: integer
+          minimum: 0.0
+          title: Prerequisite Count
+          default: 0
+        blocking_prerequisite_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Prerequisite Count
+          default: 0
+        commands:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandContractItem'
+          type: array
+          title: Commands
+        account_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Account Evidence Routes
+        position_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Position Evidence Routes
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        missing_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Backend Contracts
+        forbidden_spot_assumptions:
+          items:
+            type: string
+          type: array
+          title: Forbidden Spot Assumptions
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - message
+      title: AdminFuturesCommandSuiteResponse
+      description: Read-only M57 futures/perpetual command contract readiness evidence.
     AdminFuturesEvidenceItem:
       properties:
         name:

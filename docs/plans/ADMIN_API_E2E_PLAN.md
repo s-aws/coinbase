@@ -49,7 +49,133 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Phases 5141-5160
+## Active Phases 5161-5180
+
+Batch label: Futures/Perpetuals Command-Suite Contract Foundation.
+
+These phases start M57 after the M55 exact stealth-create command-response
+binding completed. The concrete gap is that futures/perpetuals have read-only
+account and position surfaces but no backend-owned command contract matrix for
+placement, close/reduce, cancel, or reconciliation. The work must remain
+read-only and no-live: no futures command route, no command draft, no manager
+invocation, no exchange order placement/cancellation, no Coinbase read, no
+reconciliation execution, no state mutation, and no browser/BFF execution
+authority. Spot wallet, no-shorting, USDC, cost-basis, and inventory-lot rules
+must stay explicitly forbidden as futures/perpetual authority.
+
+### Phase 5161 - Prior Range Completion Evidence
+
+- Record completed phases 5141-5160 with backend commit `7161c202`, frontend
+  commit `e83cce3`, focused backend/frontend gates, no-live UI smoke at
+  `http://127.0.0.1:3002/#stealth-orders`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5141-5160-exact-create-preexecution.png`,
+  and `0` USDC live Coinbase submitted/executed notional.
+
+### Phase 5162 - Advance Active Queue Range
+
+- Move active range metadata from completed phases 5141-5160 to active phases
+  5161-5180 while preserving no-live defaults and cap policy.
+
+### Phase 5163 - M57 Futures Command Gap Declaration
+
+- Document that futures/perpetuals currently expose read-only account and
+  position evidence while placement, close/reduce, cancel, reconciliation, and
+  futures-specific risk command contracts remain missing.
+
+### Phase 5164 - Futures Command Enums And Models
+
+- Add enum-backed backend models for futures/perpetual command actions and
+  prerequisites without introducing magic strings or command execution.
+
+### Phase 5165 - Backend Read Service Builder
+
+- Add a read-only futures/perpetual command-suite builder that derives
+  observed margin, collateral, liquidation, funding, position-scope, and
+  close/reduce evidence from existing futures read surfaces.
+
+### Phase 5166 - Futures Read Route
+
+- Register `GET /api/v1/futures/command-suite` as an `analytics:read`
+  read-only route that returns the M57 contract matrix and does not create
+  futures command routes.
+
+### Phase 5167 - Route Inventory And Capability Evidence
+
+- Add the futures command-suite read route to the Admin API route inventory so
+  enterprise readiness and frontend capability surfaces discover it through the
+  existing route catalog.
+
+### Phase 5168 - Backend OpenAPI Sync
+
+- Regenerate the Admin API OpenAPI artifact and assert the schema contains the
+  futures command-suite response, command rows, and prerequisite rows.
+
+### Phase 5169 - Backend Focused Regression
+
+- Run focused Admin API contract tests covering schema, route inventory,
+  route-service delegation, futures command-suite read evidence, no-live
+  posture, and no spot-rule leakage.
+
+### Phase 5170 - Frontend Schema Sync
+
+- Regenerate frontend API schema/types from the backend OpenAPI contract.
+
+### Phase 5171 - Frontend Client And Runtime Wiring
+
+- Add the typed frontend API client/runtime read wrapper for
+  `GET /api/v1/futures/command-suite` without adding command drafts or BFF
+  mutation forwarding.
+
+### Phase 5172 - Mock Backend Fixture
+
+- Add mock futures command-suite evidence with blocked placement,
+  close/reduce, cancel, and reconciliation rows and explicit forbidden spot
+  assumptions.
+
+### Phase 5173 - Futures Read Model Display
+
+- Display the futures command-suite matrix in the Futures / Perpetuals admin
+  view as backend-owned read-only evidence with command drafts disabled.
+
+### Phase 5174 - Frontend Coverage
+
+- Add focused frontend assertions for the futures command-suite wrapper,
+  runtime snapshot, mock backend, and read model no-live/no-spot-rule display.
+
+### Phase 5175 - Documentation And Examples
+
+- Update futures/perpetual README, Admin API examples, capability matrix,
+  API contract docs, maintainer handoff, and expanded context for the M57
+  futures command-suite contract.
+
+### Phase 5176 - Validator And Artifact Sync
+
+- Update backend and frontend autonomous validators, release/deployment checks,
+  artifact contracts, and runtime evidence to recognize phases 5161-5180.
+
+### Phase 5177 - Contextless Review
+
+- Run blind/contextless review focused on whether a maintainer can understand
+  the futures command-suite contract without importing spot-only rules or
+  assuming executable command authority.
+
+### Phase 5178 - Focused Gates
+
+- Run focused backend/frontend gates and autonomous validators. Full backend
+  regression remains reserved for durable milestone/release closeout or
+  explicit request.
+
+### Phase 5179 - UI Smoke
+
+- Run a no-live UI smoke for the Futures / Perpetuals view proving the command
+  matrix renders without command controls or live Coinbase evidence.
+
+### Phase 5180 - Commit And Push
+
+- Commit and push synchronized backend/frontend work, summarize verification,
+  live posture, UI URL, and the next M57 enablement step.
+
+## Completed Phases 5141-5160
 
 These phases continue M55 after selected-create planning evidence was exposed
 in the read model. The batch binds that same backend-owned pre-execution
@@ -57,6 +183,13 @@ contract to the exact dry `POST /api/v1/stealth/orders` command response,
 including command envelope and payload-present evidence, without enabling
 execution, invoking `StealthOrderManager`, writing lifecycle/order state,
 executing reconciliation, calling Coinbase, or granting browser/BFF authority.
+
+Completed evidence: backend commit `7161c202`, frontend commit `e83cce3`,
+focused backend/frontend gates, blind/contextless review, UI smoke at
+`http://127.0.0.1:3002/#stealth-orders`, screenshot
+`C:\coinbase-frontend\output\playwright\ui-smoke-5141-5160-exact-create-preexecution.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ### Phase 5141 - Prior Range Completion Evidence
 

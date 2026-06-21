@@ -19,6 +19,8 @@ from core.enums import (
     AdminAuditWorkbenchModule,
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
+    AdminFuturesCommandAction,
+    AdminFuturesCommandPrerequisite,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminFuturesPositionSide,
@@ -94,6 +96,9 @@ from .models import (
     AdminEnterpriseReadinessResponse,
     AdminFrontendFixturesResponse,
     AdminFuturesAccountReadResponse,
+    AdminFuturesCommandContractItem,
+    AdminFuturesCommandPrerequisiteItem,
+    AdminFuturesCommandSuiteResponse,
     AdminLiveAdmissionAuditFactItem,
     AdminLiveAdmissionAuditTrailEvidence,
     AdminLiveCapGuardContractEvidence,
@@ -325,7 +330,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5141-5160"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5161-5180"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -19825,6 +19830,309 @@ class AdminApiReadService:
             stealth_order_id=stealth_order_id,
             found=bool(evidence.items),
             items=evidence.items,
+        )
+
+    def build_futures_command_suite(self) -> AdminFuturesCommandSuiteResponse:
+        """Return read-only M57 futures/perpetual command contract evidence."""
+
+        account = self.build_futures_account()
+        positions = self.build_futures_positions(limit=500, offset=0)
+        observed_position_scope = bool(positions.items)
+        observed_product_scope = bool(
+            account.configured_product_scope or account.observed_position_scope
+        )
+        forbidden_spot_assumptions = [
+            "spot_wallet_available",
+            "spot_no_shorting",
+            "spot_usdc_quote_required",
+            "spot_average_cost_basis",
+            "spot_inventory_lot_authority",
+        ]
+        backend_contracts = [
+            "application/admin_api/futures_command_service.py::place_futures_order",
+            "application/admin_api/futures_command_service.py::close_or_reduce_futures_position",
+            "application/admin_api/futures_command_service.py::cancel_futures_order",
+            "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+        ]
+
+        def prerequisite(
+            prerequisite_id: AdminFuturesCommandPrerequisite,
+            *,
+            status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED,
+            source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT,
+            evidence_route: str | None = None,
+            resolved: bool = False,
+            detail: str,
+        ) -> AdminFuturesCommandPrerequisiteItem:
+            return AdminFuturesCommandPrerequisiteItem(
+                prerequisite=prerequisite_id,
+                status=status,
+                source=source,
+                evidence_route=evidence_route,
+                resolved=resolved,
+                blocking=status != AdminApiGateStatus.PASSED,
+                detail=detail,
+            )
+
+        def observed_account_prerequisite(
+            prerequisite_id: AdminFuturesCommandPrerequisite,
+            evidence: AdminFuturesEvidenceItem,
+        ) -> AdminFuturesCommandPrerequisiteItem:
+            observed = evidence.status == AdminFuturesEvidenceStatus.OBSERVED
+            return prerequisite(
+                prerequisite_id,
+                status=(
+                    AdminApiGateStatus.PASSED
+                    if observed
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                source=evidence.source,
+                evidence_route="/api/v1/futures/account",
+                resolved=observed,
+                detail=evidence.detail or f"{prerequisite_id.value} evidence unavailable.",
+            )
+
+        def position_scope_prerequisite(
+            *,
+            require_open_position: bool,
+        ) -> AdminFuturesCommandPrerequisiteItem:
+            resolved = observed_position_scope if require_open_position else observed_product_scope
+            return prerequisite(
+                AdminFuturesCommandPrerequisite.POSITION_SCOPE,
+                status=(
+                    AdminApiGateStatus.PASSED
+                    if resolved
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                source=(
+                    AdminFuturesEvidenceSource.RUNTIME_POSITIONS
+                    if require_open_position
+                    else AdminFuturesEvidenceSource.PRODUCTS_JSON
+                ),
+                evidence_route="/api/v1/futures/positions",
+                resolved=resolved,
+                detail=(
+                    "Open position scope is required for futures close/reduce and "
+                    "reconciliation commands."
+                    if require_open_position
+                    else "Configured or observed futures product scope is required before placement contracts can exist."
+                ),
+            )
+
+        def contract_prerequisite(
+            prerequisite_id: AdminFuturesCommandPrerequisite,
+            *,
+            detail: str,
+        ) -> AdminFuturesCommandPrerequisiteItem:
+            return prerequisite(
+                prerequisite_id,
+                detail=detail,
+            )
+
+        shared_execution_prerequisites = [
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.APPROVAL_SNAPSHOT,
+                detail="Futures commands require backend approval snapshots scoped to futures identity and risk semantics.",
+            ),
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.CAP_GUARD,
+                detail="Futures cap/guard decisions must evaluate margin, collateral, liquidation, funding, and reduce-only semantics in the backend.",
+            ),
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.ADMISSION_AUDIT,
+                detail="Futures commands require append-only backend admission audit evidence before execution.",
+            ),
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.RECONCILIATION_PLAN,
+                detail="Futures commands require a backend reconciliation plan; browser reconciliation authority is not allowed.",
+            ),
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.LIVE_EXECUTION_SERVICE,
+                detail="The backend live execution service is not enabled for futures/perpetual commands.",
+            ),
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.LIVE_EXECUTION_ADAPTER,
+                detail="No futures/perpetual live execution adapter is registered.",
+            ),
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.BACKEND_COMMAND_SERVICE,
+                detail="A futures/perpetual command service contract does not exist yet.",
+            ),
+        ]
+
+        placement_prerequisites = [
+            position_scope_prerequisite(require_open_position=False),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.MARGIN,
+                account.margin,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.COLLATERAL,
+                account.collateral,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.LIQUIDATION,
+                account.liquidation,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.FUNDING,
+                account.funding,
+            ),
+            *shared_execution_prerequisites,
+        ]
+        close_reduce_prerequisites = [
+            position_scope_prerequisite(require_open_position=True),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.REDUCE_ONLY_CLOSE_ONLY,
+                account.reduce_only_close_only,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.MARGIN,
+                account.margin,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.COLLATERAL,
+                account.collateral,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.LIQUIDATION,
+                account.liquidation,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.FUNDING,
+                account.funding,
+            ),
+            *shared_execution_prerequisites,
+        ]
+        cancel_prerequisites = [
+            contract_prerequisite(
+                AdminFuturesCommandPrerequisite.POSITION_SCOPE,
+                detail="Futures cancel identity must be backend-owned and use client_order_id discipline, not exchange order ids as internal tracking.",
+            ),
+            *shared_execution_prerequisites,
+        ]
+        reconciliation_prerequisites = [
+            position_scope_prerequisite(require_open_position=True),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.MARGIN,
+                account.margin,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.COLLATERAL,
+                account.collateral,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.LIQUIDATION,
+                account.liquidation,
+            ),
+            observed_account_prerequisite(
+                AdminFuturesCommandPrerequisite.FUNDING,
+                account.funding,
+            ),
+            *shared_execution_prerequisites,
+        ]
+
+        def command(
+            command_id: AdminFuturesCommandAction,
+            *,
+            action_class: AdminApiActionClass,
+            service_method: str,
+            identity_key: str,
+            permission: AdminApiPermission,
+            prerequisites: list[AdminFuturesCommandPrerequisiteItem],
+            detail: str,
+        ) -> AdminFuturesCommandContractItem:
+            return AdminFuturesCommandContractItem(
+                command=command_id,
+                action_class=action_class,
+                route=None,
+                method=None,
+                service_method=service_method,
+                identity_key=identity_key,
+                required_permission=permission,
+                prerequisite_count=len(prerequisites),
+                resolved_prerequisite_count=sum(
+                    1 for item in prerequisites if item.resolved
+                ),
+                blocking_prerequisite_count=sum(
+                    1 for item in prerequisites if item.blocking
+                ),
+                prerequisites=prerequisites,
+                required_backend_contracts=backend_contracts,
+                missing_backend_contracts=backend_contracts,
+                forbidden_spot_assumptions=forbidden_spot_assumptions,
+                detail=detail,
+            )
+
+        commands = [
+            command(
+                AdminFuturesCommandAction.PLACE,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                service_method="place_futures_order_contract_required",
+                identity_key="product_id",
+                permission=AdminApiPermission.ORDER_CREATE,
+                prerequisites=placement_prerequisites,
+                detail="Futures placement requires futures-specific risk contracts before any command route or draft exists.",
+            ),
+            command(
+                AdminFuturesCommandAction.CLOSE_REDUCE,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                service_method="close_or_reduce_futures_position_contract_required",
+                identity_key="position_key",
+                permission=AdminApiPermission.ORDER_CREATE,
+                prerequisites=close_reduce_prerequisites,
+                detail="Futures close/reduce must derive sides from backend position evidence and reduce-only/close-only contracts.",
+            ),
+            command(
+                AdminFuturesCommandAction.CANCEL,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                service_method="cancel_futures_order_contract_required",
+                identity_key="client_order_id",
+                permission=AdminApiPermission.ORDER_CANCEL,
+                prerequisites=cancel_prerequisites,
+                detail=(
+                    "Futures cancel requires backend-owned client_order_id "
+                    "discipline and exchange-reality reconciliation before a "
+                    "route exists."
+                ),
+            ),
+            command(
+                AdminFuturesCommandAction.RECONCILE,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                service_method="record_futures_reconciliation_contract_required",
+                identity_key="position_key",
+                permission=AdminApiPermission.RECONCILIATION_RECORD,
+                prerequisites=reconciliation_prerequisites,
+                detail="Futures reconciliation must be position, margin, collateral, funding, and liquidation aware before any executor exists.",
+            ),
+        ]
+
+        return AdminFuturesCommandSuiteResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            command_count=len(commands),
+            blocked_command_count=len(commands),
+            executable_command_count=0,
+            command_route_count=0,
+            command_draft_allowed_count=0,
+            prerequisite_count=sum(command.prerequisite_count for command in commands),
+            blocking_prerequisite_count=sum(
+                command.blocking_prerequisite_count for command in commands
+            ),
+            commands=commands,
+            account_evidence_routes=["/api/v1/futures/account"],
+            position_evidence_routes=[
+                "/api/v1/futures/positions",
+                "/api/v1/futures/positions/{position_key}",
+            ],
+            required_backend_contracts=backend_contracts,
+            missing_backend_contracts=backend_contracts,
+            forbidden_spot_assumptions=forbidden_spot_assumptions,
+            message=(
+                "Futures/perpetual command contracts are M57 readiness evidence "
+                "only. No futures command route, command draft, live adapter, "
+                "Coinbase call, browser authority, or BFF execution authority exists."
+            ),
         )
 
     def build_futures_account(self) -> AdminFuturesAccountReadResponse:

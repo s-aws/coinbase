@@ -167,7 +167,7 @@ not independent roadmaps.
 | M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | In Progress | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
-| M57 - Futures/Perpetuals Contract Foundation And Commands | Approved; not started | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
@@ -3164,11 +3164,14 @@ Current backend evidence:
   evidence only; it does not invoke managers, mutate lifecycle/order/exchange
   state, reconcile, call Coinbase, or grant browser/BFF execution authority.
   Completed phases 5121-5140 turn the selected `stealth_create` planning
-  target into backend-owned pre-execution contract evidence. Active phases
+  target into backend-owned pre-execution contract evidence. Completed phases
   5141-5160 bind that contract to the exact dry `POST /api/v1/stealth/orders`
   command response while manager invocation, lifecycle/order writes,
   reconciliation execution, Coinbase interaction, and browser/BFF authority
-  remain blocked.
+  remain blocked. Active phases 5161-5180 start M57 by adding read-only
+  futures/perpetual command-suite contract evidence for placement,
+  close/reduce, cancel, and reconciliation without adding command routes,
+  command drafts, live execution, Coinbase calls, or spot-rule authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

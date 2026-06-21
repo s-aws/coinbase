@@ -724,6 +724,22 @@
     },
     {
       "module_id": "futures_perpetuals",
+      "surface": "GET /api/v1/futures/command-suite",
+      "method": "GET",
+      "path": "/api/v1/futures/command-suite",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "build_futures_command_suite",
+      "parity_test": "read-only futures command contract matrix; no spot rules, command drafts, or live routes",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "futures_perpetuals",
       "surface": "GET /api/v1/futures/account",
       "method": "GET",
       "path": "/api/v1/futures/account",

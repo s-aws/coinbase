@@ -18,6 +18,9 @@ ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
 STEALTH_COMMAND_SUITE_EXAMPLES_DOC = (
     PROJECT_ROOT / "docs" / "examples" / "stealth-command-suite.md"
 )
+FUTURES_PERPETUALS_EXAMPLES_DOC = (
+    PROJECT_ROOT / "docs" / "examples" / "futures-perpetuals.md"
+)
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
 AGENT_STATE_DOC = PROJECT_ROOT / "genai_data" / "agent_state.md"
@@ -56,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5141-5160"
-APPROVED_PHASES = tuple(range(5141, 5161))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5121-5140"
+APPROVED_PHASE_RANGE = "5161-5180"
+APPROVED_PHASES = tuple(range(5161, 5181))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5141-5160"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -202,15 +205,17 @@ def _check_example_phase_range_docs() -> QueueCheck:
     required_by_path = {
         ADMIN_API_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
-            "GET /api/v1/stealth/command-suite",
+            "GET /api/v1/futures/command-suite",
+            "Futures/perpetual command-suite reads expose backend-owned",
         ],
-        STEALTH_COMMAND_SUITE_EXAMPLES_DOC: [
+        FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
             f"active {APPROVED_PHASE_RANGE} range",
-            '"commands"',
-            '"admission_readiness"',
-            '"blocker_closures"',
-            "stealth create exact command pre-execution contract binding",
+            "GET /api/v1/futures/command-suite",
+            '"forbidden_spot_assumptions"',
+            '"futures_place"',
+            '"futures_cancel"',
+            "Spot wallet, no-shorting, USDC, cost-basis, and inventory-lot rules are forbidden",
         ],
     }
     stale_active_range_text = (
@@ -230,6 +235,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5081-5100"',
         '"approved_phase_range": "5101-5120"',
         '"approved_phase_range": "5121-5140"',
+        "active 5141-5160 range",
+        '"approved_phase_range": "5141-5160"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -386,7 +393,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` turns the selected",
+        f"Active `{APPROVED_PHASE_RANGE}` starts the M57 futures/perpetual command-suite contract",
         f"complete active phases `{APPROVED_PHASE_RANGE}`",
     ]
     stale = [
@@ -398,18 +405,22 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5081-5100`",
         "Active `5101-5120`",
         "Active `5121-5140`",
+        "Active `5141-5160`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
         "complete active phases `5121-5140`",
+        "complete active phases `5141-5160`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
         "current active range is `5121-5140`",
+        "current active range is `5141-5160`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
         "Active autonomous range: `5121-5140`",
+        "Active autonomous range: `5141-5160`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -439,6 +450,8 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
+        "futures/perpetual command-suite",
+        "forbidden spot assumptions",
     ]
     stale = [
         f"active range and `{PREVIOUS_COMPLETED_PHASE_RANGE}`",

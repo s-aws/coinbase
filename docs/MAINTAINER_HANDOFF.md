@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5121-5140` under M55.
-- Active autonomous range: `5141-5160` under M55.
+- Latest completed autonomous range: `5141-5160` under M55.
+- Active autonomous range: `5161-5180` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -537,11 +537,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   work turns the selected `stealth_create` planning target into backend-owned
   read/planning pre-execution contract evidence without invoking managers,
   writing lifecycle/order rows, executing reconciliation, calling Coinbase, or
-  granting browser/BFF authority. Active 5141-5160 work binds that same
+  granting browser/BFF authority. Completed 5141-5160 work binds that same
   selected-create contract to the exact dry `POST /api/v1/stealth/orders`
   command response with command-envelope and payload-present fields while
   preserving no-manager, no-write, no-reconciliation, no-Coinbase,
-  display-only, and BFF forward-only authority.
+  display-only, and BFF forward-only authority. Active 5161-5180 work starts
+  M57 by exposing read-only futures/perpetual command-suite contract evidence
+  for placement, close/reduce, cancel, and reconciliation while registering no
+  futures command routes, allowing no command drafts, running no reconciliation
+  executor, calling no Coinbase reads/writes, mutating no state, and forbidding
+  spot wallet, no-shorting, USDC quote, cost-basis, and inventory-lot
+  assumptions as futures/perpetual authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

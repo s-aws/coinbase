@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5141-5160",
+  "approved_phase_range": "5161-5180",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5141-5160",
+  "approved_phase_range": "5161-5180",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1174,7 +1174,7 @@ Expected current enterprise readiness posture:
         "unsupported_action_count": 3,
         "command_gap_count": 3,
         "route_module_id_status": "passed",
-        "route_module_id_detail": "3 route inventory rows are bound to module_id=futures_perpetuals; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "route_module_id_detail": "4 route inventory rows are bound to module_id=futures_perpetuals; enterprise readiness route lists are derived from module_id, not path prefixes.",
         "frontend_authority": "backend_contract_only",
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0"
@@ -1860,6 +1860,48 @@ cancel placements, or call Coinbase.
 Futures/perpetual reads expose backend-owned account, risk, and position
 evidence. They are not command routes. They do not place, close, reduce,
 cancel, or liquidate positions.
+
+Futures/perpetual command-suite reads expose backend-owned M57 contract
+evidence for future placement, close/reduce, cancel, and reconciliation
+commands. The response is still read-only: it registers no command routes,
+allows no command drafts, performs no reconciliation execution, calls no
+Coinbase reads or writes, and grants no browser/BFF execution authority.
+
+```http
+GET /api/v1/futures/command-suite
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Expected command-suite posture:
+
+```json
+{
+  "type": "admin_futures_command_suite",
+  "module_id": "futures_perpetuals",
+  "approved_phase_range": "5161-5180",
+  "status": "blocked",
+  "command_count": 4,
+  "blocked_command_count": 4,
+  "executable_command_count": 0,
+  "command_route_count": 0,
+  "command_draft_allowed_count": 0,
+  "forbidden_spot_assumptions": [
+    "spot_wallet_available",
+    "spot_no_shorting",
+    "spot_usdc_quote_required",
+    "spot_average_cost_basis",
+    "spot_inventory_lot_authority"
+  ],
+  "spot_rule_authority": false,
+  "browser_authority": "display_only",
+  "bff_authority": "forward_only_no_execution",
+  "live_coinbase_orders_ran": false,
+  "submitted_notional_usdc": "0",
+  "executed_notional_usdc": "0"
+}
+```
 
 ```http
 GET /api/v1/futures/account

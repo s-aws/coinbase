@@ -1055,6 +1055,33 @@ class AdminFuturesPositionSide(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class AdminFuturesCommandAction(str, Enum):
+    """Planned futures/perpetual command contract actions."""
+
+    PLACE = "futures_place"
+    CLOSE_REDUCE = "futures_close_reduce"
+    CANCEL = "futures_cancel"
+    RECONCILE = "futures_reconcile"
+
+
+class AdminFuturesCommandPrerequisite(str, Enum):
+    """Backend-owned prerequisites before futures/perpetual commands exist."""
+
+    POSITION_SCOPE = "position_scope"
+    MARGIN = "margin"
+    COLLATERAL = "collateral"
+    LIQUIDATION = "liquidation"
+    FUNDING = "funding"
+    REDUCE_ONLY_CLOSE_ONLY = "reduce_only_close_only"
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    CAP_GUARD = "cap_guard"
+    ADMISSION_AUDIT = "admission_audit"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    LIVE_EXECUTION_SERVICE = "live_execution_service"
+    LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
+    BACKEND_COMMAND_SERVICE = "backend_command_service"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

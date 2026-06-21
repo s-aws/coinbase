@@ -9,6 +9,97 @@ Start the local Admin API:
 python tools\run_admin_api.py --dev-token local-admin-token
 ```
 
+## Command-Suite Contract Evidence
+
+The active 5161-5180 range adds read-only M57 futures/perpetual command-suite
+contract evidence. It is not a command route and does not make command drafts
+available.
+
+```http
+GET /api/v1/futures/command-suite
+Authorization: Bearer local-admin-token
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Expected response posture:
+
+```json
+{
+  "type": "admin_futures_command_suite",
+  "module_id": "futures_perpetuals",
+  "approved_phase_range": "5161-5180",
+  "status": "blocked",
+  "command_count": 4,
+  "blocked_command_count": 4,
+  "executable_command_count": 0,
+  "command_route_count": 0,
+  "command_draft_allowed_count": 0,
+  "forbidden_spot_assumptions": [
+    "spot_wallet_available",
+    "spot_no_shorting",
+    "spot_usdc_quote_required",
+    "spot_average_cost_basis",
+    "spot_inventory_lot_authority"
+  ],
+  "commands": [
+    {
+      "command": "futures_place",
+      "status": "blocked",
+      "action_class": "live_exchange_place",
+      "route": null,
+      "service_method": "place_futures_order_contract_required",
+      "identity_key": "product_id",
+      "command_route_registered": false,
+      "command_draft_allowed": false,
+      "execution_allowed": false
+    },
+    {
+      "command": "futures_close_reduce",
+      "status": "blocked",
+      "action_class": "live_exchange_place",
+      "route": null,
+      "service_method": "close_or_reduce_futures_position_contract_required",
+      "identity_key": "position_key",
+      "command_route_registered": false,
+      "command_draft_allowed": false,
+      "execution_allowed": false
+    },
+    {
+      "command": "futures_cancel",
+      "status": "blocked",
+      "action_class": "live_exchange_cancel",
+      "route": null,
+      "service_method": "cancel_futures_order_contract_required",
+      "identity_key": "client_order_id",
+      "command_route_registered": false,
+      "command_draft_allowed": false,
+      "execution_allowed": false
+    },
+    {
+      "command": "futures_reconcile",
+      "status": "blocked",
+      "action_class": "local_state_mutation",
+      "route": null,
+      "service_method": "record_futures_reconciliation_contract_required",
+      "identity_key": "position_key",
+      "command_route_registered": false,
+      "command_draft_allowed": false,
+      "execution_allowed": false
+    }
+  ],
+  "spot_rule_authority": false,
+  "browser_authority": "display_only",
+  "bff_authority": "forward_only_no_execution",
+  "live_coinbase_orders_ran": false,
+  "submitted_notional_usdc": "0",
+  "executed_notional_usdc": "0"
+}
+```
+
+Spot wallet, no-shorting, USDC, cost-basis, and inventory-lot rules are forbidden
+as futures/perpetual command authority.
+
 ## Account Evidence
 
 ```http

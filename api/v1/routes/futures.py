@@ -14,6 +14,7 @@ from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
     AdminFuturesAccountReadResponse,
+    AdminFuturesCommandSuiteResponse,
     AdminFuturesPositionDetailResponse,
     AdminFuturesPositionListResponse,
 )
@@ -46,6 +47,25 @@ TReadModel = TypeVar("TReadModel", bound=BaseModel)
 
 def _read_model_response(model: type[TReadModel], payload: object) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(model.model_validate(payload)))
+
+
+@router.get(
+    "/futures/command-suite",
+    response_model=AdminFuturesCommandSuiteResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read futures and perpetual command contract readiness",
+)
+def get_futures_command_suite(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read blocked M57 futures/perpetual command contract evidence."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        AdminFuturesCommandSuiteResponse,
+        service.build_futures_command_suite(),
+    )
 
 
 @router.get(

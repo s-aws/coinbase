@@ -18,7 +18,7 @@ read-only admin diagnostics, order read routes, read-only stealth lifecycle
 routes, read-only stealth command-suite readiness evidence, live-disabled
 stealth create, reveal, move, cancel, recovery, and reconciliation command contracts, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
-account and position routes, read-only guard/risk policy evidence, read-only
+account, position, and command-suite contract routes, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
 admission audit, reconciliation plan, and live-service decision evidence
 routes, and read-only spot
@@ -410,12 +410,18 @@ approval/admission, guard, lifecycle-write, manager, idempotency/audit,
 reconciliation, and Coinbase non-interaction boundaries, but it does not call
 `StealthOrderManager`, write `stealth_orders` or `order_parent`, execute
 reconciliation, call Coinbase, or allow browser/BFF execution.
-Active phases 5141-5160 bind that same selected-create pre-execution contract
+Completed phases 5141-5160 bind that same selected-create pre-execution contract
 to the exact dry `POST /api/v1/stealth/orders` command response, including
 correlation id, idempotency key, actor id, operator intent, request identity,
 and payload-present fields. The command still returns live-disabled evidence
 and remains no-manager, no-write, no-reconciliation, no-Coinbase, display-only,
 and BFF forward-only.
+Active phases 5161-5180 start M57 by exposing read-only futures/perpetual
+command-suite contract evidence for placement, close/reduce, cancel, and
+reconciliation. The route registers no futures command routes, permits no
+command drafts, executes no reconciliation, calls no Coinbase reads or writes,
+mutates no state, and explicitly rejects spot wallet, no-shorting, USDC quote,
+cost-basis, and inventory-lot assumptions as futures/perpetual authority.
 The long claim-trace review-input, review-input store-requirement, store
 record-contract, store record-validation, and store record-validation
 remediation detail arrays are bounded representative readbacks. Their
@@ -1042,6 +1048,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `GET /api/v1/futures/account`
+- `GET /api/v1/futures/command-suite`
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
 - `GET /api/v1/spot/readiness`

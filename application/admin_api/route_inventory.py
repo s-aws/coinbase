@@ -758,6 +758,18 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/command-suite",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_futures_command_suite",
+        parity_test="read-only futures command contract matrix; no spot rules, command drafts, or live routes",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="GET /api/v1/futures/account",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "5141-5160",
+  "approved_phase_range": "5161-5180",
   "command_count": 7,
   "blocked_command_count": 7,
   "live_enabled_command_count": 0,
@@ -147,7 +147,7 @@ must still prove exact payload, approval, admission, cap/guard, idempotency,
 audit, lifecycle-write, manager-boundary, and reconciliation contracts before
 execution authority can exist.
 
-In the active 5141-5160 range, the stealth create exact command pre-execution contract binding
+In the completed 5141-5160 range, the stealth create exact command pre-execution contract binding
 work makes the exact dry
 `POST /api/v1/stealth/orders` command response also includes
 `selected_create_pre_execution_contract`. Command-response evidence sets

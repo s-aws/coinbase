@@ -12,6 +12,7 @@ orders.
 
 Current routes:
 
+- `GET /api/v1/futures/command-suite`
 - `GET /api/v1/futures/account`
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
@@ -32,6 +33,13 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   are evidence cells with explicit `status` and `source`.
 - Close/reduce order sides are backend-derived from observed position side.
   They are not exchange-observed reduce-only or close-only order flags.
+- `GET /api/v1/futures/command-suite` reports blocked M57 command-contract
+  evidence for placement, close/reduce, cancel, and reconciliation. It does
+  not register futures command routes, create command drafts, call Coinbase,
+  mutate state, or grant browser/BFF authority.
+- Spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
+  inventory-lot assumptions are explicitly forbidden as futures/perpetual
+  command authority.
 
 ## Sources
 

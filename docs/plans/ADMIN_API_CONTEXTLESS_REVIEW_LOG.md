@@ -1,5 +1,66 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Command-Suite Contract Foundation Review - Phases 5161-5180
+
+Scope: phases `5161-5180`, after completing the M55 exact
+stealth-create command-response binding in phases `5141-5160`. The active
+batch adds read-only futures/perpetual command-suite contract evidence for
+placement, close/reduce, cancel, and reconciliation. It must remain no-live
+and must not add futures command routes, command drafts, exchange placement or
+cancellation, reconciliation execution, Coinbase reads, local state mutation,
+or browser/BFF execution authority. The review must prove forbidden spot
+assumptions are explicit: spot wallet, no-shorting, USDC quote scope,
+average/cost-basis, and inventory-lot authority cannot govern futures or
+perpetual commands.
+
+- Initial status: active range advanced from completed phases `5141-5160`.
+- Completion evidence for prior range: backend `7161c202`, frontend
+  `e83cce3`, UI `http://127.0.0.1:3002/#stealth-orders`, screenshot
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5141-5160-exact-create-preexecution.png`,
+  live Coinbase submitted/executed notional `0` USDC.
+- Required blind/contextless review: a fresh reviewer must be able to explain
+  that `5141-5160` is completed history, that the current
+  futures/perpetual command-suite is backend-owned read evidence only, and
+  that forbidden spot assumptions do not provide command authority.
+
+Reviewer: blind/contextless subagent McClintock inspection, 2026-06-20.
+
+Result: PASS after remediation.
+
+- REMEDIATION: the blind/contextless reviewer initially failed the slice
+  because this top review entry still said the reviewer was pending while also
+  claiming pass. This entry now records the actual review result and keeps
+  `5141-5160` as completed history instead of current active work.
+- PASS: the reviewer could identify `GET /api/v1/futures/command-suite`,
+  `AdminFuturesCommandSuiteResponse`, and
+  `AdminApiReadService.build_futures_command_suite()` as the backend-owned
+  read path without chat context.
+- PASS: the reviewer found no futures command drafts, live Coinbase
+  execution, BFF/browser execution authority, or spot-specific trading-rule
+  leakage. The route remains read-only with command route count `0`, command
+  draft allowed count `0`, executable command count `0`, and submitted/executed
+  notional `0` USDC.
+- PASS: frontend wiring was traceable through
+  `BackendApiClient.getFuturesCommandSuite`,
+  `loadFuturesPerpetualsReadSnapshot`, `AdminShell`, and
+  `FuturesPerpetualsReadModel`.
+- Focused backend gates passed:
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_export_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_names_required_shared_methods_and_doc tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_and_openapi_paths_stay_in_sync tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch -v --tb=short`
+  and `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Focused frontend gates passed: `npm run typecheck`, `npm run api:check`,
+  focused Vitest client/runtime/mock tests, focused Vitest
+  Futures/AdminShell/quality tests, `npm run autonomous:check`,
+  `npm run release:check`, and `npm run deployment:check`.
+- UI smoke evidence: `C:\coinbase-frontend\output\playwright\ui-smoke-5161-5180-futures-command-suite.png`
+  captured from `http://127.0.0.1:3002/#futures-perpetuals` after waiting for
+  `Futures/Perpetuals Command-Suite Evidence`.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5161-5180` are ordinary
+  contract/read-model phase work; use `python tools/run_parallel_regression.py
+  --workers 4` only for milestone/release/deployment/Admin API closeout or
+  explicit request.
+
 ## M55 Stealth Create Exact Command Pre-Execution Contract Binding Review - Phases 5141-5160
 
 Scope: phases `5141-5160`, after completing selected-create planning/read
