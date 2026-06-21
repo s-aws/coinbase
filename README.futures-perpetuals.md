@@ -52,6 +52,11 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   counts, first blocker, next required backend contract, and explicit
   route/draft/execution false flags. The decision summarizes existing blocked
   evidence; it does not create a command route or approval.
+- Each command row also exposes ordered backend-owned readiness closure steps
+  for the remaining prerequisite, payload, semantic-guard, command-service,
+  route, live-adapter, and contextless-review work. These steps are planning
+  evidence only; they do not register a route, write proofs, call Coinbase, or
+  make the browser an execution authority.
 - Spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
   inventory-lot assumptions are explicitly forbidden as futures/perpetual
   command authority.
@@ -86,6 +91,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   remain blocked while backend command routes, drafts, live adapters, guard
   proof, admission audit, reconciliation proof, and service contracts are
   missing.
+- Do not treat command readiness closure steps as completed implementation.
+  They are an ordered backend-owned plan for future enablement slices and
+  remain blocked until implemented and reviewed through backend contracts.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

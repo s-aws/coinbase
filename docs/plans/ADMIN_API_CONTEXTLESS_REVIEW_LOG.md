@@ -1,5 +1,73 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Readiness Closure Plan Review - Phases 5261-5280
+
+Scope: phases `5261-5280`, after completing the M57 futures/perpetual
+readiness decision evidence in phases `5241-5260`. The active batch extends
+the existing read-only futures/perpetual command-suite with ordered
+`readiness_closure_steps` for every blocked command. The closure plan must be
+backend-owned, command-specific, and evidence only; it must not add command
+routes, command drafts, accepted payloads, proof writers, Coinbase reads or
+writes, reconciliation execution, state mutation, browser execution authority,
+BFF execution authority, or spot-only wallet, USDC, no-shorting, cost-basis,
+average-cost, or inventory-lot authority.
+
+- Initial status: active range advanced from completed phases `5241-5260`.
+- Completed history: phases `5241-5260` are completed history; the active
+  futures/perpetual command-suite readiness closure plan work is phases
+  `5261-5280`.
+- Required blind/contextless review: a fresh reviewer must be able to explain
+  the futures/perpetual command-suite route, command-specific readiness
+  decision blockers, semantic guards, ordered readiness closure steps,
+  backend service contracts, disabled route/draft/execution/proof-writer
+  posture, no-live posture, cancel `client_order_id` identity, and forbidden
+  spot assumptions without chat context.
+
+Reviewer: blind/contextless subagents Zeno, Bernoulli, and Dewey static
+inspection, 2026-06-21.
+
+Result: PASS after remediation.
+
+- REMEDIATION: the first contextless review found that each command reused the
+  same suite-level backend contract list, causing cancel/close/reconcile
+  closure steps to point at the placement service. The backend read service now
+  emits command-specific required/missing contracts and the regression test
+  asserts the first backend-service closure contract for `futures_place`,
+  `futures_close_reduce`, `futures_cancel`, and `futures_reconcile`.
+- REMEDIATION: the second contextless review found stale frontend component
+  fixture data, stale frontend capability-matrix wording, and an incomplete
+  backend example. Those were updated before the final review.
+- PASS: the final contextless review verified that
+  `GET /api/v1/futures/command-suite` remains GET-only read evidence and no
+  futures POST command route appeared in OpenAPI.
+- PASS: readiness closure steps are backend-owned and command-specific:
+  placement points first to `place_futures_order`, close/reduce points first
+  to `close_or_reduce_futures_position`, cancel points first to
+  `cancel_futures_order`, and reconciliation points first to
+  `record_futures_reconciliation_plan`.
+- PASS: futures cancel remains keyed by `client_order_id`; exchange `order_id`
+  is exchange evidence only and is not an internal command identity.
+- PASS: semantic guards, forbidden spot assumptions, and disabled authority
+  flags keep spot wallet, no-shorting, USDC quote scope, average/cost-basis,
+  and inventory-lot assumptions from becoming futures/perpetual authority.
+- Focused backend verification passed:
+  `python -m py_compile core\enums.py application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py tools\run_autonomous_work_queue_check.py`,
+  and
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules -v --tb=short`.
+- Frontend focused verification passed for generated API freshness, command
+  fetch guard, deployment readiness, typecheck, and the futures/mock/quality
+  unit subset.
+- UI smoke evidence:
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5261-5280-futures-closure-plan.png`
+  and
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5261-5280-futures-closure-plan-mobile.png`.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5261-5280` are ordinary
+  futures/perpetual command-suite contract phase work; use the full regression
+  gate only for durable milestone/release/backend-association closeout or
+  explicit request.
+
 ## M57 Futures/Perpetual Command Readiness Decision Review - Phases 5241-5260
 
 Scope: phases `5241-5260`, after completing the M57 futures/perpetual

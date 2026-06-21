@@ -25,6 +25,7 @@ from core.enums import (
     AdminFuturesCommandAction,
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
+    AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandSemanticGuard,
@@ -3988,6 +3989,31 @@ class AdminFuturesCommandReadinessDecisionItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandReadinessClosureStepItem(BaseModel):
+    """One backend-owned closure step for a blocked futures command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    step: AdminFuturesCommandReadinessClosureStep
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required_backend_contract: str | None = None
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandContractItem(BaseModel):
     """One planned futures/perpetual command contract row."""
 
@@ -4026,6 +4052,11 @@ class AdminFuturesCommandContractItem(BaseModel):
     missing_backend_contracts: list[str] = Field(default_factory=list)
     forbidden_spot_assumptions: list[str] = Field(default_factory=list)
     readiness_decision: AdminFuturesCommandReadinessDecisionItem
+    readiness_closure_step_count: int = Field(default=0, ge=0)
+    blocking_readiness_closure_step_count: int = Field(default=0, ge=0)
+    readiness_closure_steps: list[AdminFuturesCommandReadinessClosureStepItem] = (
+        Field(default_factory=list)
+    )
     command_route_registered: bool = False
     command_draft_allowed: bool = False
     execution_allowed: bool = False
@@ -4062,6 +4093,8 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     readiness_decision_count: int = Field(default=0, ge=0)
     blocked_readiness_decision_count: int = Field(default=0, ge=0)
     ready_readiness_decision_count: int = Field(default=0, ge=0)
+    readiness_closure_step_count: int = Field(default=0, ge=0)
+    blocking_readiness_closure_step_count: int = Field(default=0, ge=0)
     commands: list[AdminFuturesCommandContractItem] = Field(default_factory=list)
     account_evidence_routes: list[str] = Field(default_factory=list)
     position_evidence_routes: list[str] = Field(default_factory=list)

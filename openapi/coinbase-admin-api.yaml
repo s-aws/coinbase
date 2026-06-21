@@ -12565,6 +12565,21 @@ components:
           title: Forbidden Spot Assumptions
         readiness_decision:
           $ref: '#/components/schemas/AdminFuturesCommandReadinessDecisionItem'
+        readiness_closure_step_count:
+          type: integer
+          minimum: 0.0
+          title: Readiness Closure Step Count
+          default: 0
+        blocking_readiness_closure_step_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Readiness Closure Step Count
+          default: 0
+        readiness_closure_steps:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandReadinessClosureStepItem'
+          type: array
+          title: Readiness Closure Steps
         command_route_registered:
           type: boolean
           title: Command Route Registered
@@ -12710,6 +12725,98 @@ components:
       - detail
       title: AdminFuturesCommandPrerequisiteItem
       description: One backend-owned futures/perpetual command prerequisite row.
+    AdminFuturesCommandReadinessClosureStep:
+      type: string
+      enum:
+      - resolve_prerequisite_contracts
+      - define_request_payload_contract
+      - bind_semantic_guard_evidence
+      - define_backend_command_service
+      - register_admin_command_route
+      - bind_live_service_adapter
+      - run_contextless_review_gate
+      title: AdminFuturesCommandReadinessClosureStep
+      description: Ordered backend-owned closure steps for futures command readiness.
+    AdminFuturesCommandReadinessClosureStepItem:
+      properties:
+        step:
+          $ref: '#/components/schemas/AdminFuturesCommandReadinessClosureStep'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required_backend_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Contract
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - step
+      - sequence
+      - detail
+      title: AdminFuturesCommandReadinessClosureStepItem
+      description: One backend-owned closure step for a blocked futures command.
     AdminFuturesCommandReadinessDecision:
       type: string
       enum:
@@ -13113,6 +13220,16 @@ components:
           type: integer
           minimum: 0.0
           title: Ready Readiness Decision Count
+          default: 0
+        readiness_closure_step_count:
+          type: integer
+          minimum: 0.0
+          title: Readiness Closure Step Count
+          default: 0
+        blocking_readiness_closure_step_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Readiness Closure Step Count
           default: 0
         commands:
           items:

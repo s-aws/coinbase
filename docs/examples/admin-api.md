@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5241-5260",
+  "approved_phase_range": "5261-5280",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5241-5260",
+  "approved_phase_range": "5261-5280",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1883,7 +1883,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5241-5260",
+  "approved_phase_range": "5261-5280",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1899,6 +1899,8 @@ Expected command-suite posture:
   "readiness_decision_count": 4,
   "blocked_readiness_decision_count": 4,
   "ready_readiness_decision_count": 0,
+  "readiness_closure_step_count": 28,
+  "blocking_readiness_closure_step_count": 28,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -1914,6 +1916,12 @@ Expected command-suite posture:
   "executed_notional_usdc": "0"
 }
 ```
+
+Command rows include `readiness_closure_steps`, an ordered backend-owned plan
+for the remaining prerequisite, payload, semantic-guard, command-service,
+route, live-adapter, and contextless-review work. These rows are blocked
+evidence only. They do not register command routes, create drafts, write
+proofs, call Coinbase, execute reconciliation, or grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account

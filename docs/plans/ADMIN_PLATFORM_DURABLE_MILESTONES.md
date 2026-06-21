@@ -3179,12 +3179,15 @@ Current backend evidence:
   identity, risk, audit, reconciliation, and live-boundary blockers.
   Completed phases 5221-5240 link those semantic guards to backend evidence
   routes, missing proof refs, and disabled proof-writer posture while
-  preserving blocked/no-live/no-command-route authority. Active phases
+  preserving blocked/no-live/no-command-route authority. Completed phases
   5241-5260 add backend-owned command readiness decisions derived from the
   existing prerequisite, request-field, semantic-guard, evidence-route, and
   missing-contract rows without adding command routes, drafts, live adapters,
   Coinbase calls, browser authority, BFF execution authority, or spot-rule
-  authority.
+  authority. Active phases 5261-5280 add ordered backend-owned readiness
+  closure plans for each blocked futures/perpetual command so the remaining
+  route, service, adapter, evidence, and review work is explicit before any
+  later command-enable slice.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

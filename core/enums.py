@@ -1141,6 +1141,18 @@ class AdminFuturesCommandReadinessDecision(str, Enum):
     READY_FOR_BACKEND_COMMAND_ROUTE = "ready_for_backend_command_route"
 
 
+class AdminFuturesCommandReadinessClosureStep(str, Enum):
+    """Ordered backend-owned closure steps for futures command readiness."""
+
+    RESOLVE_PREREQUISITE_CONTRACTS = "resolve_prerequisite_contracts"
+    DEFINE_REQUEST_PAYLOAD_CONTRACT = "define_request_payload_contract"
+    BIND_SEMANTIC_GUARD_EVIDENCE = "bind_semantic_guard_evidence"
+    DEFINE_BACKEND_COMMAND_SERVICE = "define_backend_command_service"
+    REGISTER_ADMIN_COMMAND_ROUTE = "register_admin_command_route"
+    BIND_LIVE_SERVICE_ADAPTER = "bind_live_service_adapter"
+    RUN_CONTEXTLESS_REVIEW_GATE = "run_contextless_review_gate"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

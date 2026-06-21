@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5241-5260**.
+- Approved phase range: **5261-5280**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5221-5240`.
+- Previous completed range: `5241-5260`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5240`.
+- `current_phase`: `5260`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,129 +67,145 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5241-5260
+## Active Phases 5261-5280
 
-Batch label: Futures/Perpetuals Command Readiness Decision Evidence.
+Batch label: Futures/Perpetuals Readiness Closure Plan Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual
-command-suite route so each planned command exposes one backend-owned
-readiness decision derived from the existing prerequisites, request fields,
-semantic guards, evidence routes, and missing backend contracts. The concrete
-gap is that operators can see the component rows but still have to infer the
-current command-level blocker and next backend contract manually. The work
-must remain read-only and no-live: no futures command route, command draft,
-manager invocation, exchange order placement/cancellation, Coinbase read,
+command-suite route so each blocked planned command exposes an ordered
+backend-owned readiness closure plan derived from the existing readiness
+decision, prerequisites, request fields, semantic guards, evidence routes, and
+missing backend contracts. The concrete gap is that operators can now see a
+command-level readiness decision but still have to infer the exact backend
+work sequence required before future route enablement. The work must remain
+read-only and no-live: no futures command route, command draft, manager
+invocation, exchange order placement/cancellation, Coinbase read,
 reconciliation execution, state mutation, browser execution authority, or BFF
 execution authority. Spot wallet, no-shorting, USDC, cost-basis,
 average-cost, and inventory-lot rules remain explicitly forbidden as
 futures/perpetual authority.
 
-### Phase 5241 - Prior Range Completion Evidence
+### Phase 5261 - Prior Range Completion Evidence
 
-- Record completed phases 5221-5240 with backend commit `b92d3733`,
-  frontend commit `0026f55`, focused backend/frontend gates, no-live UI smoke
+- Record completed phases 5241-5260 with backend commit `da7011e9`,
+  frontend commit `19e7c00`, focused backend/frontend gates, no-live UI smoke
   screenshots
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes.png`
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5241-5260-futures-readiness-decision.png`
   and
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes-mobile.png`,
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5241-5260-futures-readiness-decision-mobile.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5242 - Advance Active Queue Range
+### Phase 5262 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5221-5240 to active phases
-  5241-5260 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5241-5260 to active phases
+  5261-5280 while preserving no-live defaults and cap policy.
 
-### Phase 5243 - Readiness Decision Contract Gap
+### Phase 5263 - Closure Plan Contract Gap
 
-- Document that command rows have component evidence but lack one
-  command-level backend readiness decision with blocker counts, first blocker,
-  and next required backend contract.
+- Document that readiness decisions need an ordered backend-owned closure plan
+  before any later command-route enablement can be reviewed.
 
-### Phase 5244 - Readiness Decision Enum
+### Phase 5264 - Closure Step Enum
 
-- Add enum-backed futures/perpetual command readiness decision values without
-  creating command routes or accepted payloads.
+- Add enum-backed futures/perpetual readiness closure step names without
+  creating command routes, accepted payloads, command drafts, or live adapters.
 
-### Phase 5245 - Readiness Decision Model
+### Phase 5265 - Closure Step Model
 
-- Add a nested readiness decision model to each command row and suite-level
-  readiness decision counts.
+- Add nested closure step rows to each futures/perpetual command and suite
+  closure-step counts.
 
-### Phase 5246 - Backend Decision Builder
+### Phase 5266 - Backend Closure Builder
 
-- Derive each readiness decision from the existing prerequisite, request
-  field, semantic guard, evidence-route, and missing-contract rows.
+- Derive closure steps from existing blocked prerequisites, blocked request
+  fields, semantic guard evidence gaps, and missing backend contracts.
 
-### Phase 5247 - Placement Decision Evidence
+### Phase 5267 - Placement Closure Evidence
 
-- Expose placement blocker counts, first blocker, missing evidence refs, and
-  next backend contract while keeping placement route/draft/execution false.
+- Expose placement closure steps for prerequisite, request-payload,
+  semantic-guard, backend-service, route, adapter, and contextless-review
+  work while keeping placement route/draft/execution false.
 
-### Phase 5248 - Close/Reduce Decision Evidence
+### Phase 5268 - Close/Reduce Closure Evidence
 
-- Expose close/reduce readiness evidence keyed by `position_key` and
-  reduce-only/close-only blockers without importing spot inventory rules.
+- Expose close/reduce closure steps keyed by `position_key` and
+  reduce-only/close-only contracts without importing spot inventory rules.
 
-### Phase 5249 - Cancel Decision Evidence
+### Phase 5269 - Cancel Closure Evidence
 
-- Expose cancel readiness evidence keyed by `client_order_id`; exchange
-  `order_id` remains exchange evidence only and not an internal identity.
+- Expose cancel closure steps keyed by `client_order_id`; exchange `order_id`
+  remains exchange evidence only and not an internal identity.
 
-### Phase 5250 - Reconciliation Decision Evidence
+### Phase 5270 - Reconciliation Closure Evidence
 
-- Expose reconciliation readiness evidence for position/margin/collateral
-  blockers without executing reconciliation or mutating local state.
+- Expose reconciliation closure steps for position, margin, collateral,
+  funding, and liquidation-aware repair contracts without executing
+  reconciliation or mutating state.
 
-### Phase 5251 - OpenAPI Sync
+### Phase 5271 - OpenAPI Sync
 
-- Regenerate the Admin API OpenAPI artifact and assert readiness decision
-  fields are present on the command-suite contract.
+- Regenerate the Admin API OpenAPI artifact and assert closure step fields are
+  present on the command-suite contract.
 
-### Phase 5252 - Backend Focused Regression
+### Phase 5272 - Backend Focused Regression
 
-- Run focused Admin API contract tests covering readiness decisions, no-live
+- Run focused Admin API contract tests covering closure steps, no-live
   posture, cancel identity discipline, and no spot-rule leakage.
 
-### Phase 5253 - Frontend Schema Sync
+### Phase 5273 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5254 - Frontend Adapter And Runtime Mapping
+### Phase 5274 - Frontend Adapter And Runtime Mapping
 
-- Map readiness decisions through the canonical backend adapter without
-  command drafts, feature-local fetches, or BFF mutation forwarding.
+- Map closure plans through the canonical backend adapter without command
+  drafts, feature-local fetches, or BFF mutation forwarding.
 
-### Phase 5255 - Mock Backend Fixture
+### Phase 5275 - Mock Backend Fixture
 
 - Update mock futures command-suite evidence so offline UI tests include
-  realistic blocked readiness decisions.
+  realistic blocked readiness closure plans.
 
-### Phase 5256 - Futures Read Model Display
+### Phase 5276 - Futures Read Model Display
 
-- Display readiness decision, blocker count, first blocker, and next backend
-  contract in the Futures / Perpetuals admin view with no command controls.
+- Display ordered closure steps in the Futures / Perpetuals admin view with
+  no command controls.
 
-### Phase 5257 - Frontend Coverage
+### Phase 5277 - Frontend Coverage
 
 - Add focused frontend assertions for generated type consumption, runtime
-  snapshot, mock backend, and read-model readiness-decision display.
+  snapshot, mock backend, and read-model closure-plan display.
 
-### Phase 5258 - Documentation And Examples
+### Phase 5278 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
-  handoff, and expanded context for the M57 readiness-decision slice.
+  handoff, and expanded context for the M57 closure-plan slice.
 
-### Phase 5259 - Contextless Review And Focused Gates
+### Phase 5279 - Contextless Review And Focused Gates
 
 - Run blind/contextless review, focused backend/frontend gates, autonomous
   validators, release/deployment checks, and no-live UI smoke. Full backend
   regression remains reserved for milestone/release closeout or explicit
   request.
 
-### Phase 5260 - Commit And Push
+### Phase 5280 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI URL, and the next M57 enablement step.
+
+## Completed Phases 5241-5260
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with backend-owned command readiness decisions derived from prerequisite,
+request-field, semantic-guard, evidence-route, and missing-contract rows. The
+range completed with backend commit `da7011e9`, frontend commit `19e7c00`,
+focused backend/frontend gates, blind/contextless review, UI smoke at
+`http://127.0.0.1:3002/#futures-perpetuals`, screenshots
+`C:\coinbase-frontend\output\playwright\ui-smoke-5241-5260-futures-readiness-decision.png`
+and
+`C:\coinbase-frontend\output\playwright\ui-smoke-5241-5260-futures-readiness-decision-mobile.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed Phases 5221-5240
 

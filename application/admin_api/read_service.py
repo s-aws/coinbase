@@ -22,6 +22,7 @@ from core.enums import (
     AdminFuturesCommandAction,
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
+    AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandSemanticGuard,
@@ -102,6 +103,7 @@ from .models import (
     AdminFuturesAccountReadResponse,
     AdminFuturesCommandContractItem,
     AdminFuturesCommandPrerequisiteItem,
+    AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
     AdminFuturesCommandSemanticGuardItem,
@@ -337,7 +339,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5241-5260"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5261-5280"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -19862,6 +19864,26 @@ class AdminApiReadService:
             "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         ]
+        command_backend_contracts = {
+            AdminFuturesCommandAction.PLACE: [
+                "application/admin_api/futures_command_service.py::place_futures_order",
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            ],
+            AdminFuturesCommandAction.CLOSE_REDUCE: [
+                "application/admin_api/futures_command_service.py::close_or_reduce_futures_position",
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            ],
+            AdminFuturesCommandAction.CANCEL: [
+                "application/admin_api/futures_command_service.py::cancel_futures_order",
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            ],
+            AdminFuturesCommandAction.RECONCILE: [
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+            ],
+        }
         product_scope_evidence_routes = [
             AdminFuturesCommandEvidenceRoute.FUTURES_ACCOUNT,
             AdminFuturesCommandEvidenceRoute.FUTURES_POSITIONS,
@@ -20675,6 +20697,133 @@ class AdminApiReadService:
                 ),
             )
 
+        def readiness_closure_steps(
+            command_id: AdminFuturesCommandAction,
+            *,
+            prerequisites: list[AdminFuturesCommandPrerequisiteItem],
+            request_fields: list[AdminFuturesCommandRequestFieldItem],
+            semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
+            missing_backend_contracts: list[str],
+        ) -> list[AdminFuturesCommandReadinessClosureStepItem]:
+            blocking_prerequisites = [
+                item for item in prerequisites if item.blocking
+            ]
+            blocking_request_fields = [
+                item
+                for item in request_fields
+                if item.status != AdminApiGateStatus.PASSED
+            ]
+            blocking_semantic_guards = [
+                item
+                for item in semantic_guards
+                if item.status != AdminApiGateStatus.PASSED
+            ]
+            missing_evidence_refs = sorted(
+                {
+                    evidence_ref
+                    for guard in semantic_guards
+                    for evidence_ref in guard.missing_evidence_refs
+                }
+            )
+            rows: list[AdminFuturesCommandReadinessClosureStepItem] = []
+
+            def add_step(
+                step: AdminFuturesCommandReadinessClosureStep,
+                *,
+                detail: str,
+                required_backend_contract: str | None = None,
+                required_evidence_refs: list[str] | None = None,
+            ) -> None:
+                refs = required_evidence_refs or []
+                rows.append(
+                    AdminFuturesCommandReadinessClosureStepItem(
+                        step=step,
+                        sequence=len(rows) + 1,
+                        required_backend_contract=required_backend_contract,
+                        required_evidence_refs=refs,
+                        required_evidence_count=len(refs),
+                        detail=detail,
+                    )
+                )
+
+            if blocking_prerequisites:
+                add_step(
+                    AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS,
+                    required_evidence_refs=[
+                        item.prerequisite.value for item in blocking_prerequisites
+                    ],
+                    detail=(
+                        f"{command_id.value} must resolve futures/perpetual "
+                        "prerequisite contracts through backend evidence before "
+                        "any route or draft exists."
+                    ),
+                )
+            if blocking_request_fields:
+                add_step(
+                    AdminFuturesCommandReadinessClosureStep.DEFINE_REQUEST_PAYLOAD_CONTRACT,
+                    required_evidence_refs=[
+                        item.field.value for item in blocking_request_fields
+                    ],
+                    detail=(
+                        f"{command_id.value} must define backend-owned request "
+                        "payload fields; the browser cannot turn these evidence "
+                        "fields into accepted command payloads."
+                    ),
+                )
+            if blocking_semantic_guards or missing_evidence_refs:
+                add_step(
+                    AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE,
+                    required_evidence_refs=missing_evidence_refs
+                    or [item.semantic_guard.value for item in blocking_semantic_guards],
+                    detail=(
+                        f"{command_id.value} must bind semantic guards to "
+                        "backend-owned proof routes and writers before any "
+                        "futures/perpetual command can be considered."
+                    ),
+                )
+            if missing_backend_contracts:
+                add_step(
+                    AdminFuturesCommandReadinessClosureStep.DEFINE_BACKEND_COMMAND_SERVICE,
+                    required_backend_contract=missing_backend_contracts[0],
+                    required_evidence_refs=missing_backend_contracts,
+                    detail=(
+                        f"{command_id.value} requires a shared backend command "
+                        "service contract. Route-local or browser execution "
+                        "would be a parallel implementation."
+                    ),
+                )
+            add_step(
+                AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE,
+                required_backend_contract=(
+                    f"api/v1/routes/futures.py::{command_id.value}_route_contract"
+                ),
+                detail=(
+                    f"{command_id.value} has no Admin API command route. A route "
+                    "can be registered only after backend service, guard, audit, "
+                    "and reconciliation contracts exist."
+                ),
+            )
+            add_step(
+                AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER,
+                required_backend_contract=(
+                    f"application/admin_api/live_execution.py::{command_id.value}_adapter_contract"
+                ),
+                detail=(
+                    f"{command_id.value} has no live service adapter. This row "
+                    "does not configure or call Coinbase and does not enable "
+                    "execution."
+                ),
+            )
+            add_step(
+                AdminFuturesCommandReadinessClosureStep.RUN_CONTEXTLESS_REVIEW_GATE,
+                detail=(
+                    f"{command_id.value} must pass focused gates and "
+                    "blind/contextless review before any future command "
+                    "enablement slice can advance."
+                ),
+            )
+            return rows
+
         def command(
             command_id: AdminFuturesCommandAction,
             *,
@@ -20687,7 +20836,14 @@ class AdminApiReadService:
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
-            missing_backend_contracts = list(backend_contracts)
+            missing_backend_contracts = list(command_backend_contracts[command_id])
+            closure_steps = readiness_closure_steps(
+                command_id,
+                prerequisites=prerequisites,
+                request_fields=request_fields,
+                semantic_guards=semantic_guards,
+                missing_backend_contracts=missing_backend_contracts,
+            )
             return AdminFuturesCommandContractItem(
                 command=command_id,
                 action_class=action_class,
@@ -20724,7 +20880,7 @@ class AdminApiReadService:
                     1 for item in semantic_guards if item.risk_semantic
                 ),
                 semantic_guards=semantic_guards,
-                required_backend_contracts=backend_contracts,
+                required_backend_contracts=missing_backend_contracts,
                 missing_backend_contracts=missing_backend_contracts,
                 forbidden_spot_assumptions=forbidden_spot_assumptions,
                 readiness_decision=readiness_decision(
@@ -20734,6 +20890,11 @@ class AdminApiReadService:
                     semantic_guards=semantic_guards,
                     missing_backend_contracts=missing_backend_contracts,
                 ),
+                readiness_closure_step_count=len(closure_steps),
+                blocking_readiness_closure_step_count=sum(
+                    1 for item in closure_steps if item.blocking
+                ),
+                readiness_closure_steps=closure_steps,
                 detail=detail,
             )
 
@@ -20821,6 +20982,13 @@ class AdminApiReadService:
             ),
             ready_readiness_decision_count=sum(
                 1 for command in commands if command.readiness_decision.ready
+            ),
+            readiness_closure_step_count=sum(
+                command.readiness_closure_step_count for command in commands
+            ),
+            blocking_readiness_closure_step_count=sum(
+                command.blocking_readiness_closure_step_count
+                for command in commands
             ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],
