@@ -140,6 +140,11 @@ deployment approval/closeout, release-hardening closeout, Admin API/backend
 association closeout, or explicit user request. The canonical closeout command
 is the process-parallel helper; use the sequential pytest command only as an
 intentional fallback when `pytest-xdist` is unavailable.
+The helper validates serial-lane classification before running pytest. Mark
+regression files `pytest.mark.serial` when they touch shared DB cursors, fixed
+service ports, process-global state, or other process-shared resources. If the
+static classifier reports a false positive, add a `parallel-regression:
+serial-safe` comment with the reason.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell

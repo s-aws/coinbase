@@ -82,6 +82,13 @@ browser, BFF, and notional evidence fields.
   checks, and required remediation actions, but they do not create stores,
   register validators, create remediation work items, perform remediation,
   write proof records, accept evidence, or make a command executable.
+- Each risk proof requirement also exposes backend-owned record-validation
+  remediation dependency rows. These rows order blocked remediation rows with
+  predecessor/successor refs, dependency gates, missing backend contracts,
+  required evidence refs, and blocker lists. They do not resolve
+  dependencies, create dependency work items, perform remediation, accept
+  proof records, register routes, enable writers, or make commands
+  executable.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -134,11 +141,12 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   They are blocked acceptance checks that name what a later backend-owned
   proof route and proof writer must satisfy; they do not enable routes,
   drafts, proof writers, live adapters, browser execution, or BFF execution.
-- Do not treat risk proof record/store contracts, record-validation rows, or
-  record-validation remediation rows as registered stores, registered
-  validators, created work items, performed remediation, proof writes,
-  accepted proof evidence, or command authority. They are blocked backend
-  contract evidence for future work only.
+- Do not treat risk proof record/store contracts, record-validation rows,
+  record-validation remediation rows, or record-validation remediation
+  dependency rows as registered stores, registered validators, created work
+  items, resolved dependencies, performed remediation, proof writes, accepted
+  proof evidence, or command authority. They are blocked backend contract
+  evidence for future work only.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

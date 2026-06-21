@@ -4,9 +4,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from tools.run_parallel_regression import (
+    SERIAL_SAFE_COMMENT,
     SUMMARY_PREFIX,
     build_commands,
     build_parser,
+    find_serial_classification_findings,
     main,
 )
 
@@ -166,6 +168,70 @@ def test_parallel_regression_runner_dry_run_does_not_require_xdist(capsys):
     assert "-n 2" in captured.out
     assert "serial_regression:" in captured.out
     assert SUMMARY_PREFIX in captured.out
+
+
+def test_serial_classification_detects_default_db_cursor_without_marker(tmp_path):
+    test_file = tmp_path / "test_needs_serial.py"
+    test_file.write_text(
+        "\n".join(
+            [
+                "from database.database import PostgresDB",
+                "",
+                "def test_cursor_path():",
+                "    db = PostgresDB()",
+                "    with db.get_cursor():",
+                "        pass",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    findings = find_serial_classification_findings(tmp_path)
+
+    assert len(findings) == 1
+    assert findings[0].path == test_file
+    assert "default PostgresDB cursor" in findings[0].reason
+
+
+def test_serial_classification_accepts_serial_marker(tmp_path):
+    test_file = tmp_path / "test_serial_marker.py"
+    test_file.write_text(
+        "\n".join(
+            [
+                "import pytest",
+                "from database.database import PostgresDB",
+                "",
+                "pytestmark = [pytest.mark.regression, pytest.mark.serial]",
+                "",
+                "def test_cursor_path():",
+                "    db = PostgresDB()",
+                "    with db.get_cursor():",
+                "        pass",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert find_serial_classification_findings(tmp_path) == []
+
+
+def test_serial_classification_accepts_documented_safe_comment(tmp_path):
+    test_file = tmp_path / "test_documented_safe.py"
+    test_file.write_text(
+        "\n".join(
+            [
+                f"# {SERIAL_SAFE_COMMENT}: binds only an ephemeral mock socket.",
+                "import socket",
+                "",
+                "def test_ephemeral_socket():",
+                "    sock = socket.socket()",
+                "    sock.bind(('127.0.0.1', 0))",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert find_serial_classification_findings(tmp_path) == []
 
 
 def test_parallel_regression_runner_creates_lane_basetemp_dirs(

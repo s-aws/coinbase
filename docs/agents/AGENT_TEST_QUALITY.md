@@ -40,5 +40,14 @@ python tools/run_parallel_regression.py --workers 4
 
 Increase workers only after the split lane has passed locally. Tests that
 create fixed database tables, touch fixed files, or depend on process-global
-state must carry the `serial` marker.
+state must carry the `serial` marker. The runner validates this classification
+before invoking pytest. To run only the fast classification preflight:
+
+```powershell
+python tools/run_parallel_regression.py --check-serial-classification-only
+```
+
+Use `# parallel-regression: serial-safe: <reason>` only when the static
+classifier reports a false positive and the file is safe for the process
+parallel lane.
 

@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5401-5420",
+  "approved_phase_range": "5421-5440",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5401-5420",
+  "approved_phase_range": "5421-5440",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1889,7 +1889,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5401-5420",
+  "approved_phase_range": "5421-5440",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1928,6 +1928,9 @@ Expected command-suite posture:
   "risk_proof_record_validation_remediation_count": 120,
   "blocking_risk_proof_record_validation_remediation_count": 120,
   "ready_risk_proof_record_validation_remediation_count": 0,
+  "risk_proof_record_validation_remediation_dependency_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -1976,11 +1979,20 @@ linking, record-validator registration, and contextless review. Remediation
 rows remain blocked with `remediation_work_item_created=false`,
 `remediation_ready=false`, and `remediation_performed=false`.
 Each proof also includes
+`"record_validation_remediation_dependencies"` for the blocked backend-owned
+dependency work that orders each remediation row against its immediate
+predecessor and successor remediation rows. Dependency rows name dependency
+gates, required backend contracts, required evidence refs, dependency
+actions, and dependency blockers. They remain blocked with
+`dependency_work_item_created=false`, `dependency_ready=false`,
+`dependency_resolved=false`, and `dependency_performed=false`.
+Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
 review. These rows are blocked evidence only. They do not register command
-routes, create drafts, validate payloads, write proofs, enable writers, create
-remediation work items, perform remediation, call Coinbase, execute
+routes, create drafts, validate payloads, write proofs, enable writers,
+resolve dependencies, create remediation or dependency work items, perform
+remediation, call Coinbase, execute
 reconciliation, or grant browser/BFF authority.
 
 ```http

@@ -71,3 +71,8 @@ python tools/run_parallel_regression.py --workers 4
 
 Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
 fallback when `pytest-xdist` is unavailable.
+
+The parallel runner validates serial-lane classification before running pytest.
+Shared DB cursor, fixed service port, process-global state, and other
+process-shared regression tests must be marked `pytest.mark.serial`; documented
+false positives use `parallel-regression: serial-safe`.

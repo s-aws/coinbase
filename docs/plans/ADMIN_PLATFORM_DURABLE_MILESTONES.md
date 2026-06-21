@@ -3199,10 +3199,14 @@ Current backend evidence:
   contract rows, completed phases 5341-5360 add blocked proof payload field
   rows, completed phases 5361-5380 add blocked proof record/store contract
   rows, and completed phases 5381-5400 add blocked proof record-validation
-  rows. Active phases 5401-5420 add blocked proof record-validation
+  rows. Completed phases 5401-5420 add blocked proof record-validation
   remediation rows so later validator-readiness work names required backend
   remediation actions, evidence refs, owner, and disabled work-item/remediate
   posture before any command-route or proof-writer enablement can be reviewed.
+  Active phases 5421-5440 add blocked remediation dependency rows so later
+  work-item, validator-ready, proof-writer, acceptance, or command-route
+  enablement work can see the ordered predecessor/successor dependency chain
+  that must remain unresolved until backend-owned evidence exists.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

@@ -26240,7 +26240,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26467,7 +26467,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26707,7 +26707,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -26966,7 +26966,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -27191,7 +27191,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -28096,7 +28096,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31286,7 +31286,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -31501,7 +31501,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "5401-5420"
+    assert readback_payload["approved_phase_range"] == "5421-5440"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -34743,7 +34743,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "5401-5420"
+    assert payload["approved_phase_range"] == "5421-5440"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -41804,7 +41804,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "5401-5420"
+    assert live_payload["approved_phase_range"] == "5421-5440"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -42462,7 +42462,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "5401-5420"
+    assert enterprise_payload["approved_phase_range"] == "5421-5440"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -43237,7 +43237,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "5401-5420"
+    assert recovery_preview_payload["approved_phase_range"] == "5421-5440"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -43323,7 +43323,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "5401-5420"
+    assert futures_command_suite_fixture["approved_phase_range"] == "5421-5440"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 0
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
@@ -46526,7 +46526,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5401-5420",
+            "approved_phase_range": "5421-5440",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -46841,7 +46841,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5401-5420"
+    assert command_suite["approved_phase_range"] == "5421-5440"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -46997,7 +46997,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5401-5420"
+    assert command_suite.approved_phase_range == "5421-5440"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -47035,6 +47035,12 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.risk_proof_record_validation_remediation_count == 120
     assert command_suite.blocking_risk_proof_record_validation_remediation_count == 120
     assert command_suite.ready_risk_proof_record_validation_remediation_count == 0
+    assert command_suite.risk_proof_record_validation_remediation_dependency_count == 120
+    assert (
+        command_suite.blocking_risk_proof_record_validation_remediation_dependency_count
+        == 120
+    )
+    assert command_suite.ready_risk_proof_record_validation_remediation_dependency_count == 0
     assert command_suite.risk_proof_acceptance_criterion_count == 100
     assert command_suite.blocking_risk_proof_acceptance_criterion_count == 100
     assert command_suite.accepted_risk_proof_acceptance_criterion_count == 0
@@ -47162,6 +47168,17 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             len(expected_risk_proof_kinds[command_id]) * 6
         )
         assert command_item.ready_risk_proof_record_validation_remediation_count == 0
+        assert command_item.risk_proof_record_validation_remediation_dependency_count == (
+            len(expected_risk_proof_kinds[command_id]) * 6
+        )
+        assert (
+            command_item.blocking_risk_proof_record_validation_remediation_dependency_count
+            == len(expected_risk_proof_kinds[command_id]) * 6
+        )
+        assert (
+            command_item.ready_risk_proof_record_validation_remediation_dependency_count
+            == 0
+        )
         assert command_item.blocking_risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -47194,6 +47211,9 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             and item.record_validation_remediation_count == 6
             and item.blocking_record_validation_remediation_count == 6
             and item.ready_record_validation_remediation_count == 0
+            and item.record_validation_remediation_dependency_count == 6
+            and item.blocking_record_validation_remediation_dependency_count == 6
+            and item.ready_record_validation_remediation_dependency_count == 0
             and item.acceptance_criterion_count == 5
             and item.blocking_acceptance_criterion_count == 5
             and item.accepted_acceptance_criterion_count == 0
@@ -47502,6 +47522,135 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                 and remediation.browser_authority == "display_only"
                 and remediation.bff_authority == "forward_only_no_execution"
                 for remediation in item.record_validation_remediations
+            )
+            assert [
+                dependency.sequence
+                for dependency in item.record_validation_remediation_dependencies
+            ] == list(range(1, 7))
+            assert [
+                dependency.contract_kind.value
+                for dependency in item.record_validation_remediation_dependencies
+            ] == [
+                "store_schema",
+                "append_only_log",
+                "idempotency_binding",
+                "payload_validation_gate",
+                "replay_guard",
+                "audit_link",
+            ]
+            assert [
+                dependency.remediation_dependency_ref
+                for dependency in item.record_validation_remediation_dependencies
+            ] == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.store_schema",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.append_only_log",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.idempotency_binding",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.payload_validation_gate",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.replay_guard",
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.audit_link",
+            ]
+            assert (
+                item.record_validation_remediation_dependencies[0]
+                .predecessor_remediation_refs
+                == []
+            )
+            assert item.record_validation_remediation_dependencies[
+                -1
+            ].successor_remediation_refs == []
+            assert item.record_validation_remediation_dependencies[
+                1
+            ].predecessor_remediation_refs == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation.store_schema"
+            ]
+            assert item.record_validation_remediation_dependencies[
+                1
+            ].predecessor_dependency_refs == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.store_schema"
+            ]
+            assert item.record_validation_remediation_dependencies[
+                0
+            ].successor_remediation_refs == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation.append_only_log"
+            ]
+            assert item.record_validation_remediation_dependencies[
+                0
+            ].successor_dependency_refs == [
+                f"{command_id}.{item.proof_kind.value}.record_validation_remediation_dependency.append_only_log"
+            ]
+            assert all(
+                dependency.status.value == "blocked"
+                and dependency.blocking is True
+                and dependency.record_validation_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    f"record_validation.{dependency.contract_kind.value}"
+                )
+                and dependency.record_contract_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    f"record_contract.{dependency.contract_kind.value}"
+                )
+                and dependency.remediation_ref
+                == (
+                    f"{command_id}.{item.proof_kind.value}."
+                    f"record_validation_remediation.{dependency.contract_kind.value}"
+                )
+                and dependency.required_backend_contract
+                == (
+                    "application/admin_api/"
+                    "futures_proof_validation_remediation_dependency.py::"
+                    f"{command_id}_{item.proof_kind.value}_"
+                    f"{dependency.contract_kind.value}_"
+                    "record_validation_remediation_dependency"
+                )
+                and dependency.required_store_ref
+                == f"futures_proof_records.{command_id}.{item.proof_kind.value}"
+                and dependency.required_record_key
+                == (
+                    f"proof_record.{command_id}.{item.proof_kind.value}."
+                    f"{command_item.identity_key}.idempotency_key.correlation_id"
+                )
+                and dependency.dependency_actions
+                == [
+                    "register_record_contract",
+                    "create_store_schema",
+                    "configure_append_only_log",
+                    "bind_idempotency",
+                    "register_payload_validation",
+                    "register_replay_guard",
+                    "link_audit_evidence",
+                    "register_record_validator",
+                    "run_contextless_review",
+                ]
+                and dependency.dependency_blockers
+                == [
+                    "record_contract_missing",
+                    "store_schema_missing",
+                    "append_only_log_missing",
+                    "idempotency_binding_missing",
+                    "payload_validation_missing",
+                    "replay_guard_missing",
+                    "audit_link_missing",
+                    "record_validator_missing",
+                    "contextless_review_missing",
+                ]
+                and dependency.dependency_work_item_created is False
+                and dependency.dependency_ready is False
+                and dependency.dependency_resolved is False
+                and dependency.dependency_performed is False
+                and dependency.remediation_ready is False
+                and dependency.remediation_performed is False
+                and dependency.record_validation_ready is False
+                and dependency.proof_record_accepted is False
+                and dependency.command_route_registered is False
+                and dependency.command_draft_allowed is False
+                and dependency.execution_allowed is False
+                and dependency.proof_route_registered is False
+                and dependency.proof_writer_enabled is False
+                and dependency.spot_rule_authority is False
+                and dependency.browser_authority == "display_only"
+                and dependency.bff_authority == "forward_only_no_execution"
+                for dependency in item.record_validation_remediation_dependencies
             )
             assert [criterion.sequence for criterion in item.acceptance_criteria] == [
                 1,

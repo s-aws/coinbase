@@ -1224,6 +1224,23 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationAction(str, Enum):
     RUN_CONTEXTLESS_REVIEW = "run_contextless_review"
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyBlocker(
+    str,
+    Enum,
+):
+    """Blocked dependency reasons before futures proof remediation can proceed."""
+
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    STORE_SCHEMA_MISSING = "store_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_BINDING_MISSING = "idempotency_binding_missing"
+    PAYLOAD_VALIDATION_MISSING = "payload_validation_missing"
+    REPLAY_GUARD_MISSING = "replay_guard_missing"
+    AUDIT_LINK_MISSING = "audit_link_missing"
+    RECORD_VALIDATOR_MISSING = "record_validator_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

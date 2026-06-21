@@ -38,6 +38,11 @@ Before deploying any changes to the platform (architectural changes, new feature
   - Requires pytest-xdist for the process-parallel lane; if pytest-xdist is
     unavailable, install the test dependencies or deliberately run the
     sequential closeout fallback: `pytest tests/regression/ -v --tb=short`
+  - The runner validates serial-lane classification before pytest. Regression
+    files touching shared DB cursors, fixed service ports, process-global
+    state, or process-shared resources must use `pytest.mark.serial`; false
+    positives require a documented `parallel-regression: serial-safe` comment.
+  - Optional fast preflight: `python tools/run_parallel_regression.py --check-serial-classification-only`
   - Must pass before the milestone/release/deployment is considered complete
 
 ## Phase 5: Full Test Suite

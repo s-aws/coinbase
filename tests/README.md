@@ -39,6 +39,18 @@ The helper runs tests marked `serial` in a separate sequential lane and runs
 the remaining regression tests with pytest-xdist process workers. Do not use
 Python threads to parallelize this suite.
 
+The helper first validates serial-lane classification. Regression files that
+touch shared DB cursors, fixed service ports, process-global state, or other
+process-shared resources must use `pytest.mark.serial`. When the static
+classifier is too conservative, add `# parallel-regression: serial-safe:
+<reason>` to the file.
+
+Fast classification preflight:
+
+```bash
+python tools/run_parallel_regression.py --check-serial-classification-only
+```
+
 ### Run All Tests
 ```bash
 pytest tests/ -v
@@ -219,6 +231,8 @@ candidate handoff, deployment approval, or explicit user request.
 - Must pass 100% before milestone closeout or release/deployment handoff
 - Process-parallel closeout is faster than the sequential fallback, but
   duration depends on local machine capacity and current suite size
+- The closeout runner fails before pytest when regression files need serial
+  classification
 - No external API calls (all mocked)
 - Cover high-value functionality that users depend on
 

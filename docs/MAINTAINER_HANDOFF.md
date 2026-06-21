@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5381-5400` under M57.
-- Active autonomous range: `5401-5420` under M57.
+- Latest completed autonomous range: `5401-5420` under M57.
+- Active autonomous range: `5421-5440` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -588,13 +588,20 @@ notional, retained inventory, reconciliation result, and audit ids.
   gates, replay gates, and missing readiness required before any proof
   evidence could be accepted, while still adding no registered validators,
   accepted proof records, command drafts, Coinbase calls, state mutation,
-  browser authority, or BFF execution authority. Active 5401-5420 work adds
+  browser authority, or BFF execution authority. Completed 5401-5420 work adds
   blocked proof record-validation remediation rows over those validations so
   future validator-readiness work names the required backend remediation
   actions, evidence refs, owner, and disabled remediation/work-item posture
   while still adding no remediation execution, work-item creation, registered
   validators, accepted proof records, command drafts, Coinbase calls, state
-  mutation, browser authority, or BFF execution authority.
+  mutation, browser authority, or BFF execution authority. Active 5421-5440
+  work adds blocked proof record-validation remediation dependency rows over
+  those remediation rows so future dependency-readiness work names predecessor
+  and successor refs, dependency gates, missing backend contracts, required
+  evidence refs, owner, and disabled dependency/work-item posture while still
+  adding no dependency resolution, remediation execution, work-item creation,
+  registered validators, accepted proof records, command drafts, Coinbase
+  calls, state mutation, browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary
