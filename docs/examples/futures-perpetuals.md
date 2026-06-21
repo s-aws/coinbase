@@ -11,9 +11,9 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5201-5220 range adds read-only M57 futures/perpetual semantic guard
-contract metadata to the existing command-suite evidence. It is not a command
-route and does not make command drafts available.
+The active 5221-5240 range adds read-only M57 futures/perpetual semantic guard
+evidence-route linkage to the existing command-suite evidence. It is not a
+command route, proof writer, or command draft surface.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -28,7 +28,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5201-5220",
+  "approved_phase_range": "5221-5240",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -91,6 +91,18 @@ Expected response posture:
         {
           "semantic_guard": "product_scope",
           "status": "blocked",
+          "evidence_routes": [
+            "/api/v1/futures/account",
+            "/api/v1/futures/positions"
+          ],
+          "evidence_route_count": 2,
+          "missing_evidence_refs": [
+            "futures_product_scope_readback",
+            "futures_command_product_scope_contract"
+          ],
+          "missing_evidence_count": 2,
+          "proof_route_registered": false,
+          "proof_writer_enabled": false,
           "identity_semantic": true,
           "risk_semantic": false,
           "spot_rule_authority": false,
@@ -99,6 +111,18 @@ Expected response posture:
         {
           "semantic_guard": "margin_collateral",
           "status": "blocked",
+          "evidence_routes": [
+            "/api/v1/futures/account",
+            "/api/v1/admin/cap-guard/decisions"
+          ],
+          "evidence_route_count": 2,
+          "missing_evidence_refs": [
+            "futures_margin_collateral_risk_contract",
+            "futures_cap_guard_margin_collateral_link"
+          ],
+          "missing_evidence_count": 2,
+          "proof_route_registered": false,
+          "proof_writer_enabled": false,
           "identity_semantic": false,
           "risk_semantic": true,
           "spot_rule_authority": false,
@@ -107,6 +131,20 @@ Expected response posture:
         {
           "semantic_guard": "live_execution_boundary",
           "status": "blocked",
+          "evidence_routes": [
+            "/api/v1/admin/live-enablement",
+            "/api/v1/admin/live-execution/service-decisions",
+            "/api/v1/admin/live-execution/adapter-decisions"
+          ],
+          "evidence_route_count": 3,
+          "missing_evidence_refs": [
+            "futures_live_enablement_precondition_contract",
+            "futures_live_service_decision_contract",
+            "futures_live_adapter_decision_contract"
+          ],
+          "missing_evidence_count": 3,
+          "proof_route_registered": false,
+          "proof_writer_enabled": false,
           "execution_semantic": true,
           "spot_rule_authority": false,
           "browser_authority": "display_only",

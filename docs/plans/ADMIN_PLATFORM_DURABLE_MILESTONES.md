@@ -3175,8 +3175,10 @@ Current backend evidence:
   Completed phases 5181-5200 extend that same futures/perpetual command-suite
   route with backend-owned request-field metadata while keeping every field
   blocked, read-only, no-live, and non-authoritative for browser/BFF command
-  execution. Active phases 5201-5220 add semantic guard metadata for identity,
-  risk, audit, reconciliation, and live-boundary blockers while preserving
+  execution. Completed phases 5201-5220 add semantic guard metadata for
+  identity, risk, audit, reconciliation, and live-boundary blockers. Active
+  phases 5221-5240 link those semantic guards to backend evidence routes,
+  missing proof refs, and disabled proof-writer posture while preserving
   blocked/no-live/no-command-route authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state

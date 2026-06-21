@@ -23,6 +23,7 @@ from core.enums import (
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
     AdminFuturesCommandAction,
+    AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandSemanticGuard,
@@ -3930,11 +3931,25 @@ class AdminFuturesCommandSemanticGuardItem(BaseModel):
     applies_to_fields: list[AdminFuturesCommandRequestField] = Field(
         default_factory=list
     )
+    evidence_routes: list[AdminFuturesCommandEvidenceRoute] = Field(
+        default_factory=list
+    )
+    evidence_route_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
     required: bool = True
     identity_semantic: bool = False
     risk_semantic: bool = False
     audit_semantic: bool = False
     execution_semantic: bool = False
+    evidence_backend_owned: bool = True
+    evidence_read_only: bool = True
+    proof_route_required: bool = True
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    proof_evidence_only: bool = True
     backend_owned: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"

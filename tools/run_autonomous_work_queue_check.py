@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5201-5220"
-APPROVED_PHASES = tuple(range(5201, 5221))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5181-5200"
+APPROVED_PHASE_RANGE = "5221-5240"
+APPROVED_PHASES = tuple(range(5221, 5241))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5201-5220"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -213,6 +213,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             f"active {APPROVED_PHASE_RANGE} range",
             "GET /api/v1/futures/command-suite",
             '"semantic_guards"',
+            '"evidence_routes"',
+            '"missing_evidence_refs"',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
             '"futures_cancel"',
@@ -242,6 +244,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5161-5180"',
         "active 5181-5200 range",
         '"approved_phase_range": "5181-5200"',
+        "active 5201-5220 range",
+        '"approved_phase_range": "5201-5220"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -413,6 +417,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5141-5160`",
         "Active `5161-5180`",
         "Active `5181-5200`",
+        "Active `5201-5220`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
@@ -420,6 +425,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "complete active phases `5141-5160`",
         "complete active phases `5161-5180`",
         "complete active phases `5181-5200`",
+        "complete active phases `5201-5220`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
@@ -427,6 +433,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "current active range is `5141-5160`",
         "current active range is `5161-5180`",
         "current active range is `5181-5200`",
+        "current active range is `5201-5220`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
@@ -434,6 +441,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `5141-5160`",
         "Active autonomous range: `5161-5180`",
         "Active autonomous range: `5181-5200`",
+        "Active autonomous range: `5201-5220`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]

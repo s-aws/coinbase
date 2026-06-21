@@ -1118,6 +1118,22 @@ class AdminFuturesCommandSemanticGuard(str, Enum):
     LIVE_EXECUTION_BOUNDARY = "live_execution_boundary"
 
 
+class AdminFuturesCommandEvidenceRoute(str, Enum):
+    """Backend evidence routes that support futures/perpetual command guards."""
+
+    FUTURES_ACCOUNT = "/api/v1/futures/account"
+    FUTURES_POSITIONS = "/api/v1/futures/positions"
+    FUTURES_POSITION_DETAIL = "/api/v1/futures/positions/{position_key}"
+    ADMIN_APPROVALS = "/api/v1/admin/approvals"
+    ADMIN_APPROVAL_REQUEST = "/api/v1/admin/approvals/requests/{approval_request_id}"
+    ADMIN_ADMISSION_AUDITS = "/api/v1/admin/admission-audits"
+    ADMIN_CAP_GUARD_DECISIONS = "/api/v1/admin/cap-guard/decisions"
+    ADMIN_RECONCILIATION_PLANS = "/api/v1/admin/reconciliation/plans"
+    ADMIN_LIVE_ENABLEMENT = "/api/v1/admin/live-enablement"
+    ADMIN_LIVE_SERVICE_DECISIONS = "/api/v1/admin/live-execution/service-decisions"
+    ADMIN_LIVE_ADAPTER_DECISIONS = "/api/v1/admin/live-execution/adapter-decisions"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

@@ -20,6 +20,7 @@ from core.enums import (
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
     AdminFuturesCommandAction,
+    AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandSemanticGuard,
@@ -334,7 +335,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5201-5220"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5221-5240"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -19859,6 +19860,109 @@ class AdminApiReadService:
             "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         ]
+        product_scope_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.FUTURES_ACCOUNT,
+            AdminFuturesCommandEvidenceRoute.FUTURES_POSITIONS,
+        ]
+        position_scope_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.FUTURES_POSITIONS,
+            AdminFuturesCommandEvidenceRoute.FUTURES_POSITION_DETAIL,
+        ]
+        risk_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.FUTURES_ACCOUNT,
+            AdminFuturesCommandEvidenceRoute.ADMIN_CAP_GUARD_DECISIONS,
+        ]
+        idempotency_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.ADMIN_APPROVALS,
+            AdminFuturesCommandEvidenceRoute.ADMIN_ADMISSION_AUDITS,
+        ]
+        approval_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.ADMIN_APPROVALS,
+            AdminFuturesCommandEvidenceRoute.ADMIN_APPROVAL_REQUEST,
+        ]
+        cap_guard_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.ADMIN_CAP_GUARD_DECISIONS
+        ]
+        admission_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.ADMIN_ADMISSION_AUDITS
+        ]
+        reconciliation_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.ADMIN_RECONCILIATION_PLANS
+        ]
+        live_boundary_evidence_routes = [
+            AdminFuturesCommandEvidenceRoute.ADMIN_LIVE_ENABLEMENT,
+            AdminFuturesCommandEvidenceRoute.ADMIN_LIVE_SERVICE_DECISIONS,
+            AdminFuturesCommandEvidenceRoute.ADMIN_LIVE_ADAPTER_DECISIONS,
+        ]
+        guard_evidence_route_defaults = {
+            AdminFuturesCommandSemanticGuard.PRODUCT_SCOPE: product_scope_evidence_routes,
+            AdminFuturesCommandSemanticGuard.POSITION_SCOPE: position_scope_evidence_routes,
+            AdminFuturesCommandSemanticGuard.MARGIN_COLLATERAL: risk_evidence_routes,
+            AdminFuturesCommandSemanticGuard.LIQUIDATION_BUFFER: risk_evidence_routes,
+            AdminFuturesCommandSemanticGuard.FUNDING_FEE: risk_evidence_routes,
+            AdminFuturesCommandSemanticGuard.REDUCE_ONLY: position_scope_evidence_routes
+            + cap_guard_evidence_routes,
+            AdminFuturesCommandSemanticGuard.CLOSE_ONLY: position_scope_evidence_routes
+            + cap_guard_evidence_routes,
+            AdminFuturesCommandSemanticGuard.IDEMPOTENCY: idempotency_evidence_routes,
+            AdminFuturesCommandSemanticGuard.APPROVAL_SNAPSHOT: approval_evidence_routes,
+            AdminFuturesCommandSemanticGuard.CAP_GUARD: cap_guard_evidence_routes,
+            AdminFuturesCommandSemanticGuard.ADMISSION_AUDIT: admission_evidence_routes,
+            AdminFuturesCommandSemanticGuard.RECONCILIATION_PLAN: reconciliation_evidence_routes,
+            AdminFuturesCommandSemanticGuard.LIVE_EXECUTION_BOUNDARY: live_boundary_evidence_routes,
+        }
+        guard_required_evidence_refs = {
+            AdminFuturesCommandSemanticGuard.PRODUCT_SCOPE: [
+                "futures_product_scope_readback",
+                "futures_command_product_scope_contract",
+            ],
+            AdminFuturesCommandSemanticGuard.POSITION_SCOPE: [
+                "futures_position_scope_readback",
+                "futures_command_position_scope_contract",
+            ],
+            AdminFuturesCommandSemanticGuard.MARGIN_COLLATERAL: [
+                "futures_margin_collateral_risk_contract",
+                "futures_cap_guard_margin_collateral_link",
+            ],
+            AdminFuturesCommandSemanticGuard.LIQUIDATION_BUFFER: [
+                "futures_liquidation_buffer_risk_contract",
+                "futures_cap_guard_liquidation_link",
+            ],
+            AdminFuturesCommandSemanticGuard.FUNDING_FEE: [
+                "futures_funding_fee_risk_contract",
+                "futures_cap_guard_funding_link",
+            ],
+            AdminFuturesCommandSemanticGuard.REDUCE_ONLY: [
+                "futures_reduce_only_position_contract",
+                "futures_cap_guard_reduce_only_link",
+            ],
+            AdminFuturesCommandSemanticGuard.CLOSE_ONLY: [
+                "futures_close_only_position_contract",
+                "futures_cap_guard_close_only_link",
+            ],
+            AdminFuturesCommandSemanticGuard.IDEMPOTENCY: [
+                "futures_client_order_id_idempotency_contract",
+                "futures_payload_hash_admission_audit_link",
+            ],
+            AdminFuturesCommandSemanticGuard.APPROVAL_SNAPSHOT: [
+                "futures_approval_snapshot_contract",
+                "futures_approval_request_readback",
+            ],
+            AdminFuturesCommandSemanticGuard.CAP_GUARD: [
+                "futures_cap_guard_decision_contract"
+            ],
+            AdminFuturesCommandSemanticGuard.ADMISSION_AUDIT: [
+                "futures_admission_audit_contract"
+            ],
+            AdminFuturesCommandSemanticGuard.RECONCILIATION_PLAN: [
+                "futures_reconciliation_plan_contract"
+            ],
+            AdminFuturesCommandSemanticGuard.LIVE_EXECUTION_BOUNDARY: [
+                "futures_live_enablement_precondition_contract",
+                "futures_live_service_decision_contract",
+                "futures_live_adapter_decision_contract",
+            ],
+        }
 
         def request_field(
             field: AdminFuturesCommandRequestField,
@@ -19878,15 +19982,39 @@ class AdminApiReadService:
             semantic_guard_id: AdminFuturesCommandSemanticGuard,
             *,
             applies_to_fields: list[AdminFuturesCommandRequestField],
+            evidence_routes: list[AdminFuturesCommandEvidenceRoute] | None = None,
+            required_evidence_refs: list[str] | None = None,
+            missing_evidence_refs: list[str] | None = None,
             identity_semantic: bool = False,
             risk_semantic: bool = False,
             audit_semantic: bool = False,
             execution_semantic: bool = False,
             detail: str,
         ) -> AdminFuturesCommandSemanticGuardItem:
+            route_refs = (
+                guard_evidence_route_defaults[semantic_guard_id]
+                if evidence_routes is None
+                else evidence_routes
+            )
+            required_refs = (
+                guard_required_evidence_refs[semantic_guard_id]
+                if required_evidence_refs is None
+                else required_evidence_refs
+            )
+            missing_refs = (
+                list(required_refs)
+                if missing_evidence_refs is None
+                else missing_evidence_refs
+            )
             return AdminFuturesCommandSemanticGuardItem(
                 semantic_guard=semantic_guard_id,
                 applies_to_fields=applies_to_fields,
+                evidence_routes=route_refs,
+                evidence_route_count=len(route_refs),
+                required_evidence_refs=required_refs,
+                required_evidence_count=len(required_refs),
+                missing_evidence_refs=missing_refs,
+                missing_evidence_count=len(missing_refs),
                 identity_semantic=identity_semantic,
                 risk_semantic=risk_semantic,
                 audit_semantic=audit_semantic,

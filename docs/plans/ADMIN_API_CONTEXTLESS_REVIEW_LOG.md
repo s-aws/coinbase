@@ -1,5 +1,80 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Semantic Guard Evidence-Route Linkage Review - Phases 5221-5240
+
+Scope: phases `5221-5240`, after completing the M57 futures/perpetual
+semantic guard metadata in phases `5201-5220`. The active batch extends the
+existing read-only `GET /api/v1/futures/command-suite` contract so semantic
+guard rows expose backend-owned evidence routes, missing evidence refs,
+route/ref counts, and disabled proof-route/proof-writer posture. It must
+remain no-live and must not add command routes, command drafts, accepted
+payloads, proof writers, Coinbase reads/writes, reconciliation execution,
+state mutation, browser execution authority, BFF execution authority, or
+spot-only wallet, USDC, no-shorting, cost-basis, average-cost, or inventory-lot
+authority.
+
+- Initial status: active range advanced from completed phases `5201-5220`.
+- Completed history: phases `5201-5220` are completed history; the active
+  futures/perpetual command-suite evidence-route linkage work is phases
+  `5221-5240`.
+- Completion evidence for prior range: backend `30c3b61c`, frontend
+  `a84ce6c`, UI smoke screenshots
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5201-5220-futures-semantic-guards-table.png`
+  and
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5201-5220-futures-semantic-guards-mobile.png`,
+  and `0` USDC submitted/executed notional.
+- Required blind/contextless review: a fresh reviewer must be able to explain
+  the backend route, generated schema, semantic guard evidence routes, missing
+  refs, disabled proof-route/proof-writer posture, frontend adapter/display,
+  no-live posture, cancel `client_order_id` identity, and forbidden spot-rule
+  boundary without chat context.
+
+Reviewer: blind/contextless subagent Hypatia static inspection, 2026-06-21.
+
+Result: PASS after remediation.
+
+- REMEDIATION: none required. An earlier blind-review attempt failed with a
+  subagent service `401 Unauthorized` and is not counted as review evidence;
+  the successful Hypatia review reported no remediation-needed findings.
+- PASS: the reviewer identified `GET /api/v1/futures/command-suite` as
+  GET-only read evidence requiring `ANALYTICS_READ`; the route delegates to
+  `build_futures_command_suite` and no futures POST/PUT/PATCH/DELETE route was
+  found.
+- PASS: command-suite response evidence keeps `executable_command_count=0`,
+  `command_route_count=0`, and `command_draft_allowed_count=0`, and denies
+  command routes, drafts, live adapters, Coinbase calls, browser authority, and
+  BFF execution authority.
+- PASS: semantic guards expose row fields `evidence_routes`,
+  `evidence_route_count`, `required_evidence_refs`,
+  `missing_evidence_refs`, `missing_evidence_count`,
+  `evidence_backend_owned=true`, `evidence_read_only=true`,
+  `proof_route_registered=false`, and `proof_writer_enabled=false`.
+- PASS: frontend code calls the futures command-suite route through GET-only
+  client/BFF surfaces, maps backend fields directly, and renders evidence
+  routes, missing refs, proof route, and proof writer state without forms,
+  browser validation, command drafts, dry-submit, or execution calls.
+- PASS: futures cancel remains keyed by `client_order_id`; exchange `order_id`
+  is not a request field and proof refs exclude `order_id` and
+  `exchange_order_id`.
+- PASS: forbidden spot assumptions remain explicit and non-authoritative:
+  spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
+  inventory-lot authority cannot govern futures or perpetual command
+  authority.
+- UI smoke evidence: `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes.png`
+  and
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes-mobile.png`
+  show the futures/perpetual semantic guard evidence-route table. The browser
+  text check confirmed `Futures/Perpetuals`,
+  `futures_live_service_decision_contract`,
+  `/api/v1/admin/admission-audits`, proof-writer state, and missing-ref
+  wording were present.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5221-5240` are ordinary
+  futures/perpetual command-suite contract phase work; use the full regression
+  gate only for durable milestone/release/backend-association closeout or
+  explicit request.
+
 ## M57 Futures/Perpetual Semantic Guard Contract Review - Phases 5201-5220
 
 Scope: phases `5201-5220`, after completing the M57 futures/perpetual

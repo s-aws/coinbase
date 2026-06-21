@@ -12619,6 +12619,23 @@ components:
       - detail
       title: AdminFuturesCommandContractItem
       description: One planned futures/perpetual command contract row.
+    AdminFuturesCommandEvidenceRoute:
+      type: string
+      enum:
+      - /api/v1/futures/account
+      - /api/v1/futures/positions
+      - /api/v1/futures/positions/{position_key}
+      - /api/v1/admin/approvals
+      - /api/v1/admin/approvals/requests/{approval_request_id}
+      - /api/v1/admin/admission-audits
+      - /api/v1/admin/cap-guard/decisions
+      - /api/v1/admin/reconciliation/plans
+      - /api/v1/admin/live-enablement
+      - /api/v1/admin/live-execution/service-decisions
+      - /api/v1/admin/live-execution/adapter-decisions
+      title: AdminFuturesCommandEvidenceRoute
+      description: Backend evidence routes that support futures/perpetual command
+        guards.
     AdminFuturesCommandPrerequisite:
       type: string
       enum:
@@ -12793,6 +12810,36 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRequestField'
           type: array
           title: Applies To Fields
+        evidence_routes:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEvidenceRoute'
+          type: array
+          title: Evidence Routes
+        evidence_route_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Route Count
+          default: 0
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
         required:
           type: boolean
           title: Required
@@ -12813,6 +12860,30 @@ components:
           type: boolean
           title: Execution Semantic
           default: false
+        evidence_backend_owned:
+          type: boolean
+          title: Evidence Backend Owned
+          default: true
+        evidence_read_only:
+          type: boolean
+          title: Evidence Read Only
+          default: true
+        proof_route_required:
+          type: boolean
+          title: Proof Route Required
+          default: true
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        proof_evidence_only:
+          type: boolean
+          title: Proof Evidence Only
+          default: true
         backend_owned:
           type: boolean
           title: Backend Owned

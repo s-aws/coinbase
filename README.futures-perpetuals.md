@@ -45,6 +45,9 @@ All routes require Admin API auth/RBAC and `analytics:read`. They return
   command family. These rows identify identity, risk, audit, reconciliation,
   and live-boundary blockers; they are not browser validation authority and do
   not make commands executable.
+- Each semantic guard row also exposes backend evidence routes, missing
+  evidence refs, route/ref counts, and disabled proof-route/proof-writer
+  posture so a contextless operator can see what still blocks that guard.
 - Spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
   inventory-lot assumptions are explicitly forbidden as futures/perpetual
   command authority.
@@ -72,6 +75,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 - Do not treat command-suite semantic guards as satisfied checks. They are
   blocked contract evidence until backend-owned guard/risk/admission/audit,
   reconciliation, approval, cap, and live-service prerequisites are built.
+- Do not treat semantic guard evidence routes as proof writers. The current
+  routes are read evidence only; `proof_route_registered=false` and
+  `proof_writer_enabled=false` remain part of the contract.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.
