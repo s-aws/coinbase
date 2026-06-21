@@ -1,5 +1,51 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk Proof Payload Field Contract Review - Phases 5341-5360
+
+Scope: phases `5341-5360`, after adding backend-owned risk proof payload
+field contracts as `payload_fields` under each blocked futures/perpetual risk
+proof requirement. Previous completed history is phases `5321-5340`, which
+added blocked risk proof route/writer contracts as `proof_contracts`.
+
+Result: PASS after remediation.
+
+- REMEDIATION: current roadmap and agent-state files now lead with
+  `5341-5360` and keep `5321-5340` as completed history so a contextless
+  reader does not mistake route/writer contracts for the active gap.
+- REMEDIATION: backend `GET /api/v1/admin/frontend-fixtures` now includes
+  `futures.commandSuite` so frontend mock payload-field evidence is traceable
+  to a backend-owned fixture source instead of being hand-maintained only in
+  the frontend repo.
+- PASS: blind/contextless review scope is understandable from repository
+  files alone: the active gap is proof payload and validation contract
+  visibility, not proof writing or command execution.
+- PASS: readiness decision evidence remains the parent blocked command-suite
+  summary; risk proof payload fields do not change readiness or create
+  command authority.
+- PASS: payload field rows are derived from the existing futures/perpetual
+  command-suite, readiness decision, semantic guards, risk proof requirements,
+  and command identity keys rather than a new futures command path.
+- PASS: each risk proof requirement exposes blocked risk proof payload fields
+  through `payload_fields`, including command, proof kind, identity key,
+  identity value, required evidence refs, source snapshot ref, validation
+  status, idempotency key, correlation id, and audit id.
+- PASS: the suite exposes blocked risk proof requirements, risk proof
+  route/writer contracts, `proof_contracts`, risk proof payload fields,
+  `payload_fields`, registered payload validation counts, risk proof acceptance criteria,
+  semantic guards, readiness decision evidence, and forbidden spot assumptions
+  while all present/validation/route/writer/draft/execution flags remain false.
+- PASS: planned futures cancel payload fields remain keyed by
+  `client_order_id`; exchange `order_id` remains exchange evidence only.
+- PASS: semantic guards, forbidden spot assumptions, and capability-matrix
+  docs continue to reject spot wallet, no-shorting, USDC, cost-basis,
+  average-cost, and inventory-lot rules as futures/perpetual authority.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5341-5360` are ordinary
+  futures/perpetual command-suite contract/read-model phase work; full
+  regression remains reserved for durable milestone/release/deployment/Admin
+  API/backend association closeout or explicit user request.
+
 ## M57 Futures/Perpetual Risk Proof Route/Writer Contract Review - Phases 5321-5340
 
 Scope: phases `5321-5340`, after adding backend-owned risk proof

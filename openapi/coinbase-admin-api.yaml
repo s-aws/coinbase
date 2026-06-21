@@ -12610,6 +12610,26 @@ components:
           minimum: 0.0
           title: Enabled Risk Proof Writer Count
           default: 0
+        risk_proof_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Payload Field Count
+          default: 0
+        blocking_risk_proof_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Payload Field Count
+          default: 0
+        present_risk_proof_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Present Risk Proof Payload Field Count
+          default: 0
+        registered_risk_proof_payload_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Payload Validation Count
+          default: 0
         risk_proof_acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -13262,6 +13282,114 @@ components:
       - reconciliation_plan
       title: AdminFuturesCommandRiskProofKind
       description: Futures/perpetual proof requirement categories before command enablement.
+    AdminFuturesCommandRiskProofPayloadField:
+      type: string
+      enum:
+      - command
+      - proof_kind
+      - identity_key
+      - identity_value
+      - required_evidence_refs
+      - source_snapshot_ref
+      - validation_status
+      - idempotency_key
+      - correlation_id
+      - audit_id
+      title: AdminFuturesCommandRiskProofPayloadField
+      description: Required payload fields for future futures risk proof records.
+    AdminFuturesCommandRiskProofPayloadFieldItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofPayloadField'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        payload_path:
+          type: string
+          title: Payload Path
+        validation_rule:
+          type: string
+          title: Validation Rule
+        required_evidence_ref:
+          type: string
+          title: Required Evidence Ref
+        missing_evidence_ref:
+          type: string
+          title: Missing Evidence Ref
+        payload_field_present:
+          type: boolean
+          title: Payload Field Present
+          default: false
+        validation_registered:
+          type: boolean
+          title: Validation Registered
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - sequence
+      - payload_path
+      - validation_rule
+      - required_evidence_ref
+      - missing_evidence_ref
+      - detail
+      title: AdminFuturesCommandRiskProofPayloadFieldItem
+      description: One required field in a future futures risk proof payload.
     AdminFuturesCommandRiskProofRequirementItem:
       properties:
         proof_kind:
@@ -13358,6 +13486,31 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRiskProofContractItem'
           type: array
           title: Proof Contracts
+        payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Payload Field Count
+          default: 0
+        blocking_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Payload Field Count
+          default: 0
+        present_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Present Payload Field Count
+          default: 0
+        registered_payload_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Payload Validation Count
+          default: 0
+        payload_fields:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofPayloadFieldItem'
+          type: array
+          title: Payload Fields
         acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -13686,6 +13839,26 @@ components:
           type: integer
           minimum: 0.0
           title: Enabled Risk Proof Writer Count
+          default: 0
+        risk_proof_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Payload Field Count
+          default: 0
+        blocking_risk_proof_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Payload Field Count
+          default: 0
+        present_risk_proof_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Present Risk Proof Payload Field Count
+          default: 0
+        registered_risk_proof_payload_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Payload Validation Count
           default: 0
         risk_proof_acceptance_criterion_count:
           type: integer

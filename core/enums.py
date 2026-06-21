@@ -1184,6 +1184,21 @@ class AdminFuturesCommandRiskProofContractKind(str, Enum):
     PROOF_WRITER = "proof_writer"
 
 
+class AdminFuturesCommandRiskProofPayloadField(str, Enum):
+    """Required payload fields for future futures risk proof records."""
+
+    COMMAND = "command"
+    PROOF_KIND = "proof_kind"
+    IDENTITY_KEY = "identity_key"
+    IDENTITY_VALUE = "identity_value"
+    REQUIRED_EVIDENCE_REFS = "required_evidence_refs"
+    SOURCE_SNAPSHOT_REF = "source_snapshot_ref"
+    VALIDATION_STATUS = "validation_status"
+    IDEMPOTENCY_KEY = "idempotency_key"
+    CORRELATION_ID = "correlation_id"
+    AUDIT_ID = "audit_id"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

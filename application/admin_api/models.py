@@ -31,6 +31,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
+    AdminFuturesCommandRiskProofPayloadField,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -4075,6 +4076,35 @@ class AdminFuturesCommandRiskProofContractItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRiskProofPayloadFieldItem(BaseModel):
+    """One required field in a future futures risk proof payload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRiskProofPayloadField
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    payload_path: str
+    validation_rule: str
+    required_evidence_ref: str
+    missing_evidence_ref: str
+    payload_field_present: bool = False
+    validation_registered: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     """One backend-owned futures/perpetual proof requirement before commands."""
 
@@ -4106,6 +4136,13 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     registered_proof_route_count: int = Field(default=0, ge=0)
     enabled_proof_writer_count: int = Field(default=0, ge=0)
     proof_contracts: list[AdminFuturesCommandRiskProofContractItem] = Field(
+        default_factory=list
+    )
+    payload_field_count: int = Field(default=0, ge=0)
+    blocking_payload_field_count: int = Field(default=0, ge=0)
+    present_payload_field_count: int = Field(default=0, ge=0)
+    registered_payload_validation_count: int = Field(default=0, ge=0)
+    payload_fields: list[AdminFuturesCommandRiskProofPayloadFieldItem] = Field(
         default_factory=list
     )
     acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4173,6 +4210,10 @@ class AdminFuturesCommandContractItem(BaseModel):
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
     registered_risk_proof_route_count: int = Field(default=0, ge=0)
     enabled_risk_proof_writer_count: int = Field(default=0, ge=0)
+    risk_proof_payload_field_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_payload_field_count: int = Field(default=0, ge=0)
+    present_risk_proof_payload_field_count: int = Field(default=0, ge=0)
+    registered_risk_proof_payload_validation_count: int = Field(default=0, ge=0)
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4223,6 +4264,10 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
     registered_risk_proof_route_count: int = Field(default=0, ge=0)
     enabled_risk_proof_writer_count: int = Field(default=0, ge=0)
+    risk_proof_payload_field_count: int = Field(default=0, ge=0)
+    blocking_risk_proof_payload_field_count: int = Field(default=0, ge=0)
+    present_risk_proof_payload_field_count: int = Field(default=0, ge=0)
+    registered_risk_proof_payload_validation_count: int = Field(default=0, ge=0)
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)

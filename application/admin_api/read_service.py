@@ -28,6 +28,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
+    AdminFuturesCommandRiskProofPayloadField,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -111,6 +112,7 @@ from .models import (
     AdminFuturesCommandRequestFieldItem,
     AdminFuturesCommandRiskProofAcceptanceCriterionItem,
     AdminFuturesCommandRiskProofContractItem,
+    AdminFuturesCommandRiskProofPayloadFieldItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -345,7 +347,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5321-5340"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5341-5360"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20893,6 +20895,7 @@ class AdminApiReadService:
             *,
             prerequisites: list[AdminFuturesCommandPrerequisiteItem],
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
+            identity_key: str,
         ) -> list[AdminFuturesCommandRiskProofRequirementItem]:
             def proof_contracts(
                 *,
@@ -20970,6 +20973,96 @@ class AdminApiReadService:
                         required_evidence_ref,
                         detail,
                     ) in enumerate(specs)
+                ]
+
+            def payload_fields(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                identity_key: str,
+            ) -> list[AdminFuturesCommandRiskProofPayloadFieldItem]:
+                specs = [
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.COMMAND,
+                        "proof_payload.command",
+                        f"Must equal {command_id.value}.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.PROOF_KIND,
+                        "proof_payload.proof_kind",
+                        f"Must equal {proof_kind.value}.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.IDENTITY_KEY,
+                        "proof_payload.identity.key",
+                        f"Must equal {identity_key}.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.IDENTITY_VALUE,
+                        "proof_payload.identity.value",
+                        f"Must bind the backend-owned {identity_key} value.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.REQUIRED_EVIDENCE_REFS,
+                        "proof_payload.required_evidence_refs",
+                        "Must contain every required evidence ref for this proof.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.SOURCE_SNAPSHOT_REF,
+                        "proof_payload.source_snapshot_ref",
+                        "Must reference the backend source snapshot used to build proof evidence.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.VALIDATION_STATUS,
+                        "proof_payload.validation.status",
+                        "Must be accepted only by backend proof validation.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.IDEMPOTENCY_KEY,
+                        "proof_payload.idempotency_key",
+                        "Must bind the backend idempotency key for replay safety.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.CORRELATION_ID,
+                        "proof_payload.correlation_id",
+                        "Must bind the backend correlation id used for audit traceability.",
+                    ),
+                    (
+                        AdminFuturesCommandRiskProofPayloadField.AUDIT_ID,
+                        "proof_payload.audit_id",
+                        "Must bind the backend audit id for durable proof readback.",
+                    ),
+                ]
+                return [
+                    AdminFuturesCommandRiskProofPayloadFieldItem(
+                        field=field,
+                        sequence=index + 1,
+                        payload_path=payload_path,
+                        validation_rule=validation_rule,
+                        required_evidence_ref=(
+                            f"{command_id.value}_{proof_kind.value}_payload_"
+                            f"{field.value}_validated"
+                        ),
+                        missing_evidence_ref=(
+                            f"{command_id.value}_{proof_kind.value}_payload_"
+                            f"{field.value}_validated"
+                        ),
+                        payload_field_present=False,
+                        validation_registered=False,
+                        command_route_registered=False,
+                        command_draft_allowed=False,
+                        execution_allowed=False,
+                        proof_route_registered=False,
+                        proof_writer_enabled=False,
+                        detail=(
+                            f"{command_id.value} {proof_kind.value} proof payload "
+                            f"field {field.value} is a backend-owned validation "
+                            "contract only. This row does not validate a submitted "
+                            "payload, write proof records, or enable execution."
+                        ),
+                    )
+                    for index, (field, payload_path, validation_rule) in enumerate(
+                        specs
+                    )
                 ]
 
             def acceptance_criteria(
@@ -21063,6 +21156,10 @@ class AdminApiReadService:
                     guard=guard,
                 )
                 contracts = proof_contracts(proof_kind=proof_kind)
+                proof_payload_fields = payload_fields(
+                    proof_kind=proof_kind,
+                    identity_key=identity_key,
+                )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -21090,6 +21187,21 @@ class AdminApiReadService:
                             1 for contract in contracts if contract.writer_enabled
                         ),
                         proof_contracts=contracts,
+                        payload_field_count=len(proof_payload_fields),
+                        blocking_payload_field_count=sum(
+                            1 for field in proof_payload_fields if field.blocking
+                        ),
+                        present_payload_field_count=sum(
+                            1
+                            for field in proof_payload_fields
+                            if field.payload_field_present
+                        ),
+                        registered_payload_validation_count=sum(
+                            1
+                            for field in proof_payload_fields
+                            if field.validation_registered
+                        ),
+                        payload_fields=proof_payload_fields,
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -21135,6 +21247,7 @@ class AdminApiReadService:
                 command_id,
                 prerequisites=prerequisites,
                 semantic_guards=semantic_guards,
+                identity_key=identity_key,
             )
             return AdminFuturesCommandContractItem(
                 command=command_id,
@@ -21204,6 +21317,21 @@ class AdminApiReadService:
                 ),
                 enabled_risk_proof_writer_count=sum(
                     item.enabled_proof_writer_count for item in proof_requirements
+                ),
+                risk_proof_payload_field_count=sum(
+                    item.payload_field_count for item in proof_requirements
+                ),
+                blocking_risk_proof_payload_field_count=sum(
+                    item.blocking_payload_field_count
+                    for item in proof_requirements
+                ),
+                present_risk_proof_payload_field_count=sum(
+                    item.present_payload_field_count
+                    for item in proof_requirements
+                ),
+                registered_risk_proof_payload_validation_count=sum(
+                    item.registered_payload_validation_count
+                    for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
                     item.acceptance_criterion_count for item in proof_requirements
@@ -21329,6 +21457,21 @@ class AdminApiReadService:
             ),
             enabled_risk_proof_writer_count=sum(
                 command.enabled_risk_proof_writer_count for command in commands
+            ),
+            risk_proof_payload_field_count=sum(
+                command.risk_proof_payload_field_count for command in commands
+            ),
+            blocking_risk_proof_payload_field_count=sum(
+                command.blocking_risk_proof_payload_field_count
+                for command in commands
+            ),
+            present_risk_proof_payload_field_count=sum(
+                command.present_risk_proof_payload_field_count
+                for command in commands
+            ),
+            registered_risk_proof_payload_validation_count=sum(
+                command.registered_risk_proof_payload_validation_count
+                for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(
                 command.risk_proof_acceptance_criterion_count
@@ -21708,6 +21851,9 @@ class AdminApiReadService:
                     stealth_order_id="00000000-0000-0000-0000-000000000000"
                 ).model_dump(mode="json"),
                 "futures.account": self.build_futures_account().model_dump(mode="json"),
+                "futures.commandSuite": self.build_futures_command_suite().model_dump(
+                    mode="json"
+                ),
                 "futures.positions": self.build_futures_positions().model_dump(mode="json"),
                 "futures.position.empty": self.build_futures_position_detail(
                     position_key="futures_position:runtime:UNKNOWN"

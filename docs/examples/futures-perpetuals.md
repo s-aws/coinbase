@@ -11,13 +11,15 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5321-5340 range adds read-only M57 futures/perpetual risk proof
-route/writer contract evidence to the existing command-suite evidence. Each
-readiness decision, ordered closure step, risk proof requirement, proof
-contract, and acceptance criterion is derived from backend-owned
+The active 5341-5360 range adds read-only M57 futures/perpetual risk proof
+payload field and validation contract evidence to the existing command-suite
+evidence. Each readiness decision, ordered closure step, risk proof
+requirement, proof contract, payload field, and acceptance criterion is
+derived from backend-owned
 prerequisites, request fields, semantic guards, evidence routes, missing
 evidence refs, and missing backend contracts. It is not a command route,
-enabled proof writer, command draft surface, or execution approval.
+enabled proof writer, registered payload validator, command draft surface, or
+execution approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -32,7 +34,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5321-5340",
+  "approved_phase_range": "5341-5360",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -56,6 +58,10 @@ Expected response posture:
   "blocking_risk_proof_contract_count": 40,
   "registered_risk_proof_route_count": 0,
   "enabled_risk_proof_writer_count": 0,
+  "risk_proof_payload_field_count": 200,
+  "blocking_risk_proof_payload_field_count": 200,
+  "present_risk_proof_payload_field_count": 0,
+  "registered_risk_proof_payload_validation_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -304,6 +310,38 @@ Expected response posture:
               "route_registered": false,
               "writer_enabled": false,
               "execution_allowed": false
+            }
+          ],
+          "payload_field_count": 10,
+          "blocking_payload_field_count": 10,
+          "present_payload_field_count": 0,
+          "registered_payload_validation_count": 0,
+          "payload_fields": [
+            {
+              "field": "command",
+              "payload_path": "proof_payload.command",
+              "validation_rule": "Must equal futures_place.",
+              "required_evidence_ref": "futures_place_product_scope_payload_command_validated",
+              "missing_evidence_ref": "futures_place_product_scope_payload_command_validated",
+              "payload_field_present": false,
+              "validation_registered": false,
+              "execution_allowed": false,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            },
+            {
+              "field": "identity_key",
+              "payload_path": "proof_payload.identity.key",
+              "validation_rule": "Must equal product_id.",
+              "required_evidence_ref": "futures_place_product_scope_payload_identity_key_validated",
+              "missing_evidence_ref": "futures_place_product_scope_payload_identity_key_validated",
+              "payload_field_present": false,
+              "validation_registered": false,
+              "execution_allowed": false,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
             }
           ],
           "acceptance_criterion_count": 5,

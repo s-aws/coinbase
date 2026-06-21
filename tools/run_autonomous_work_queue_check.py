@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5321-5340"
-APPROVED_PHASES = tuple(range(5321, 5341))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5301-5320"
+APPROVED_PHASE_RANGE = "5341-5360"
+APPROVED_PHASES = tuple(range(5341, 5361))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5321-5340"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -209,6 +209,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "Futures/perpetual command-suite reads expose backend-owned",
             '"risk_proof_requirements"',
             '"proof_contracts"',
+            '"payload_fields"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -222,6 +223,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"readiness_closure_steps"',
             '"risk_proof_requirements"',
             '"proof_contracts"',
+            '"payload_fields"',
             '"acceptance_criteria"',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
@@ -264,6 +266,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5281-5300"',
         "active 5301-5320 range",
         '"approved_phase_range": "5301-5320"',
+        "active 5321-5340 range",
+        '"approved_phase_range": "5321-5340"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -441,6 +445,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5261-5280`",
         "Active `5281-5300`",
         "Active `5301-5320`",
+        "Active `5321-5340`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
@@ -454,6 +459,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "complete active phases `5261-5280`",
         "complete active phases `5281-5300`",
         "complete active phases `5301-5320`",
+        "complete active phases `5321-5340`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
@@ -467,6 +473,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "current active range is `5261-5280`",
         "current active range is `5281-5300`",
         "current active range is `5301-5320`",
+        "current active range is `5321-5340`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
@@ -480,6 +487,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `5261-5280`",
         "Active autonomous range: `5281-5300`",
         "Active autonomous range: `5301-5320`",
+        "Active autonomous range: `5321-5340`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -514,6 +522,9 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "risk proof requirements",
         "risk proof route/writer contracts",
         "proof_contracts",
+        "risk proof payload fields",
+        "payload_fields",
+        "registered payload validation",
         "risk proof acceptance criteria",
         "semantic guards",
         "forbidden spot assumptions",
