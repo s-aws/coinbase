@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5521-5540**.
+- Approved phase range: **5541-5560**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5501-5520`.
+- Previous completed range: `5521-5540`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5520`.
+- `current_phase`: `5540`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,19 +67,24 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5521-5540
+## Active Phases 5541-5560
 
-Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Evidence.
+Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual
 command-suite route so every blocked proof record-validation remediation
-dependency work-item claim-trace clearance step exposes one backend-owned
-clearance-step review row. The concrete gap is that operators can now see
-blocked clearance-step rows, but not the review-readiness rows required before
-any later review input, store, validator-ready, proof-writer, acceptance, or
-command-route enablement work can be reviewed. The new
-`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews`
-rows must keep `clearance_step_review_ready=false`,
+dependency work-item claim-trace clearance-step review exposes two
+backend-owned clearance-step review input rows. The concrete gap is that
+operators can now see blocked clearance-step review rows, but not the
+owner/contextless input rows required before any later review-input store,
+validator-ready, proof-writer, acceptance, or command-route enablement work
+can be reviewed. The new
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs`
+rows must keep `clearance_step_review_input_present=false`,
+`clearance_step_review_input_accepted=false`,
+`clearance_step_review_input_validated=false`,
+`clearance_step_review_input_gate_passed=false`,
+`clearance_step_review_ready=false`,
 `clearance_step_review_complete=false`,
 `clearance_step_review_inputs_present=false`,
 `clearance_step_review_gates_passed=false`,
@@ -103,130 +108,146 @@ execution authority. Spot wallet, no-shorting, USDC, cost-basis,
 average-cost, and inventory-lot rules remain explicitly forbidden as
 futures/perpetual authority.
 
-### Phase 5521 - Prior Range Completion Evidence
+### Phase 5541 - Prior Range Completion Evidence
 
-- Record completed phases 5501-5520 with backend commit `ce03d9bf`,
-  frontend commit `dc6d86f`, focused backend/frontend gates, and `0` USDC live
+- Record completed phases 5521-5540 with backend commit `342f8adb`,
+  frontend commit `d79a778`, focused backend/frontend gates, and `0` USDC live
   Coinbase submitted/executed notional.
 
-### Phase 5522 - Advance Active Queue Range
+### Phase 5542 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5501-5520 to phases
-  5521-5540 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5521-5540 to phases
+  5541-5560 while preserving no-live defaults and cap policy.
 
-### Phase 5523 - Claim-Trace Clearance-Step Review Gap
+### Phase 5543 - Claim-Trace Clearance-Step Review Input Gap
 
 - Document that each blocked futures/perpetual proof record-validation
   remediation dependency work-item claim-trace clearance step needs
-  backend-owned review-readiness evidence before any later review-input,
-  store, validator-ready, proof-writer, acceptance, or command-route
+  backend-owned review-input evidence before any later review-input store,
+  validator-ready, proof-writer, acceptance, or command-route
   enablement work can be reviewed.
 
-### Phase 5524 - Claim-Trace Clearance-Step Review Model
+### Phase 5544 - Claim-Trace Clearance-Step Review Input Model
 
 - Add nested blocked remediation dependency work-item claim-trace
-  clearance-step review rows and suite/command/risk-proof/step review counts
+  clearance-step review input rows and suite/command/risk-proof/step review-input counts
   without completing reviews, accepting inputs, creating stores, accepting
   proof records, registering validators, adding command routes, or enabling
   live adapters.
 
-### Phase 5525 - Backend Clearance-Step Review Builder
+### Phase 5545 - Backend Clearance-Step Review Input Builder
 
-- Derive one clearance-step review row from each existing clearance-step row,
-  preserving step refs, plan refs, gates, store refs, claim-trace refs,
-  command identity keys, and predecessor/successor review links.
+- Derive owner and contextless clearance-step review input rows from each
+  existing clearance-step review row, preserving step refs, plan refs, gates,
+  store refs, claim-trace refs, command identity keys, and
+  predecessor/successor review-input links.
 
-### Phase 5526 - Clearance-Step Review Aggregate Counts
+### Phase 5546 - Clearance-Step Review Input Aggregate Counts
 
 - Expose suite, command, risk-proof, clearance-plan, and clearance-step
   aggregate counts proving all reviews remain blocked, zero ready, zero
   complete, zero inputs present, zero review gates passed, and zero proof
   records accepted.
 
-### Phase 5527 - Clearance-Step Review Linkage
+### Phase 5547 - Clearance-Step Review Input Linkage
 
-- Expose predecessor/successor clearance-step review refs, review order,
+- Expose predecessor/successor clearance-step review input refs, input order,
   source clearance-step refs, clearance-plan refs, claim target refs, and
   blockers for missing step readiness, step completion, review input,
   review gate, plan readiness, claim-trace readiness, claim resolution, and
   contextless review.
 
-### Phase 5528 - Review Contract And Required Input Refs
+### Phase 5548 - Review Input Contract And Required Input Refs
 
-- Expose clearance-step review rows with review gate, upstream step gate,
+- Expose clearance-step review input rows with input gate, review gate, upstream step gate,
   clearance-plan gate, claim-trace gate, work-item gate, remediation
   dependency gate, remediation gate, validation gate, replay gate, required
   owner/contextless review inputs, missing evidence refs, and required
   backend clearance-step review contract refs.
 
-### Phase 5529 - Cancel Identity Discipline
+### Phase 5549 - Cancel Identity Discipline
 
-- Assert planned futures cancel clearance-step review rows remain keyed by
+- Assert planned futures cancel clearance-step review input rows remain keyed by
   `client_order_id` discipline through the source work item, claim trace,
   clearance plan, and clearance step and do not introduce exchange order id
   refs.
 
-### Phase 5530 - OpenAPI Sync
+### Phase 5550 - OpenAPI Sync
 
 - Regenerate the Admin API OpenAPI artifact and assert remediation dependency
-  work-item claim-trace clearance-step review schema/counts are present on
+  work-item claim-trace clearance-step review-input schema/counts are present on
   the command-suite contract.
 
-### Phase 5531 - Backend Focused Regression
+### Phase 5551 - Backend Focused Regression
 
-- Run focused Admin API contract tests covering clearance-step review rows,
-  blocked ready/complete/input/gate state, no-live posture, cancel identity
-  discipline, no claim-trace clearance, and no spot-rule leakage.
+- Run focused Admin API contract tests covering clearance-step review input
+  rows, blocked present/accepted/validated/input-gate state, no-live posture,
+  cancel identity discipline, no claim-trace clearance, and no spot-rule
+  leakage.
 
-### Phase 5532 - Frontend Schema Sync
+### Phase 5552 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5533 - Frontend Adapter And Mock Mapping
+### Phase 5553 - Frontend Adapter And Mock Mapping
 
-- Map clearance-step review rows through the canonical backend adapter and
+- Map clearance-step review input rows through the canonical backend adapter and
   mock backend without command drafts, feature-local fetches, proof writers,
   validators, record stores, dependency resolution, work-item creation,
-  work-item claims, claim resolution, review completion, clearance-step
+  work-item claims, claim resolution, review-input acceptance, review completion, clearance-step
   execution, or BFF mutation forwarding.
 
-### Phase 5534 - Futures Read Model Clearance-Step Review Summary
+### Phase 5554 - Futures Read Model Clearance-Step Review Input Summary
 
-- Display blocked clearance-step review aggregate counts in the Futures /
+- Display blocked clearance-step review-input aggregate counts in the Futures /
   Perpetuals admin view with no command controls.
 
-### Phase 5535 - Futures Read Model Clearance-Step Review Rows
+### Phase 5555 - Futures Read Model Clearance-Step Review Input Rows
 
 - Display ordered risk proof record-validation remediation dependency
-  work-item claim-trace clearance-step review rows in the Futures /
+  work-item claim-trace clearance-step review input rows in the Futures /
   Perpetuals admin view with no command controls.
 
-### Phase 5536 - Frontend Focused Tests
+### Phase 5556 - Frontend Focused Tests
 
 - Update focused frontend tests for clearance-step review counts, blocked
   review posture, `client_order_id` cancel identity, and no command controls.
 
-### Phase 5537 - Documentation And Examples
+### Phase 5557 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
   handoff, and expanded context for the M57 claim-trace clearance-step review
-  slice.
+  input slice.
 
-### Phase 5538 - Stale Range And Drift Scan
+### Phase 5558 - Stale Range And Drift Scan
 
 - Search backend/frontend docs, fixtures, validators, and examples for stale
-  active-range wording or clearance-step-only wording.
+  active-range wording or clearance-step-only wording or prior review-only wording.
 
-### Phase 5539 - Contextless Review And UI Smoke
+### Phase 5559 - Contextless Review And UI Smoke
 
 - Run blind/contextless backend/frontend reviews and no-live browser smoke for
   the Futures / Perpetuals remediation dependency work-item claim-trace
-  clearance-step review table; remediate any blocker before advancing.
+  clearance-step review input table; remediate any blocker before advancing.
 
-### Phase 5540 - Commit And Push
+### Phase 5560 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI smoke evidence, and the next M57 enablement step.
+
+## Completed Phases 5521-5540
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with backend-owned proof record-validation remediation dependency work-item
+claim-trace clearance-step review rows for every blocked proof
+record-validation remediation dependency work-item claim-trace clearance-step
+row. The review rows remain blocked evidence only: they do not complete
+reviews, accept review inputs, execute clearance steps, clear claim traces,
+resolve claims, create stores, write evidence, call Coinbase, mutate state, or
+grant browser/BFF execution authority. The range completed with backend commit
+`342f8adb`, frontend commit `d79a778`, focused backend/frontend gates,
+blind/contextless review, and `0` USDC live Coinbase submitted/executed
+notional.
 
 ## Completed Phases 5501-5520
 
@@ -234,7 +255,7 @@ These phases extended the read-only M57 futures/perpetual command-suite route
 with backend-owned proof record-validation remediation dependency work-item
 claim-trace clearance-step rows for every blocked proof record-validation
 remediation dependency work-item claim-trace clearance-plan row. The range
-completed with backend commit `ce03d9bf`, frontend commit `dc6d86f`, focused
+completed with backend commit `ce03d9bf`, frontend commit `d79a778`, focused
 backend/frontend gates, blind/contextless review, and `0` USDC live Coinbase
 submitted/executed notional.
 

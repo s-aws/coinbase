@@ -11,9 +11,9 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5521-5540 range adds read-only M57 futures/perpetual risk proof
-record-validation remediation dependency work-item claim-trace clearance-step review
-evidence to the existing command-suite evidence. Each readiness decision,
+The active 5541-5560 range adds read-only M57 futures/perpetual risk proof
+record-validation remediation dependency work-item claim-trace clearance-step
+review input evidence to the existing command-suite evidence. Each readiness decision,
 ordered closure step, risk proof
 requirement, proof contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
@@ -21,7 +21,8 @@ dependency row, remediation dependency work-item row, remediation dependency
 work-item claim-trace row, remediation dependency work-item claim-trace
 clearance-plan row, remediation dependency work-item claim-trace
 clearance-step row, remediation dependency work-item claim-trace
-clearance-step review row, and acceptance criterion
+clearance-step review row, remediation dependency work-item claim-trace
+clearance-step review input row, and acceptance criterion
 is derived from backend-owned
 prerequisites, request fields, semantic guards, evidence routes, missing
 evidence refs, and missing backend contracts. It is not a command route,
@@ -45,7 +46,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5521-5540",
+  "approved_phase_range": "5541-5560",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -104,6 +105,10 @@ Expected response posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 720,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
   "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 1440,
+  "present_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
+  "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
   "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": [
     {
       "clearance_plan_created": false,
@@ -122,6 +127,23 @@ Expected response posture:
               "clearance_step_review_complete": false,
               "clearance_step_review_inputs_present": false,
               "clearance_step_review_gates_passed": false,
+              "clearance_step_review_input_count": 2,
+              "blocking_clearance_step_review_input_count": 2,
+              "present_clearance_step_review_input_count": 0,
+              "accepted_clearance_step_review_input_count": 0,
+              "remediation_dependency_work_item_claim_trace_clearance_step_review_inputs": [
+                {
+                  "clearance_step_review_input_claim": "claim_trace_clearance_step_review_input",
+                  "required_review_input": "futures_place.product_scope.record_validation_remediation_dependency_work_item_claim_trace_clearance_plan.store_schema.clearance_step.inspect_claim_trace.step_review.owner_review_evidence",
+                  "clearance_step_review_input_present": false,
+                  "clearance_step_review_input_accepted": false,
+                  "clearance_step_review_input_validated": false,
+                  "clearance_step_review_input_gate_passed": false,
+                  "accepts_evidence": false,
+                  "writes_evidence": false,
+                  "execution_allowed": false
+                }
+              ],
               "accepts_evidence": false,
               "writes_evidence": false,
               "execution_allowed": false
@@ -149,6 +171,27 @@ Expected response posture:
         "futures_place.margin_sufficiency.latest_margin_snapshot.record_validation.remediation.missing_margin_snapshot_source.dependency.required_backend_contract.work_item.claim_trace.clearance_plan.clearance_step.inspect_claim_trace.step_review.owner_review_evidence",
         "futures_place.margin_sufficiency.latest_margin_snapshot.record_validation.remediation.missing_margin_snapshot_source.dependency.required_backend_contract.work_item.claim_trace.clearance_plan.clearance_step.inspect_claim_trace.step_review.contextless_review_evidence"
       ],
+      "accepts_evidence": false,
+      "writes_evidence": false,
+      "execution_allowed": false
+    }
+  ],
+  "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs": [
+    {
+      "clearance_step_review_input_claim": "claim_trace_clearance_step_review_input",
+      "required_clearance_step_review_input_store_ref": "admin_futures_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs.futures_place.product_scope",
+      "required_review_input": "futures_place.product_scope.record_validation_remediation_dependency_work_item_claim_trace_clearance_plan.store_schema.clearance_step.inspect_claim_trace.step_review.owner_review_evidence",
+      "clearance_step_review_input_present": false,
+      "clearance_step_review_input_accepted": false,
+      "clearance_step_review_input_validated": false,
+      "clearance_step_review_input_gate_passed": false,
+      "clearance_step_review_ready": false,
+      "clearance_step_review_complete": false,
+      "clearance_step_review_inputs_present": false,
+      "clearance_step_review_gates_passed": false,
+      "claim_trace_created": false,
+      "claim_allowed": false,
+      "claim_resolved": false,
       "accepts_evidence": false,
       "writes_evidence": false,
       "execution_allowed": false

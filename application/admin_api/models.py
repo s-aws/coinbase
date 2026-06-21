@@ -41,6 +41,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewBlocker,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputBlocker,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -4436,6 +4437,117 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     detail: str
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput(
+    BaseModel
+):
+    """One blocked input contract for a futures clearance-step review."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_kind: AdminFuturesCommandRiskProofRecordContractKind
+    sequence: int = Field(ge=1)
+    clearance_step_sequence: int = Field(ge=1)
+    clearance_step_review_sequence: int = Field(ge=1)
+    clearance_step_review_input_sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    record_validation_ref: str
+    record_contract_ref: str
+    remediation_ref: str
+    remediation_dependency_ref: str
+    remediation_dependency_work_item_ref: str
+    remediation_dependency_work_item_claim_trace_ref: str
+    remediation_dependency_work_item_claim_trace_clearance_plan_ref: str
+    remediation_dependency_work_item_claim_trace_clearance_step_ref: str
+    remediation_dependency_work_item_claim_trace_clearance_step_review_ref: str
+    remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref: str
+    remediation_dependency_work_item_claim_trace_clearance_step_review_input_gate: str
+    remediation_dependency_work_item_claim_trace_clearance_step_review_gate: str
+    remediation_dependency_work_item_claim_trace_clearance_step_gate: str
+    remediation_dependency_work_item_claim_trace_clearance_plan_gate: str
+    remediation_dependency_work_item_claim_trace_gate: str
+    remediation_dependency_work_item_gate: str
+    remediation_dependency_gate: str
+    remediation_gate: str
+    required_backend_contract: str
+    required_clearance_step_review_contract: str
+    required_clearance_step_contract: str
+    required_clearance_plan_contract: str
+    required_claim_trace_contract: str
+    required_clearance_step_review_input_store_ref: str
+    required_clearance_step_review_store_ref: str
+    required_clearance_plan_store_ref: str
+    required_claim_trace_store_ref: str
+    required_work_item_store_ref: str
+    required_store_ref: str
+    required_record_key: str
+    validation_gate: str
+    replay_gate: str
+    clearance_step_name: AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep
+    required_review_input: str
+    clearance_step_review_input_claim: str
+    clearance_step_review_input_target_ref: str
+    clearance_step_review_input_source_ref: str
+    predecessor_clearance_step_review_input_refs: list[str] = Field(
+        default_factory=list
+    )
+    successor_clearance_step_review_input_refs: list[str] = Field(default_factory=list)
+    clearance_step_review_input_blockers: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputBlocker
+    ] = Field(default_factory=list)
+    inherited_clearance_step_review_blockers: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewBlocker
+    ] = Field(default_factory=list)
+    inherited_clearance_step_blockers: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker
+    ] = Field(default_factory=list)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    clearance_step_review_input_present: bool = False
+    clearance_step_review_input_accepted: bool = False
+    clearance_step_review_input_validated: bool = False
+    clearance_step_review_input_gate_passed: bool = False
+    clearance_step_review_ready: bool = False
+    clearance_step_review_complete: bool = False
+    clearance_step_review_inputs_present: bool = False
+    clearance_step_review_gates_passed: bool = False
+    clearance_step_ready: bool = False
+    clearance_step_complete: bool = False
+    prior_clearance_step_complete: bool = False
+    next_clearance_step_enabled: bool = False
+    clearance_plan_created: bool = False
+    clearance_plan_ready: bool = False
+    clearance_plan_sequence_ready: bool = False
+    claim_trace_created: bool = False
+    claim_trace_ready: bool = False
+    claim_allowed: bool = False
+    claim_resolved: bool = False
+    work_item_created: bool = False
+    work_item_claimed: bool = False
+    claim_ledger_registered: bool = False
+    dependency_ready: bool = False
+    dependency_resolved: bool = False
+    dependency_performed: bool = False
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    record_validation_ready: bool = False
+    proof_record_accepted: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    accepts_evidence: bool = False
+    writes_evidence: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReview(
     BaseModel
 ):
@@ -4493,6 +4605,10 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     ] = Field(default_factory=list)
     required_evidence_refs: list[str] = Field(default_factory=list)
     missing_evidence_refs: list[str] = Field(default_factory=list)
+    clearance_step_review_input_count: int = Field(default=0, ge=0)
+    blocking_clearance_step_review_input_count: int = Field(default=0, ge=0)
+    present_clearance_step_review_input_count: int = Field(default=0, ge=0)
+    accepted_clearance_step_review_input_count: int = Field(default=0, ge=0)
     clearance_step_review_ready: bool = False
     clearance_step_review_complete: bool = False
     clearance_step_review_inputs_present: bool = False
@@ -4530,6 +4646,9 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
+    remediation_dependency_work_item_claim_trace_clearance_step_review_inputs: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput
+    ] = Field(default_factory=list)
     detail: str
 
 
@@ -4588,6 +4707,10 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     blocking_clearance_step_review_count: int = Field(default=0, ge=0)
     ready_clearance_step_review_count: int = Field(default=0, ge=0)
     completed_clearance_step_review_count: int = Field(default=0, ge=0)
+    clearance_step_review_input_count: int = Field(default=0, ge=0)
+    blocking_clearance_step_review_input_count: int = Field(default=0, ge=0)
+    present_clearance_step_review_input_count: int = Field(default=0, ge=0)
+    accepted_clearance_step_review_input_count: int = Field(default=0, ge=0)
     clearance_step_ready: bool = False
     clearance_step_complete: bool = False
     prior_clearance_step_complete: bool = False
@@ -4621,6 +4744,9 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     bff_authority: str = "forward_only_no_execution"
     remediation_dependency_work_item_claim_trace_clearance_step_reviews: list[
         AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReview
+    ] = Field(default_factory=list)
+    remediation_dependency_work_item_claim_trace_clearance_step_review_inputs: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput
     ] = Field(default_factory=list)
     detail: str
 
@@ -4681,6 +4807,10 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     blocking_clearance_step_review_count: int = Field(default=0, ge=0)
     ready_clearance_step_review_count: int = Field(default=0, ge=0)
     completed_clearance_step_review_count: int = Field(default=0, ge=0)
+    clearance_step_review_input_count: int = Field(default=0, ge=0)
+    blocking_clearance_step_review_input_count: int = Field(default=0, ge=0)
+    present_clearance_step_review_input_count: int = Field(default=0, ge=0)
+    accepted_clearance_step_review_input_count: int = Field(default=0, ge=0)
     clearance_plan_created: bool = False
     clearance_plan_ready: bool = False
     clearance_plan_sequence_ready: bool = False
@@ -4868,6 +4998,25 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     )
     record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews: list[
         AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReview
+    ] = Field(default_factory=list)
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    present_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput
     ] = Field(default_factory=list)
     acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -5059,6 +5208,28 @@ class AdminFuturesCommandContractItem(BaseModel):
             ge=0,
         )
     )
+    risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    present_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -5229,6 +5400,28 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         )
     )
     completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    present_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count: int = (
         Field(
             default=0,
             ge=0,

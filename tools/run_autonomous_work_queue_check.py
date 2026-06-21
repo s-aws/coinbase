@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5521-5540"
-APPROVED_PHASES = tuple(range(5521, 5541))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5501-5520"
+APPROVED_PHASE_RANGE = "5541-5560"
+APPROVED_PHASES = tuple(range(5541, 5561))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5521-5540"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -219,6 +219,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -242,6 +243,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"',
             '"claim_trace_created": false',
             '"claim_allowed": false',
             '"claim_resolved": false',
@@ -253,6 +255,10 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"clearance_step_review_complete": false',
             '"clearance_step_review_inputs_present": false',
             '"clearance_step_review_gates_passed": false',
+            '"clearance_step_review_input_present": false',
+            '"clearance_step_review_input_accepted": false',
+            '"clearance_step_review_input_validated": false',
+            '"clearance_step_review_input_gate_passed": false',
             '"acceptance_criteria"',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
@@ -315,6 +321,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5481-5500"',
         "active 5501-5520 range",
         '"approved_phase_range": "5501-5520"',
+        "active 5521-5540 range",
+        '"approved_phase_range": "5521-5540"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -498,6 +506,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5421-5440`",
         "Active `5441-5460`",
         "Active `5501-5520`",
+        "Active `5521-5540`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
@@ -517,6 +526,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "complete active phases `5421-5440`",
         "complete active phases `5441-5460`",
         "complete active phases `5501-5520`",
+        "complete active phases `5521-5540`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
@@ -536,6 +546,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "current active range is `5421-5440`",
         "current active range is `5441-5460`",
         "current active range is `5501-5520`",
+        "current active range is `5521-5540`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
@@ -555,6 +566,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `5421-5440`",
         "Active autonomous range: `5441-5460`",
         "Active autonomous range: `5501-5520`",
+        "Active autonomous range: `5521-5540`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -623,6 +635,12 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "clearance_step_review_complete=false",
         "clearance_step_review_inputs_present=false",
         "clearance_step_review_gates_passed=false",
+        "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs",
+        "clearance_step_review_input_present=false",
+        "clearance_step_review_input_accepted=false",
+        "clearance_step_review_input_validated=false",
+        "clearance_step_review_input_gate_passed=false",
         "registered payload validation",
         "registered record validation",
         "remediation_ready=false",

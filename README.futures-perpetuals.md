@@ -183,13 +183,15 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   record-validation remediation dependency work-item claim-trace
   clearance-plan rows, or record-validation remediation dependency work-item
   claim-trace clearance-step rows, or record-validation remediation
-  dependency work-item claim-trace clearance-step review rows as
+  dependency work-item claim-trace clearance-step review rows, or
+  record-validation remediation dependency work-item claim-trace
+  clearance-step review input rows as
   registered stores, registered validators, created or claimed work items,
   created or resolved claim traces, created or executed clearance plans,
   executed clearance steps, completed clearance-step reviews, cleared claim
-  traces, accepted review inputs, registered claim ledgers, resolved
-  dependencies, performed remediation, proof writes, accepted proof evidence,
-  or command authority.
+  traces, accepted review inputs, created review-input stores, written
+  evidence, registered claim ledgers, resolved dependencies, performed
+  remediation, proof writes, accepted proof evidence, or command authority.
   They are blocked backend contract evidence for future work only.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
