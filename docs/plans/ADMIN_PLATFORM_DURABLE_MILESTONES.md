@@ -3176,10 +3176,15 @@ Current backend evidence:
   route with backend-owned request-field metadata while keeping every field
   blocked, read-only, no-live, and non-authoritative for browser/BFF command
   execution. Completed phases 5201-5220 add semantic guard metadata for
-  identity, risk, audit, reconciliation, and live-boundary blockers. Active
-  phases 5221-5240 link those semantic guards to backend evidence routes,
-  missing proof refs, and disabled proof-writer posture while preserving
-  blocked/no-live/no-command-route authority.
+  identity, risk, audit, reconciliation, and live-boundary blockers.
+  Completed phases 5221-5240 link those semantic guards to backend evidence
+  routes, missing proof refs, and disabled proof-writer posture while
+  preserving blocked/no-live/no-command-route authority. Active phases
+  5241-5260 add backend-owned command readiness decisions derived from the
+  existing prerequisite, request-field, semantic-guard, evidence-route, and
+  missing-contract rows without adding command routes, drafts, live adapters,
+  Coinbase calls, browser authority, BFF execution authority, or spot-rule
+  authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

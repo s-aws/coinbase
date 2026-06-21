@@ -1,5 +1,80 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Command Readiness Decision Review - Phases 5241-5260
+
+Scope: phases `5241-5260`, after completing the M57 futures/perpetual
+semantic guard evidence-route linkage in phases `5221-5240`. The active batch
+extends the existing read-only `GET /api/v1/futures/command-suite` contract so
+each planned command exposes a backend-owned readiness decision derived from
+existing prerequisites, request fields, semantic guards, evidence routes,
+missing evidence refs, and missing backend contracts. It must remain no-live
+and must not add command routes, command drafts, accepted payloads, proof
+writers, Coinbase reads/writes, reconciliation execution, state mutation,
+browser execution authority, BFF execution authority, or spot-only wallet,
+USDC, no-shorting, cost-basis, average-cost, or inventory-lot authority.
+
+- Initial status: active range advanced from completed phases `5221-5240`.
+- Completed history: phases `5221-5240` are completed history; the active
+  futures/perpetual command-suite readiness decision work is phases
+  `5241-5260`.
+- Completion evidence for prior range: backend `b92d3733`, frontend
+  `0026f55`, UI smoke screenshots
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes.png`
+  and
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes-mobile.png`,
+  and `0` USDC submitted/executed notional.
+- Required blind/contextless review: a fresh reviewer must be able to explain
+  the backend route, generated schema, readiness decision model, semantic
+  guards, evidence routes, missing refs/contracts, frontend adapter/display,
+  no-live posture, cancel `client_order_id` identity, and forbidden spot
+  assumptions without chat context.
+
+Reviewer: blind/contextless subagent Beauvoir static inspection, 2026-06-21.
+
+Result: PASS after remediation.
+
+- REMEDIATION: an earlier blind-review attempt reported a backend collection
+  failure. The exact focused command was rerun from `C:\coinbase` and passed
+  with `2` selected tests; full collection of
+  `tests\regression\test_admin_api_contract.py` also succeeded with `132`
+  collected tests. A fresh contextless re-review then passed with no semantic
+  remediation required.
+- PASS: the reviewer identified `GET /api/v1/futures/command-suite` as a
+  GET-only read route backed by
+  `AdminApiReadService.build_futures_command_suite`.
+- PASS: readiness decisions are derived from blocking prerequisites, request
+  fields, semantic guards, evidence routes, missing evidence refs, and missing
+  backend contracts.
+- PASS: command-suite response evidence keeps `executable_command_count=0`,
+  `command_route_count=0`, and `command_draft_allowed_count=0`, and readiness
+  decisions keep route, draft, execution, live adapter, Coinbase, browser, and
+  BFF execution authority absent.
+- PASS: futures cancel remains keyed by `client_order_id`; exchange
+  `order_id` is exchange evidence only and is not an internal command
+  identity.
+- PASS: forbidden spot assumptions remain explicit and non-authoritative:
+  spot wallet, no-shorting, USDC quote scope, average/cost-basis, and
+  inventory-lot authority cannot govern futures or perpetual command
+  authority.
+- Focused backend verification passed:
+  `python -m py_compile core\enums.py application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py tools\run_autonomous_work_queue_check.py`,
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_export_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules -v --tb=short`,
+  and `python -m pytest tests\regression\test_admin_api_contract.py -v --tb=short -k "futures_read_routes_use_read_service_without_commands or futures_read_service_maps_runtime_positions_without_spot_rules"`.
+- Backend autonomous queue validation passed:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- The approved-range sentinel passed:
+  `python -m pytest tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch -v --tb=short`.
+- Frontend focused verification and UI smoke passed. UI smoke evidence:
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5241-5260-futures-readiness-decision.png`
+  and
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5241-5260-futures-readiness-decision-mobile.png`.
+- No live Coinbase execution was run. Submitted notional: `0` USDC. Executed
+  notional: `0` USDC.
+- Full backend regression was not run because phases `5241-5260` are ordinary
+  futures/perpetual command-suite contract phase work; use the full regression
+  gate only for durable milestone/release/backend-association closeout or
+  explicit request.
+
 ## M57 Futures/Perpetual Semantic Guard Evidence-Route Linkage Review - Phases 5221-5240
 
 Scope: phases `5221-5240`, after completing the M57 futures/perpetual

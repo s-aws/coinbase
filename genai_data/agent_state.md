@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-21
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5201-5220` is backend `30c3b61c` and
-  frontend `a84ce6c`; current active range is `5221-5240`.
+- Commit (optional): completed range `5221-5240` is backend `b92d3733` and
+  frontend `0026f55`; current active range is `5241-5260`.
 
 ## Current Objective
 
@@ -47,15 +47,15 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5201-5220`.
-- Active autonomous range: `5221-5240`.
-- Active `5221-5240` extends the M57 futures/perpetual command-suite contract
-  with backend-owned semantic guard evidence-route linkage for placement,
-  close/reduce, cancel, and reconciliation. It must not add futures command
-  routes, command drafts, live execution, Coinbase calls, reconciliation
-  execution, state mutation, proof writers, or browser/BFF authority. Spot
-  wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot
-  assumptions are forbidden as futures/perpetual authority.
+- Latest completed autonomous range before current work: `5221-5240`.
+- Active autonomous range: `5241-5260`.
+- Active `5241-5260` extends the M57 futures/perpetual command-suite contract
+  with backend-owned command readiness decisions for placement, close/reduce,
+  cancel, and reconciliation. It must not add futures command routes, command
+  drafts, live execution, Coinbase calls, reconciliation execution, state
+  mutation, proof writers, or browser/BFF authority. Spot wallet,
+  no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
+  are forbidden as futures/perpetual authority.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.
@@ -657,9 +657,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5221-5240`.
+- Active autonomous range: `5241-5260`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `5221-5240`.
+- Current direction: complete phases `5241-5260`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1482,12 +1482,12 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5221-5240` by adding
-  backend-owned futures/perpetual semantic guard evidence-route linkage to the
-  existing command-suite read contract, syncing OpenAPI and frontend generated
-  schema, mapping runtime/mock/read-model display, updating docs and
-  validators, then running focused gates, blind/contextless review, and
-  no-live UI smoke. The active gap is evidence-route/missing-proof visibility
-  only; no futures command route, command draft, exchange order
-  placement/cancellation, reconciliation execution, Coinbase read/write, state
-  mutation, proof writer, or browser/BFF authority is allowed in this range.
+- Exact next command: complete active phases `5241-5260` by adding
+  backend-owned futures/perpetual command readiness decisions to the existing
+  command-suite read contract, syncing OpenAPI and frontend generated schema,
+  mapping runtime/mock/read-model display, updating docs and validators, then
+  running focused gates, blind/contextless review, and no-live UI smoke. The
+  active gap is command-level blocker/next-contract visibility only; no
+  futures command route, command draft, exchange order placement/cancellation,
+  reconciliation execution, Coinbase read/write, state mutation, proof writer,
+  or browser/BFF authority is allowed in this range.

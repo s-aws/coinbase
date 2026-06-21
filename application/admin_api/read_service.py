@@ -22,6 +22,7 @@ from core.enums import (
     AdminFuturesCommandAction,
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
+    AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
@@ -101,6 +102,7 @@ from .models import (
     AdminFuturesAccountReadResponse,
     AdminFuturesCommandContractItem,
     AdminFuturesCommandPrerequisiteItem,
+    AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -335,7 +337,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5221-5240"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5241-5260"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20585,6 +20587,94 @@ class AdminApiReadService:
             ),
         ]
 
+        def readiness_decision(
+            command_id: AdminFuturesCommandAction,
+            *,
+            prerequisites: list[AdminFuturesCommandPrerequisiteItem],
+            request_fields: list[AdminFuturesCommandRequestFieldItem],
+            semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
+            missing_backend_contracts: list[str],
+        ) -> AdminFuturesCommandReadinessDecisionItem:
+            blocking_prerequisites = [
+                item for item in prerequisites if item.blocking
+            ]
+            blocking_request_fields = [
+                item
+                for item in request_fields
+                if item.status != AdminApiGateStatus.PASSED
+            ]
+            blocking_semantic_guards = [
+                item
+                for item in semantic_guards
+                if item.status != AdminApiGateStatus.PASSED
+            ]
+            missing_evidence_refs = sorted(
+                {
+                    evidence_ref
+                    for guard in semantic_guards
+                    for evidence_ref in guard.missing_evidence_refs
+                }
+            )
+            evidence_routes = sorted(
+                {
+                    route.value
+                    for guard in semantic_guards
+                    for route in guard.evidence_routes
+                }
+            )
+            first_blocker = None
+            if blocking_prerequisites:
+                first_blocker = (
+                    f"prerequisite:{blocking_prerequisites[0].prerequisite.value}"
+                )
+            elif blocking_request_fields:
+                first_blocker = f"request_field:{blocking_request_fields[0].field.value}"
+            elif missing_evidence_refs:
+                first_blocker = f"evidence_ref:{missing_evidence_refs[0]}"
+            elif missing_backend_contracts:
+                first_blocker = f"backend_contract:{missing_backend_contracts[0]}"
+
+            blocker_count = (
+                len(blocking_prerequisites)
+                + len(blocking_request_fields)
+                + len(blocking_semantic_guards)
+                + len(missing_backend_contracts)
+            )
+            ready = blocker_count == 0
+            decision = (
+                AdminFuturesCommandReadinessDecision.READY_FOR_BACKEND_COMMAND_ROUTE
+                if ready
+                else AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+            )
+            return AdminFuturesCommandReadinessDecisionItem(
+                decision=decision,
+                status=(
+                    AdminApiGateStatus.PASSED
+                    if ready
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                ready=ready,
+                blocker_count=blocker_count,
+                blocking_prerequisite_count=len(blocking_prerequisites),
+                blocking_request_field_count=len(blocking_request_fields),
+                blocking_semantic_guard_count=len(blocking_semantic_guards),
+                missing_backend_contract_count=len(missing_backend_contracts),
+                missing_evidence_ref_count=len(missing_evidence_refs),
+                evidence_route_count=len(evidence_routes),
+                first_blocker=first_blocker,
+                next_required_backend_contract=(
+                    missing_backend_contracts[0]
+                    if missing_backend_contracts
+                    else None
+                ),
+                detail=(
+                    f"{command_id.value} remains backend-blocked readiness "
+                    "evidence only. The decision does not create a route, "
+                    "command draft, live adapter, Coinbase call, browser "
+                    "authority, or BFF execution authority."
+                ),
+            )
+
         def command(
             command_id: AdminFuturesCommandAction,
             *,
@@ -20597,6 +20687,7 @@ class AdminApiReadService:
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
+            missing_backend_contracts = list(backend_contracts)
             return AdminFuturesCommandContractItem(
                 command=command_id,
                 action_class=action_class,
@@ -20634,8 +20725,15 @@ class AdminApiReadService:
                 ),
                 semantic_guards=semantic_guards,
                 required_backend_contracts=backend_contracts,
-                missing_backend_contracts=backend_contracts,
+                missing_backend_contracts=missing_backend_contracts,
                 forbidden_spot_assumptions=forbidden_spot_assumptions,
+                readiness_decision=readiness_decision(
+                    command_id,
+                    prerequisites=prerequisites,
+                    request_fields=request_fields,
+                    semantic_guards=semantic_guards,
+                    missing_backend_contracts=missing_backend_contracts,
+                ),
                 detail=detail,
             )
 
@@ -20716,6 +20814,13 @@ class AdminApiReadService:
             ),
             risk_semantic_guard_count=sum(
                 command.risk_semantic_guard_count for command in commands
+            ),
+            readiness_decision_count=len(commands),
+            blocked_readiness_decision_count=sum(
+                1 for command in commands if not command.readiness_decision.ready
+            ),
+            ready_readiness_decision_count=sum(
+                1 for command in commands if command.readiness_decision.ready
             ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],

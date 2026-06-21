@@ -1134,6 +1134,13 @@ class AdminFuturesCommandEvidenceRoute(str, Enum):
     ADMIN_LIVE_ADAPTER_DECISIONS = "/api/v1/admin/live-execution/adapter-decisions"
 
 
+class AdminFuturesCommandReadinessDecision(str, Enum):
+    """Backend-owned futures/perpetual command readiness decision states."""
+
+    BLOCKED_BACKEND_CONTRACTS_REQUIRED = "blocked_backend_contracts_required"
+    READY_FOR_BACKEND_COMMAND_ROUTE = "ready_for_backend_command_route"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

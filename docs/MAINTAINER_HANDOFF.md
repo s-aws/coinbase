@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5201-5220` under M57.
-- Active autonomous range: `5221-5240` under M57.
+- Latest completed autonomous range: `5221-5240` under M57.
+- Active autonomous range: `5241-5260` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -551,11 +551,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   5181-5200 work extends that same read-only route with backend-owned
   request-field metadata for those planned futures command families. Completed
   5201-5220 work adds backend-owned semantic guard metadata for identity,
-  risk, audit, reconciliation, and live-boundary blockers. Active 5221-5240
-  work links those semantic guards to backend evidence routes, missing proof
-  refs, and disabled proof-writer posture; it must not add command routes,
-  command drafts, Coinbase calls, reconciliation execution, state mutation,
-  proof writers, browser authority, or BFF execution authority.
+  risk, audit, reconciliation, and live-boundary blockers. Completed
+  5221-5240 work links those semantic guards to backend evidence routes,
+  missing proof refs, and disabled proof-writer posture. Active 5241-5260
+  work adds backend-owned command readiness decisions with blocker counts,
+  first blockers, and next required backend contracts; it must not add command
+  routes, command drafts, Coinbase calls, reconciliation execution, state
+  mutation, proof writers, browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

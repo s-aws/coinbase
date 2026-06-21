@@ -11,9 +11,12 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5221-5240 range adds read-only M57 futures/perpetual semantic guard
-evidence-route linkage to the existing command-suite evidence. It is not a
-command route, proof writer, or command draft surface.
+The active 5241-5260 range adds read-only M57 futures/perpetual command
+readiness decisions to the existing command-suite evidence. Each readiness
+decision is derived from backend-owned prerequisites, request fields, semantic
+guards, evidence routes, missing evidence refs, and missing backend contracts.
+It is not a command route, proof writer, command draft surface, or execution
+approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -28,7 +31,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5221-5240",
+  "approved_phase_range": "5241-5260",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -41,6 +44,9 @@ Expected response posture:
   "semantic_guard_count": 33,
   "blocking_semantic_guard_count": 33,
   "risk_semantic_guard_count": 12,
+  "readiness_decision_count": 4,
+  "blocked_readiness_decision_count": 4,
+  "ready_readiness_decision_count": 0,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -151,6 +157,28 @@ Expected response posture:
           "bff_authority": "forward_only_no_execution"
         }
       ],
+      "readiness_decision": {
+        "decision": "blocked_backend_contracts_required",
+        "status": "blocked",
+        "ready": false,
+        "blocker_count": 18,
+        "blocking_prerequisite_count": 1,
+        "blocking_request_field_count": 7,
+        "blocking_semantic_guard_count": 10,
+        "missing_backend_contract_count": 1,
+        "missing_evidence_ref_count": 13,
+        "evidence_route_count": 6,
+        "first_blocker": "prerequisite:product_scope",
+        "next_required_backend_contract": "application/admin_api/futures_command_service.py::place_futures_order",
+        "command_route_registered": false,
+        "command_draft_allowed": false,
+        "execution_allowed": false,
+        "backend_owned": true,
+        "read_only": true,
+        "spot_rule_authority": false,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution"
+      },
       "command_route_registered": false,
       "command_draft_allowed": false,
       "execution_allowed": false
@@ -234,7 +262,10 @@ Expected response posture:
 ```
 
 Spot wallet, no-shorting, USDC, cost-basis, and inventory-lot rules are forbidden
-as futures/perpetual command authority.
+as futures/perpetual command authority. Readiness decisions report blocker
+counts and the next missing backend contract; they do not make any command
+ready while `command_route_registered=false`, `command_draft_allowed=false`,
+and `execution_allowed=false`.
 
 ## Account Evidence
 

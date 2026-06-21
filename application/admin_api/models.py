@@ -25,6 +25,7 @@ from core.enums import (
     AdminFuturesCommandAction,
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
+    AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
@@ -3957,6 +3958,36 @@ class AdminFuturesCommandSemanticGuardItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandReadinessDecisionItem(BaseModel):
+    """Backend-owned readiness decision for one futures/perpetual command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: AdminFuturesCommandReadinessDecision = (
+        AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    ready: bool = False
+    blocker_count: int = Field(default=0, ge=0)
+    blocking_prerequisite_count: int = Field(default=0, ge=0)
+    blocking_request_field_count: int = Field(default=0, ge=0)
+    blocking_semantic_guard_count: int = Field(default=0, ge=0)
+    missing_backend_contract_count: int = Field(default=0, ge=0)
+    missing_evidence_ref_count: int = Field(default=0, ge=0)
+    evidence_route_count: int = Field(default=0, ge=0)
+    first_blocker: str | None = None
+    next_required_backend_contract: str | None = None
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandContractItem(BaseModel):
     """One planned futures/perpetual command contract row."""
 
@@ -3994,6 +4025,7 @@ class AdminFuturesCommandContractItem(BaseModel):
     required_backend_contracts: list[str] = Field(default_factory=list)
     missing_backend_contracts: list[str] = Field(default_factory=list)
     forbidden_spot_assumptions: list[str] = Field(default_factory=list)
+    readiness_decision: AdminFuturesCommandReadinessDecisionItem
     command_route_registered: bool = False
     command_draft_allowed: bool = False
     execution_allowed: bool = False
@@ -4027,6 +4059,9 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
+    readiness_decision_count: int = Field(default=0, ge=0)
+    blocked_readiness_decision_count: int = Field(default=0, ge=0)
+    ready_readiness_decision_count: int = Field(default=0, ge=0)
     commands: list[AdminFuturesCommandContractItem] = Field(default_factory=list)
     account_evidence_routes: list[str] = Field(default_factory=list)
     position_evidence_routes: list[str] = Field(default_factory=list)

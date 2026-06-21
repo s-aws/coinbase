@@ -17,9 +17,9 @@ suite.
 
 ## Approved Range Status
 
-- Approved phase range: **5221-5240**.
+- Approved phase range: **5241-5260**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5201-5220`.
+- Previous completed range: `5221-5240`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -48,7 +48,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5220`.
+- `current_phase`: `5240`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -67,137 +67,143 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5221-5240
+## Active Phases 5241-5260
 
-Batch label: Futures/Perpetuals Semantic Guard Evidence-Route Linkage.
+Batch label: Futures/Perpetuals Command Readiness Decision Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual
-command-suite route so each semantic guard names the backend read routes and
-missing proof refs that would prove or block the guard. The concrete gap is
-that semantic guard categories now exist, but a contextless maintainer still
-cannot see which backend evidence routes support product scope, position
-scope, risk, audit, reconciliation, and live-boundary semantics. The work
-must remain read-only and no-live: no futures command route, no command
-draft, no manager invocation, no exchange order placement/cancellation, no
-Coinbase read, no reconciliation execution, no state mutation, and no
-browser/BFF execution authority. Spot wallet, no-shorting, USDC, cost-basis,
+command-suite route so each planned command exposes one backend-owned
+readiness decision derived from the existing prerequisites, request fields,
+semantic guards, evidence routes, and missing backend contracts. The concrete
+gap is that operators can see the component rows but still have to infer the
+current command-level blocker and next backend contract manually. The work
+must remain read-only and no-live: no futures command route, command draft,
+manager invocation, exchange order placement/cancellation, Coinbase read,
+reconciliation execution, state mutation, browser execution authority, or BFF
+execution authority. Spot wallet, no-shorting, USDC, cost-basis,
 average-cost, and inventory-lot rules remain explicitly forbidden as
 futures/perpetual authority.
 
-### Phase 5221 - Prior Range Completion Evidence
+### Phase 5241 - Prior Range Completion Evidence
 
-- Record completed phases 5201-5220 with backend commit `30c3b61c`,
-  frontend commit `a84ce6c`, focused backend/frontend gates, no-live UI
-  smoke screenshots
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5201-5220-futures-semantic-guards-table.png`
+- Record completed phases 5221-5240 with backend commit `b92d3733`,
+  frontend commit `0026f55`, focused backend/frontend gates, no-live UI smoke
+  screenshots
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes.png`
   and
-  `C:\coinbase-frontend\output\playwright\ui-smoke-5201-5220-futures-semantic-guards-mobile.png`,
+  `C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes-mobile.png`,
   and `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5222 - Advance Active Queue Range
+### Phase 5242 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5201-5220 to active phases
-  5221-5240 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5221-5240 to active phases
+  5241-5260 while preserving no-live defaults and cap policy.
 
-### Phase 5223 - Evidence-Linkage Gap Declaration
+### Phase 5243 - Readiness Decision Contract Gap
 
-- Document that futures/perpetual semantic guard rows exist but lack explicit
-  backend evidence-route and missing-proof-ref linkage for each guard.
+- Document that command rows have component evidence but lack one
+  command-level backend readiness decision with blocker counts, first blocker,
+  and next required backend contract.
 
-### Phase 5224 - Evidence Route Enum
+### Phase 5244 - Readiness Decision Enum
 
-- Add enum-backed futures/perpetual command evidence route values for futures
-  account, positions, approvals, admission audits, cap/guard decisions,
-  reconciliation plans, live enablement, and live execution decision reads.
+- Add enum-backed futures/perpetual command readiness decision values without
+  creating command routes or accepted payloads.
 
-### Phase 5225 - Semantic Guard Evidence Fields
+### Phase 5245 - Readiness Decision Model
 
-- Add route/ref/count and disabled proof-route/proof-writer fields to
-  semantic guard models without accepting command payloads or enabling proof
-  writers.
+- Add a nested readiness decision model to each command row and suite-level
+  readiness decision counts.
 
-### Phase 5226 - Placement Guard Linkage
+### Phase 5246 - Backend Decision Builder
 
-- Link placement semantic guards to product-scope, account-risk,
-  approval, cap/guard, admission-audit, reconciliation-plan, and live-boundary
-  evidence routes and missing refs.
+- Derive each readiness decision from the existing prerequisite, request
+  field, semantic guard, evidence-route, and missing-contract rows.
 
-### Phase 5227 - Close/Reduce Guard Linkage
+### Phase 5247 - Placement Decision Evidence
 
-- Link close/reduce semantic guards to position detail, reduce-only,
-  close-only, account-risk, cap/guard, audit, reconciliation, and live-boundary
-  evidence routes and missing refs.
+- Expose placement blocker counts, first blocker, missing evidence refs, and
+  next backend contract while keeping placement route/draft/execution false.
 
-### Phase 5228 - Cancel Guard Linkage
+### Phase 5248 - Close/Reduce Decision Evidence
 
-- Link cancel semantic guards to `client_order_id` idempotency, admission
-  audit, reconciliation-plan, and live-boundary evidence while keeping
-  exchange `order_id` out of internal evidence refs.
+- Expose close/reduce readiness evidence keyed by `position_key` and
+  reduce-only/close-only blockers without importing spot inventory rules.
 
-### Phase 5229 - Reconciliation Guard Linkage
+### Phase 5249 - Cancel Decision Evidence
 
-- Link reconciliation semantic guards to position detail, account-risk,
-  admission-audit, reconciliation-plan, and live-boundary evidence routes and
-  missing refs.
+- Expose cancel readiness evidence keyed by `client_order_id`; exchange
+  `order_id` remains exchange evidence only and not an internal identity.
 
-### Phase 5230 - OpenAPI Sync
+### Phase 5250 - Reconciliation Decision Evidence
 
-- Regenerate the Admin API OpenAPI artifact and assert evidence-route,
-  missing-ref, and proof-disabled fields are present on semantic guard rows.
+- Expose reconciliation readiness evidence for position/margin/collateral
+  blockers without executing reconciliation or mutating local state.
 
-### Phase 5231 - Backend Focused Regression
+### Phase 5251 - OpenAPI Sync
 
-- Run focused Admin API contract tests covering evidence routes, missing refs,
-  proof-route disabled posture, cancel identity discipline, no-live posture,
-  and no spot-rule leakage.
+- Regenerate the Admin API OpenAPI artifact and assert readiness decision
+  fields are present on the command-suite contract.
 
-### Phase 5232 - Frontend Schema Sync
+### Phase 5252 - Backend Focused Regression
+
+- Run focused Admin API contract tests covering readiness decisions, no-live
+  posture, cancel identity discipline, and no spot-rule leakage.
+
+### Phase 5253 - Frontend Schema Sync
 
 - Regenerate frontend API schema/types from the backend OpenAPI contract.
 
-### Phase 5233 - Frontend Adapter And Runtime Mapping
+### Phase 5254 - Frontend Adapter And Runtime Mapping
 
-- Map semantic guard evidence routes, missing refs, counts, and proof-disabled
-  fields through the canonical backend adapter without command drafts or BFF
-  mutation forwarding.
+- Map readiness decisions through the canonical backend adapter without
+  command drafts, feature-local fetches, or BFF mutation forwarding.
 
-### Phase 5234 - Mock Backend Fixture
+### Phase 5255 - Mock Backend Fixture
 
 - Update mock futures command-suite evidence so offline UI tests include
-  realistic guard evidence routes and missing refs.
+  realistic blocked readiness decisions.
 
-### Phase 5235 - Futures Read Model Display
+### Phase 5256 - Futures Read Model Display
 
-- Display semantic guard evidence routes, missing refs, and disabled proof
-  writers in the Futures / Perpetuals admin view with no command controls.
+- Display readiness decision, blocker count, first blocker, and next backend
+  contract in the Futures / Perpetuals admin view with no command controls.
 
-### Phase 5236 - Frontend Coverage
+### Phase 5257 - Frontend Coverage
 
 - Add focused frontend assertions for generated type consumption, runtime
-  snapshot, mock backend, and read-model evidence-route display.
+  snapshot, mock backend, and read-model readiness-decision display.
 
-### Phase 5237 - Documentation And Examples
+### Phase 5258 - Documentation And Examples
 
 - Update futures/perpetual README, examples, capability matrix, maintainer
-  handoff, and expanded context for the M57 evidence-linkage slice.
+  handoff, and expanded context for the M57 readiness-decision slice.
 
-### Phase 5238 - Contextless Review
+### Phase 5259 - Contextless Review And Focused Gates
 
-- Run blind/contextless review focused on whether a maintainer can explain
-  which backend evidence routes prove or block each semantic guard without
-  importing spot-only rules or assuming command authority.
+- Run blind/contextless review, focused backend/frontend gates, autonomous
+  validators, release/deployment checks, and no-live UI smoke. Full backend
+  regression remains reserved for milestone/release closeout or explicit
+  request.
 
-### Phase 5239 - Focused Gates And UI Smoke
-
-- Run focused backend/frontend gates, autonomous validators,
-  release/deployment checks, and a no-live UI smoke for the semantic guard
-  evidence-route display. Full backend regression remains reserved for
-  milestone/release closeout or explicit request.
-
-### Phase 5240 - Commit And Push
+### Phase 5260 - Commit And Push
 
 - Commit and push synchronized backend/frontend work, summarize verification,
   live posture, UI URL, and the next M57 enablement step.
+
+## Completed Phases 5221-5240
+
+These phases extended the read-only M57 futures/perpetual command-suite route
+with backend-owned evidence routes, missing proof refs, route/ref counts, and
+disabled proof-route/proof-writer posture for semantic guard rows. The range
+completed with backend commit `b92d3733`, frontend commit `0026f55`, focused
+backend/frontend gates, blind/contextless review, UI smoke at
+`http://127.0.0.1:3002/#futures-perpetuals`, screenshots
+`C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes.png`
+and
+`C:\coinbase-frontend\output\playwright\ui-smoke-5221-5240-futures-semantic-guard-evidence-routes-mobile.png`,
+and no live Coinbase execution. Submitted notional: `0` USDC. Executed
+notional: `0` USDC.
 
 ## Completed Phases 5201-5220
 
