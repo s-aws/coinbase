@@ -89,6 +89,14 @@ browser, BFF, and notional evidence fields.
   dependencies, create dependency work items, perform remediation, accept
   proof records, register routes, enable writers, or make commands
   executable.
+- Each risk proof requirement also exposes backend-owned record-validation
+  remediation dependency work-item rows. These rows name the backend work-item
+  contract, work-item store, claim-ledger blocker, owner-review blocker,
+  contextless-review blocker, and predecessor/successor work-item refs needed
+  before dependency work could ever be queued. They do not create or claim
+  work items, register claim ledgers, resolve dependencies, perform
+  remediation, accept proof records, register routes, enable writers, or make
+  commands executable.
 - In this contract, "risk proof requirements" is the umbrella for command
   safety prerequisites, including identity/product-scope and reconciliation
   proof requirements that must exist before risk-sensitive commands can be
@@ -142,11 +150,12 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   proof route and proof writer must satisfy; they do not enable routes,
   drafts, proof writers, live adapters, browser execution, or BFF execution.
 - Do not treat risk proof record/store contracts, record-validation rows,
-  record-validation remediation rows, or record-validation remediation
-  dependency rows as registered stores, registered validators, created work
-  items, resolved dependencies, performed remediation, proof writes, accepted
-  proof evidence, or command authority. They are blocked backend contract
-  evidence for future work only.
+  record-validation remediation rows, record-validation remediation dependency
+  rows, or record-validation remediation dependency work-item rows as
+  registered stores, registered validators, created or claimed work items,
+  registered claim ledgers, resolved dependencies, performed remediation,
+  proof writes, accepted proof evidence, or command authority. They are
+  blocked backend contract evidence for future work only.
 - Do not use browser code to calculate margin, liquidation, funding, close
   eligibility, or P/L authority.
 - Do not treat exchange-native ids as futures position identity.

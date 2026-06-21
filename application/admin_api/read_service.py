@@ -32,6 +32,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofRecordContractKind,
     AdminFuturesCommandRiskProofRecordValidationRemediationAction,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyBlocker,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -119,6 +120,7 @@ from .models import (
     AdminFuturesCommandRiskProofRecordContractItem,
     AdminFuturesCommandRiskProofRecordValidationItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
@@ -354,7 +356,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5421-5440"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5441-5460"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -21522,6 +21524,150 @@ class AdminApiReadService:
                     )
                 return rows
 
+            def record_validation_remediation_dependency_work_items(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                dependencies: list[
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem
+                ],
+            ) -> list[
+                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem
+            ]:
+                work_item_blockers = [
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker.DEPENDENCY_NOT_READY,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker.DEPENDENCY_UNRESOLVED,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker.WORK_ITEM_STORE_MISSING,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker.CLAIM_LEDGER_MISSING,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker.OWNER_REVIEW_MISSING,
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker.CONTEXTLESS_REVIEW_MISSING,
+                ]
+                rows: list[
+                    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem
+                ] = []
+                for index, dependency in enumerate(dependencies):
+                    work_item_ref = (
+                        f"{command_id.value}.{proof_kind.value}."
+                        "record_validation_remediation_dependency_work_item."
+                        f"{dependency.contract_kind.value}"
+                    )
+                    predecessor_work_item_refs = (
+                        [
+                            f"{command_id.value}.{proof_kind.value}."
+                            "record_validation_remediation_dependency_work_item."
+                            f"{dependencies[index - 1].contract_kind.value}"
+                        ]
+                        if index > 0
+                        else []
+                    )
+                    successor_work_item_refs = (
+                        [
+                            f"{command_id.value}.{proof_kind.value}."
+                            "record_validation_remediation_dependency_work_item."
+                            f"{dependencies[index + 1].contract_kind.value}"
+                        ]
+                        if index < len(dependencies) - 1
+                        else []
+                    )
+                    required_backend_contract = (
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item.py::"
+                        f"{command_id.value}_{proof_kind.value}_"
+                        f"{dependency.contract_kind.value}_"
+                        "record_validation_remediation_dependency_work_item"
+                    )
+                    rows.append(
+                        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem(
+                            contract_kind=dependency.contract_kind,
+                            sequence=index + 1,
+                            record_validation_ref=dependency.record_validation_ref,
+                            record_contract_ref=dependency.record_contract_ref,
+                            remediation_ref=dependency.remediation_ref,
+                            remediation_dependency_ref=(
+                                dependency.remediation_dependency_ref
+                            ),
+                            remediation_dependency_work_item_ref=work_item_ref,
+                            remediation_dependency_work_item_gate=(
+                                f"{command_id.value}_{proof_kind.value}_"
+                                f"{dependency.contract_kind.value}_"
+                                "record_validation_remediation_dependency_"
+                                "work_item_gate"
+                            ),
+                            remediation_dependency_gate=(
+                                dependency.remediation_dependency_gate
+                            ),
+                            remediation_gate=dependency.remediation_gate,
+                            required_backend_contract=required_backend_contract,
+                            required_dependency_contract=(
+                                dependency.required_backend_contract
+                            ),
+                            required_work_item_store_ref=(
+                                "admin_futures_remediation_dependency_work_items."
+                                f"{command_id.value}.{proof_kind.value}"
+                            ),
+                            required_store_ref=dependency.required_store_ref,
+                            required_record_key=dependency.required_record_key,
+                            validation_gate=dependency.validation_gate,
+                            replay_gate=dependency.replay_gate,
+                            predecessor_dependency_refs=(
+                                dependency.predecessor_dependency_refs
+                            ),
+                            successor_dependency_refs=(
+                                dependency.successor_dependency_refs
+                            ),
+                            predecessor_dependency_work_item_refs=(
+                                predecessor_work_item_refs
+                            ),
+                            successor_dependency_work_item_refs=(
+                                successor_work_item_refs
+                            ),
+                            work_item_actions=dependency.dependency_actions,
+                            work_item_blockers=work_item_blockers,
+                            required_evidence_refs=[
+                                dependency.remediation_dependency_ref,
+                                dependency.required_backend_contract,
+                                dependency.remediation_dependency_gate,
+                                *dependency.required_evidence_refs,
+                            ],
+                            missing_evidence_refs=[
+                                required_backend_contract,
+                                f"{work_item_ref}.work_item_store",
+                                f"{work_item_ref}.claim_ledger",
+                                f"{work_item_ref}.owner_review",
+                                *dependency.missing_evidence_refs,
+                            ],
+                            work_item_created=False,
+                            work_item_claimed=False,
+                            claim_ledger_registered=False,
+                            dependency_ready=False,
+                            dependency_resolved=False,
+                            dependency_performed=False,
+                            remediation_ready=False,
+                            remediation_performed=False,
+                            record_validation_ready=False,
+                            proof_record_accepted=False,
+                            command_route_registered=False,
+                            command_draft_allowed=False,
+                            execution_allowed=False,
+                            proof_route_registered=False,
+                            proof_writer_enabled=False,
+                            detail=(
+                                f"{command_id.value} {proof_kind.value} record "
+                                "validation remediation dependency work item for "
+                                f"{dependency.contract_kind.value} remains "
+                                "blocked until the dependency is ready and "
+                                "resolved, the backend work-item store and "
+                                "claim ledger exist, and owner/contextless "
+                                "reviews are complete. This row does not "
+                                "create or claim a work item, resolve "
+                                "dependencies, perform remediation, register "
+                                "validators, write or accept proof records, "
+                                "call Coinbase, or enable futures/perpetual "
+                                "command execution."
+                            ),
+                        )
+                    )
+                return rows
+
             def acceptance_criteria(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -21635,6 +21781,14 @@ class AdminApiReadService:
                         remediations=proof_record_validation_remediations,
                     )
                 )
+                proof_record_validation_remediation_dependency_work_items = (
+                    record_validation_remediation_dependency_work_items(
+                        proof_kind=proof_kind,
+                        dependencies=(
+                            proof_record_validation_remediation_dependencies
+                        ),
+                    )
+                )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -21746,6 +21900,27 @@ class AdminApiReadService:
                         ),
                         record_validation_remediation_dependencies=(
                             proof_record_validation_remediation_dependencies
+                        ),
+                        record_validation_remediation_dependency_work_item_count=len(
+                            proof_record_validation_remediation_dependency_work_items
+                        ),
+                        blocking_record_validation_remediation_dependency_work_item_count=sum(
+                            1
+                            for work_item in (
+                                proof_record_validation_remediation_dependency_work_items
+                            )
+                            if work_item.blocking
+                        ),
+                        ready_record_validation_remediation_dependency_work_item_count=sum(
+                            1
+                            for work_item in (
+                                proof_record_validation_remediation_dependency_work_items
+                            )
+                            if work_item.dependency_ready
+                            and work_item.work_item_created
+                        ),
+                        record_validation_remediation_dependency_work_items=(
+                            proof_record_validation_remediation_dependency_work_items
                         ),
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
@@ -21930,6 +22105,18 @@ class AdminApiReadService:
                 ),
                 ready_risk_proof_record_validation_remediation_dependency_count=sum(
                     item.ready_record_validation_remediation_dependency_count
+                    for item in proof_requirements
+                ),
+                risk_proof_record_validation_remediation_dependency_work_item_count=sum(
+                    item.record_validation_remediation_dependency_work_item_count
+                    for item in proof_requirements
+                ),
+                blocking_risk_proof_record_validation_remediation_dependency_work_item_count=sum(
+                    item.blocking_record_validation_remediation_dependency_work_item_count
+                    for item in proof_requirements
+                ),
+                ready_risk_proof_record_validation_remediation_dependency_work_item_count=sum(
+                    item.ready_record_validation_remediation_dependency_work_item_count
                     for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
@@ -22124,6 +22311,18 @@ class AdminApiReadService:
             ),
             ready_risk_proof_record_validation_remediation_dependency_count=sum(
                 command.ready_risk_proof_record_validation_remediation_dependency_count
+                for command in commands
+            ),
+            risk_proof_record_validation_remediation_dependency_work_item_count=sum(
+                command.risk_proof_record_validation_remediation_dependency_work_item_count
+                for command in commands
+            ),
+            blocking_risk_proof_record_validation_remediation_dependency_work_item_count=sum(
+                command.blocking_risk_proof_record_validation_remediation_dependency_work_item_count
+                for command in commands
+            ),
+            ready_risk_proof_record_validation_remediation_dependency_work_item_count=sum(
+                command.ready_risk_proof_record_validation_remediation_dependency_work_item_count
                 for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(

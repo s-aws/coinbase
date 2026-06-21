@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5421-5440",
+  "approved_phase_range": "5441-5460",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5421-5440",
+  "approved_phase_range": "5441-5460",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1889,7 +1889,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5421-5440",
+  "approved_phase_range": "5441-5460",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1987,12 +1987,20 @@ actions, and dependency blockers. They remain blocked with
 `dependency_work_item_created=false`, `dependency_ready=false`,
 `dependency_resolved=false`, and `dependency_performed=false`.
 Each proof also includes
+`"record_validation_remediation_dependency_work_items"` for the blocked
+backend-owned work-item contract that would be required before a remediation
+dependency could be queued or claimed. Work-item rows name work-item store
+refs, claim-ledger blockers, predecessor/successor work-item refs, required
+backend contracts, actions, and blockers. They remain blocked with
+`work_item_created=false`, `work_item_claimed=false`,
+`claim_ledger_registered=false`, and `dependency_ready=false`.
+Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
 review. These rows are blocked evidence only. They do not register command
 routes, create drafts, validate payloads, write proofs, enable writers,
-resolve dependencies, create remediation or dependency work items, perform
-remediation, call Coinbase, execute
+resolve dependencies, create remediation or dependency work items, claim work
+items, register claim ledgers, perform remediation, call Coinbase, execute
 reconciliation, or grant browser/BFF authority.
 
 ```http

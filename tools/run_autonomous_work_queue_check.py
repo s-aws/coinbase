@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5421-5440"
-APPROVED_PHASES = tuple(range(5421, 5441))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5401-5420"
+APPROVED_PHASE_RANGE = "5441-5460"
+APPROVED_PHASES = tuple(range(5441, 5461))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5421-5440"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -214,6 +214,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validations"',
             '"record_validation_remediations"',
             '"record_validation_remediation_dependencies"',
+            '"record_validation_remediation_dependency_work_items"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -232,6 +233,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validations"',
             '"record_validation_remediations"',
             '"record_validation_remediation_dependencies"',
+            '"record_validation_remediation_dependency_work_items"',
             '"acceptance_criteria"',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
@@ -284,6 +286,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5381-5400"',
         "active 5401-5420 range",
         '"approved_phase_range": "5401-5420"',
+        "active 5421-5440 range",
+        '"approved_phase_range": "5421-5440"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -464,6 +468,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active `5321-5340`",
         "Active `5341-5360`",
         "Active `5401-5420`",
+        "Active `5421-5440`",
         "complete active phases `5061-5080`",
         "complete active phases `5081-5100`",
         "complete active phases `5101-5120`",
@@ -480,6 +485,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "complete active phases `5321-5340`",
         "complete active phases `5341-5360`",
         "complete active phases `5401-5420`",
+        "complete active phases `5421-5440`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
@@ -496,6 +502,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "current active range is `5321-5340`",
         "current active range is `5341-5360`",
         "current active range is `5401-5420`",
+        "current active range is `5421-5440`",
         "Active autonomous range: `5061-5080`",
         "Active autonomous range: `5081-5100`",
         "Active autonomous range: `5101-5120`",
@@ -512,6 +519,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `5321-5340`",
         "Active autonomous range: `5341-5360`",
         "Active autonomous range: `5401-5420`",
+        "Active autonomous range: `5421-5440`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -556,6 +564,11 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "record_validation_remediations",
         "risk proof record-validation remediation dependency",
         "record_validation_remediation_dependencies",
+        "risk proof record-validation remediation dependency work item",
+        "record_validation_remediation_dependency_work_items",
+        "work_item_created=false",
+        "work_item_claimed=false",
+        "claim_ledger_registered=false",
         "registered payload validation",
         "registered record validation",
         "remediation_ready=false",

@@ -35,6 +35,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofRecordContractKind,
     AdminFuturesCommandRiskProofRecordValidationRemediationAction,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyBlocker,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -4299,6 +4300,68 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem(Base
     detail: str
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem(
+    BaseModel
+):
+    """One blocked work-item contract for a futures remediation dependency."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_kind: AdminFuturesCommandRiskProofRecordContractKind
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    record_validation_ref: str
+    record_contract_ref: str
+    remediation_ref: str
+    remediation_dependency_ref: str
+    remediation_dependency_work_item_ref: str
+    remediation_dependency_work_item_gate: str
+    remediation_dependency_gate: str
+    remediation_gate: str
+    required_backend_contract: str
+    required_dependency_contract: str
+    required_work_item_store_ref: str
+    required_store_ref: str
+    required_record_key: str
+    validation_gate: str
+    replay_gate: str
+    predecessor_dependency_refs: list[str] = Field(default_factory=list)
+    successor_dependency_refs: list[str] = Field(default_factory=list)
+    predecessor_dependency_work_item_refs: list[str] = Field(default_factory=list)
+    successor_dependency_work_item_refs: list[str] = Field(default_factory=list)
+    work_item_actions: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationAction
+    ] = Field(default_factory=list)
+    work_item_blockers: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker
+    ] = Field(default_factory=list)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    work_item_created: bool = False
+    work_item_claimed: bool = False
+    claim_ledger_registered: bool = False
+    dependency_ready: bool = False
+    dependency_resolved: bool = False
+    dependency_performed: bool = False
+    remediation_ready: bool = False
+    remediation_performed: bool = False
+    record_validation_ready: bool = False
+    proof_record_accepted: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     """One backend-owned futures/perpetual proof requirement before commands."""
 
@@ -4370,6 +4433,21 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     )
     record_validation_remediation_dependencies: list[
         AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem
+    ] = Field(default_factory=list)
+    record_validation_remediation_dependency_work_item_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_record_validation_remediation_dependency_work_item_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_record_validation_remediation_dependency_work_item_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_work_items: list[
+        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem
     ] = Field(default_factory=list)
     acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4469,6 +4547,22 @@ class AdminFuturesCommandContractItem(BaseModel):
         default=0,
         ge=0,
     )
+    risk_proof_record_validation_remediation_dependency_work_item_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_record_validation_remediation_dependency_work_item_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    ready_risk_proof_record_validation_remediation_dependency_work_item_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -4551,6 +4645,22 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     ready_risk_proof_record_validation_remediation_dependency_count: int = Field(
         default=0,
         ge=0,
+    )
+    risk_proof_record_validation_remediation_dependency_work_item_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_record_validation_remediation_dependency_work_item_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
+    )
+    ready_risk_proof_record_validation_remediation_dependency_work_item_count: int = (
+        Field(
+            default=0,
+            ge=0,
+        )
     )
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)

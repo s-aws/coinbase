@@ -11,17 +11,19 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5421-5440 range adds read-only M57 futures/perpetual risk proof
-record-validation remediation dependency evidence to the existing command-suite
+The active 5441-5460 range adds read-only M57 futures/perpetual risk proof
+record-validation remediation dependency work-item evidence to the existing command-suite
 evidence. Each readiness decision, ordered closure step, risk proof
 requirement, proof contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
-dependency row, and acceptance criterion is derived from backend-owned
+dependency row, remediation dependency work-item row, and acceptance criterion
+is derived from backend-owned
 prerequisites, request fields, semantic guards, evidence routes, missing
 evidence refs, and missing backend contracts. It is not a command route,
 enabled proof writer, registered payload validator, registered record store,
 registered record validator, remediation executor, remediation work-item
-creator, command draft surface, or execution approval.
+creator, dependency work-item creator, claim ledger, command draft surface, or
+execution approval.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -36,7 +38,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5421-5440",
+  "approved_phase_range": "5441-5460",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -78,6 +80,9 @@ Expected response posture:
   "risk_proof_record_validation_remediation_dependency_count": 120,
   "blocking_risk_proof_record_validation_remediation_dependency_count": 120,
   "ready_risk_proof_record_validation_remediation_dependency_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -572,6 +577,69 @@ Expected response posture:
               ],
               "dependency_work_item_created": false,
               "dependency_owner": "backend_admin_api_owner",
+              "dependency_ready": false,
+              "dependency_resolved": false,
+              "dependency_performed": false,
+              "remediation_ready": false,
+              "remediation_performed": false,
+              "record_validation_ready": false,
+              "proof_record_accepted": false,
+              "command_route_registered": false,
+              "command_draft_allowed": false,
+              "execution_allowed": false,
+              "proof_route_registered": false,
+              "proof_writer_enabled": false,
+              "backend_owned": true,
+              "read_only": true,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            }
+          ],
+          "record_validation_remediation_dependency_work_item_count": 6,
+          "blocking_record_validation_remediation_dependency_work_item_count": 6,
+          "ready_record_validation_remediation_dependency_work_item_count": 0,
+          "record_validation_remediation_dependency_work_items": [
+            {
+              "contract_kind": "store_schema",
+              "sequence": 1,
+              "status": "blocked",
+              "blocking": true,
+              "record_validation_ref": "futures_place.product_scope.record_validation.store_schema",
+              "record_contract_ref": "futures_place.product_scope.record_contract.store_schema",
+              "remediation_ref": "futures_place.product_scope.record_validation_remediation.store_schema",
+              "remediation_dependency_ref": "futures_place.product_scope.record_validation_remediation_dependency.store_schema",
+              "remediation_dependency_work_item_ref": "futures_place.product_scope.record_validation_remediation_dependency_work_item.store_schema",
+              "remediation_dependency_work_item_gate": "futures_place_product_scope_store_schema_record_validation_remediation_dependency_work_item_gate",
+              "required_backend_contract": "application/admin_api/futures_proof_validation_remediation_dependency_work_item.py::futures_place_product_scope_store_schema_record_validation_remediation_dependency_work_item",
+              "required_dependency_contract": "application/admin_api/futures_proof_validation_remediation_dependency.py::futures_place_product_scope_store_schema_record_validation_remediation_dependency",
+              "required_work_item_store_ref": "admin_futures_remediation_dependency_work_items.futures_place.product_scope",
+              "predecessor_dependency_work_item_refs": [],
+              "successor_dependency_work_item_refs": [
+                "futures_place.product_scope.record_validation_remediation_dependency_work_item.append_only_log"
+              ],
+              "work_item_actions": [
+                "register_record_contract",
+                "create_store_schema",
+                "configure_append_only_log",
+                "bind_idempotency",
+                "register_payload_validation",
+                "register_replay_guard",
+                "link_audit_evidence",
+                "register_record_validator",
+                "run_contextless_review"
+              ],
+              "work_item_blockers": [
+                "dependency_not_ready",
+                "dependency_unresolved",
+                "work_item_store_missing",
+                "claim_ledger_missing",
+                "owner_review_missing",
+                "contextless_review_missing"
+              ],
+              "work_item_created": false,
+              "work_item_claimed": false,
+              "claim_ledger_registered": false,
               "dependency_ready": false,
               "dependency_resolved": false,
               "dependency_performed": false,
