@@ -56,7 +56,8 @@ If a recommendation would land softer than the evidence warrants, the recommenda
    have been consumed, remediated, or explicitly deferred. At durable milestone
    closeout, perform a final stale-subagent sweep. Do not close a subagent that
    is still running required validation, producing required evidence, or
-   awaiting a user decision.
+   awaiting a user decision. Record the phase-end or milestone-closeout sweep
+   result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Session Start Checklist
 

@@ -88,4 +88,5 @@ milestone closeout is a final audit sweep, not the first cleanup point. Do not
 leave completed, failed, superseded, stale, or unused subagents open unless
 they are part of an active handoff. Do not close a subagent that is still
 running required validation, producing required evidence, or awaiting a user
-decision.
+decision. Record the phase-end or milestone-closeout sweep result in the phase
+evidence, handoff, or closeout summary before advancing.

@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5721-5740"
-APPROVED_PHASES = tuple(range(5721, 5741))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5701-5720"
+APPROVED_PHASE_RANGE = "5741-5760"
+APPROVED_PHASES = tuple(range(5741, 5761))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5721-5740"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -596,6 +596,11 @@ def _check_agent_state_docs() -> QueueCheck:
         "Pending rerun after `5701-5720` remediation",
         "M57 `5701-5720` active range",
         "Continue the active M57 `5701-5720`",
+        "complete active phases `5721-5740`",
+        "M57 range `5721-5740` in progress",
+        "Pending rerun after `5721-5740` remediation",
+        "M57 `5721-5740` active range",
+        "Continue the active M57 `5721-5740`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",

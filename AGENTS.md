@@ -65,3 +65,4 @@ pytest tests/regression/ -v --tb=short
 - Phase-end cleanup is the canonical timing: close subagents that were spawned for that phase, plus any stale or previously unused subagents discovered during the sweep, after their findings have been consumed, remediated, or explicitly deferred.
 - Durable milestone closeout is a final audit sweep, not the first cleanup point. Leave no completed, failed, superseded, stale, or unused subagents open unless they are part of an active handoff.
 - Do not close a subagent that is still running required validation, producing required evidence, or awaiting a user decision.
+- Record the phase-end or milestone-closeout sweep result in the phase evidence, handoff, or closeout summary before advancing.

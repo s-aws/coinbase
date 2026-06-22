@@ -25,13 +25,15 @@ running required validation, producing required evidence, awaiting a user
 decision, or part of an active handoff. Durable milestone closeout is a final
 audit sweep, not the first cleanup point, and the milestone cannot be marked
 complete while completed, failed, superseded, stale, or unused subagents remain
-open outside an active handoff.
+open outside an active handoff. Record the phase-end or milestone-closeout
+sweep result in the phase evidence, handoff, or closeout summary before
+advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **5721-5740**.
+- Approved phase range: **5741-5760**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5701-5720`.
+- Previous completed range: `5721-5740`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -60,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5720`.
+- `current_phase`: `5740`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -79,7 +81,157 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5721-5740
+## Active Phases 5741-5760
+
+Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Evidence.
+
+These phases extend the existing read-only M57 futures/perpetual command-suite
+route so every blocked nested dependency work-item claim-trace clearance-step
+row exposes backend-owned nested clearance-step review evidence. The concrete
+gap is that phases 5721-5740 made nested clearance-step rows visible, but did
+not expose the nested owner/contextless review rows proving each step remains
+blocked on review inputs, review gate evidence, predecessor review evidence,
+clearance-plan readiness, claim-trace readiness, and inherited blockers. The
+new rows must keep `clearance_step_review_ready=false`,
+`clearance_step_review_complete=false`,
+`clearance_step_review_inputs_present=false`,
+`clearance_step_review_gates_passed=false`,
+`clearance_step_ready=false`, `clearance_step_complete=false`,
+`clearance_plan_created=false`, `clearance_plan_ready=false`,
+`claim_allowed=false`, `claim_resolved=false`, `accepts_evidence=false`,
+`writes_evidence=false`, and `execution_allowed=false`. The work must remain
+read-only and no-live: no review is completed, no review input is accepted,
+validated, or written, no clearance step is executed, no clearance plan is
+created or marked ready, no claim trace is created or cleared, no claim is
+allowed or resolved, no work item is claimed, no dependency is resolved, no
+remediation is performed, no proof record is accepted or written, no futures
+command route or draft is created, no Coinbase read/write is performed, and no
+browser/BFF execution authority is introduced. Spot wallet, no-shorting, USDC,
+cost-basis, average-cost, and inventory-lot rules remain forbidden as
+futures/perpetual authority.
+
+### Phase 5741 - Prior Range Completion Evidence
+
+- Record completed phases 5721-5740 with backend commit `eb45e5e1`, frontend
+  commit `08b82ad`, focused backend/frontend gates, blind/contextless review,
+  phase-end stale-subagent sweep, and `0` USDC live Coinbase submitted/executed
+  notional.
+
+### Phase 5742 - Advance Active Queue Range
+
+- Move active range metadata from completed phases 5721-5740 to phases
+  5741-5760 while preserving no-live defaults and cap policy.
+
+### Phase 5743 - Nested Clearance-Step Review Gap
+
+- Document that each blocked nested clearance step still lacks backend-owned
+  clearance-step review rows for owner review, contextless review, review
+  inputs, review gate, predecessor review, clearance-plan readiness, and
+  inherited claim-trace blocker evidence.
+
+### Phase 5744 - Nested Clearance-Step Review Model
+
+- Add nested blocked clearance-step review rows and aggregate counts without
+  completing reviews, accepting review inputs, creating stores, creating
+  validators, writing evidence, resolving claims, creating routes, or enabling
+  live commands.
+
+### Phase 5745 - Backend Nested Review Builder
+
+- Derive one blocked clearance-step review row from each nested clearance step
+  while preserving command, proof, contract kind, upstream step, required
+  review input, nested step, gate, target, source, predecessor, successor, and
+  blocker refs.
+
+### Phase 5746 - Nested Review Aggregate Counts
+
+- Expose suite, command, risk-proof, nested claim-trace, nested clearance-plan,
+  and nested clearance-step counts proving all nested reviews are blocked, zero
+  ready, zero complete, and zero executable.
+
+### Phase 5747 - OpenAPI Contract Regeneration
+
+- Regenerate `openapi/coinbase-admin-api.yaml` from the backend-owned contract
+  so the frontend consumes the new nested clearance-step review shape from
+  generated schema only.
+
+### Phase 5748 - Backend Contract Tests
+
+- Extend focused Admin API regression coverage for the model, OpenAPI
+  component, aggregate counts, nested review rows, blocked refs, missing
+  evidence, and no-live authority flags.
+
+### Phase 5749 - Backend Examples
+
+- Update futures/perpetual Admin API examples to show the `5741-5760` approved
+  range and nested clearance-step review counts without implying review
+  completion, evidence-write, or execution authority.
+
+### Phase 5750 - Backend State And Handoff Docs
+
+- Update autonomous queue, maintainer handoff, contextless review log, and
+  agent state so contextless maintainers can identify the active M57 gap and
+  previous completed range.
+
+### Phase 5751 - Frontend Schema Sync
+
+- Regenerate the frontend TypeScript schema from backend OpenAPI without
+  hand-editing generated files.
+
+### Phase 5752 - Frontend Adapter Mapping
+
+- Extend the futures/perpetual backend adapter to map nested clearance-step
+  review counts and rows from the generated contract into the read model
+  without inventing frontend trading behavior.
+
+### Phase 5753 - Frontend Mock Runtime
+
+- Update mock backend futures/perpetual command-suite fixtures with the new
+  nested clearance-step review counts, representative read-only rows, no-live
+  posture, and `5741-5760` phase range.
+
+### Phase 5754 - Frontend Read-Model Display
+
+- Render nested dependency work-item claim-trace clearance-step review evidence
+  under the existing futures/perpetual read-only command-suite surface with
+  blocked status, required review inputs, gate refs, blockers, and no-live
+  authority.
+
+### Phase 5755 - Frontend Unit Coverage
+
+- Extend focused futures/perpetual read-model, mock backend, backend runtime,
+  and quality-gate tests for the new nested clearance-step review evidence and
+  active phase range.
+
+### Phase 5756 - Frontend Docs And Examples
+
+- Update frontend futures/perpetual examples, testing docs, autonomous queue,
+  handoff docs, and contextless review log to describe the generated-schema
+  consumption path and no-live posture.
+
+### Phase 5757 - Focused Backend Gates
+
+- Run focused backend compile, Admin API contract, OpenAPI freshness,
+  autonomous queue, and ownership checks that cover the changed behavior.
+
+### Phase 5758 - Focused Frontend Gates
+
+- Run focused frontend typecheck, lint, API freshness, autonomous, release,
+  deployment, build, and unit checks that cover the changed behavior.
+
+### Phase 5759 - Blind/Contextless Review And Subagent Sweep
+
+- Run a fresh blind/contextless review for the backend/frontend changes, fix or
+  defer findings explicitly, record the sweep result, and close phase-scoped,
+  stale, or previously unused subagents after findings are consumed.
+
+### Phase 5760 - Phase Closeout Evidence
+
+- Record implementation, verification, live Coinbase posture, submitted and
+  executed notional, review outcome, stale-subagent sweep result, commits,
+  pushes, and next approved milestone-linked work if any remains.
+
+## Completed Phases 5721-5740
 
 Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Evidence.
 
