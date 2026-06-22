@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5861-5880` under M57.
-- Active autonomous range: `5881-5900` under M57.
+- Latest completed autonomous range: `5881-5900` under M57.
+- Active autonomous range: `5901-5920` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -749,14 +749,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   futures/perpetual risk-proof requirement row. Completed 5861-5880 work adds
   typed semantic contract definition evidence for those refs, including the
   missing backend definition contract, validation gate, acceptance gate, and
-  no-execution authority. Active 5881-5900 work adds typed semantic contract
+  no-execution authority. Completed 5881-5900 work adds typed semantic contract
   validation gate evidence, including the missing validator contract,
   validation input refs, required evidence refs, and no-execution authority.
-  Runtime-observed evidence remains display-only; the new rows do not
-  register validators, make validation gates ready, register semantic
-  contracts, make definitions ready, satisfy proof acceptance, enable command
-  routes, create command drafts, call Coinbase, execute reconciliation, mutate
-  state, or grant browser/BFF authority.
+  Active 5901-5920 work adds typed semantic validator contract evidence,
+  including the missing backend validator contract, input schema ref, output
+  schema ref, registration ref, required evidence refs, and no-execution
+  authority. Runtime-observed evidence remains display-only; the new rows do
+  not register validator contracts, register schemas, register validators, make
+  validation gates ready, register semantic contracts, make definitions ready,
+  satisfy proof acceptance, enable command routes, create command drafts, call
+  Coinbase, execute reconciliation, mutate state, or grant browser/BFF
+  authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

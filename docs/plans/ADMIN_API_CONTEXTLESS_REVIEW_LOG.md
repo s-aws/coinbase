@@ -1,5 +1,71 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Semantic Validator Contract Evidence - Phases 5901-5920
+
+Scope: phases `5901-5920`, after completed history `5881-5900`, add futures
+semantic validator contract evidence to `GET /api/v1/futures/command-suite`.
+Completed validation-gate rows from `5881-5900` remain backend-owned display
+evidence. The active validator-contract rows now name the missing backend
+validator contract ref, input schema ref, output schema ref, registration ref,
+required evidence refs, and missing evidence refs that still block validation
+readiness, semantic definition readiness, proof acceptance, command drafting,
+command route registration, reconciliation execution, futures state mutation,
+Coinbase execution, browser authority, and BFF execution authority.
+
+Result: PASS after remediation.
+
+- Backend rows must expose `risk_proof_record_resolver_count`,
+  `risk_proof_acceptance_blocker_count`,
+  `risk_proof_semantic_contract_requirement_count`,
+  `risk_proof_semantic_contract_definition_count`,
+  `risk_proof_semantic_contract_validation_gate_count`,
+  `risk_proof_semantic_contract_validator_contract_count`,
+  `semantic_contract_requirements`, `semantic_contract_definitions`,
+  `semantic_contract_validation_gates`,
+  `semantic_contract_validator_contracts`, `proof_record_lookup_status`,
+  `proof_acceptance_blockers`, `proof_record_resolves_acceptance`, and
+  `backend_futures_semantics_no_execution` so a contextless reader can see
+  that validator contract/schema/registration evidence is still missing.
+- Frontend rows must consume `proofRecordLookupStatus`,
+  `proofAcceptanceBlockers`, `semanticContractRequirements`,
+  `semanticContractDefinitions`, `semanticContractValidationGates`, and
+  `semanticContractValidatorContracts` as backend-owned display evidence. The
+  browser must render missing validator contract, input schema, output schema,
+  and registration refs without inferring validator registration, validation
+  readiness, proof acceptance, command drafting, route registration, execution
+  permission, futures risk semantics, browser authority, or BFF execution
+  authority.
+- Authority boundary: semantic validator contract rows are blocked,
+  backend-owned, read-only evidence. Runtime evidence can be observed, but it
+  cannot satisfy a missing backend validator contract, register input/output
+  schemas, register semantic validators, make validation gates ready, accept
+  proof evidence, register proof routes, enable proof writers, create futures
+  command routes, create command drafts, trigger Coinbase activity, execute
+  reconciliation, mutate futures state, or grant browser/BFF authority.
+- Machine-check exact phrase line: futures semantic validator contract evidence; /api/v1/futures/risk-proofs; risk_proof_record_resolver_count; risk_proof_acceptance_blocker_count; risk_proof_semantic_contract_requirement_count; risk_proof_semantic_contract_definition_count; risk_proof_semantic_contract_validation_gate_count; risk_proof_semantic_contract_validator_contract_count; semantic_contract_requirements; semantic_contract_definitions; semantic_contract_validation_gates; semantic_contract_validator_contracts; proof_record_lookup_status; proof_acceptance_blockers; proof_record_resolves_acceptance; proofRecordLookupStatus; proofAcceptanceBlockers; semanticContractRequirements; semanticContractDefinitions; semanticContractValidationGates; semanticContractValidatorContracts; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+- Review result: blind/contextless backend reviewer
+  `019ef046-2332-76e0-bba2-05eeccb41461` found the backend contract files
+  carried the intended display-only validator-contract posture, but initially
+  failed because this log still led with the prior `5881-5900` range and the
+  autonomous queue checker therefore stayed red. This top entry remediates
+  that stale-log blocker.
+- Review result: blind/contextless frontend reviewer
+  `019ef046-3737-7a43-ba7e-9a0b2ce0ff2f` initially found a frontend display
+  gap: mapped validator input schema, output schema, and registration refs
+  were not rendered. Frontend remediation added those refs plus readiness,
+  draft, route, execution, browser, and BFF authority display, and the
+  re-review found only this stale backend/frontend review-log closeout
+  blocker remaining.
+- No live Coinbase execution was run. Submitted notional `0` USDC. Executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5901-5920` are ordinary
+  phase work; focused gates cover the changed contract. Full regression
+  remains reserved for durable milestone closeout or explicit user request.
+- Phase-end stale-subagent sweep completed after consuming and remediating the
+  review results: backend reviewer `019ef046-2332-76e0-bba2-05eeccb41461` and
+  frontend reviewer `019ef046-3737-7a43-ba7e-9a0b2ce0ff2f` were closed. No
+  phase-scoped, stale, or unused subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Semantic Contract Validation Gate Evidence - Phases 5881-5900
 
 Scope: phases `5881-5900`, after completed history `5861-5880`, add futures

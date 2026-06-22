@@ -114,6 +114,21 @@ browser, BFF, and notional evidence fields.
   does not register validators, make definitions ready, satisfy proof
   acceptance, create command drafts, register futures routes, call Coinbase,
   execute reconciliation, mutate state, or grant browser/BFF authority.
+- Each risk proof requirement also exposes backend-owned semantic validator
+  contract rows through `semantic_contract_validator_contracts` and validator
+  contract counts such as
+  `risk_proof_semantic_contract_validator_contract_count`. These rows name the
+  missing backend validator contract, input schema ref, output schema ref,
+  registration ref, required evidence refs, and missing evidence refs for each
+  semantic validation gate. They remain blocked with
+  `validator_contract_registered=false`, `input_schema_registered=false`,
+  `output_schema_registered=false`, `validator_registered=false`,
+  `validation_ready=false`, and
+  `runtime_evidence_satisfies_validator_contract=false`; observed runtime
+  evidence does not register validator contracts, register schemas, register
+  validators, make validation gates ready, satisfy proof acceptance, create
+  command drafts, register futures routes, call Coinbase, execute
+  reconciliation, mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned proof record/store
   contract rows, blocked record-validation rows, and blocked
   record-validation remediation rows. These rows name required store refs,
@@ -250,6 +265,16 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   backend validator-contract evidence only; `validation_ready=false` and
   `runtime_evidence_satisfies_validation=false` keep validator registration,
   definition readiness, command routes, command drafts, proof satisfaction,
+  reconciliation execution, Coinbase activity, state mutation, browser
+  authority, and BFF execution authority disabled.
+- Do not treat semantic validator contract rows as registered validator
+  implementations, registered schemas, or proof acceptance.
+  `semantic_contract_validator_contracts` rows are missing backend validator
+  contract evidence only; `validator_contract_registered=false`,
+  `input_schema_registered=false`, `output_schema_registered=false`,
+  `validator_registered=false`, and
+  `runtime_evidence_satisfies_validator_contract=false` keep validation
+  readiness, command routes, command drafts, proof satisfaction,
   reconciliation execution, Coinbase activity, state mutation, browser
   authority, and BFF execution authority disabled.
 - Do not treat risk proof record/store contracts, record-validation rows,

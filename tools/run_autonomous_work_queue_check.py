@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5881-5900"
-APPROVED_PHASES = tuple(range(5881, 5901))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5861-5880"
+APPROVED_PHASE_RANGE = "5901-5920"
+APPROVED_PHASES = tuple(range(5901, 5921))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5881-5900"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -103,6 +103,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_phase_range(body),
         _check_live_caps(body),
         _check_stop_conditions(body),
+        _check_subagent_hygiene_policy(body),
         _check_required_gates(body),
         _check_example_phase_range_docs(),
         _check_regression_gate_policy_docs(),
@@ -187,6 +188,25 @@ def _check_stop_conditions(body: str) -> QueueCheck:
     )
 
 
+def _check_subagent_hygiene_policy(body: str) -> QueueCheck:
+    required = [
+        "Phase-end cleanup is the canonical timing.",
+        "Close phase-scoped subagents at the",
+        "also close any stale or",
+        "previously unused subagents discovered from earlier phases or milestones",
+        "Durable milestone",
+        "final audit sweep, not the first cleanup point",
+        "Record the phase-end or milestone-closeout sweep",
+        "before advancing",
+    ]
+    missing = [text for text in required if text not in body]
+    return QueueCheck(
+        name="subagent_hygiene_policy",
+        passed=not missing,
+        evidence={"missing_hygiene_text": missing},
+    )
+
+
 def _check_required_gates(body: str) -> QueueCheck:
     required = [
         "python tools\\run_autonomous_work_queue_check.py --summary-only",
@@ -234,8 +254,10 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"proof_record_resolved_but_acceptance_blocked_count"',
             '"risk_proof_semantic_contract_definition_count"',
             '"risk_proof_semantic_contract_validation_gate_count"',
+            '"risk_proof_semantic_contract_validator_contract_count"',
             '"semantic_contract_definitions"',
             '"semantic_contract_validation_gates"',
+            '"semantic_contract_validator_contracts"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
@@ -320,8 +342,10 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"proof_record_resolved_but_acceptance_blocked_count"',
             '"risk_proof_semantic_contract_definition_count"',
             '"risk_proof_semantic_contract_validation_gate_count"',
+            '"risk_proof_semantic_contract_validator_contract_count"',
             '"semantic_contract_definitions"',
             '"semantic_contract_validation_gates"',
+            '"semantic_contract_validator_contracts"',
             '"semantic_contract_definition_ref"',
             '"definition_ready": false',
             '"validation_ready": false',
@@ -560,7 +584,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` adds futures semantic contract validation gate evidence",
+        f"Active `{APPROVED_PHASE_RANGE}` adds futures semantic validator contract evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -699,16 +723,18 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
-        "futures semantic contract validation gate evidence",
+        "futures semantic validator contract evidence",
         "/api/v1/futures/risk-proofs",
         "risk_proof_record_resolver_count",
         "risk_proof_acceptance_blocker_count",
         "risk_proof_semantic_contract_requirement_count",
         "risk_proof_semantic_contract_definition_count",
         "risk_proof_semantic_contract_validation_gate_count",
+        "risk_proof_semantic_contract_validator_contract_count",
         "semantic_contract_requirements",
         "semantic_contract_definitions",
         "semantic_contract_validation_gates",
+        "semantic_contract_validator_contracts",
         "proof_record_lookup_status",
         "proof_acceptance_blockers",
         "proof_record_resolves_acceptance",
@@ -717,6 +743,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "semanticContractRequirements",
         "semanticContractDefinitions",
         "semanticContractValidationGates",
+        "semanticContractValidatorContracts",
         "backend_futures_risk_proof_store_read_only_no_execution",
         "backend_futures_semantics_no_execution",
         "no futures command route",
