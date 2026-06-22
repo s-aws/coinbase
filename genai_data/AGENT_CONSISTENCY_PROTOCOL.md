@@ -52,12 +52,15 @@ If a recommendation would land softer than the evidence warrants, the recommenda
    `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may
    be skipped.
 8. At phase end, close subagents spawned for that phase and any stale or
-   previously unused subagents found during the sweep, after their findings
-   have been consumed, remediated, or explicitly deferred. At durable milestone
-   closeout, perform a final stale-subagent sweep. Do not close a subagent that
-   is still running required validation, producing required evidence, or
-   awaiting a user decision. Record the phase-end or milestone-closeout sweep
-   result in the phase evidence, handoff, or closeout summary before advancing.
+   previously unused subagents from earlier phases or milestones found during
+   the sweep, after their findings have been consumed, remediated, or
+   explicitly deferred. At durable milestone closeout, perform a final
+   stale-subagent sweep; this is an audit sweep, not the first cleanup point.
+   Do not close a subagent that is still running required validation, producing
+   required evidence, or awaiting a user decision. Any intentionally open
+   handoff agent must have recorded owner, purpose, and expected next action.
+   Record the phase-end or milestone-closeout sweep result in the phase
+   evidence, handoff, or closeout summary before advancing.
 
 ## Session Start Checklist
 

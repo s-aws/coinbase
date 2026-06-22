@@ -20,14 +20,14 @@ suite.
 Phase-end cleanup is the canonical timing. Close phase-scoped subagents at the
 end of the phase after their findings have been consumed, remediated, or
 explicitly deferred. During that phase-end sweep, also close any stale or
-previously unused subagents discovered from earlier work unless they are still
-running required validation, producing required evidence, awaiting a user
-decision, or part of an active handoff. Durable milestone closeout is a final
-audit sweep, not the first cleanup point, and the milestone cannot be marked
-complete while completed, failed, superseded, stale, or unused subagents remain
-open outside an active handoff. Record the phase-end or milestone-closeout
-sweep result in the phase evidence, handoff, or closeout summary before
-advancing.
+previously unused subagents discovered from earlier phases or milestones unless
+they are still running required validation, producing required evidence,
+awaiting a user decision, or part of an active handoff. Durable milestone
+closeout is a final audit sweep, not the first cleanup point, and the milestone
+cannot be marked complete while completed, failed, superseded, stale, or unused
+subagents remain open outside an active handoff with recorded owner, purpose,
+and expected next action. Record the phase-end or milestone-closeout sweep
+result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 

@@ -82,11 +82,12 @@ false positives use `parallel-regression: serial-safe`.
 ## Subagent Hygiene
 
 Phase-end cleanup is the canonical timing: close subagents spawned for that
-phase and any stale or previously unused subagents found during the sweep after
-their findings have been consumed, remediated, or explicitly deferred. Durable
-milestone closeout is a final audit sweep, not the first cleanup point. Do not
-leave completed, failed, superseded, stale, or unused subagents open unless
-they are part of an active handoff. Do not close a subagent that is still
-running required validation, producing required evidence, or awaiting a user
-decision. Record the phase-end or milestone-closeout sweep result in the phase
-evidence, handoff, or closeout summary before advancing.
+phase and any stale or previously unused subagents from earlier phases or
+milestones found during the sweep after their findings have been consumed,
+remediated, or explicitly deferred. Durable milestone closeout is a final audit
+sweep, not the first cleanup point. Do not leave completed, failed, superseded,
+stale, or unused subagents open unless they are part of an active handoff with
+recorded owner, purpose, and expected next action. Do not close a subagent that
+is still running required validation, producing required evidence, or awaiting
+a user decision. Record the phase-end or milestone-closeout sweep result in the
+phase evidence, handoff, or closeout summary before advancing.

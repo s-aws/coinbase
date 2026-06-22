@@ -29,13 +29,14 @@ working contract, test, gate, and review evidence for the claimed scope.
 
 Phase-end cleanup is mandatory. Close subagents spawned for the completed phase
 after their findings have been consumed, remediated, or explicitly deferred,
-and close any stale or previously unused subagents found during that sweep. Do
-not close subagents that are still running required validation, producing
-required evidence, awaiting a user decision, or part of an active handoff.
-Durable milestone closeout requires a final stale-subagent sweep before the
-milestone can be marked complete. Record the phase-end or milestone-closeout
-sweep result in the phase evidence, handoff, or closeout summary before
-advancing.
+and close any stale or previously unused subagents from earlier phases or
+milestones found during that sweep. Do not close subagents that are still
+running required validation, producing required evidence, or awaiting a user
+decision. Durable milestone closeout requires a final stale-subagent sweep
+before the milestone can be marked complete; any intentionally open handoff
+agent must have recorded owner, purpose, and expected next action. Record the
+phase-end or milestone-closeout sweep result in the phase evidence, handoff, or
+closeout summary before advancing.
 
 ## End-State Functionality Commitment
 
