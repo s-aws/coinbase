@@ -11,12 +11,12 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5681-5700 range adds read-only M57 futures/perpetual risk proof
+The active 5701-5720 range adds read-only M57 futures/perpetual risk proof
 record-validation remediation dependency work-item claim-trace clearance-step
-review input store record-validation remediation dependency work-item evidence
-claim-trace evidence to the existing command-suite evidence. Each readiness decision, ordered
-closure step, risk proof
-requirement, proof contract, payload field, record/store contract,
+review input store record-validation remediation dependency work-item
+claim-trace clearance-plan evidence to the existing command-suite evidence.
+Each readiness decision, ordered closure step, risk proof requirement, proof
+contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
 dependency row, remediation dependency work-item row, remediation dependency
 work-item claim-trace row, remediation dependency work-item claim-trace
@@ -43,13 +43,15 @@ dependency work-item claim-trace count field
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count"`),
 dependency work-item claim-trace rows
 (`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"`),
+dependency work-item claim-trace clearance-plan rows
+(`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"`),
 and acceptance criterion is derived from backend-owned prerequisites, request
 fields, semantic guards, evidence routes, missing evidence refs, and missing
 backend contracts. It is not a command route,
 enabled proof writer, registered payload validator, registered record store,
 registered record validator, remediation executor, remediation work-item
 creator, dependency work-item creator, work-item claimant, claim trace
-resolver, claim-trace clearance plan, clearance-step executor, claim ledger,
+resolver, claim-trace clearance-plan creator, clearance-step executor, claim ledger,
 clearance-step review completer, review-input acceptor,
 review-input store creator, review-input writer, record-key registrar,
 input record-contract creator, record schema creator, append-only log creator,
@@ -70,7 +72,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5681-5700",
+  "approved_phase_range": "5701-5720",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,

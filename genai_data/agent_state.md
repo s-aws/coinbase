@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-21
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5661-5680` is backend `3c498ff0` and
-  frontend `2801a47`; current active range is `5681-5700`.
+- Commit (optional): completed range `5681-5700` is backend `71eac48b` and
+  frontend `e956841`; current active range is `5701-5720`.
 
 ## Current Objective
 
@@ -53,14 +53,14 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5661-5680`.
-- Active autonomous range: `5681-5700`.
-- Active `5681-5700` extends the M57 futures/perpetual command-suite contract
+- Latest completed autonomous range before current work: `5681-5700`.
+- Active autonomous range: `5701-5720`.
+- Active `5701-5720` extends the M57 futures/perpetual command-suite contract
   with backend-owned risk proof record-validation remediation dependency
   work-item claim-trace clearance-step review input store record-validation
-  remediation dependency work-item claim-trace evidence rows derived from every
-  blocked dependency work-item row.
-- Phase-end subagent sweep for the completed `5661-5680` work was performed:
+  remediation dependency work-item claim-trace clearance-plan evidence rows
+  derived from every blocked nested dependency work-item claim-trace row.
+- Phase-end subagent sweep for the completed `5681-5700` work was performed:
   the blind/contextless reviewer was closed after its findings were consumed
   and remediated. No phase-scoped subagent remains intentionally open.
   It must not add futures command routes, command drafts, live execution,
@@ -71,7 +71,7 @@ Keep it short. Keep it factual.
   acceptance, replay acceptance, review-input acceptance, evidence writing,
   dependency resolution, dependency work-item creation, work-item claiming,
   dependency work-item claim-trace creation, claim-ledger registration,
-  claim-trace creation, claim-trace clearance,
+  claim-trace creation, claim-trace clearance, nested clearance-plan creation,
   clearance-plan execution, clearance-step execution, clearance-step review
   completion, claim allowance, claim resolution, remediation execution,
   remediation work-item creation, proof writers, registered proof routes,
@@ -79,6 +79,12 @@ Keep it short. Keep it factual.
   payloads, accepted proof records, or browser/BFF authority. Spot wallet,
   no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
   are forbidden as futures/perpetual authority.
+- Current direction: complete phases `5701-5720` by adding nested dependency
+  work-item claim-trace clearance-plan readback evidence, then continue only to
+  the next milestone-linked approved gap if focused gates, blind/contextless
+  review, and the phase-end stale-subagent sweep pass. This means complete
+  active phases `5701-5720` only after the no-live contract checks, review-log
+  entries, and stale-subagent sweep are complete.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.
@@ -680,9 +686,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5681-5700`.
+- Active autonomous range: `5701-5720`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `5681-5700`.
+- Current direction: complete active phases `5701-5720`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1183,7 +1189,7 @@ Keep it short. Keep it factual.
 
 - Last backend autonomous queue check: 2026-06-21
   `python tools/run_autonomous_work_queue_check.py --summary-only`
-- Result: M57 range `5681-5700` in progress. Live Coinbase execution `not_run`,
+- Result: M57 range `5701-5720` in progress. Live Coinbase execution `not_run`,
   submitted/executed notional `0` USDC.
 - Last backend serial-classification preflight: 2026-06-21
   `python tools/run_parallel_regression.py --check-serial-classification-only`
@@ -1196,7 +1202,7 @@ Keep it short. Keep it factual.
 - Last frontend focused run: 2026-06-21
   `npm run typecheck`, `npm run autonomous:check`, and
   `npx vitest run tests/unit/qualityGates.test.tsx`.
-- Result: Pending rerun after `5681-5700` remediation. Current focused
+- Result: Pending rerun after `5701-5720` remediation. Current focused
   frontend checks for the futures/perpetual read model passed before the
   blind/contextless reviewer found stale range constants; those constants are
   being remediated and `npm run autonomous:check` must pass before phase
@@ -1206,7 +1212,7 @@ Keep it short. Keep it factual.
   example payloads that needed clearer labeling, missing thread-parallelism
   rationale in the canonical regression policy, and stale M55 validation
   status in this state file. Those issues were remediated so contextless
-  readers can find the M57 `5681-5700` active range, the focused-vs-full gate
+  readers can find the M57 `5701-5720` active range, the focused-vs-full gate
   policy, the canonical process-parallel regression command, the serial-lane
   classifier, frontend closeout gates, and no-live notional posture without
   chat history.
@@ -1222,7 +1228,7 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Continue the active M57 `5681-5700` dependency work-item claim-trace evidence range only within the
+1. Continue the active M57 `5701-5720` dependency work-item claim-trace clearance-plan evidence range only within the
    approved futures/perpetual contract-foundation scope.
 2. Keep contextless blind review in the release loop for new non-spot module,
    order, campaign, live-action, approval-snapshot, approval-store,
@@ -1525,17 +1531,17 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5681-5700` by adding
+- Exact next command: complete active phases `5701-5720` by adding
   backend-owned futures/perpetual risk proof record-validation remediation
   dependency work-item claim-trace clearance-step review input store
-  record-validation remediation dependency work-item claim-trace evidence to the existing
+  record-validation remediation dependency work-item claim-trace clearance-plan evidence to the existing
   command-suite read contract, syncing OpenAPI and frontend generated schema,
   mapping runtime/mock/
   read-model display, updating docs and validators, then running focused gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live UI
   smoke. The active gap is proof record-validation remediation dependency
   work-item claim-trace clearance-step review input store record-validation
-  remediation dependency work-item claim-trace visibility only; no
+  remediation dependency work-item claim-trace clearance-plan visibility only; no
   futures command route, command draft, exchange order placement/cancellation,
   reconciliation execution, Coinbase read/write, state mutation, record
   contract creation, record schema creation, append-only log creation,
