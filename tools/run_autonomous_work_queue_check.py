@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5701-5720"
-APPROVED_PHASES = tuple(range(5701, 5721))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5681-5700"
+APPROVED_PHASE_RANGE = "5721-5740"
+APPROVED_PHASES = tuple(range(5721, 5741))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5701-5720"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -226,6 +226,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count"',
+            '"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -256,6 +258,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count"',
+            '"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"',
             '"record_contract_required": true',
             '"record_contract_available": false',
             '"record_schema_available": false',
@@ -285,6 +289,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"clearance_plan_ready": false',
             '"clearance_step_ready": false',
             '"clearance_step_complete": false',
+            '"prior_clearance_step_complete": false',
+            '"next_clearance_step_enabled": false',
             '"clearance_step_review_ready": false',
             '"clearance_step_review_complete": false',
             '"clearance_step_review_inputs_present": false',
@@ -585,6 +591,11 @@ def _check_agent_state_docs() -> QueueCheck:
         "complete active phases `5541-5560`",
         "complete active phases `5561-5580`",
         "complete active phases `5581-5600`",
+        "complete active phases `5701-5720`",
+        "M57 range `5701-5720` in progress",
+        "Pending rerun after `5701-5720` remediation",
+        "M57 `5701-5720` active range",
+        "Continue the active M57 `5701-5720`",
         "current active range is `5061-5080`",
         "current active range is `5081-5100`",
         "current active range is `5101-5120`",
@@ -691,8 +702,12 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "clearance_plan_ready=false",
         "risk proof record-validation remediation dependency work-item claim-trace clearance step",
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_steps",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count",
+        "remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps",
         "clearance_step_ready=false",
         "clearance_step_complete=false",
+        "prior_clearance_step_complete=false",
+        "next_clearance_step_enabled=false",
         "risk proof record-validation remediation dependency work-item claim-trace clearance step review",
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews",
         "clearance_step_review_ready=false",

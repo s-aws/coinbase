@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5681-5700` under M57.
-- Active autonomous range: `5701-5720` under M57.
+- Latest completed autonomous range: `5701-5720` under M57.
+- Active autonomous range: `5721-5740` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -710,14 +710,20 @@ notional, retained inventory, reconciliation result, and audit ids.
   claim-trace creation, work-item claiming, claim-ledger registration, claim
   review completion, claim resolution, dependency resolution, remediation
   execution, evidence writing, Coinbase calls, state mutation, browser
-  authority, or BFF execution authority. Active 5701-5720 work adds blocked
+  authority, or BFF execution authority. Completed 5701-5720 work added blocked
   nested dependency work-item claim-trace clearance-plan rows over those
   nested claim-trace rows so future sequencing can name clearance-plan stores,
   plan steps, predecessor/successor plan refs, and owner/contextless review
   blockers while still adding no clearance-plan creation, claim-trace
   readiness, claim allowance, claim resolution, work-item claiming, evidence
   writing, Coinbase calls, state mutation, browser authority, or BFF execution
-  authority.
+  authority. Active 5721-5740 work adds blocked nested dependency work-item
+  claim-trace clearance-step rows below those nested clearance plans so future
+  sequencing can name required step evidence, step gates, predecessor/successor
+  clearance steps, and inherited blockers while still adding no clearance-step
+  execution, clearance-plan readiness, claim-trace clearance, claim resolution,
+  work-item claiming, evidence writing, Coinbase calls, state mutation,
+  browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the summary

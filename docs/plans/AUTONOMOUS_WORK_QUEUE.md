@@ -29,9 +29,9 @@ open outside an active handoff.
 
 ## Approved Range Status
 
-- Approved phase range: **5701-5720**.
+- Approved phase range: **5721-5740**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5681-5700`.
+- Previous completed range: `5701-5720`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -60,7 +60,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5700`.
+- `current_phase`: `5720`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -79,7 +79,150 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5701-5720
+## Active Phases 5721-5740
+
+Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Evidence.
+
+These phases extend the existing read-only M57 futures/perpetual command-suite
+route so every blocked nested dependency work-item claim-trace clearance-plan
+row exposes backend-owned nested clearance-step evidence. The concrete gap is
+that phases 5701-5720 made the nested clearance-plan requirement visible, but
+did not expose the plan-step rows that prove the plan is still blocked on
+step review, contextless review, sequence, and claim-trace readiness evidence.
+The new rows must keep `clearance_step_ready=false`,
+`clearance_step_complete=false`, `prior_clearance_step_complete=false`,
+`next_clearance_step_enabled=false`, `clearance_plan_created=false`,
+`clearance_plan_ready=false`, `claim_allowed=false`, `claim_resolved=false`,
+`accepts_evidence=false`, `writes_evidence=false`, and
+`execution_allowed=false`. The work must remain read-only and no-live: no
+clearance step is executed, no clearance plan is created or marked ready, no
+claim trace is created or cleared, no claim is allowed or resolved, no work
+item is claimed, no dependency is resolved, no remediation is performed, no
+proof record is accepted or written, no futures command route or draft is
+created, no Coinbase read/write is performed, and no browser/BFF execution
+authority is introduced. Spot wallet, no-shorting, USDC, cost-basis,
+average-cost, and inventory-lot rules remain forbidden as futures/perpetual
+authority.
+
+### Phase 5721 - Prior Range Completion Evidence
+
+- Record completed phases 5701-5720 with backend commit `9cbcb8be`, frontend
+  commit `ab7662f`, focused backend/frontend gates, blind/contextless review,
+  phase-end stale-subagent sweep, and `0` USDC live Coinbase submitted/executed
+  notional.
+
+### Phase 5722 - Advance Active Queue Range
+
+- Move active range metadata from completed phases 5701-5720 to phases
+  5721-5740 while preserving no-live defaults and cap policy.
+
+### Phase 5723 - Nested Clearance-Step Gap
+
+- Document that each blocked nested clearance plan still lacks backend-owned
+  clearance-step rows for plan-step review, contextless review, sequence,
+  prior-step completion, and claim-trace readiness evidence.
+
+### Phase 5724 - Nested Clearance-Step Model
+
+- Add nested blocked clearance-step rows and aggregate counts without executing
+  clearance steps, creating plans, resolving claims, writing evidence, creating
+  validators, creating stores, creating routes, or enabling live commands.
+
+### Phase 5725 - Backend Nested Clearance-Step Builder
+
+- Derive six clearance-step rows from each nested clearance plan's required
+  plan steps while preserving command, proof, contract kind, upstream step,
+  required review input, nested plan, gate, target, source, predecessor,
+  successor, and blocker refs.
+
+### Phase 5726 - Nested Clearance-Step Aggregate Counts
+
+- Expose suite, command, risk-proof, work-item, nested claim-trace, and nested
+  clearance-plan counts proving all nested clearance steps are blocked, zero
+  ready, zero complete, and zero executable.
+
+### Phase 5727 - OpenAPI Contract Regeneration
+
+- Regenerate `openapi/coinbase-admin-api.yaml` from the backend-owned contract
+  so the frontend consumes the new nested clearance-step shape from generated
+  schema only.
+
+### Phase 5728 - Backend Contract Tests
+
+- Extend focused Admin API regression coverage for the model, OpenAPI
+  component, aggregate counts, nested rows, blocked refs, missing evidence, and
+  no-live authority flags.
+
+### Phase 5729 - Backend Examples
+
+- Update futures/perpetual Admin API examples to show the `5721-5740` approved
+  range and nested clearance-step counts without implying clearance,
+  evidence-write, or execution authority.
+
+### Phase 5730 - Backend State And Handoff Docs
+
+- Update autonomous queue, maintainer handoff, contextless review log, and
+  agent state so contextless maintainers can identify the active M57 gap and
+  previous completed range.
+
+### Phase 5731 - Frontend Schema Sync
+
+- Regenerate the frontend TypeScript schema from backend OpenAPI without
+  hand-editing generated files.
+
+### Phase 5732 - Frontend Adapter Mapping
+
+- Extend the futures/perpetual backend adapter to map nested clearance-step
+  counts and rows from the generated contract into the read model without
+  inventing frontend trading behavior.
+
+### Phase 5733 - Frontend Mock Runtime
+
+- Update mock backend futures/perpetual command-suite fixtures with the new
+  nested clearance-step counts, representative read-only rows, no-live posture,
+  and `5721-5740` phase range.
+
+### Phase 5734 - Frontend Read-Model Display
+
+- Render nested dependency work-item claim-trace clearance-step evidence under
+  the existing futures/perpetual read-only command-suite surface with blocked
+  status, required evidence, gate refs, blockers, and no-live authority.
+
+### Phase 5735 - Frontend Unit Coverage
+
+- Extend focused futures/perpetual read-model, mock backend, backend runtime,
+  and quality-gate tests for the new nested clearance-step evidence and active
+  phase range.
+
+### Phase 5736 - Frontend Docs And Examples
+
+- Update frontend futures/perpetual examples, testing docs, autonomous queue,
+  handoff docs, and contextless review log to describe the generated-schema
+  consumption path and no-live posture.
+
+### Phase 5737 - Focused Backend Gates
+
+- Run focused backend compile, Admin API contract, OpenAPI freshness,
+  autonomous queue, and ownership checks that cover the changed behavior.
+
+### Phase 5738 - Focused Frontend Gates
+
+- Run focused frontend typecheck, lint, API freshness, autonomous, release,
+  deployment, build, and unit checks that cover the changed behavior.
+
+### Phase 5739 - Blind/Contextless Review And Subagent Sweep
+
+- Run a fresh blind/contextless review for the backend/frontend changes, fix or
+  defer findings explicitly, and close phase-scoped, stale, or previously unused
+  subagents after findings are consumed.
+
+### Phase 5740 - Phase Closeout Evidence
+
+- Record implementation, verification, live Coinbase posture, submitted and
+  executed notional, review outcome, commits, pushes, and next approved
+  milestone-linked work if any remains.
+
+## Completed Phases 5701-5720
 
 Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Remediation Dependency Work-Item Claim-Trace Clearance-Plan Evidence.
 

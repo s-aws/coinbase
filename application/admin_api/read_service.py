@@ -147,6 +147,7 @@ from .models import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan,
+    AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep,
     AdminFuturesCommandRiskProofRecordValidationRemediationItem,
     AdminFuturesCommandRiskProofRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
@@ -382,7 +383,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5701-5720"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5721-5740"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -23087,6 +23088,426 @@ class AdminApiReadService:
                                         ),
                                     )
                                 )
+                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps: list[
+                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep
+                            ] = []
+                            for nested_clearance_plan in (
+                                clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                            ):
+                                nested_plan_ref = (
+                                    nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                                )
+                                nested_plan_steps = list(
+                                    nested_clearance_plan.required_plan_steps
+                                )
+                                for nested_step_index, nested_step_name in enumerate(
+                                    nested_plan_steps,
+                                    start=1,
+                                ):
+                                    nested_step_ref = (
+                                        f"{nested_plan_ref}.clearance_step."
+                                        f"{nested_step_name.value}"
+                                    )
+                                    nested_step_gate = f"{nested_step_ref}.gate"
+                                    predecessor_nested_step_refs = (
+                                        [
+                                            f"{nested_plan_ref}.clearance_step."
+                                            f"{nested_plan_steps[nested_step_index - 2].value}"
+                                        ]
+                                        if nested_step_index > 1
+                                        else []
+                                    )
+                                    successor_nested_step_refs = (
+                                        [
+                                            f"{nested_plan_ref}.clearance_step."
+                                            f"{nested_plan_steps[nested_step_index].value}"
+                                        ]
+                                        if nested_step_index < len(nested_plan_steps)
+                                        else []
+                                    )
+                                    nested_step_required_backend_contract = (
+                                        "application/admin_api/"
+                                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step.py::"
+                                        f"{command_id.value}_{proof_kind.value}_"
+                                        f"{nested_clearance_plan.contract_kind.value}_"
+                                        f"{nested_clearance_plan.clearance_step_name.value}_"
+                                        f"{nested_clearance_plan.required_review_input}_"
+                                        f"{nested_step_name.value}_"
+                                        "record_validation_remediation_dependency_"
+                                        "work_item_claim_trace_clearance_step_"
+                                        "review_input_store_record_validation_"
+                                        "remediation_dependency_work_item_claim_"
+                                        "trace_clearance_step"
+                                    )
+                                    clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps.append(
+                                        AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep(
+                                            contract_kind=(
+                                                nested_clearance_plan.contract_kind
+                                            ),
+                                            sequence=nested_clearance_plan.sequence,
+                                            clearance_step_sequence=(
+                                                nested_clearance_plan.clearance_step_sequence
+                                            ),
+                                            clearance_step_review_sequence=(
+                                                nested_clearance_plan.clearance_step_review_sequence
+                                            ),
+                                            clearance_step_review_input_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_sequence
+                                            ),
+                                            clearance_step_review_input_store_requirement_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_requirement_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_contract_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_contract_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_validation_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_validation_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_validation_remediation_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_validation_remediation_dependency_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_sequence=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_sequence
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_sequence=(
+                                                nested_step_index
+                                            ),
+                                            record_validation_ref=(
+                                                nested_clearance_plan.record_validation_ref
+                                            ),
+                                            record_contract_ref=(
+                                                nested_clearance_plan.record_contract_ref
+                                            ),
+                                            remediation_ref=(
+                                                nested_clearance_plan.remediation_ref
+                                            ),
+                                            remediation_dependency_ref=(
+                                                nested_clearance_plan.remediation_dependency_ref
+                                            ),
+                                            remediation_dependency_work_item_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_plan_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref=(
+                                                nested_plan_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref=(
+                                                nested_step_ref
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate=(
+                                                nested_step_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_input_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_review_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_step_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_clearance_plan_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_plan_gate
+                                            ),
+                                            remediation_dependency_work_item_claim_trace_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_gate
+                                            ),
+                                            remediation_dependency_work_item_gate=(
+                                                nested_clearance_plan.remediation_dependency_work_item_gate
+                                            ),
+                                            remediation_dependency_gate=(
+                                                nested_clearance_plan.remediation_dependency_gate
+                                            ),
+                                            remediation_gate=(
+                                                nested_clearance_plan.remediation_gate
+                                            ),
+                                            required_backend_contract=(
+                                                nested_step_required_backend_contract
+                                            ),
+                                            required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_contract=(
+                                                nested_clearance_plan.required_backend_contract
+                                            ),
+                                            required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract
+                                            ),
+                                            required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_contract
+                                            ),
+                                            required_clearance_step_review_input_store_record_validation_remediation_dependency_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_record_validation_remediation_dependency_contract
+                                            ),
+                                            required_clearance_step_review_input_store_record_validation_remediation_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_record_validation_remediation_contract
+                                            ),
+                                            required_clearance_step_review_input_store_record_validation_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_record_validation_contract
+                                            ),
+                                            required_clearance_step_review_input_store_record_contract_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_record_contract_contract
+                                            ),
+                                            required_clearance_step_review_input_store_requirement_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_requirement_contract
+                                            ),
+                                            required_clearance_step_review_input_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_input_contract
+                                            ),
+                                            required_clearance_step_review_contract=(
+                                                nested_clearance_plan.required_clearance_step_review_contract
+                                            ),
+                                            required_clearance_step_contract=(
+                                                nested_clearance_plan.required_clearance_step_contract
+                                            ),
+                                            required_clearance_plan_contract=(
+                                                nested_clearance_plan.required_clearance_plan_contract
+                                            ),
+                                            required_claim_trace_contract=(
+                                                nested_clearance_plan.required_claim_trace_contract
+                                            ),
+                                            required_clearance_step_review_input_store_ref=(
+                                                nested_clearance_plan.required_clearance_step_review_input_store_ref
+                                            ),
+                                            required_clearance_step_review_store_ref=(
+                                                nested_clearance_plan.required_clearance_step_review_store_ref
+                                            ),
+                                            required_clearance_plan_store_ref=(
+                                                nested_clearance_plan.required_clearance_plan_store_ref
+                                            ),
+                                            required_claim_trace_store_ref=(
+                                                nested_clearance_plan.required_claim_trace_store_ref
+                                            ),
+                                            required_work_item_store_ref=(
+                                                nested_clearance_plan.required_work_item_store_ref
+                                            ),
+                                            required_dependency_work_item_store_ref=(
+                                                nested_clearance_plan.required_dependency_work_item_store_ref
+                                            ),
+                                            required_dependency_work_item_claim_trace_store_ref=(
+                                                nested_clearance_plan.required_dependency_work_item_claim_trace_store_ref
+                                            ),
+                                            required_dependency_work_item_claim_trace_clearance_plan_store_ref=(
+                                                nested_clearance_plan.required_dependency_work_item_claim_trace_clearance_plan_store_ref
+                                            ),
+                                            required_dependency_work_item_claim_trace_clearance_step_store_ref=(
+                                                "admin_futures_remediation_dependency_"
+                                                "work_item_claim_trace_clearance_"
+                                                "step_review_input_store_record_"
+                                                "validation_remediation_dependency_"
+                                                "work_item_claim_trace_clearance_steps."
+                                                f"{command_id.value}.{proof_kind.value}"
+                                            ),
+                                            required_store_ref=(
+                                                nested_clearance_plan.required_store_ref
+                                            ),
+                                            required_record_key=(
+                                                nested_clearance_plan.required_record_key
+                                            ),
+                                            validation_gate=(
+                                                nested_clearance_plan.validation_gate
+                                            ),
+                                            replay_gate=(
+                                                nested_clearance_plan.replay_gate
+                                            ),
+                                            record_contract_gate=(
+                                                nested_clearance_plan.record_contract_gate
+                                            ),
+                                            record_validation_gate=(
+                                                nested_clearance_plan.record_validation_gate
+                                            ),
+                                            record_validation_remediation_gate=(
+                                                nested_clearance_plan.record_validation_remediation_gate
+                                            ),
+                                            record_validation_remediation_dependency_gate=(
+                                                nested_clearance_plan.record_validation_remediation_dependency_gate
+                                            ),
+                                            record_validation_remediation_dependency_work_item_gate=(
+                                                nested_clearance_plan.record_validation_remediation_dependency_work_item_gate
+                                            ),
+                                            record_validation_remediation_dependency_work_item_claim_trace_gate=(
+                                                nested_clearance_plan.record_validation_remediation_dependency_work_item_claim_trace_gate
+                                            ),
+                                            record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate=(
+                                                nested_clearance_plan.record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate
+                                            ),
+                                            record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate=(
+                                                nested_step_gate
+                                            ),
+                                            clearance_step_name=(
+                                                nested_clearance_plan.clearance_step_name
+                                            ),
+                                            nested_clearance_step_name=(
+                                                nested_step_name
+                                            ),
+                                            required_review_input=(
+                                                nested_clearance_plan.required_review_input
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_claim=(
+                                                "claim_trace_clearance_step_review_"
+                                                "input_store_record_validation_"
+                                                "remediation_dependency_work_item_"
+                                                "claim_trace_clearance_step"
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_target_ref=(
+                                                nested_plan_ref
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_source_ref=(
+                                                nested_clearance_plan.required_backend_contract
+                                            ),
+                                            required_plan_steps=nested_plan_steps,
+                                            predecessor_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_refs=(
+                                                predecessor_nested_step_refs
+                                            ),
+                                            successor_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_refs=(
+                                                successor_nested_step_refs
+                                            ),
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_blockers=[
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.CLEARANCE_PLAN_NOT_CREATED,
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.CLEARANCE_PLAN_NOT_READY,
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.CLEARANCE_SEQUENCE_MISSING,
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.PRIOR_CLEARANCE_STEP_INCOMPLETE,
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.REQUIRED_STEP_REVIEW_MISSING,
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.CLAIM_TRACE_NOT_READY,
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.CLAIM_UNRESOLVED,
+                                                AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker.CONTEXTLESS_REVIEW_MISSING,
+                                            ],
+                                            inherited_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_blockers=(
+                                                nested_clearance_plan.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_blockers
+                                            ),
+                                            inherited_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_blockers=(
+                                                nested_clearance_plan.inherited_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_blockers
+                                            ),
+                                            required_evidence_refs=[
+                                                nested_plan_ref,
+                                                nested_clearance_plan.required_backend_contract,
+                                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate,
+                                                *nested_clearance_plan.required_evidence_refs,
+                                            ],
+                                            missing_evidence_refs=[
+                                                nested_step_required_backend_contract,
+                                                f"{nested_step_ref}.step_review",
+                                                f"{nested_step_ref}.contextless_review",
+                                                *nested_clearance_plan.missing_evidence_refs,
+                                            ],
+                                            detail=(
+                                                f"{command_id.value} {proof_kind.value} "
+                                                "claim-trace clearance-step review "
+                                                "input store record validation "
+                                                "remediation dependency work-item "
+                                                "claim-trace clearance step "
+                                                f"{nested_step_name.value} for "
+                                                f"{input_name}, {step_name.value}, "
+                                                f"and {claim_trace.contract_kind.value} "
+                                                "remains blocked until the nested "
+                                                "clearance plan exists, is ready, "
+                                                "has sequence evidence, its prior "
+                                                "steps and step review are complete, "
+                                                "and the nested claim trace is "
+                                                "ready and resolved. This row does "
+                                                "not execute clearance steps, "
+                                                "resolve claims, claim work items, "
+                                                "write proof records, call Coinbase, "
+                                                "or enable futures/perpetual command "
+                                                "execution."
+                                            ),
+                                        )
+                                    )
+                            for nested_clearance_plan in (
+                                clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                            ):
+                                nested_plan_steps = [
+                                    step
+                                    for step in (
+                                        clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                                    )
+                                    if step.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                                    == nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref
+                                ]
+                                nested_clearance_plan.clearance_step_count = len(
+                                    nested_plan_steps
+                                )
+                                nested_clearance_plan.blocking_clearance_step_count = sum(
+                                    1 for step in nested_plan_steps if step.blocking
+                                )
+                                nested_clearance_plan.ready_clearance_step_count = sum(
+                                    1
+                                    for step in nested_plan_steps
+                                    if step.clearance_step_ready
+                                )
+                                nested_clearance_plan.completed_clearance_step_count = sum(
+                                    1
+                                    for step in nested_plan_steps
+                                    if step.clearance_step_complete
+                                )
+                                nested_clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps = (
+                                    nested_plan_steps
+                                )
                             for nested_claim_trace in (
                                 clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
                             ):
@@ -23110,6 +23531,33 @@ class AdminApiReadService:
                                 )
                                 nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans = (
                                     clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                                )
+                                nested_claim_trace_steps = [
+                                    step
+                                    for step in (
+                                        clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                                    )
+                                    if step.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref
+                                    == nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref
+                                ]
+                                nested_claim_trace.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count = len(
+                                    nested_claim_trace_steps
+                                )
+                                nested_claim_trace.blocking_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count = sum(
+                                    1 for step in nested_claim_trace_steps if step.blocking
+                                )
+                                nested_claim_trace.ready_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count = sum(
+                                    1
+                                    for step in nested_claim_trace_steps
+                                    if step.clearance_step_ready
+                                )
+                                nested_claim_trace.completed_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count = sum(
+                                    1
+                                    for step in nested_claim_trace_steps
+                                    if step.clearance_step_complete
+                                )
+                                nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps = (
+                                    nested_claim_trace_steps
                                 )
                             clearance_step_review_input_store_record_validation_remediation_dependency_work_items = [
                                 AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItem(
@@ -23426,6 +23874,33 @@ class AdminApiReadService:
                                     ),
                                     remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans=(
                                         clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                                    ),
+                                    clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=len(
+                                        clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                                    ),
+                                    blocking_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                                        1
+                                        for step in (
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                                        )
+                                        if step.blocking
+                                    ),
+                                    ready_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                                        1
+                                        for step in (
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                                        )
+                                        if step.clearance_step_ready
+                                    ),
+                                    completed_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                                        1
+                                        for step in (
+                                            clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                                        )
+                                        if step.clearance_step_complete
+                                    ),
+                                    remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps=(
+                                        clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
                                     ),
                                     required_evidence_refs=[
                                         clearance_step_review_input_store_record_validation_remediation_dependency_ref,
@@ -26062,6 +26537,15 @@ class AdminApiReadService:
                         nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
                     )
                 ]
+                proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps = [
+                    clearance_step
+                    for clearance_plan in (
+                        proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+                    )
+                    for clearance_step in (
+                        clearance_plan.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                    )
+                ]
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -26526,6 +27010,30 @@ class AdminApiReadService:
                         record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans=(
                             proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
                         ),
+                        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=len(
+                            proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                        ),
+                        blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                            1
+                            for step in (
+                                proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                            )
+                            if step.blocking
+                        ),
+                        ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                            1
+                            for step in (
+                                proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                            )
+                            if step.clearance_step_ready
+                        ),
+                        completed_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                            1
+                            for step in (
+                                proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps
+                            )
+                            if step.clearance_step_complete
+                        ),
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -26917,6 +27425,22 @@ class AdminApiReadService:
                 ),
                 ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
                     item.ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+                    for item in proof_requirements
+                ),
+                risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                    item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+                    for item in proof_requirements
+                ),
+                blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                    item.blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+                    for item in proof_requirements
+                ),
+                ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                    item.ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+                    for item in proof_requirements
+                ),
+                completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                    item.completed_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
                     for item in proof_requirements
                 ),
                 risk_proof_acceptance_criterion_count=sum(
@@ -27319,6 +27843,22 @@ class AdminApiReadService:
             ),
             ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count=sum(
                 command.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
+                for command in commands
+            ),
+            risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                command.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+                for command in commands
+            ),
+            blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                command.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+                for command in commands
+            ),
+            ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                command.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
+                for command in commands
+            ),
+            completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count=sum(
+                command.completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
                 for command in commands
             ),
             risk_proof_acceptance_criterion_count=sum(

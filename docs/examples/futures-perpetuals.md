@@ -11,10 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5701-5720 range adds read-only M57 futures/perpetual risk proof
+The active 5721-5740 range adds read-only M57 futures/perpetual risk proof
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation remediation dependency work-item
-claim-trace clearance-plan evidence to the existing command-suite evidence.
+claim-trace clearance-step evidence below the existing nested clearance-plan
+evidence in the command-suite contract.
 Each readiness decision, ordered closure step, risk proof requirement, proof
 contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
@@ -45,6 +46,10 @@ dependency work-item claim-trace rows
 (`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"`),
 dependency work-item claim-trace clearance-plan rows
 (`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"`),
+dependency work-item claim-trace clearance-step count field
+(`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count"`),
+dependency work-item claim-trace clearance-step rows
+(`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"`),
 and acceptance criterion is derived from backend-owned prerequisites, request
 fields, semantic guards, evidence routes, missing evidence refs, and missing
 backend contracts. It is not a command route,
@@ -72,7 +77,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5701-5720",
+  "approved_phase_range": "5721-5740",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -159,6 +164,10 @@ Expected response posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 1440,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 0,
   "claimed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 8640,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 8640,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
+  "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
   "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": [
     {
       "clearance_plan_created": false,
@@ -168,6 +177,8 @@ Expected response posture:
           "clearance_step_name": "inspect_claim_trace",
           "clearance_step_ready": false,
           "clearance_step_complete": false,
+          "prior_clearance_step_complete": false,
+          "next_clearance_step_enabled": false,
           "claim_resolved": false,
           "execution_allowed": false,
           "remediation_dependency_work_item_claim_trace_clearance_step_reviews": [
