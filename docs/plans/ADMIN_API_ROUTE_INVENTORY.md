@@ -9,7 +9,7 @@ shared command-service method, and parity test target. The Markdown table below
 keeps the human-readable route summary compact; the generated JSON artifact is
 the machine-readable source for per-row `module_id`.
 
-Run `python tools\export_admin_api_route_inventory.py` after changing this
+Run `python -m tools.export_admin_api_route_inventory` after changing this
 inventory. The generated
 `openapi/coinbase-admin-api-route-inventory.json` artifact is consumed by the
 enterprise frontend route checker so the frontend compares against
@@ -69,6 +69,9 @@ their own module ids even though their paths live under `/api/v1/admin/*`.
 | `GET /api/v1/futures/account` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_futures_account` | read-only futures account, margin, collateral, liquidation, funding, and P/L evidence | |
 | `GET /api/v1/futures/positions` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_futures_positions` | position_key identity and futures close-side semantics; no spot inventory rules | |
 | `GET /api/v1/futures/positions/{position_key}` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_futures_position_detail` | backend-defined position identity with no order placement or cancellation | |
+| `GET /api/v1/futures/risk-proofs` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `list_futures_risk_proofs` | read-only append-only futures risk-proof records; no command enablement or Coinbase activity | |
+| `GET /api/v1/futures/risk-proofs/{futures_risk_proof_id}` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `get_futures_risk_proof` | read-only futures risk-proof detail; proof records are not command acceptance | |
+| `POST /api/v1/futures/risk-proofs` | `local_state_mutation` | `futures_risk_proof:record` | required | required by current HTTP live-disabled gate | required for futures risk-proof record admission | required | `record_futures_risk_proof` | futures_risk_proof identity; append-only proof evidence only, no futures command route, no command draft, no Coinbase activity, no reconciliation execution, and no futures state mutation | |
 | `place_order` WebSocket | `live_exchange_place` | compatibility policy | enterprise-gated or compatibility-only | enterprise-gated or compatibility-only | required | required | `place_manual_order` | WebSocket vs HTTP guard/result parity | `compatibility_only` |
 | `place_hotpoint_test_order` WebSocket | `live_exchange_place` | compatibility policy | enterprise-gated or compatibility-only | enterprise-gated or compatibility-only | required | required | `place_hotpoint_test_order` | WebSocket vs shared-service hotpoint guard/result parity | `compatibility_only` |
 | `POST /api/v1/orders/{client_order_id}/cancel` | `live_exchange_cancel` | `order:cancel` | required | required by current HTTP live-disabled gate | required for rate/session controls | required | `cancel_order_by_client_order_id` | HTTP vs `cancel_order` parity | |

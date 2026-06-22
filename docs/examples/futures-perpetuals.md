@@ -11,11 +11,19 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5761-5780 range adds read-only M57 futures/perpetual risk proof
-record-validation remediation dependency work-item claim-trace clearance-step
-review input store record-validation remediation dependency work-item
-claim-trace clearance-step review input evidence below the existing nested
-clearance-step review evidence in the command-suite contract.
+The active 5781-5800 range adds concrete M57 futures/perpetual risk-proof
+record routes at `/api/v1/futures/risk-proofs`. The `GET` routes read
+persisted local proof evidence, and the `POST` route records append-only local
+proof evidence through the shared Admin API command path. These routes do not
+accept proof requirements, register futures command routes, create command
+drafts, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, or grant browser/BFF authority.
+
+The command-suite contract still exposes read-only M57 futures/perpetual risk
+proof record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation remediation dependency
+work-item claim-trace clearance-step review input evidence below the existing
+nested clearance-step review evidence.
 Each readiness decision, ordered closure step, risk proof requirement, proof
 contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
@@ -83,7 +91,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5761-5780",
+  "approved_phase_range": "5781-5800",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1522,6 +1530,65 @@ X-Admin-Roles: auditor
 
 The path uses `position_key`. Do not replace it with `client_order_id` or
 Coinbase `order_id`.
+
+## Risk-Proof Records
+
+List persisted local futures risk-proof evidence:
+
+```http
+GET /api/v1/futures/risk-proofs?command=futures_place&proof_kind=product_scope&limit=20
+Authorization: Bearer local-admin-token
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Detail readbacks use the backend proof id:
+
+```http
+GET /api/v1/futures/risk-proofs/futures-risk-proof-001
+Authorization: Bearer local-admin-token
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Record append-only local proof evidence only:
+
+```http
+POST /api/v1/futures/risk-proofs
+Authorization: Bearer local-admin-token
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+Idempotency-Key: idem-futures-risk-proof
+X-Correlation-Id: corr-futures-risk-proof
+Content-Type: application/json
+
+{
+  "command": "futures_place",
+  "proof_kind": "margin_collateral",
+  "proof_contract_ref": "futures_place.margin_collateral.proof_contract",
+  "evidence_source": "test_evidence",
+  "evidence_ref": "tests/regression/test_admin_api_futures_risk_proofs.py",
+  "risk_evidence_refs": [
+    "futures.account.margin",
+    "futures.account.collateral"
+  ],
+  "product_id": "BIT-20DEC30-CDE",
+  "approval_snapshot_id": "approval-snapshot-futures-risk-proof-001",
+  "admission_audit_id": "admission-audit-futures-risk-proof-001",
+  "cap_guard_decision_id": "cap-guard-futures-risk-proof-001",
+  "reconciliation_plan_id": "reconciliation-plan-futures-risk-proof-001",
+  "dry_run": true,
+  "operator_reason": "Record local proof evidence for M57 contract review.",
+  "manual_live_acknowledgement": false
+}
+```
+
+The accepted response is a backend command response with
+`live_exchange_submitted=false`, `submitted_notional_usdc="0"`, and
+`executed_notional_usdc="0"`. It persists proof evidence only; it does not
+accept proof requirements, register futures command routes, create command
+drafts, execute reconciliation, call Coinbase, mutate futures/order/exchange
+state, or grant browser/BFF authority.
 
 ## Operator Rules
 

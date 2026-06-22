@@ -1,5 +1,56 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk-Proof Record Contract - Phases 5781-5800
+
+Scope: phases `5781-5800`, after completed history `5761-5780`, add
+backend-owned futures risk-proof record routes at
+`/api/v1/futures/risk-proofs` with append-only local proof evidence,
+list/detail readbacks, route inventory, OpenAPI, and frontend consumption.
+
+Result: PASS after remediation.
+
+- Review result: the route boundary is understandable without chat history.
+  `FuturesRiskProofRecordRequest`, `FuturesRiskProofListResponse`,
+  `FuturesRiskProofDetailResponse`, `FileFuturesRiskProofStore`,
+  `AdminApiFuturesRiskProofService`, and
+  `AdminApiCommandService.record_futures_risk_proof` form one backend-owned
+  path for proof records.
+- Route evidence: `GET /api/v1/futures/risk-proofs`,
+  `GET /api/v1/futures/risk-proofs/{futures_risk_proof_id}`, and
+  `POST /api/v1/futures/risk-proofs` are bound to `futures_perpetuals`.
+  The record route requires `futures_risk_proof:record`, idempotency,
+  approval, cap/guard, admission audit, reconciliation-plan evidence, and
+  audit evidence.
+- Authority boundary: records are append-only local proof evidence only; no
+  futures command route, no command draft, no Coinbase activity, no
+  reconciliation execution, no futures state mutation, no order/exchange-state
+  mutation, no accepted proof requirement, no browser authority, and no BFF
+  execution authority are introduced.
+- Machine-check exact phrase line: futures_risk_proof:record; no futures command route; no reconciliation execution.
+- Frontend alignment: generated schema, `listFuturesRiskProofs`,
+  `getFuturesRiskProof`, `recordFuturesRiskProof`, `futures.riskProofs`,
+  `futures.riskProof.detail`, `futures.riskProof.record`, runtime snapshots,
+  mutation-contract metadata, docs, and tests consume backend-owned evidence
+  only.
+- Spot-boundary review: forbidden spot assumptions remain rejected. Spot
+  wallet, no-shorting, USDC quote, cost-basis, average-cost, and inventory-lot
+  assumptions are not futures/perpetual proof authority.
+- No live Coinbase execution was run; submitted notional `0` USDC and executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5781-5800` are ordinary
+  phase work, not durable milestone closeout.
+- Blind-review remediation: the initial backend contextless reviewer failed
+  the first pass because proof-id lookup and duplicate detection scanned only
+  the bounded recent window. `FileFuturesRiskProofStore.find_by_proof_id` now
+  scans `read_all()` over the append-only log while list reads remain bounded,
+  and focused regression covers older-than-500 proof lookup, duplicate
+  rejection, and route-level POST through shared admission.
+- Phase-end stale-subagent sweep completed: closed the initial backend
+  reviewer after its finding was remediated, closed the frontend reviewer
+  after its PASS was consumed, and closed the backend remediation reviewer
+  after it confirmed PASS. No phase-scoped, stale, or unused subagent remains
+  intentionally open.
+
 ## M57 Futures/Perpetual Nested Claim-Trace Clearance-Step Review Input Evidence - Phases 5761-5780
 
 Scope: phases `5761-5780`, after completed history `5741-5760`, add

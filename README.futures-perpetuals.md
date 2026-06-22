@@ -16,11 +16,21 @@ Current routes:
 - `GET /api/v1/futures/account`
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
+- `GET /api/v1/futures/risk-proofs`
+- `GET /api/v1/futures/risk-proofs/{futures_risk_proof_id}`
+- `POST /api/v1/futures/risk-proofs`
 
-All routes require Admin API auth/RBAC and `analytics:read`. Account and
-position routes return `read_only=true`, `command_routes_mode="not_modeled"`,
-and `live_coinbase_orders_ran=false`; the command-suite route exposes the
-same blocked/no-live posture through its disabled route, draft, execution,
+Read routes require Admin API auth/RBAC and `analytics:read`. The
+`POST /api/v1/futures/risk-proofs` route requires
+`futures_risk_proof:record`, idempotency, approval, cap/guard, and audit
+evidence through the shared Admin API command service. It persists
+append-only local proof evidence only; it does not verify the proof
+requirement, register futures command routes, create command drafts, call
+Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+grant browser/BFF authority. Account and position routes return
+`read_only=true`, `command_routes_mode="not_modeled"`, and
+`live_coinbase_orders_ran=false`; the command-suite route exposes the same
+blocked/no-live posture through its disabled route, draft, execution,
 browser, BFF, and notional evidence fields.
 
 ## Key Concepts
@@ -69,6 +79,11 @@ browser, BFF, and notional evidence fields.
   artifacts, evidence refs, proposed route paths, and disabled
   route/writer/execution flags. They do not register routes, enable writers,
   accept proof payloads, or make a command executable.
+- `/api/v1/futures/risk-proofs` is the first concrete append-only
+  futures/perpetual proof-record route. It records exact-context proof
+  evidence through the backend command service, but accepted records remain
+  evidence only and do not satisfy command-suite risk proof requirements or
+  enable futures command routes.
 - Each risk proof requirement also exposes five backend-owned acceptance
   criteria: required evidence present, proof route registered, proof writer
   reviewed, spot-rule boundary reviewed, and browser/BFF authority reviewed.
@@ -190,6 +205,11 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   enabled writers. They are blocked contract targets for future backend work
   and keep route registration, writer enablement, command drafts, execution,
   browser authority, and BFF execution authority disabled.
+- Do not treat futures risk-proof records as proof acceptance or command
+  readiness. They are append-only local evidence records and remain
+  insufficient to create command drafts, satisfy risk proof requirements,
+  execute reconciliation, call Coinbase, or mutate futures/order/exchange
+  state.
 - Do not treat risk proof acceptance criteria as completed proof reviews.
   They are blocked acceptance checks that name what a later backend-owned
   proof route and proof writer must satisfy; they do not enable routes,

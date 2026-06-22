@@ -45,6 +45,7 @@ from .models import (
     AdminApiCommandResponse,
     CampaignExecutionCommand,
     CancelOrderCommand,
+    FuturesRiskProofRecordCommand,
     ManualOrderCommand,
     MovementRepriceCommand,
     SpotRecoveryApplyExecutionCommand,
@@ -104,6 +105,14 @@ from .spot_recovery_proof_service import (
 from .spot_recovery_snapshot_service import (
     AdminApiSpotRecoverySnapshotService,
     SpotRecoverySnapshotError,
+)
+from .futures_risk_proof import (
+    FileFuturesRiskProofStore,
+    FuturesRiskProofRecord,
+)
+from .futures_risk_proof_service import (
+    AdminApiFuturesRiskProofService,
+    FuturesRiskProofError,
 )
 from .stealth_exchange_truth import (
     FileStealthExchangeTruthProofStore,
@@ -273,6 +282,10 @@ class AdminApiCommandDependencies:
         [],
         FileSpotRecoveryCompletionJournalStore,
     ] = FileSpotRecoveryCompletionJournalStore
+    futures_risk_proof_store_getter: Callable[
+        [],
+        FileFuturesRiskProofStore,
+    ] = FileFuturesRiskProofStore
     stealth_exchange_truth_snapshot_store_getter: Callable[
         [],
         FileStealthExchangeTruthSnapshotStore,
@@ -342,6 +355,9 @@ class AdminApiCommandDependencies:
     )
     spot_recovery_snapshot_service: AdminApiSpotRecoverySnapshotService = field(
         default_factory=AdminApiSpotRecoverySnapshotService
+    )
+    futures_risk_proof_service: AdminApiFuturesRiskProofService = field(
+        default_factory=AdminApiFuturesRiskProofService
     )
     stealth_exchange_truth_service: AdminApiStealthExchangeTruthService = field(
         default_factory=AdminApiStealthExchangeTruthService
@@ -766,6 +782,41 @@ def _stealth_recovery_proof_response_data(
         "order_state_mutated": False,
         "lifecycle_state_mutated": False,
         "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _futures_risk_proof_response_data(
+    record: FuturesRiskProofRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted futures risk proof."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "proof_persisted": True,
+        "risk_proof_verified": False,
+        "risk_proof_accepted": False,
+        "command_route_registered": False,
+        "command_draft_created": False,
+        "command_execution_allowed": False,
+        "margin_validated": False,
+        "collateral_validated": False,
+        "liquidation_validated": False,
+        "funding_validated": False,
+        "reduce_only_validated": False,
+        "close_only_validated": False,
+        "reconciliation_executed": False,
+        "order_state_mutated": False,
+        "exchange_state_mutated": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "coinbase_order_cancel_submitted": False,
         "live_exchange_submitted": False,
         "live_coinbase_orders_ran": False,
         "browser_authority": "display_only",
@@ -2730,6 +2781,119 @@ class AdminApiCommandService:
             audit_id=record.audit_id,
             live_exchange_submitted=False,
             data=_stealth_mutation_claim_proof_response_data(record),
+        )
+
+    def _rejected_futures_risk_proof_response(
+        self,
+        *,
+        command: FuturesRiskProofRecordCommand,
+        message: str,
+    ) -> AdminApiCommandResponse:
+        request = command.request
+        data: dict[str, Any] = {
+            "mutation_family": AdminApiMutationFamilyType.FUTURES_RISK_PROOF.value,
+            "futures_risk_proof_id": request.futures_risk_proof_id,
+            "command": request.command.value,
+            "proof_kind": request.proof_kind.value,
+            "proof_contract_ref": request.proof_contract_ref,
+            "evidence_ref": request.evidence_ref,
+            "evidence_source": request.evidence_source.value,
+            "risk_evidence_refs": request.risk_evidence_refs,
+            "product_id": request.product_id,
+            "position_key": request.position_key,
+            "approval_snapshot_id": request.approval_snapshot_id,
+            "admission_audit_id": request.admission_audit_id,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "dry_run": request.dry_run,
+            "operator_reason": request.operator_reason,
+            "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "proof_persisted": False,
+            "risk_proof_verified": False,
+            "risk_proof_accepted": False,
+            "command_route_registered": False,
+            "command_draft_created": False,
+            "command_execution_allowed": False,
+            "margin_validated": False,
+            "collateral_validated": False,
+            "liquidation_validated": False,
+            "funding_validated": False,
+            "reduce_only_validated": False,
+            "close_only_validated": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "coinbase_rest_read_ran": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.FUTURES_RISK_PROOF_RECORD,
+            service_method="record_futures_risk_proof",
+            message=message,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            data=data,
+            failure_stage="proof_prerequisite",
+        )
+
+    def record_futures_risk_proof(
+        self,
+        command: FuturesRiskProofRecordCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned futures/perpetual risk proof evidence."""
+
+        if command.admission_decision is None:
+            return self._rejected_futures_risk_proof_response(
+                command=command,
+                message="Futures risk proof admission evidence is missing.",
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.futures_risk_proof_service.record_proof(
+                proof_store=deps.futures_risk_proof_store_getter(),
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except FuturesRiskProofError as exc:
+            return self._rejected_futures_risk_proof_response(
+                command=command,
+                message=str(exc),
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.FUTURES_RISK_PROOF_RECORD,
+            service_method="record_futures_risk_proof",
+            message=(
+                "Futures risk proof recorded as append-only evidence only; "
+                "no futures command route, draft, validation acceptance, "
+                "reconciliation execution, state mutation, or Coinbase "
+                "activity ran."
+            ),
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_futures_risk_proof_response_data(record),
         )
 
     def _rejected_stealth_recovery_proof_response(

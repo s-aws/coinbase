@@ -805,6 +805,52 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend-defined position identity with no order placement or cancellation",
     ),
     AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/risk-proofs",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_futures_risk_proofs",
+        parity_test=(
+            "read-only futures risk-proof record readback; no proof acceptance, "
+            "command draft, reconciliation execution, or Coinbase call"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/risk-proofs/{futures_risk_proof_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="get_futures_risk_proof",
+        parity_test=(
+            "read-only futures risk-proof detail by proof id; no proof "
+            "acceptance, command draft, reconciliation execution, or Coinbase call"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/risk-proofs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.FUTURES_RISK_PROOF_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures risk proof record admission",
+        audit="required",
+        shared_method="record_futures_risk_proof",
+        parity_test=(
+            "command/proof_kind identity; proof evidence remains no-live and "
+            "does not register command routes, create drafts, execute "
+            "reconciliation, mutate futures state, or call Coinbase"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="guard_risk_policy",
         surface="GET /api/v1/admin/guard-risk-policy",
         action_class=AdminApiActionClass.READ_ONLY,

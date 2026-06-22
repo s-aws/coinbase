@@ -52,6 +52,7 @@ from core.enums import (
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
+    AdminFuturesRiskProofEvidenceSource,
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiLiveAdmissionAuditFact,
@@ -1016,6 +1017,29 @@ class SpotRecoveryReconciliationExecutionRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class FuturesRiskProofRecordRequest(BaseModel):
+    """Futures/perpetual risk proof request keyed by command and proof kind."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    command: AdminFuturesCommandAction
+    proof_kind: AdminFuturesCommandRiskProofKind
+    proof_contract_ref: str = Field(min_length=1)
+    evidence_ref: str = Field(min_length=1)
+    evidence_source: AdminFuturesRiskProofEvidenceSource
+    risk_evidence_refs: list[str] = Field(default_factory=list)
+    product_id: str | None = Field(default=None, min_length=1)
+    position_key: str | None = Field(default=None, min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    futures_risk_proof_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class ManualOrderCommand(BaseModel):
     """Shared service command for manual placement."""
 
@@ -1377,6 +1401,17 @@ class SpotRecoveryReconciliationExecutionCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotRecoveryReconciliationExecutionRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class FuturesRiskProofRecordCommand(BaseModel):
+    """Shared service command for futures/perpetual risk proof records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: FuturesRiskProofRecordRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
@@ -3903,6 +3938,104 @@ class AdminFuturesAccountReadResponse(BaseModel):
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
     live_coinbase_orders_ran: bool = False
+
+
+class FuturesRiskProofRecordItem(BaseModel):
+    """Read-only persisted futures/perpetual risk proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    futures_risk_proof_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    command: AdminFuturesCommandAction
+    proof_kind: AdminFuturesCommandRiskProofKind
+    proof_contract_ref: str
+    evidence_ref: str
+    evidence_source: AdminFuturesRiskProofEvidenceSource
+    risk_evidence_refs: list[str] = Field(default_factory=list)
+    product_id: str | None = None
+    position_key: str | None = None
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    module_id: str = "futures_perpetuals"
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_futures_risk_proof_log"
+    proof_persisted: bool = True
+    risk_proof_verified: bool = False
+    risk_proof_accepted: bool = False
+    command_route_registered: bool = False
+    command_draft_created: bool = False
+    command_execution_allowed: bool = False
+    margin_validated: bool = False
+    collateral_validated: bool = False
+    liquidation_validated: bool = False
+    funding_validated: bool = False
+    reduce_only_validated: bool = False
+    close_only_validated: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+
+
+class FuturesRiskProofListResponse(BaseModel):
+    """Read-only futures/perpetual risk proof record list."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_futures_risk_proofs"
+    module_id: str = "futures_perpetuals"
+    filters: FlexibleDict = Field(default_factory=dict)
+    count: int
+    items: list[FuturesRiskProofRecordItem] = Field(default_factory=list)
+    read_only: bool = True
+    proof_records_created: bool = False
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+
+
+class FuturesRiskProofDetailResponse(BaseModel):
+    """Read-only futures/perpetual risk proof record detail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_futures_risk_proof_detail"
+    module_id: str = "futures_perpetuals"
+    futures_risk_proof_id: str
+    found: bool
+    record: FuturesRiskProofRecordItem | None = None
+    read_only: bool = True
+    proof_record_created: bool = False
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
 
 
 class AdminFuturesCommandPrerequisiteItem(BaseModel):

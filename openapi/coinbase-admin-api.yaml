@@ -2769,6 +2769,271 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/risk-proofs:
+    get:
+      tags:
+      - futures
+      summary: Read futures and perpetual risk proof records
+      description: Read persisted futures/perpetual risk proof evidence.
+      operationId: list_futures_risk_proofs_api_v1_futures_risk_proofs_get
+      parameters:
+      - name: command
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesCommandAction'
+          - type: 'null'
+          title: Command
+      - name: proof_kind
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+          - type: 'null'
+          title: Proof Kind
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuturesRiskProofListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - futures
+      summary: Record futures and perpetual risk proof evidence
+      description: Route adapter for backend-owned no-live futures risk proofs.
+      operationId: record_futures_risk_proof_api_v1_futures_risk_proofs_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuturesRiskProofRecordRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/risk-proofs/{futures_risk_proof_id}:
+    get:
+      tags:
+      - futures
+      summary: Read one futures or perpetual risk proof record
+      description: Read one persisted futures/perpetual risk proof by proof id.
+      operationId: get_futures_risk_proof_api_v1_futures_risk_proofs__futures_risk_proof_id__get
+      parameters:
+      - name: futures_risk_proof_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Futures Risk Proof Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuturesRiskProofDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/account:
     get:
       tags:
@@ -10244,6 +10509,7 @@ components:
       - stealth_post_write_reconciliation_verification
       - movement_reprice
       - futures_contract_required
+      - futures_risk_proof
       - fill_ledger_repair_contract_required
       - legacy_dashboard_place
       - legacy_dashboard_hotpoint
@@ -10283,6 +10549,7 @@ components:
       - stealth_recovery:record
       - stealth_reconciliation:record
       - stealth_cancel_replace:record
+      - futures_risk_proof:record
       - stealth_recovery:execute
       - stealth_reconciliation:execute
       - config:update
@@ -13197,6 +13464,7 @@ components:
       - /api/v1/futures/account
       - /api/v1/futures/positions
       - /api/v1/futures/positions/{position_key}
+      - /api/v1/futures/risk-proofs
       - /api/v1/admin/approvals
       - /api/v1/admin/approvals/requests/{approval_request_id}
       - /api/v1/admin/admission-audits
@@ -26885,6 +27153,14 @@ components:
       - UNKNOWN
       title: AdminFuturesPositionSide
       description: Derived futures/perpetual position direction.
+    AdminFuturesRiskProofEvidenceSource:
+      type: string
+      enum:
+      - manual_review
+      - test_evidence
+      - runtime_risk_review
+      title: AdminFuturesRiskProofEvidenceSource
+      description: Source posture for futures/perpetual risk proof evidence.
     AdminGateCheck:
       properties:
         name:
@@ -64488,6 +64764,420 @@ components:
       type: object
       title: CancelOrderRequest
       description: Cancel request body keyed by path ``client_order_id``.
+    FuturesRiskProofDetailResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_futures_risk_proof_detail
+        module_id:
+          type: string
+          title: Module Id
+          default: futures_perpetuals
+        futures_risk_proof_id:
+          type: string
+          title: Futures Risk Proof Id
+        found:
+          type: boolean
+          title: Found
+        record:
+          anyOf:
+          - $ref: '#/components/schemas/FuturesRiskProofRecordItem'
+          - type: 'null'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        proof_record_created:
+          type: boolean
+          title: Proof Record Created
+          default: false
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+      additionalProperties: false
+      type: object
+      required:
+      - futures_risk_proof_id
+      - found
+      title: FuturesRiskProofDetailResponse
+      description: Read-only futures/perpetual risk proof record detail.
+    FuturesRiskProofListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_futures_risk_proofs
+        module_id:
+          type: string
+          title: Module Id
+          default: futures_perpetuals
+        filters:
+          additionalProperties: true
+          type: object
+          title: Filters
+        count:
+          type: integer
+          title: Count
+        items:
+          items:
+            $ref: '#/components/schemas/FuturesRiskProofRecordItem'
+          type: array
+          title: Items
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        proof_records_created:
+          type: boolean
+          title: Proof Records Created
+          default: false
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+      additionalProperties: false
+      type: object
+      required:
+      - count
+      title: FuturesRiskProofListResponse
+      description: Read-only futures/perpetual risk proof record list.
+    FuturesRiskProofRecordItem:
+      properties:
+        futures_risk_proof_id:
+          type: string
+          title: Futures Risk Proof Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        command:
+          $ref: '#/components/schemas/AdminFuturesCommandAction'
+        proof_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+        proof_contract_ref:
+          type: string
+          title: Proof Contract Ref
+        evidence_ref:
+          type: string
+          title: Evidence Ref
+        evidence_source:
+          $ref: '#/components/schemas/AdminFuturesRiskProofEvidenceSource'
+        risk_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Risk Evidence Refs
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        position_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position Key
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+          default: futures_perpetuals
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        audit_id:
+          type: string
+          title: Audit Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_futures_risk_proof_log
+        proof_persisted:
+          type: boolean
+          title: Proof Persisted
+          default: true
+        risk_proof_verified:
+          type: boolean
+          title: Risk Proof Verified
+          default: false
+        risk_proof_accepted:
+          type: boolean
+          title: Risk Proof Accepted
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_created:
+          type: boolean
+          title: Command Draft Created
+          default: false
+        command_execution_allowed:
+          type: boolean
+          title: Command Execution Allowed
+          default: false
+        margin_validated:
+          type: boolean
+          title: Margin Validated
+          default: false
+        collateral_validated:
+          type: boolean
+          title: Collateral Validated
+          default: false
+        liquidation_validated:
+          type: boolean
+          title: Liquidation Validated
+          default: false
+        funding_validated:
+          type: boolean
+          title: Funding Validated
+          default: false
+        reduce_only_validated:
+          type: boolean
+          title: Reduce Only Validated
+          default: false
+        close_only_validated:
+          type: boolean
+          title: Close Only Validated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+      additionalProperties: false
+      type: object
+      required:
+      - futures_risk_proof_id
+      - recorded_at
+      - mutation_family
+      - command
+      - proof_kind
+      - proof_contract_ref
+      - evidence_ref
+      - evidence_source
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - audit_id
+      title: FuturesRiskProofRecordItem
+      description: Read-only persisted futures/perpetual risk proof evidence.
+    FuturesRiskProofRecordRequest:
+      properties:
+        command:
+          $ref: '#/components/schemas/AdminFuturesCommandAction'
+        proof_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+        proof_contract_ref:
+          type: string
+          minLength: 1
+          title: Proof Contract Ref
+        evidence_ref:
+          type: string
+          minLength: 1
+          title: Evidence Ref
+        evidence_source:
+          $ref: '#/components/schemas/AdminFuturesRiskProofEvidenceSource'
+        risk_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Risk Evidence Refs
+        product_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Product Id
+        position_key:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Position Key
+        reconciliation_plan_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          minLength: 1
+          title: Cap Guard Decision Id
+        futures_risk_proof_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Futures Risk Proof Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - command
+      - proof_kind
+      - proof_contract_ref
+      - evidence_ref
+      - evidence_source
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      title: FuturesRiskProofRecordRequest
+      description: Futures/perpetual risk proof request keyed by command and proof
+        kind.
     HTTPValidationError:
       properties:
         detail:

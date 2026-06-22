@@ -85,7 +85,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - Admin API OIDC readiness smoke:
   `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
 - Admin API route inventory export:
-  `python tools\export_admin_api_route_inventory.py`
+  `python -m tools.export_admin_api_route_inventory`
 - Autonomous work queue check:
   `python tools\run_autonomous_work_queue_check.py --summary-only`
 

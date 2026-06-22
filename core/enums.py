@@ -162,6 +162,7 @@ class AdminApiPermission(str, Enum):
     STEALTH_RECOVERY_RECORD = "stealth_recovery:record"
     STEALTH_RECONCILIATION_RECORD = "stealth_reconciliation:record"
     STEALTH_CANCEL_REPLACE_RECORD = "stealth_cancel_replace:record"
+    FUTURES_RISK_PROOF_RECORD = "futures_risk_proof:record"
     STEALTH_RECOVERY_EXECUTE = "stealth_recovery:execute"
     STEALTH_RECONCILIATION_EXECUTE = "stealth_reconciliation:execute"
     CONFIG_UPDATE = "config:update"
@@ -321,6 +322,7 @@ class AdminApiMutationFamilyType(str, Enum):
     )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
+    FUTURES_RISK_PROOF = "futures_risk_proof"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
     LEGACY_DASHBOARD_PLACE = "legacy_dashboard_place"
     LEGACY_DASHBOARD_HOTPOINT = "legacy_dashboard_hotpoint"
@@ -690,6 +692,14 @@ class StealthPostWriteReconciliationExecutionPolicyEvidenceSource(str, Enum):
     MANUAL_REVIEW = "manual_review"
     TEST_EVIDENCE = "test_evidence"
     EXECUTION_POLICY_REVIEW = "execution_policy_review"
+
+
+class AdminFuturesRiskProofEvidenceSource(str, Enum):
+    """Source posture for futures/perpetual risk proof evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    RUNTIME_RISK_REVIEW = "runtime_risk_review"
 
 
 class AdminApiApprovalLifecycleStatus(str, Enum):
@@ -1124,6 +1134,7 @@ class AdminFuturesCommandEvidenceRoute(str, Enum):
     FUTURES_ACCOUNT = "/api/v1/futures/account"
     FUTURES_POSITIONS = "/api/v1/futures/positions"
     FUTURES_POSITION_DETAIL = "/api/v1/futures/positions/{position_key}"
+    FUTURES_RISK_PROOFS = "/api/v1/futures/risk-proofs"
     ADMIN_APPROVALS = "/api/v1/admin/approvals"
     ADMIN_APPROVAL_REQUEST = "/api/v1/admin/approvals/requests/{approval_request_id}"
     ADMIN_ADMISSION_AUDITS = "/api/v1/admin/admission-audits"

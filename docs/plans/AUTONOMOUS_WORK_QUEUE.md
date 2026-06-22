@@ -31,9 +31,9 @@ advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **5761-5780**.
+- Approved phase range: **5781-5800**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5741-5760`.
+- Previous completed range: `5761-5780`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5760`.
+- `current_phase`: `5780`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,127 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5761-5780
+## Active Phases 5781-5800
+
+Batch label: Futures/Perpetuals Risk Proof Record Contract.
+
+These phases replace the recursive evidence-layer pattern with a concrete M57
+route gap: futures/perpetual risk-proof evidence needs a backend-owned
+append-only record path and readback surface before any futures command route
+can be reviewed for enablement. The work must remain no-live and local-state
+only. A proof record can persist route-bound review evidence, but it must not
+verify the proof requirement, accept command readiness, register a futures
+command route, create a command draft, call Coinbase, execute reconciliation,
+mutate futures/order/exchange state, grant browser/BFF authority, or import
+Spot wallet/no-shorting/cost-basis rules into futures/perpetuals.
+
+### Phase 5781 - Prior Range Closure
+
+- Record completed phases `5761-5780` as historical M57 command-suite
+  evidence and move active metadata to `5781-5800`.
+
+### Phase 5782 - Proof Record Route Inventory
+
+- Add route-inventory rows for `GET /api/v1/futures/risk-proofs`,
+  `GET /api/v1/futures/risk-proofs/{futures_risk_proof_id}`, and
+  `POST /api/v1/futures/risk-proofs` with futures/perpetual module ownership.
+
+### Phase 5783 - Proof Record Enums
+
+- Add enum-backed permission, mutation-family, evidence-source, and evidence
+  route constants without magic strings.
+
+### Phase 5784 - Append-Only Store
+
+- Add a file-backed append-only futures risk-proof store with read-recent,
+  detail lookup, and command/proof-kind filtering.
+
+### Phase 5785 - Proof Record Models
+
+- Add typed request, command, record item, list response, and detail response
+  models for futures risk-proof evidence.
+
+### Phase 5786 - Proof Record Admission Service
+
+- Add a backend service that validates route/method/module/action class,
+  permission, identity, idempotency, admission evidence, dry-run posture, and
+  no-live flags before writing a record.
+
+### Phase 5787 - Shared Command Service Binding
+
+- Bind `record_futures_risk_proof` through `AdminApiCommandService` so the
+  route uses the same auth/RBAC/idempotency/audit command path as other Admin
+  API local-state mutations.
+
+### Phase 5788 - FastAPI Routes
+
+- Add list, detail, and record routes under `/api/v1/futures/risk-proofs`
+  without creating futures command routes, command drafts, Coinbase calls, or
+  reconciliation execution.
+
+### Phase 5789 - Backend Contract Tests
+
+- Add focused regression coverage for store persistence, service validation,
+  route readbacks, OpenAPI generation, route inventory binding, no-live flags,
+  and permission/method metadata.
+
+### Phase 5790 - OpenAPI And Inventory Regeneration
+
+- Regenerate `openapi/coinbase-admin-api.yaml` and
+  `openapi/coinbase-admin-api-route-inventory.json` from backend-owned source.
+
+### Phase 5791 - Frontend Schema Sync
+
+- Regenerate the frontend generated TypeScript schema from backend OpenAPI.
+
+### Phase 5792 - Frontend Canonical Wrappers
+
+- Add canonical `BackendApiClient` wrappers for list, detail, and record
+  proof routes. Feature code must not hand-write these route URLs.
+
+### Phase 5793 - Frontend Runtime And Mocks
+
+- Add backend runtime snapshot reads, mock route keys, mock capability rows,
+  and mutation contract metadata for the proof-record route.
+
+### Phase 5794 - Frontend Read Model
+
+- Render futures risk-proof record readback evidence in the existing
+  futures/perpetual read model with explicit no-live/no-command-enable labels.
+
+### Phase 5795 - Frontend Unit Coverage
+
+- Add focused unit coverage for canonical wrappers, route coverage, backend
+  runtime snapshots, mocks, mutation contracts, and read-model rendering.
+
+### Phase 5796 - Backend Docs And Examples
+
+- Update Admin API docs, futures/perpetual docs, route inventory docs,
+  examples, capability matrix, maintainer handoff, and agent state.
+
+### Phase 5797 - Frontend Docs
+
+- Update frontend API contract and mock API docs so contextless readers can
+  find wrappers, mock keys, and the no-live proof-record boundary.
+
+### Phase 5798 - Focused Gates
+
+- Run focused backend compile/regression/contract/queue/ownership checks and
+  focused frontend API/type/unit checks that cover the changed behavior.
+
+### Phase 5799 - Contextless Review And Subagent Sweep
+
+- Run a blind/contextless review for the new route boundary, remediate or
+  explicitly defer findings, then close phase-scoped, stale, and unused
+  subagents after their findings are consumed.
+
+### Phase 5800 - Phase Closeout Evidence
+
+- Record implementation, verification, no-live Coinbase posture, submitted
+  and executed notional `0` USDC, review outcome, stale-subagent sweep result,
+  commits, pushes, and the next milestone-linked work.
+
+## Completed Phases 5761-5780
 
 Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Evidence.
 

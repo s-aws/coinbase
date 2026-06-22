@@ -18,7 +18,8 @@ read-only admin diagnostics, order read routes, read-only stealth lifecycle
 routes, read-only stealth command-suite readiness evidence, live-disabled
 stealth create, reveal, move, cancel, recovery, and reconciliation command contracts, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
-account, position, and command-suite contract routes, read-only guard/risk policy evidence, read-only
+account, position, command-suite contract, and risk-proof record read routes,
+a no-live append-only futures/perpetual risk-proof record route, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
 admission audit, reconciliation plan, and live-service decision evidence
 routes, and read-only spot
@@ -441,6 +442,13 @@ configure validation/replay, create writers, construct adapters, write or
 accept evidence, satisfy construction artifacts, enable live service, call
 Coinbase, invoke managers, execute reconciliation, mutate state, or grant
 browser/BFF authority.
+M57 phases 5781-5800 add `/api/v1/futures/risk-proofs` list/detail readbacks
+and a `POST` append-only local proof-record route. The record route is bound to
+`AdminApiCommandService.record_futures_risk_proof`, route inventory, RBAC,
+idempotency, approval, cap/guard, and audit evidence, but it does not accept
+proof requirements, register futures command routes, create command drafts,
+call Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+grant browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5741-5760` under M57.
-- Active autonomous range: `5761-5780` under M57.
+- Latest completed autonomous range: `5761-5780` under M57.
+- Active autonomous range: `5781-5800` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -729,13 +729,19 @@ notional, retained inventory, reconciliation result, and audit ids.
   required owner/contextless review input evidence, review gates,
   predecessor/successor review refs, and inherited blockers while still adding
   no review completion, review input acceptance, evidence writing, Coinbase
-  calls, state mutation, browser authority, or BFF execution authority. Active
-  5761-5780 work adds blocked nested dependency work-item claim-trace
+  calls, state mutation, browser authority, or BFF execution authority.
+  Completed 5761-5780 work added blocked nested dependency work-item claim-trace
   clearance-step review input rows below those nested review rows so future
   input sequencing can name required owner/contextless input refs, input gates,
   predecessor/successor input refs, and inherited blockers while still adding
   no review input acceptance, validation, evidence writing, Coinbase calls,
-  state mutation, browser authority, or BFF execution authority.
+  state mutation, browser authority, or BFF execution authority. Active
+  5781-5800 work adds concrete append-only futures risk-proof record routes at
+  `/api/v1/futures/risk-proofs` plus list/detail readbacks so proof evidence
+  can be recorded through the shared Admin API command path without accepting
+  a futures command, creating a command draft, calling Coinbase, executing
+  reconciliation, mutating futures/order/exchange state, or granting browser
+  or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate
