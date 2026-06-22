@@ -11,10 +11,10 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5661-5680 range adds read-only M57 futures/perpetual risk proof
+The active 5681-5700 range adds read-only M57 futures/perpetual risk proof
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation remediation dependency work-item evidence
-to the existing command-suite evidence. Each readiness decision, ordered
+claim-trace evidence to the existing command-suite evidence. Each readiness decision, ordered
 closure step, risk proof
 requirement, proof contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
@@ -39,6 +39,10 @@ work-item row
 (`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_items"`),
 dependency work-item count field
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count"`),
+dependency work-item claim-trace count field
+(`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count"`),
+dependency work-item claim-trace rows
+(`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"`),
 and acceptance criterion is derived from backend-owned prerequisites, request
 fields, semantic guards, evidence routes, missing evidence refs, and missing
 backend contracts. It is not a command route,
@@ -66,7 +70,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5661-5680",
+  "approved_phase_range": "5681-5700",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,

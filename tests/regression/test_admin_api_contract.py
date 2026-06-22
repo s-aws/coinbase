@@ -7406,6 +7406,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
         "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
         "claimed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
+        "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "resolved_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
     ):
         assert property_name in futures_command_suite_schema["properties"]
     assert "risk_proof_acceptance_criterion_count" in (
@@ -7510,6 +7514,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
         "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
         "claimed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
+        "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "resolved_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
     ):
         assert property_name in futures_command_item_schema["properties"]
     assert "risk_proof_acceptance_criterion_count" in (
@@ -7610,6 +7618,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
         "ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
         "claimed_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "resolved_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces",
     ):
         assert property_name in futures_risk_proof_schema["properties"]
     assert "acceptance_criteria" in futures_risk_proof_schema["properties"]
@@ -7748,6 +7761,43 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "bff_authority",
     ):
         assert property_name in futures_work_item_claim_trace_schema["properties"]
+    futures_nested_dependency_work_item_claim_trace_schema = written[
+        "components"
+    ]["schemas"][
+        "AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace"
+    ]
+    for property_name in (
+        "contract_kind",
+        "sequence",
+        "clearance_step_sequence",
+        "clearance_step_review_input_sequence",
+        "remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ref",
+        "remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref",
+        "remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_gate",
+        "required_backend_contract",
+        "required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_contract",
+        "required_dependency_work_item_claim_trace_store_ref",
+        "required_work_item_claim_trace_work",
+        "required_work_item_claim_trace_refs",
+        "clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_claim",
+        "clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_target_ref",
+        "clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_source_ref",
+        "predecessor_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_refs",
+        "successor_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_refs",
+        "clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_blockers",
+        "record_validation_remediation_dependency_work_item_claim_trace_required",
+        "record_validation_remediation_dependency_work_item_claim_trace_ready",
+        "record_validation_remediation_dependency_work_item_claim_trace_created",
+        "record_validation_remediation_dependency_work_item_claim_trace_resolved",
+        "execution_allowed",
+        "spot_rule_authority",
+        "browser_authority",
+        "bff_authority",
+    ):
+        assert (
+            property_name
+            in futures_nested_dependency_work_item_claim_trace_schema["properties"]
+        )
     futures_claim_trace_clearance_plan_schema = written["components"]["schemas"][
         "AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan"
     ]
@@ -43444,7 +43494,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "5661-5680"
+    assert futures_command_suite_fixture["approved_phase_range"] == "5681-5700"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 0
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
@@ -46647,7 +46697,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5661-5680",
+            "approved_phase_range": "5681-5700",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -46962,7 +47012,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5661-5680"
+    assert command_suite["approved_phase_range"] == "5681-5700"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -47118,7 +47168,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5661-5680"
+    assert command_suite.approved_phase_range == "5681-5700"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -47340,6 +47390,22 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     )
     assert (
         command_suite.claimed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count
+        == 0
+    )
+    assert (
+        command_suite.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+        == 1440
+    )
+    assert (
+        command_suite.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+        == 1440
+    )
+    assert (
+        command_suite.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+        == 0
+    )
+    assert (
+        command_suite.resolved_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
         == 0
     )
     assert command_suite.risk_proof_acceptance_criterion_count == 100
@@ -47660,6 +47726,22 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             command_item.claimed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count
             == 0
         )
+        assert (
+            command_item.risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == len(expected_risk_proof_kinds[command_id]) * 72
+        )
+        assert (
+            command_item.blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == len(expected_risk_proof_kinds[command_id]) * 72
+        )
+        assert (
+            command_item.ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 0
+        )
+        assert (
+            command_item.resolved_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 0
+        )
         assert command_item.blocking_risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -47815,6 +47897,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             == 0
             and item.claimed_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count
             == 0
+            and item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 72
+            and item.blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 72
+            and item.ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 0
+            and item.resolved_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+            == 0
+            and len(
+                item.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+            )
+            == 72
             and item.acceptance_criterion_count == 5
             and item.blocking_acceptance_criterion_count == 5
             and item.accepted_acceptance_criterion_count == 0
@@ -50319,6 +50413,153 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                     and work_item.bff_authority == "forward_only_no_execution"
                     for work_item in (
                         clearance_step_review_input_store_record_validation_remediation_dependency_work_items
+                    )
+                )
+                assert all(
+                    work_item.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+                    == 1
+                    and work_item.blocking_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+                    == 1
+                    and work_item.ready_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+                    == 0
+                    and work_item.resolved_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_count
+                    == 0
+                    and len(
+                        work_item.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+                    )
+                    == 1
+                    for work_item in (
+                        clearance_step_review_input_store_record_validation_remediation_dependency_work_items
+                    )
+                )
+                clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces = [
+                    nested_claim_trace
+                    for work_item in (
+                        clearance_step_review_input_store_record_validation_remediation_dependency_work_items
+                    )
+                    for nested_claim_trace in (
+                        work_item.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+                    )
+                ]
+                assert (
+                    len(
+                        clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
+                    )
+                    == 12
+                )
+                assert all(
+                    nested_claim_trace.status.value == "blocked"
+                    and nested_claim_trace.blocking is True
+                    and nested_claim_trace.sequence == clearance_plan.sequence
+                    and nested_claim_trace.contract_kind == clearance_plan.contract_kind
+                    and nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref
+                    == (
+                        f"{nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ref}"
+                        ".input_store_record_validation_remediation_dependency_work_item_claim_trace"
+                    )
+                    and nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_gate
+                    == (
+                        f"{nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref}"
+                        ".record_validation_remediation_dependency_work_item_claim_trace_gate"
+                    )
+                    and nested_claim_trace.required_backend_contract.startswith(
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace.py::"
+                    )
+                    and nested_claim_trace.required_backend_contract.endswith(
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace"
+                    )
+                    and nested_claim_trace.required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_contract.startswith(
+                        "application/admin_api/"
+                        "futures_proof_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item.py::"
+                    )
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_claim_trace_required
+                    is True
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_claim_trace_ready
+                    is False
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_claim_trace_created
+                    is False
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_claim_trace_resolved
+                    is False
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_gate
+                    == nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_gate
+                    and nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_gate
+                    == nested_claim_trace.record_validation_remediation_dependency_work_item_claim_trace_gate
+                    and nested_claim_trace.required_work_item_claim_trace_work
+                    == [
+                        "create_store_record_validation_remediation_dependency_work_item_claim_trace_contract",
+                        "bind_validation_remediation_dependency_work_item_claim",
+                        "register_validation_remediation_dependency_work_item_claim_trace_store",
+                        "attach_validation_remediation_dependency_work_item_claim_ledger",
+                        "assign_validation_remediation_dependency_work_item_claim_review",
+                        "contextless_review_validation_remediation_dependency_work_item_claim_trace",
+                    ]
+                    and nested_claim_trace.required_work_item_claim_trace_refs
+                    == [
+                        f"{nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref}.{step}"
+                        for step in nested_claim_trace.required_work_item_claim_trace_work
+                    ]
+                    and nested_claim_trace.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_claim
+                    == "claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace"
+                    and nested_claim_trace.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_target_ref
+                    == nested_claim_trace.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_ref
+                    and nested_claim_trace.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_source_ref
+                    == nested_claim_trace.required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_contract
+                    and nested_claim_trace.clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_blockers
+                    == [
+                        "work_item_not_created",
+                        "work_item_not_claimed",
+                        "claim_ledger_missing",
+                        "claim_trace_store_missing",
+                        "remediation_dependency_not_ready",
+                        "remediation_dependency_unresolved",
+                        "claim_review_missing",
+                        "contextless_review_missing",
+                    ]
+                    and nested_claim_trace.required_backend_contract
+                    in nested_claim_trace.missing_evidence_refs
+                    and nested_claim_trace.required_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_contract
+                    in nested_claim_trace.missing_evidence_refs
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_gate
+                    in nested_claim_trace.missing_evidence_refs
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_claim_trace_gate
+                    in nested_claim_trace.missing_evidence_refs
+                    and set(nested_claim_trace.required_work_item_claim_trace_refs).issubset(
+                        nested_claim_trace.missing_evidence_refs
+                    )
+                    and set(nested_claim_trace.required_work_item_refs).issubset(
+                        nested_claim_trace.missing_evidence_refs
+                    )
+                    and nested_claim_trace.work_item_created is False
+                    and nested_claim_trace.work_item_claimed is False
+                    and nested_claim_trace.claim_ledger_registered is False
+                    and nested_claim_trace.claim_trace_created is False
+                    and nested_claim_trace.claim_trace_ready is False
+                    and nested_claim_trace.claim_allowed is False
+                    and nested_claim_trace.claim_resolved is False
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_created
+                    is False
+                    and nested_claim_trace.record_validation_remediation_dependency_work_item_claimed
+                    is False
+                    and nested_claim_trace.record_validation_remediation_dependency_ready
+                    is False
+                    and nested_claim_trace.record_validation_remediation_dependency_resolved
+                    is False
+                    and nested_claim_trace.record_validation_remediation_dependency_performed
+                    is False
+                    and nested_claim_trace.execution_allowed is False
+                    and nested_claim_trace.proof_route_registered is False
+                    and nested_claim_trace.proof_writer_enabled is False
+                    and nested_claim_trace.accepts_evidence is False
+                    and nested_claim_trace.writes_evidence is False
+                    and nested_claim_trace.backend_owned is True
+                    and nested_claim_trace.read_only is True
+                    and nested_claim_trace.spot_rule_authority is False
+                    and nested_claim_trace.browser_authority == "display_only"
+                    and nested_claim_trace.bff_authority
+                    == "forward_only_no_execution"
+                    for nested_claim_trace in (
+                        clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
                     )
                 )
             assert [criterion.sequence for criterion in item.acceptance_criteria] == [
