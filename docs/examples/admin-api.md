@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5921-5940",
+  "approved_phase_range": "5941-5960",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5921-5940",
+  "approved_phase_range": "5941-5960",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5921-5940",
+  "approved_phase_range": "5941-5960",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2010,6 +2010,11 @@ Expected command-suite posture:
   "ready_risk_proof_semantic_validator_input_schema_count": 0,
   "registered_risk_proof_semantic_validator_input_schema_count": 0,
   "runtime_observed_risk_proof_semantic_validator_input_schema_count": 8,
+  "risk_proof_semantic_validator_output_schema_count": 34,
+  "blocking_risk_proof_semantic_validator_output_schema_count": 34,
+  "ready_risk_proof_semantic_validator_output_schema_count": 0,
+  "registered_risk_proof_semantic_validator_output_schema_count": 0,
+  "runtime_observed_risk_proof_semantic_validator_output_schema_count": 8,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -2223,13 +2228,19 @@ are explicit. Completed 5901-5920 rows add
 `"validator_contract_registered": false`, and
 `"runtime_evidence_satisfies_validator_contract": false` so the missing backend
 validator contract, input schema, output schema, registration, and
-contextless-review evidence are explicit. Active 5921-5940 rows add
+contextless-review evidence are explicit. Completed 5921-5940 rows add
 `"semantic_validator_input_schemas"`,
 `"risk_proof_semantic_validator_input_schema_count"`,
 `"input_schema_field_refs"`, `"input_schema_registered": false`, and
 `"runtime_evidence_satisfies_input_schema": false` so the missing backend input
 schema contract, input fields, schema registration, and contextless-review
-evidence are explicit. These rows are blocked evidence only.
+evidence are explicit. Active 5941-5960 rows add
+`"semantic_validator_output_schemas"`,
+`"risk_proof_semantic_validator_output_schema_count"`,
+`"output_schema_field_refs"`, `"output_schema_registered": false`, and
+`"runtime_evidence_satisfies_output_schema": false` so the missing backend
+output schema contract, output fields, schema registration, and
+contextless-review evidence are explicit. These rows are blocked evidence only.
 They do not
 register command routes, create drafts, validate payloads, write proofs, enable
 writers, resolve dependencies, create remediation or dependency work items,

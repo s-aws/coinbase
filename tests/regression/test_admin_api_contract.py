@@ -7467,6 +7467,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "ready_risk_proof_semantic_validator_input_schema_count",
         "registered_risk_proof_semantic_validator_input_schema_count",
         "runtime_observed_risk_proof_semantic_validator_input_schema_count",
+        "risk_proof_semantic_validator_output_schema_count",
+        "blocking_risk_proof_semantic_validator_output_schema_count",
+        "ready_risk_proof_semantic_validator_output_schema_count",
+        "registered_risk_proof_semantic_validator_output_schema_count",
+        "runtime_observed_risk_proof_semantic_validator_output_schema_count",
     ):
         assert property_name in futures_command_suite_schema["properties"]
     assert "forbidden_spot_assumptions" in futures_command_suite_schema[
@@ -7623,6 +7628,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "ready_risk_proof_semantic_validator_input_schema_count",
         "registered_risk_proof_semantic_validator_input_schema_count",
         "runtime_observed_risk_proof_semantic_validator_input_schema_count",
+        "risk_proof_semantic_validator_output_schema_count",
+        "blocking_risk_proof_semantic_validator_output_schema_count",
+        "ready_risk_proof_semantic_validator_output_schema_count",
+        "registered_risk_proof_semantic_validator_output_schema_count",
+        "runtime_observed_risk_proof_semantic_validator_output_schema_count",
     ):
         assert property_name in futures_command_item_schema["properties"]
     assert "risk_proof_requirements" in futures_command_item_schema["properties"]
@@ -7691,6 +7701,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "registered_semantic_validator_input_schema_count",
         "runtime_observed_semantic_validator_input_schema_count",
         "semantic_validator_input_schemas",
+        "semantic_validator_output_schema_count",
+        "blocking_semantic_validator_output_schema_count",
+        "ready_semantic_validator_output_schema_count",
+        "registered_semantic_validator_output_schema_count",
+        "runtime_observed_semantic_validator_output_schema_count",
+        "semantic_validator_output_schemas",
     ):
         assert property_name in futures_risk_proof_schema["properties"]
     futures_semantic_contract_definition_schema = written["components"]["schemas"][
@@ -7833,6 +7849,42 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "bff_authority",
     ):
         assert property_name in futures_semantic_validator_input_schema[
+            "properties"
+        ]
+    futures_semantic_validator_output_schema = written["components"]["schemas"][
+        "AdminFuturesCommandRiskProofSemanticValidatorOutputSchemaItem"
+    ]
+    for property_name in (
+        "proof_kind",
+        "semantic_guard",
+        "contract_ref",
+        "semantic_contract_definition_ref",
+        "validation_gate",
+        "validation_contract_ref",
+        "validator_contract_ref",
+        "validator_output_schema_ref",
+        "required_backend_contract",
+        "missing_backend_contract",
+        "output_schema_field_refs",
+        "required_evidence_refs",
+        "missing_evidence_refs",
+        "runtime_evidence_satisfies_output_schema",
+        "output_schema_registered",
+        "validator_contract_registered",
+        "validator_registered",
+        "validation_ready",
+        "definition_ready",
+        "acceptance_ready",
+        "command_route_registered",
+        "command_draft_allowed",
+        "execution_allowed",
+        "proof_route_registered",
+        "proof_writer_enabled",
+        "spot_rule_authority",
+        "browser_authority",
+        "bff_authority",
+    ):
+        assert property_name in futures_semantic_validator_output_schema[
             "properties"
         ]
     assert "proof_route_registered" in futures_risk_proof_schema["properties"]
@@ -47651,6 +47703,20 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     )
     assert (
         command_suite.runtime_observed_risk_proof_semantic_validator_input_schema_count
+        == 8
+    )
+    assert command_suite.risk_proof_semantic_validator_output_schema_count == 34
+    assert (
+        command_suite.blocking_risk_proof_semantic_validator_output_schema_count
+        == 34
+    )
+    assert command_suite.ready_risk_proof_semantic_validator_output_schema_count == 0
+    assert (
+        command_suite.registered_risk_proof_semantic_validator_output_schema_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_risk_proof_semantic_validator_output_schema_count
         == 8
     )
     assert command_suite.risk_proof_contract_count == 40

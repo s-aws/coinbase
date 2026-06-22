@@ -26,6 +26,18 @@ perpetuals, stealth orders, movement/repricing, or future modules.
    active phase must map to an approved durable milestone and an explicit
    architecture or planning gap.
 
+## Subagent Hygiene
+
+Phase-end cleanup is the canonical timing. Close subagents spawned for the
+completed phase after their findings have been consumed, remediated, or
+explicitly deferred, and close stale or previously unused subagents from
+earlier phases or milestones discovered during that sweep. Durable milestone
+closeout is a final audit sweep, not the first cleanup point. Do not close a
+subagent that is still running required validation, producing required
+evidence, or awaiting a user decision. Any intentionally open handoff agent
+must have recorded owner, purpose, and expected next action. Record the
+phase-end or milestone-closeout sweep result before advancing.
+
 ## Backend Authority Rules
 
 - Use one code path per behavior.
@@ -111,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5901-5920` under M57.
-- Active autonomous range: `5921-5940` under M57.
+- Latest completed autonomous range: `5921-5940` under M57.
+- Active autonomous range: `5941-5960` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -752,9 +764,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   no-execution authority. Completed 5881-5900 work adds typed semantic contract
   validation gate evidence, including the missing validator contract,
   validation input refs, required evidence refs, and no-execution authority.
-  Active 5901-5920 work adds typed semantic validator contract evidence,
+  Completed 5901-5920 work adds typed semantic validator contract evidence,
   including the missing backend validator contract, input schema ref, output
   schema ref, registration ref, required evidence refs, and no-execution
+  authority. Completed 5921-5940 work adds typed semantic validator input
+  schema evidence, including the missing backend input schema contract, field
+  refs, schema registration evidence, required evidence refs, and no-execution
+  authority. Active 5941-5960 work adds typed semantic validator output schema
+  evidence, including the missing backend output schema contract, field refs,
+  schema registration evidence, required evidence refs, and no-execution
   authority. Runtime-observed evidence remains display-only; the new rows do
   not register validator contracts, register schemas, register validators, make
   validation gates ready, register semantic contracts, make definitions ready,
