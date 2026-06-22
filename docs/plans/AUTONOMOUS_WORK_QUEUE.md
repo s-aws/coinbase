@@ -17,13 +17,15 @@ suite.
 
 ## Subagent Hygiene Policy
 
-Close phase-scoped subagents at the end of the phase after their findings have
-been consumed, remediated, or explicitly deferred. During that phase-end sweep,
-also close any stale or previously unused subagents discovered from earlier
-work unless they are still running required validation, producing required
-evidence, awaiting a user decision, or part of an active handoff. Durable
-milestone closeout requires one final stale-subagent sweep before the milestone
-can be marked complete.
+Phase-end cleanup is the canonical timing. Close phase-scoped subagents at the
+end of the phase after their findings have been consumed, remediated, or
+explicitly deferred. During that phase-end sweep, also close any stale or
+previously unused subagents discovered from earlier work unless they are still
+running required validation, producing required evidence, awaiting a user
+decision, or part of an active handoff. Durable milestone closeout is a final
+audit sweep, not the first cleanup point, and the milestone cannot be marked
+complete while completed, failed, superseded, stale, or unused subagents remain
+open outside an active handoff.
 
 ## Approved Range Status
 
