@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-22
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5841-5860`; current active range is `5861-5880`.
+- Commit (optional): completed range `5861-5880`; current active range is `5881-5900`.
 
 ## Current Objective
 
@@ -56,30 +56,32 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5841-5860`.
-- Active autonomous range: `5861-5880`.
-- Active `5861-5880` adds futures semantic contract definition evidence to
-  the M57 futures/perpetual command suite. Resolved safe proof records,
-  proof-acceptance blockers, and semantic contract requirement refs from
-  `/api/v1/futures/risk-proofs` remain display evidence, but each risk-proof
-  row now must enumerate the missing backend definition contract, validation
-  gate, and acceptance gate that still block proof acceptance, command
+- Latest completed autonomous range before current work: `5861-5880`.
+- Active autonomous range: `5881-5900`.
+- Active `5881-5900` adds futures semantic contract validation gate evidence
+  to the M57 futures/perpetual command suite. Resolved safe proof records,
+  proof-acceptance blockers, semantic contract requirement refs, and semantic
+  contract definition refs from `/api/v1/futures/risk-proofs` remain display
+  evidence, but each risk-proof row now must enumerate the missing backend
+  validator contract, validation input refs, and validation evidence refs that
+  still block semantic definition readiness, proof acceptance, command
   drafting, command route registration, and live execution.
-- Phase-end subagent sweep for the completed `5841-5860` work was performed:
+- Phase-end subagent sweep for the completed `5861-5880` work was performed:
   all phase-scoped blind/contextless reviewers were closed after findings were
   consumed and remediated. No phase-scoped subagent remains intentionally open.
-  Active `5861-5880` must not satisfy risk proof requirements, register futures
+  Active `5881-5900` must not satisfy risk proof requirements, register futures
   command routes, create command drafts, live execution, Coinbase calls,
   reconciliation execution, state mutation, evidence acceptance, semantic
-  contract registration, semantic contract definition readiness, or
-  browser/BFF authority. Runtime evidence may be observed but cannot satisfy a
-  missing semantic contract definition. Spot wallet, no-shorting, USDC,
-  cost-basis, average-cost, and inventory-lot assumptions are forbidden as
+  contract registration, semantic contract definition readiness, semantic
+  validator registration, validation gate readiness, or browser/BFF authority.
+  Runtime evidence may be observed but cannot satisfy a missing semantic
+  contract validator. Spot wallet, no-shorting, USDC, cost-basis,
+  average-cost, and inventory-lot assumptions are forbidden as
   futures/perpetual authority.
-- Current direction: complete phases `5861-5880` by adding typed semantic
-  contract definition fields and aggregates for futures risk-proof requirement
-  rows, proving runtime-observed evidence remains insufficient to make a
-  definition ready, register semantic contracts, or satisfy proof acceptance,
+- Current direction: complete phases `5881-5900` by adding typed semantic
+  contract validation gate fields and aggregates for futures risk-proof
+  requirement rows, proving runtime-observed evidence remains insufficient to
+  make a validation gate ready, register validators, or satisfy proof acceptance,
   syncing backend/frontend schema and read-model consumption, docs, focused
   gates, blind/contextless review, and phase-end stale-subagent sweep.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
@@ -683,10 +685,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5861-5880`.
+- Active autonomous range: `5881-5900`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `5861-5880` by adding explicit
-  semantic contract definition evidence to futures risk-proof requirement
+- Current direction: complete active phases `5881-5900` by adding explicit
+  semantic contract validation gate evidence to futures risk-proof requirement
   rows. Resolver evidence can show exact safe latest records, proof-acceptance
   blockers can explain why records remain insufficient, and requirement rows
   can enumerate missing contract refs, but definition rows must name the exact
@@ -1239,7 +1241,7 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Continue the active M57 `5861-5880` futures semantic contract definition
+1. Continue the active M57 `5881-5900` futures semantic contract validation gate
    evidence range only within the approved futures/perpetual
    contract-foundation scope.
 2. Keep contextless blind review in the release loop for new non-spot module,
@@ -1543,12 +1545,12 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5861-5880` by adding semantic
-  contract definition fields and aggregates to futures/perpetual risk-proof
-  rows, syncing OpenAPI and frontend generated schema, mapping
+- Exact next command: complete active phases `5881-5900` by adding semantic
+  contract validation gate fields and aggregates to futures/perpetual
+  risk-proof rows, syncing OpenAPI and frontend generated schema, mapping
   runtime/mock/read-model display, updating docs and validators, then running
   focused gates, blind/contextless review, phase-end stale-subagent sweep, and
-  no-live proof. The active gap is semantic contract definition evidence only;
+  no-live proof. The active gap is semantic contract validation gate evidence only;
   no futures command route, command draft, exchange order
   placement/cancellation, reconciliation execution, Coinbase read/write,
   futures/order/exchange-state mutation, accepted proof requirement, accepted

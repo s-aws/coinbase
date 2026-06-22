@@ -475,6 +475,14 @@ validation readiness false, and runtime-evidence-satisfies-definition false.
 These rows remain backend-owned display evidence and do not register semantic
 contracts, satisfy proof acceptance, enable command routes, create drafts, call
 Coinbase, execute reconciliation, mutate state, or grant browser/BFF authority.
+M57 phases 5881-5900 add semantic contract validation gate rows for those
+definitions. Each row names the missing backend validator contract,
+validation input refs, required/missing evidence refs, validation readiness
+false, validator registered false, and runtime-evidence-satisfies-validation
+false. These rows remain backend-owned display evidence and do not register
+validators, make definitions ready, satisfy proof acceptance, enable command
+routes, create drafts, call Coinbase, execute reconciliation, mutate state, or
+grant browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

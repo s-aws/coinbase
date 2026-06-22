@@ -102,6 +102,18 @@ browser, BFF, and notional evidence fields.
   does not register a semantic contract, satisfy proof acceptance, create
   command drafts, register futures routes, call Coinbase, execute
   reconciliation, mutate state, or grant browser/BFF authority.
+- Each risk proof requirement also exposes backend-owned semantic contract
+  validation gate rows through `semantic_contract_validation_gates` and
+  validation gate counts such as
+  `risk_proof_semantic_contract_validation_gate_count`. These rows name the
+  validation gate, missing backend validator contract, validation input refs,
+  required evidence refs, and missing evidence refs for each semantic
+  definition. They remain blocked with `validator_registered=false`,
+  `validation_ready=false`, `definition_ready=false`, and
+  `runtime_evidence_satisfies_validation=false`; observed runtime evidence
+  does not register validators, make definitions ready, satisfy proof
+  acceptance, create command drafts, register futures routes, call Coinbase,
+  execute reconciliation, mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned proof record/store
   contract rows, blocked record-validation rows, and blocked
   record-validation remediation rows. These rows name required store refs,
@@ -233,6 +245,13 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   command drafts, proof satisfaction, reconciliation execution, Coinbase
   activity, state mutation, browser authority, and BFF execution authority
   disabled.
+- Do not treat semantic contract validation gate rows as registered validators
+  or proof acceptance. `semantic_contract_validation_gates` rows are missing
+  backend validator-contract evidence only; `validation_ready=false` and
+  `runtime_evidence_satisfies_validation=false` keep validator registration,
+  definition readiness, command routes, command drafts, proof satisfaction,
+  reconciliation execution, Coinbase activity, state mutation, browser
+  authority, and BFF execution authority disabled.
 - Do not treat risk proof record/store contracts, record-validation rows,
   record-validation remediation rows, record-validation remediation dependency
   rows, record-validation remediation dependency work-item rows, or
