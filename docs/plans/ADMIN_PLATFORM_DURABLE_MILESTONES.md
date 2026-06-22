@@ -2332,7 +2332,7 @@ creating browser/BFF execution authority or a second trading path.
 
 Completed scope:
 
-- Active phases 1501-1520 advance the unattended range while preserving the
+- Completed phases 1501-1520 advanced the unattended range while preserving the
   no-live default and carried Coinbase cap policy.
 - The selected pilot route is `POST /api/v1/orders`, mapped to the existing
   `AdminApiCommandService.place_manual_order` shared command method.
@@ -3221,7 +3221,7 @@ Current backend evidence:
   later claim-ledger, validator-ready, proof-writer, acceptance, or
   command-route enablement work can see the backend-owned work-item store,
   claim, owner-review, and contextless-review blockers that must remain
-  unresolved until backend-owned evidence exists. Active phases 5461-5480 add
+  unresolved until backend-owned evidence exists. Completed phases 5461-5480 add
   blocked remediation dependency work-item claim-trace evidence so later
   claim-ledger, validator-ready, proof-writer, acceptance, or command-route
   enablement work can see the backend-owned claim-trace store, claim target,

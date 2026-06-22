@@ -27,9 +27,9 @@ can be marked complete.
 
 ## Approved Range Status
 
-- Approved phase range: **5641-5660**.
+- Approved phase range: **5661-5680**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5621-5640`.
+- Previous completed range: `5641-5660`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -58,7 +58,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5640`.
+- `current_phase`: `5660`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -77,19 +77,25 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5641-5660
+## Active Phases 5661-5680
 
-Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Remediation Dependency Evidence.
+Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Remediation Dependency Work-Item Evidence.
 
 These phases extend the existing read-only M57 futures/perpetual command-suite
-route so every blocked store record-validation remediation row exposes one
-backend-owned store record-validation remediation dependency row. The concrete
-gap is that operators can see remediation work, but not the dependency order,
-dependency graph, predecessor/successor refs, dependency gates, or dependency
-evidence that must exist before remediation work could ever be safely sequenced.
-The new
-`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies`
-rows must keep `record_validation_remediation_dependency_required=true`,
+route so every blocked store record-validation remediation dependency row
+exposes one backend-owned dependency work-item row. The concrete gap is that
+operators can now see dependency ordering and graph evidence, but not the
+work-item contract, work-item store, claim-ledger binding, owner review, and
+contextless review required before a remediation dependency could ever be
+claimed as actionable. The new
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count`
+fields and nested
+`remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_items`
+rows must keep `record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`record_validation_remediation_dependency_required=true`,
 `record_validation_remediation_dependency_ready=false`,
 `record_validation_remediation_dependency_resolved=false`,
 `record_validation_remediation_dependency_performed=false`,
@@ -103,145 +109,164 @@ rows must keep `record_validation_remediation_dependency_required=true`,
 `replay_protected=false`, `validation_checks_passed=false`,
 `validation_configured=false`, `record_present=false`,
 `record_accepted=false`, `record_validated=false`,
-`dependency_ready=false`, `dependency_resolved=false`,
-`dependency_performed=false`, `accepts_evidence=false`,
-`writes_evidence=false`, and `execution_allowed=false`. The work must remain
-read-only and no-live: no futures command route, command draft, dependency
-resolution, dependency graph activation, remediation execution, validation
-remediation recording, record contract creation, schema creation, append-only
-log creation, idempotency binding, payload validation, replay protection,
-record validator registration, validation gate passing, record acceptance,
-evidence writing, claim-trace clearance, claim resolution, proof acceptance,
-Coinbase read/write, reconciliation execution, state mutation, browser
-execution authority, or BFF execution authority. Spot wallet, no-shorting,
-USDC, cost-basis, average-cost, and inventory-lot rules remain explicitly
-forbidden as futures/perpetual authority.
+`work_item_created=false`, `work_item_claimed=false`,
+`claim_ledger_registered=false`, `dependency_ready=false`,
+`dependency_resolved=false`, `dependency_performed=false`,
+`accepts_evidence=false`, `writes_evidence=false`, and
+`execution_allowed=false`. The work must remain read-only and no-live: no
+futures command route, command draft, work-item creation, work-item claim,
+owner assignment, dependency resolution, dependency graph activation,
+remediation execution, validation remediation recording, record contract
+creation, schema creation, append-only log creation, idempotency binding,
+payload validation, replay protection, record validator registration,
+validation gate passing, record acceptance, evidence writing, claim-trace
+clearance, claim resolution, proof acceptance, Coinbase read/write,
+reconciliation execution, state mutation, browser execution authority, or BFF
+execution authority. Spot wallet, no-shorting, USDC, cost-basis,
+average-cost, and inventory-lot rules remain explicitly forbidden as
+futures/perpetual authority.
 
-### Phase 5641 - Prior Range Completion Evidence
+### Phase 5661 - Prior Range Completion Evidence
 
-- Record completed phases 5621-5640 with backend commit `63beb5cd`,
-  frontend commit `98e4661`, focused backend/frontend gates,
+- Record completed phases 5641-5660 with backend commit `15fba714`,
+  frontend commit `97f0583`, focused backend/frontend gates,
   blind/contextless review, targeted UI smoke, phase-end subagent sweep, and
   `0` USDC live Coinbase submitted/executed notional.
 
-### Phase 5642 - Advance Active Queue Range
+### Phase 5662 - Advance Active Queue Range
 
-- Move active range metadata from completed phases 5621-5640 to phases
-  5641-5660 while preserving no-live defaults and cap policy.
+- Move active range metadata from completed phases 5641-5660 to phases
+  5661-5680 while preserving no-live defaults and cap policy.
 
-### Phase 5643 - Store Record-Validation Remediation Dependency Gap
+### Phase 5663 - Remediation Dependency Work-Item Gap
 
-- Document that each blocked futures/perpetual clearance-step review input
-  store record-validation remediation still lacks backend-owned dependency
-  ordering, graph evidence, predecessor/successor refs, and dependency review.
+- Document that each blocked futures/perpetual store record-validation
+  remediation dependency still lacks backend-owned work-item contract,
+  work-item store, claim-ledger binding, owner review, and contextless review
+  evidence.
 
-### Phase 5644 - Store Record-Validation Remediation Dependency Model
+### Phase 5664 - Dependency Work-Item Model
 
-- Add nested blocked store record-validation remediation dependency rows and
-  aggregate counts without resolving dependencies, performing remediation,
-  recording evidence, creating validators, schemas, logs, records, stores,
-  writers, or commands.
+- Add nested blocked store record-validation remediation dependency work-item
+  rows and aggregate counts without creating work items, claiming work items,
+  resolving dependencies, performing remediation, recording evidence, creating
+  validators, schemas, logs, records, stores, writers, or commands.
 
-### Phase 5645 - Backend Dependency Builder
+### Phase 5665 - Backend Work-Item Builder
 
-- Derive one store record-validation remediation dependency row from each
-  existing store record-validation remediation row, preserving command, proof,
-  contract kind, claim-trace, plan, step, review, input, store requirement,
-  record contract, validation, remediation, predecessor, successor, gate, and
-  blocker refs.
+- Derive one store record-validation remediation dependency work-item row from
+  each existing store record-validation remediation dependency row, preserving
+  command, proof, contract kind, claim-trace, plan, step, review, input, store
+  requirement, record contract, validation, remediation, dependency,
+  predecessor, successor, gate, and blocker refs.
 
-### Phase 5646 - Dependency Aggregate Counts
+### Phase 5666 - Work-Item Aggregate Counts
 
-- Expose suite, command, risk-proof, and remediation counts proving all store
-  record-validation remediation dependency rows are blocked, zero ready, zero
-  resolved, zero performed, and zero executable.
+- Expose suite, command, risk-proof, and dependency counts proving all store
+  record-validation remediation dependency work-item rows are blocked, zero
+  ready, zero claimed, and zero executable.
 
-### Phase 5647 - Dependency Work And Missing Refs
+### Phase 5667 - Work-Item Required Work And Missing Refs
 
-- Expose required dependency work, dependency refs, inherited remediation
-  blockers, inherited validation blockers, and missing evidence refs without
-  clearing validation, remediation, record contract, schema, log, idempotency,
-  payload, replay, review-input, review, step, clearance-plan, claim-trace,
-  proof, or command state.
+- Expose required work-item work, work-item refs, inherited dependency
+  blockers, inherited remediation blockers, required dependency refs, and
+  missing evidence refs without clearing validation, remediation, dependency,
+  record contract, schema, log, idempotency, payload, replay, review-input,
+  review, step, clearance-plan, claim-trace, proof, or command state.
 
-### Phase 5648 - Dependency Gate And Authority Refs
+### Phase 5668 - Work-Item Gate And Authority Refs
 
-- Add required backend contract refs, dependency-gate refs,
-  predecessor/successor dependency refs, target/source refs, and detail text
-  that makes store record-validation remediation dependency evidence
-  understandable without chat history.
+- Add required backend contract refs, work-item gate refs,
+  predecessor/successor dependency work-item refs, target/source refs, and
+  detail text that makes store record-validation remediation dependency
+  work-item evidence understandable without chat history.
 
-### Phase 5649 - Cancel Identity Discipline
+### Phase 5669 - Cancel Identity Discipline
 
 - Re-verify futures cancel evidence remains `client_order_id` based through
-  store record-validation remediation dependency rows and does not introduce
-  exchange-native `order_id` as internal command identity.
+  store record-validation remediation dependency work-item rows and does not
+  introduce exchange-native `order_id` as internal command identity.
 
-### Phase 5650 - OpenAPI Sync
+### Phase 5670 - OpenAPI Sync
 
 - Regenerate backend OpenAPI after the contract extension and prove generated
-  schema includes store record-validation remediation dependency rows,
-  aggregate counts, blockers, required dependency work, and no live command
-  route.
+  schema includes store record-validation remediation dependency work-item
+  rows, aggregate counts, blockers, required work-item work, and no live
+  command route.
 
-### Phase 5651 - Backend Focused Regression
+### Phase 5671 - Backend Focused Regression
 
 - Run focused Admin API contract tests and autonomous validator checks that
-  prove store record-validation remediation dependency rows are read-only,
-  blocked, non-executable, and spot-rule-free.
+  prove store record-validation remediation dependency work-item rows are
+  read-only, blocked, non-executable, and spot-rule-free.
 
-### Phase 5652 - Frontend Schema Sync
+### Phase 5672 - Frontend Schema Sync
 
 - Regenerate frontend Admin API schema from the backend OpenAPI contract.
 
-### Phase 5653 - Frontend Adapter And Mock Mapping
+### Phase 5673 - Frontend Adapter And Mock Mapping
 
-- Map store record-validation remediation dependency counts and rows in
-  frontend adapters and mocks without adding command controls, forms, mutation
-  buttons, browser execution authority, or BFF execution authority.
+- Map store record-validation remediation dependency work-item counts and rows
+  in frontend adapters and mocks without adding command controls, forms,
+  mutation buttons, browser execution authority, or BFF execution authority.
 
-### Phase 5654 - Futures Read Model Dependency Summary
+### Phase 5674 - Futures Read Model Work-Item Summary
 
 - Add futures/perpetual read-model metrics that show store record-validation
-  remediation dependency count, blocking count, ready count, performed count,
-  and proof that the rows are display-only.
+  remediation dependency work-item count, blocking count, ready count, claimed
+  count, and proof that the rows are display-only.
 
-### Phase 5655 - Futures Read Model Dependency Rows
+### Phase 5675 - Futures Read Model Work-Item Rows
 
-- Render representative store record-validation remediation dependency rows
-  with remediation refs, dependency refs, required dependency work,
-  schema/log/idempotency refs, validation/replay/remediation/dependency gates,
-  blockers, missing evidence, false flags, and no action controls.
+- Render representative store record-validation remediation dependency
+  work-item rows with dependency refs, required work-item work, claim-ledger
+  refs, owner-review refs, schema/log/idempotency refs,
+  validation/replay/remediation/dependency/work-item gates, blockers, missing
+  evidence, false flags, and no action controls.
 
-### Phase 5656 - Frontend Focused Tests
+### Phase 5676 - Frontend Focused Tests
 
 - Run frontend typecheck, lint, API drift check, autonomous check, focused
   unit tests, build, and targeted Playwright smoke for the futures/perpetual
   read model.
 
-### Phase 5657 - Documentation And Examples
+### Phase 5677 - Documentation And Examples
 
 - Update Admin API, futures/perpetual examples, capability matrix, handoff,
   agent state, and contextless review log so a contextless reader can
-  understand store record-validation remediation dependency evidence without
-  chat history.
+  understand store record-validation remediation dependency work-item evidence
+  without chat history.
 
-### Phase 5658 - Stale Range And Drift Scan
+### Phase 5678 - Stale Range And Drift Scan
 
 - Scan backend and frontend docs/tests for stale active range strings and text
-  implying store record-validation remediation dependencies can resolve
-  dependencies, perform remediation, clear validation failures, accept records,
-  write evidence, or execute commands.
+  implying store record-validation remediation dependency work items can
+  create work items, claim work, resolve dependencies, perform remediation,
+  clear validation failures, accept records, write evidence, or execute
+  commands.
 
-### Phase 5659 - Contextless Review And UI Smoke
+### Phase 5679 - Contextless Review And UI Smoke
 
 - Run blind/contextless review and targeted UI smoke proving the new store
-  record-validation remediation dependency rows cannot be mistaken for an
-  executable futures command path.
+  record-validation remediation dependency work-item rows cannot be mistaken
+  for an executable futures command path.
 
-### Phase 5660 - Commit And Push
+### Phase 5680 - Commit And Push
 
 - Commit and push synchronized backend/frontend work after focused gates pass.
+
+## Completed Phases 5641-5660
+
+Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Remediation Dependency Evidence.
+
+Phases 5641-5660 added backend-owned risk proof record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-validation remediation dependency rows and frontend display evidence
+while preserving read-only/no-live behavior. Backend commit `15fba714` and
+frontend commit `97f0583` contain the pushed range. Focused backend/frontend
+gates, blind/contextless review, phase-end subagent sweep, and targeted UI
+smoke passed. Live Coinbase execution was not run; submitted notional `0`
+USDC and executed notional `0` USDC.
 
 ## Completed Phases 5621-5640
 

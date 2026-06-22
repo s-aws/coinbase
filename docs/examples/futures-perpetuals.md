@@ -11,10 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5641-5660 range adds read-only M57 futures/perpetual risk proof
+The active 5661-5680 range adds read-only M57 futures/perpetual risk proof
 record-validation remediation dependency work-item claim-trace clearance-step
-review input store record-validation remediation dependency evidence to the existing
-command-suite evidence. Each readiness decision, ordered closure step, risk proof
+review input store record-validation remediation dependency work-item evidence
+to the existing command-suite evidence. Each readiness decision, ordered
+closure step, risk proof
 requirement, proof contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
 dependency row, remediation dependency work-item row, remediation dependency
@@ -33,6 +34,11 @@ clearance-step review input store record-validation remediation row
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"`),
 clearance-step review input store record-validation remediation dependency row
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"`),
+clearance-step review input store record-validation remediation dependency
+work-item row
+(`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_items"`),
+dependency work-item count field
+(`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count"`),
 and acceptance criterion is derived from backend-owned prerequisites, request
 fields, semantic guards, evidence routes, missing evidence refs, and missing
 backend contracts. It is not a command route,
@@ -60,7 +66,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5641-5660",
+  "approved_phase_range": "5661-5680",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -143,6 +149,10 @@ Expected response posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1440,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
   "performed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 0,
+  "claimed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 0,
   "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": [
     {
       "clearance_plan_created": false,

@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5641-5660"
-APPROVED_PHASES = tuple(range(5641, 5661))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5621-5640"
+APPROVED_PHASE_RANGE = "5661-5680"
+APPROVED_PHASES = tuple(range(5661, 5681))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5641-5660"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -225,6 +225,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -254,6 +255,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count"',
             '"record_contract_required": true',
             '"record_contract_available": false',
             '"record_schema_available": false',
@@ -371,6 +373,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5601-5620"',
         "active 5621-5640 range",
         '"approved_phase_range": "5621-5640"',
+        "active 5641-5660 range",
+        '"approved_phase_range": "5641-5660"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}

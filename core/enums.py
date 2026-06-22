@@ -1488,6 +1488,20 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemBlocker(
+    str,
+    Enum,
+):
+    """Blocked work-item reasons for futures proof review-input record-validation remediation dependencies."""
+
+    REMEDIATION_DEPENDENCY_NOT_READY = "remediation_dependency_not_ready"
+    REMEDIATION_DEPENDENCY_UNRESOLVED = "remediation_dependency_unresolved"
+    WORK_ITEM_STORE_MISSING = "work_item_store_missing"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    OWNER_REVIEW_MISSING = "owner_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

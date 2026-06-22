@@ -416,7 +416,7 @@ correlation id, idempotency key, actor id, operator intent, request identity,
 and payload-present fields. The command still returns live-disabled evidence
 and remains no-manager, no-write, no-reconciliation, no-Coinbase, display-only,
 and BFF forward-only.
-Active phases 5161-5180 start M57 by exposing read-only futures/perpetual
+Completed phases 5161-5180 started M57 by exposing read-only futures/perpetual
 command-suite contract evidence for placement, close/reduce, cancel, and
 reconciliation. The route registers no futures command routes, permits no
 command drafts, executes no reconciliation, calls no Coinbase reads or writes,
