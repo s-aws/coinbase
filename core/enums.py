@@ -1455,6 +1455,39 @@ class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemC
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyBlocker(
+    str,
+    Enum,
+):
+    """Blocked dependency reasons for futures proof review-input record-validation remediation."""
+
+    STORE_RECORD_VALIDATION_REMEDIATION_NOT_READY = (
+        "store_record_validation_remediation_not_ready"
+    )
+    RECORD_VALIDATION_REMEDIATION_MISSING = "record_validation_remediation_missing"
+    REMEDIATION_DEPENDENCY_MISSING = "remediation_dependency_missing"
+    DEPENDENCY_ORDER_MISSING = "dependency_order_missing"
+    DEPENDENCY_GRAPH_MISSING = "dependency_graph_missing"
+    PREDECESSOR_REMEDIATION_NOT_READY = "predecessor_remediation_not_ready"
+    VALIDATION_REMEDIATION_WORK_MISSING = "validation_remediation_work_missing"
+    VALIDATION_REMEDIATION_EVIDENCE_MISSING = (
+        "validation_remediation_evidence_missing"
+    )
+    VALIDATION_GATE_NOT_PASSED = "validation_gate_not_passed"
+    REPLAY_GATE_NOT_PASSED = "replay_gate_not_passed"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    RECORD_NOT_PRESENT = "record_not_present"
+    RECORD_NOT_ACCEPTED = "record_not_accepted"
+    RECORD_NOT_VALIDATED = "record_not_validated"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

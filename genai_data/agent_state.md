@@ -8,8 +8,8 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-21
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5601-5620` is backend `d8834c81` and
-  frontend `799d73c`; current active range is `5621-5640`.
+- Commit (optional): completed range `5621-5640` is backend `63beb5cd` and
+  frontend `98e4661`; current active range is `5641-5660`.
 
 ## Current Objective
 
@@ -53,14 +53,14 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5601-5620`.
-- Active autonomous range: `5621-5640`.
-- Active `5621-5640` extends the M57 futures/perpetual command-suite contract
+- Latest completed autonomous range before current work: `5621-5640`.
+- Active autonomous range: `5641-5660`.
+- Active `5641-5660` extends the M57 futures/perpetual command-suite contract
   with backend-owned risk proof record-validation remediation dependency
   work-item claim-trace clearance-step review input store record-validation
-  remediation evidence rows derived from every blocked clearance-step review
-  input store record-validation row.
-- Phase-end subagent sweep for the current `5621-5640` work was performed:
+  remediation dependency evidence rows derived from every blocked
+  clearance-step review input store record-validation remediation row.
+- Phase-end subagent sweep for the completed `5621-5640` work was performed:
   the blind/contextless reviewer was closed after its findings were consumed
   and remediated. No phase-scoped subagent remains intentionally open.
   It must not add futures command routes, command drafts, live execution,
@@ -679,9 +679,9 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5621-5640`.
+- Active autonomous range: `5641-5660`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `5621-5640`.
+- Current direction: complete phases `5641-5660`.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1522,16 +1522,17 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5621-5640` by adding
+- Exact next command: complete active phases `5641-5660` by adding
   backend-owned futures/perpetual risk proof record-validation remediation
   dependency work-item claim-trace clearance-step review input store
-  record-validation remediation evidence to the existing command-suite read
-  contract, syncing OpenAPI and frontend generated schema, mapping runtime/mock/
+  record-validation remediation dependency evidence to the existing
+  command-suite read contract, syncing OpenAPI and frontend generated schema,
+  mapping runtime/mock/
   read-model display, updating docs and validators, then running focused gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live UI
   smoke. The active gap is proof record-validation remediation dependency
   work-item claim-trace clearance-step review input store record-validation
-  remediation visibility only; no
+  remediation dependency visibility only; no
   futures command route, command draft, exchange order placement/cancellation,
   reconciliation execution, Coinbase read/write, state mutation, record
   contract creation, record schema creation, append-only log creation,
@@ -1541,7 +1542,8 @@ Keep it short. Keep it factual.
   registration, claim-trace creation, claim-trace clearance, clearance-plan
   execution, clearance-step execution, clearance-step review completion,
   review-input acceptance, review-input store creation, evidence writing,
-  claim allowance, claim resolution, remediation execution, remediation work
-  item creation, enabled proof writer, registered proof route, registered
+  claim allowance, claim resolution, remediation dependency resolution,
+  remediation dependency graph activation, remediation execution,
+  remediation work item creation, enabled proof writer, registered proof route, registered
   proof store, registered record validator, accepted proof payload, accepted
   proof record, or browser/BFF authority is allowed in this range.

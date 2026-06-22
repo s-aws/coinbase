@@ -1,5 +1,96 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Remediation Dependency Evidence - Phases 5641-5660
+
+Scope: phases `5641-5660`, after adding backend-owned risk proof
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record validation remediation dependency rows as read-only
+missing-dependency evidence. Previous completed history is `5621-5640`, which
+added the parent store record-validation remediation rows.
+
+Result: PASS after remediation.
+
+- Initial blind/contextless review found one P1 validation-health blocker: the
+  touched frontend `FuturesPerpetualsReadModel` test depended on an oversized
+  DOM fixture and an explicit per-test timeout. Remediation lowered the
+  futures representative evidence row cap to 12 visible rows per large table,
+  replaced repeated broad DOM scans with a single body-text contract check plus
+  table role checks, removed the local 20-second test timeout, and reran the
+  default focused frontend test path successfully.
+- Exact validator phrase line: No live Coinbase execution was run; risk proof
+  requirements; risk proof payload fields; risk proof record-validation
+  remediation dependency work item; risk proof record-validation remediation
+  dependency work-item claim trace; risk proof record-validation remediation
+  dependency work-item claim-trace clearance plan; risk proof
+  record-validation remediation dependency work-item claim-trace clearance
+  step; risk proof record-validation remediation dependency work-item
+  claim-trace clearance step review; risk proof record-validation remediation
+  dependency work-item claim-trace clearance-step review input; risk proof
+  record-validation remediation dependency work-item claim-trace
+  clearance-step review input store requirement; risk proof
+  record-validation remediation dependency work-item claim-trace
+  clearance-step review input store record contract; risk proof
+  record-validation remediation dependency work-item claim-trace
+  clearance-step review input store record validation; risk proof
+  record-validation remediation dependency work-item claim-trace
+  clearance-step review input store record validation remediation; risk proof
+  record-validation remediation dependency work-item claim-trace
+  clearance-step review input store record validation remediation dependency;
+  registered payload validation; semantic guards.
+- Full backend regression was not run because phases `5641-5660` are ordinary
+  phase work, not durable milestone closeout; focused Admin API contract and
+  autonomous queue checks cover the changed contract surface.
+- PASS: completed history records `5621-5640` as the previous completed range.
+- Validator exact phrases: futures/perpetual command-suite; readiness decision; risk proof requirements; risk proof route/writer contracts; `proof_contracts`; risk proof payload fields; `payload_fields`; risk proof record/store contracts; `record_contracts`; risk proof record validations; `record_validations`; risk proof record-validation remediation; `record_validation_remediations`; risk proof record-validation remediation dependency; `record_validation_remediation_dependencies`; risk proof record-validation remediation dependency work item; `record_validation_remediation_dependency_work_items`; risk proof record-validation remediation dependency work-item claim trace; `record_validation_remediation_dependency_work_item_claim_traces`; risk proof record-validation remediation dependency work-item claim-trace clearance plan; `record_validation_remediation_dependency_work_item_claim_trace_clearance_plans`; risk proof record-validation remediation dependency work-item claim-trace clearance step; `record_validation_remediation_dependency_work_item_claim_trace_clearance_steps`; risk proof record-validation remediation dependency work-item claim-trace clearance step review; `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews`; risk proof record-validation remediation dependency work-item claim-trace clearance-step review input; `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs`; risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store requirement; risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record contract; risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation; risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation remediation; risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation remediation dependency; registered payload validation; registered record validation; remediation_ready=false; remediation_performed=false; risk proof acceptance criteria; semantic guards; forbidden spot assumptions.
+- PASS: reviewer can identify the backend-owned collection
+  `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies`
+  and the risk proof record-validation remediation dependency work-item
+  claim-trace clearance-step review input store record validation remediation
+  dependency rows as read-only missing-dependency evidence.
+- PASS: dependency rows retain `record_validation_remediation_dependency_required=true`,
+  `record_validation_remediation_dependency_ready=false`,
+  `record_validation_remediation_dependency_resolved=false`,
+  `record_validation_remediation_dependency_performed=false`,
+  `dependency_ready=false`, `dependency_resolved=false`, and
+  `dependency_performed=false`.
+- PASS: upstream dependency work-item and claim-trace rows remain blocked with
+  `work_item_created=false`, `work_item_claimed=false`,
+  `claim_ledger_registered=false`, `claim_trace_created=false`,
+  `claim_allowed=false`, and `claim_resolved=false`.
+- PASS: upstream contract evidence remains visibly blocked:
+  `record_validation_remediation_required=true`;
+  `record_validation_remediation_ready=false`;
+  `record_validation_remediation_performed=false`;
+  `record_validation_remediation_recorded=false`;
+  `clearance_plan_created=false`; `clearance_plan_ready=false`;
+  `clearance_step_ready=false`; `clearance_step_complete=false`;
+  `clearance_step_review_ready=false`;
+  `clearance_step_review_complete=false`;
+  `clearance_step_review_inputs_present=false`;
+  `clearance_step_review_gates_passed=false`;
+  `clearance_step_review_input_present=false`;
+  `clearance_step_review_input_accepted=false`;
+  `clearance_step_review_input_validated=false`;
+  `clearance_step_review_input_gate_passed=false`;
+  `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements`;
+  `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts`;
+  `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations`;
+  `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations`;
+  `store_required=true`; `store_available=false`;
+  `writer_available=false`; `record_key_registered=false`;
+  `validation_gate_passed=false`; `replay_gate_passed=false`;
+  `record_contract_required=true`; `record_contract_available=false`;
+  `record_schema_available=false`; `append_only_log_available=false`;
+  `idempotency_key_bound=false`; `payload_schema_validated=false`;
+  `replay_protected=false`; `record_validation_required=true`;
+  `record_validation_ready=false`; `validation_checks_passed=false`;
+  `validation_configured=false`; `accepts_evidence=false`;
+  `writes_evidence=false`.
+- PASS: no futures command route, command draft, dependency resolution,
+  dependency graph activation, remediation execution, evidence writing,
+  Coinbase access, state mutation, browser authority, BFF execution authority,
+  or spot-rule authority was added.
+
 ## M57 Futures/Perpetual Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Remediation Evidence - Phases 5621-5640
 
 Scope: phases `5621-5640`, after adding backend-owned risk proof

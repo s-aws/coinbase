@@ -11,9 +11,9 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5621-5640 range adds read-only M57 futures/perpetual risk proof
+The active 5641-5660 range adds read-only M57 futures/perpetual risk proof
 record-validation remediation dependency work-item claim-trace clearance-step
-review input store record-validation remediation evidence to the existing
+review input store record-validation remediation dependency evidence to the existing
 command-suite evidence. Each readiness decision, ordered closure step, risk proof
 requirement, proof contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
@@ -31,6 +31,8 @@ clearance-step review input store record-validation row
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"`),
 clearance-step review input store record-validation remediation row
 (`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"`),
+clearance-step review input store record-validation remediation dependency row
+(`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"`),
 and acceptance criterion is derived from backend-owned prerequisites, request
 fields, semantic guards, evidence routes, missing evidence refs, and missing
 backend contracts. It is not a command route,
@@ -58,7 +60,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5621-5640",
+  "approved_phase_range": "5641-5660",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -137,6 +139,10 @@ Expected response posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 1440,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
   "recorded_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
+  "performed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
   "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": [
     {
       "clearance_plan_created": false,
@@ -233,6 +239,10 @@ Expected response posture:
                                   "record_validation_remediation_ready": false,
                                   "record_validation_remediation_performed": false,
                                   "record_validation_remediation_recorded": false,
+                                  "clearance_step_review_input_store_record_validation_remediation_dependency_count": 1,
+                                  "blocking_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1,
+                                  "ready_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
+                                  "performed_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
                                   "required_remediation_work": [
                                     "create_store_record_validation_remediation_contract",
                                     "bind_validation_remediation_action",
@@ -240,6 +250,28 @@ Expected response posture:
                                     "attach_validation_remediation_evidence",
                                     "replay_protect_validation_remediation",
                                     "contextless_review_validation_remediation"
+                                  ],
+                                  "remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies": [
+                                    {
+                                      "record_validation_remediation_dependency_required": true,
+                                      "record_validation_remediation_dependency_ready": false,
+                                      "record_validation_remediation_dependency_resolved": false,
+                                      "record_validation_remediation_dependency_performed": false,
+                                      "required_dependency_work": [
+                                        "create_store_record_validation_remediation_dependency_contract",
+                                        "bind_validation_remediation_dependency_order",
+                                        "record_validation_remediation_dependency_graph",
+                                        "attach_validation_remediation_dependency_evidence",
+                                        "replay_protect_validation_remediation_dependency",
+                                        "contextless_review_validation_remediation_dependency"
+                                      ],
+                                      "dependency_ready": false,
+                                      "dependency_resolved": false,
+                                      "dependency_performed": false,
+                                      "accepts_evidence": false,
+                                      "writes_evidence": false,
+                                      "execution_allowed": false
+                                    }
                                   ],
                                   "accepts_evidence": false,
                                   "writes_evidence": false,

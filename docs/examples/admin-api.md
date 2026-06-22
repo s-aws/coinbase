@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5621-5640",
+  "approved_phase_range": "5641-5660",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5621-5640",
+  "approved_phase_range": "5641-5660",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5621-5640",
+  "approved_phase_range": "5641-5660",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1969,6 +1969,10 @@ Expected command-suite posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 1440,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
   "recorded_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
+  "performed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
   "risk_proof_acceptance_criterion_count": 100,
   "blocking_risk_proof_acceptance_criterion_count": 100,
   "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -2016,6 +2020,19 @@ configuration, idempotency binding, payload validation, replay guard, audit
 linking, record-validator registration, and contextless review. Remediation
 rows remain blocked with `remediation_work_item_created=false`,
 `remediation_ready=false`, and `remediation_performed=false`.
+Each store record-validation remediation row also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"`
+for blocked backend-owned dependency order, dependency graph,
+predecessor/successor dependency refs, dependency gate, required dependency
+work, inherited validation/remediation blockers, and missing evidence required
+before validation-remediation work could be safely sequenced. Those dependency
+rows remain blocked with
+`record_validation_remediation_dependency_required=true`,
+`record_validation_remediation_dependency_ready=false`,
+`record_validation_remediation_dependency_resolved=false`,
+`record_validation_remediation_dependency_performed=false`,
+`dependency_ready=false`, `dependency_resolved=false`, and
+`dependency_performed=false`.
 Each proof also includes
 `"record_validation_remediation_dependencies"` for the blocked backend-owned
 dependency work that orders each remediation row against its immediate

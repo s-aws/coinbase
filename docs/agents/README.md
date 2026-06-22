@@ -78,3 +78,12 @@ The parallel runner validates serial-lane classification before running pytest.
 Shared DB cursor, fixed service port, process-global state, and other
 process-shared regression tests must be marked `pytest.mark.serial`; documented
 false positives use `parallel-regression: serial-safe`.
+
+## Subagent Hygiene
+
+At the end of each phase, close subagents spawned for that phase and any stale
+or previously unused subagents found during the sweep after their findings have
+been consumed, remediated, or explicitly deferred. At durable milestone
+closeout, perform one final stale-subagent sweep. Do not close a subagent that
+is still running required validation, producing required evidence, or awaiting
+a user decision.

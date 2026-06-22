@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5621-5640"
-APPROVED_PHASES = tuple(range(5621, 5641))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5601-5620"
+APPROVED_PHASE_RANGE = "5641-5660"
+APPROVED_PHASES = tuple(range(5641, 5661))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5621-5640"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -224,6 +224,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"',
             '"acceptance_criteria"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
@@ -252,6 +253,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"',
             '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"',
+            '"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"',
             '"record_contract_required": true',
             '"record_contract_available": false',
             '"record_schema_available": false',
@@ -265,6 +267,13 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"record_validation_remediation_ready": false',
             '"record_validation_remediation_performed": false',
             '"record_validation_remediation_recorded": false',
+            '"record_validation_remediation_dependency_required": true',
+            '"record_validation_remediation_dependency_ready": false',
+            '"record_validation_remediation_dependency_resolved": false',
+            '"record_validation_remediation_dependency_performed": false',
+            '"dependency_ready": false',
+            '"dependency_resolved": false',
+            '"dependency_performed": false',
             '"validation_checks_passed": false',
             '"validation_configured": false',
             '"claim_trace_created": false',
@@ -358,6 +367,10 @@ def _check_example_phase_range_docs() -> QueueCheck:
         '"approved_phase_range": "5561-5580"',
         "active 5581-5600 range",
         '"approved_phase_range": "5581-5600"',
+        "active 5601-5620 range",
+        '"approved_phase_range": "5601-5620"',
+        "active 5621-5640 range",
+        '"approved_phase_range": "5621-5640"',
     )
     missing: dict[str, list[str]] = {}
     stale: dict[str, list[str]] = {}
@@ -692,6 +705,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record contract",
         "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation",
         "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation remediation",
+        "risk proof record-validation remediation dependency work-item claim-trace clearance-step review input store record validation remediation dependency",
         "record_contract_required=true",
         "record_contract_available=false",
         "record_schema_available=false",
@@ -711,6 +725,14 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts",
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations",
         "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies",
+        "record_validation_remediation_dependency_required=true",
+        "record_validation_remediation_dependency_ready=false",
+        "record_validation_remediation_dependency_resolved=false",
+        "record_validation_remediation_dependency_performed=false",
+        "dependency_ready=false",
+        "dependency_resolved=false",
+        "dependency_performed=false",
         "store_required=true",
         "store_available=false",
         "writer_available=false",
