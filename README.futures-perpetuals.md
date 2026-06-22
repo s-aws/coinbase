@@ -90,6 +90,18 @@ browser, BFF, and notional evidence fields.
   All acceptance criteria remain blocked and unaccepted in the current
   contract; `satisfies_risk_proof=false` means later command enablement still
   has no proof authority.
+- Each risk proof requirement also exposes backend-owned semantic contract
+  definition rows through `semantic_contract_definitions` and definition
+  counts such as `risk_proof_semantic_contract_definition_count`. These rows
+  name the missing backend definition contract, semantic definition ref,
+  validation gate, acceptance gate, required evidence refs, and missing
+  evidence refs for each semantic contract ref. They remain blocked with
+  `definition_ready=false`, `validation_ready=false`,
+  `acceptance_ready=false`, and
+  `runtime_evidence_satisfies_definition=false`; observed runtime evidence
+  does not register a semantic contract, satisfy proof acceptance, create
+  command drafts, register futures routes, call Coinbase, execute
+  reconciliation, mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned proof record/store
   contract rows, blocked record-validation rows, and blocked
   record-validation remediation rows. These rows name required store refs,
@@ -214,6 +226,13 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   They are blocked acceptance checks that name what a later backend-owned
   proof route and proof writer must satisfy; they do not enable routes,
   drafts, proof writers, live adapters, browser execution, or BFF execution.
+- Do not treat semantic contract definition rows as registered semantic
+  contracts or proof acceptance. `semantic_contract_definitions` rows are
+  missing backend definition-contract evidence only; `definition_ready=false`
+  and `runtime_evidence_satisfies_definition=false` keep command routes,
+  command drafts, proof satisfaction, reconciliation execution, Coinbase
+  activity, state mutation, browser authority, and BFF execution authority
+  disabled.
 - Do not treat risk proof record/store contracts, record-validation rows,
   record-validation remediation rows, record-validation remediation dependency
   rows, record-validation remediation dependency work-item rows, or

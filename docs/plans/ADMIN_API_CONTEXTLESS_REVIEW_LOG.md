@@ -1,5 +1,64 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Semantic Contract Definition Evidence - Phases 5861-5880
+
+Scope: phases `5861-5880`, after completed history `5841-5860`, add explicit
+futures semantic contract definition evidence to `GET
+/api/v1/futures/command-suite`. The command suite may consume safe display
+evidence from `/api/v1/futures/risk-proofs`, proof-acceptance blockers, and
+semantic contract requirements, but each semantic contract ref now also names
+the missing backend definition contract, validation gate, and acceptance gate
+that still block definition readiness and proof acceptance. Runtime evidence
+may be observed, but it does not make semantic contract definitions ready,
+register semantic contracts, create command drafts, register futures routes,
+trigger Coinbase activity, execute reconciliation, mutate futures state, or
+grant browser/BFF authority.
+
+Result: PASS after remediation.
+
+- Backend rows must expose `risk_proof_record_resolver_count`,
+  `risk_proof_acceptance_blocker_count`,
+  `risk_proof_semantic_contract_requirement_count`,
+  `risk_proof_semantic_contract_definition_count`,
+  `semantic_contract_requirements`, `semantic_contract_definitions`,
+  `proof_record_lookup_status`, `proof_acceptance_blockers`,
+  `proof_record_resolves_acceptance`, and
+  `backend_futures_semantics_no_execution` so a contextless reader can see
+  that resolved safe proof records and observed runtime evidence remain
+  display-only blocker evidence.
+- Frontend rows must consume `proofRecordLookupStatus`,
+  `proofAcceptanceBlockers`, `semanticContractRequirements`, and
+  `semanticContractDefinitions` as backend-owned display evidence. The
+  browser must not infer semantic contract registration, definition readiness,
+  proof acceptance, command drafting, execution permission, or futures risk
+  semantics from these rows.
+- Machine-check exact phrase line: futures semantic contract definition evidence; /api/v1/futures/risk-proofs; risk_proof_record_resolver_count; risk_proof_acceptance_blocker_count; risk_proof_semantic_contract_requirement_count; risk_proof_semantic_contract_definition_count; semantic_contract_requirements; semantic_contract_definitions; proof_record_lookup_status; proof_acceptance_blockers; proof_record_resolves_acceptance; proofRecordLookupStatus; proofAcceptanceBlockers; semanticContractRequirements; semanticContractDefinitions; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+- Review result: blind/contextless backend reviewer
+  `019ef006-7abd-7052-80d6-f73331a309c5` initially failed the handoff because
+  `tests/regression/test_spot_readiness_gate.py` still asserted the old
+  `5841-5860` phase tuple, this log still led with the old range, and
+  `README.futures-perpetuals.md` did not describe
+  `semantic_contract_definitions`, `definition_ready`, or
+  `runtime_evidence_satisfies_definition`. Those findings were remediated by
+  updating the focused phase assertion, adding futures/perpetual feature README
+  definition-field coverage, and adding this top review entry.
+- Review result: blind/contextless frontend reviewer
+  `019ef006-8eba-73b3-83d2-95a7f6c7730b` found no code-level blocker for a
+  futures command route, command draft, live Coinbase path, reconciliation
+  execution, or futures/order/exchange-state mutation. The frontend blocker
+  was the stale/missing contextless review logs; this entry and the matching
+  frontend entry remediate that handoff gap.
+- No live Coinbase execution was run. Submitted notional `0` USDC. Executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5861-5880` are
+  ordinary phase work; focused gates cover the changed contract. Full
+  regression remains reserved for durable milestone closeout or explicit user
+  request.
+- Phase-end stale-subagent sweep completed after consuming and remediating the
+  review results: backend reviewer `019ef006-7abd-7052-80d6-f73331a309c5` and
+  frontend reviewer `019ef006-8eba-73b3-83d2-95a7f6c7730b` were closed. No
+  phase-scoped, stale, or unused subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Semantic Contract Requirement Evidence - Phases 5841-5860
 
 Scope: phases `5841-5860`, after completed history `5821-5840`, add explicit

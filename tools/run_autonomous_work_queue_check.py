@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5841-5860"
-APPROVED_PHASES = tuple(range(5841, 5861))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5821-5840"
+APPROVED_PHASE_RANGE = "5861-5880"
+APPROVED_PHASES = tuple(range(5861, 5881))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5841-5860"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -232,6 +232,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"proof_acceptance_blockers"',
             '"proof_record_resolves_acceptance"',
             '"proof_record_resolved_but_acceptance_blocked_count"',
+            '"risk_proof_semantic_contract_definition_count"',
+            '"semantic_contract_definitions"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
@@ -314,6 +316,12 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"proof_record_resolves_acceptance": false',
             '"risk_proof_acceptance_blocker_count"',
             '"proof_record_resolved_but_acceptance_blocked_count"',
+            '"risk_proof_semantic_contract_definition_count"',
+            '"semantic_contract_definitions"',
+            '"semantic_contract_definition_ref"',
+            '"definition_ready": false',
+            '"validation_ready": false',
+            '"runtime_evidence_satisfies_definition": false',
             '"forbidden_spot_assumptions"',
             '"futures_place"',
             '"futures_cancel"',
@@ -545,7 +553,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` adds explicit futures semantic contract requirement evidence",
+        f"Active `{APPROVED_PHASE_RANGE}` adds futures semantic contract definition evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -684,18 +692,21 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
-        "futures semantic contract requirement evidence",
+        "futures semantic contract definition evidence",
         "/api/v1/futures/risk-proofs",
         "risk_proof_record_resolver_count",
         "risk_proof_acceptance_blocker_count",
         "risk_proof_semantic_contract_requirement_count",
+        "risk_proof_semantic_contract_definition_count",
         "semantic_contract_requirements",
+        "semantic_contract_definitions",
         "proof_record_lookup_status",
         "proof_acceptance_blockers",
         "proof_record_resolves_acceptance",
         "proofRecordLookupStatus",
         "proofAcceptanceBlockers",
         "semanticContractRequirements",
+        "semanticContractDefinitions",
         "backend_futures_risk_proof_store_read_only_no_execution",
         "backend_futures_semantics_no_execution",
         "no futures command route",

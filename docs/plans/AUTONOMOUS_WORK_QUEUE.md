@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **5841-5860**.
+- Approved phase range: **5861-5880**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5821-5840`.
+- Previous completed range: `5841-5860`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5840`.
+- `current_phase`: `5860`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,14 +81,133 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5841-5860
+## Active Phases 5861-5880
+
+Batch label: Futures/Perpetuals Semantic Contract Definition Evidence.
+
+These phases make the next M57 futures/perpetual semantic-contract gap explicit
+inside `GET /api/v1/futures/command-suite`. Completed phases `5841-5860`
+enumerated the missing semantic contract refs behind each blocked risk-proof
+requirement. Active `5861-5880` adds backend-owned definition/readiness rows
+for those refs so a contextless maintainer can see the exact missing backend
+definition contract, validation gate, acceptance gate, and no-execution
+authority before command routes, command drafts, proof writers, reconciliation,
+or live Coinbase execution can exist.
+
+### Phase 5861 - Prior Range Closure
+
+- Record completed phases `5841-5860` as historical semantic contract
+  requirement evidence and move active metadata to `5861-5880`.
+
+### Phase 5862 - Definition Evidence Scope
+
+- Define semantic contract definition evidence as backend-owned display
+  evidence derived from existing futures semantic guards and required evidence
+  refs.
+
+### Phase 5863 - Definition Row Model
+
+- Add typed per-proof semantic contract definition rows with contract refs,
+  backend definition contract refs, validation gates, acceptance gates,
+  required/missing evidence refs, and no-execution authority.
+
+### Phase 5864 - Per-Proof Definition Aggregates
+
+- Add per-risk-proof counts for semantic contract definitions, blocking rows,
+  ready rows, registered rows, and runtime-observed display rows.
+
+### Phase 5865 - Command Definition Aggregates
+
+- Add command-level semantic contract definition totals across risk-proof
+  requirements.
+
+### Phase 5866 - Suite Definition Aggregates
+
+- Add suite-level semantic contract definition totals across futures command
+  families.
+
+### Phase 5867 - Runtime Definition Boundary
+
+- Prove observed runtime evidence is not the same as a ready or registered
+  semantic contract definition and cannot satisfy proof acceptance.
+
+### Phase 5868 - Missing Definition Contract References
+
+- Preserve backend definition contract refs as missing until the futures
+  semantic contract implementation actually exists.
+
+### Phase 5869 - Backend Schema Contract Tests
+
+- Update OpenAPI/schema tests so generated clients discover semantic contract
+  definition rows and aggregate fields.
+
+### Phase 5870 - Backend Read-Service Tests
+
+- Add focused regression coverage for suite, command, and per-proof semantic
+  contract definition evidence.
+
+### Phase 5871 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI and route inventory artifacts from backend-owned
+  source after contract changes.
+
+### Phase 5872 - Frontend Schema Sync
+
+- Regenerate the frontend generated TypeScript schema from backend OpenAPI.
+
+### Phase 5873 - Frontend Mock Contract
+
+- Update frontend mock futures command-suite fixtures and quality artifacts
+  with semantic contract definition fields and active range `5861-5880`.
+
+### Phase 5874 - Frontend Adapter Mapping
+
+- Map semantic contract definition rows and counts into the futures/perpetual
+  read model through the canonical backend API adapter.
+
+### Phase 5875 - Frontend Display
+
+- Render semantic contract definition evidence as blocked backend evidence,
+  separate from proof records, acceptance blockers, requirements, and command
+  enablement.
+
+### Phase 5876 - Frontend Unit Coverage
+
+- Add focused unit coverage for generated schema consumption, mocks, runtime
+  snapshots, read-model rendering, and quality-gate active range.
+
+### Phase 5877 - Docs And Examples
+
+- Update backend/frontend docs, examples, capability matrix, maintainer
+  handoff, contextless review logs, and agent state for semantic contract
+  definition semantics.
+
+### Phase 5878 - Focused Gates
+
+- Run focused backend compile/regression/contract/queue/ownership checks and
+  focused frontend API/type/unit checks that cover the semantic contract
+  definition evidence.
+
+### Phase 5879 - Contextless Review And Subagent Sweep
+
+- Run blind/contextless review for backend/frontend clarity, remediate or
+  explicitly defer findings, then close phase-scoped, stale, and unused
+  subagents after findings are consumed.
+
+### Phase 5880 - Phase Closeout Evidence
+
+- Record implementation, verification, no-live Coinbase posture, submitted and
+  executed notional `0` USDC, review outcome, stale-subagent sweep result,
+  commits, pushes, and the next milestone-linked work.
+
+## Completed Phases 5841-5860
 
 Batch label: Futures/Perpetuals Semantic Contract Requirement Evidence.
 
 These phases make the M57 futures/perpetual semantic-contract gap explicit
 inside each `GET /api/v1/futures/command-suite` risk-proof requirement row.
 Completed phases `5821-5840` proved safe proof records still cannot satisfy
-proof acceptance; active `5841-5860` enumerates the exact missing semantic
+proof acceptance; completed `5841-5860` enumerates the exact missing semantic
 contract refs behind that blocker. Runtime evidence may be observed, but it
 does not register a semantic contract, satisfy proof acceptance, create command
 drafts, register futures command routes, call Coinbase, execute

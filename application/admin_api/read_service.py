@@ -154,6 +154,7 @@ from .models import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput,
     AdminFuturesCommandRiskProofRecordValidationRemediationItem,
     AdminFuturesCommandRiskProofRequirementItem,
+    AdminFuturesCommandRiskProofSemanticContractDefinitionItem,
     AdminFuturesCommandRiskProofSemanticContractRequirementItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
@@ -389,7 +390,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5841-5860"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5861-5880"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -27004,6 +27005,78 @@ class AdminApiReadService:
                     for index, required_ref in enumerate(guard.required_evidence_refs)
                 ]
 
+            def semantic_contract_definitions(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                guard: AdminFuturesCommandSemanticGuardItem,
+                runtime_evidence_observed: bool,
+            ) -> list[AdminFuturesCommandRiskProofSemanticContractDefinitionItem]:
+                rows: list[
+                    AdminFuturesCommandRiskProofSemanticContractDefinitionItem
+                ] = []
+                for index, required_ref in enumerate(guard.required_evidence_refs):
+                    definition_ref = f"{required_ref}_definition"
+                    validation_gate = (
+                        f"{command_id.value}_{proof_kind.value}_{required_ref}"
+                        "_semantic_contract_validation"
+                    )
+                    acceptance_gate = (
+                        f"{command_id.value}_{proof_kind.value}_{required_ref}"
+                        "_semantic_contract_acceptance"
+                    )
+                    required_evidence_refs = [
+                        required_ref,
+                        definition_ref,
+                        validation_gate,
+                        acceptance_gate,
+                    ]
+                    rows.append(
+                        AdminFuturesCommandRiskProofSemanticContractDefinitionItem(
+                            proof_kind=proof_kind,
+                            semantic_guard=guard.semantic_guard,
+                            sequence=index + 1,
+                            contract_ref=required_ref,
+                            semantic_contract_definition_ref=definition_ref,
+                            required_backend_contract=(
+                                "application/admin_api/futures_semantic_contracts.py::"
+                                f"{definition_ref}"
+                            ),
+                            missing_backend_contract=(
+                                "application/admin_api/futures_semantic_contracts.py::"
+                                f"{definition_ref}"
+                            ),
+                            validation_gate=validation_gate,
+                            acceptance_gate=acceptance_gate,
+                            evidence_routes=guard.evidence_routes,
+                            evidence_route_count=guard.evidence_route_count,
+                            required_evidence_refs=required_evidence_refs,
+                            required_evidence_count=len(required_evidence_refs),
+                            missing_evidence_refs=required_evidence_refs,
+                            missing_evidence_count=len(required_evidence_refs),
+                            runtime_evidence_observed=runtime_evidence_observed,
+                            runtime_evidence_satisfies_definition=False,
+                            contract_registered=False,
+                            definition_ready=False,
+                            validation_ready=False,
+                            acceptance_ready=False,
+                            satisfies_risk_proof=False,
+                            command_route_registered=False,
+                            command_draft_allowed=False,
+                            execution_allowed=False,
+                            proof_route_registered=False,
+                            proof_writer_enabled=False,
+                            detail=(
+                                f"{command_id.value} {proof_kind.value} requires "
+                                f"a backend-owned semantic contract definition "
+                                f"for {required_ref}. Runtime read evidence, "
+                                "browser display, and BFF forwarding cannot "
+                                "register this contract or satisfy proof "
+                                "acceptance."
+                            ),
+                        )
+                    )
+                return rows
+
             def proof_acceptance_blocker_evidence(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -27072,6 +27145,11 @@ class AdminApiReadService:
                     prerequisite_item.resolved if prerequisite_item else False
                 )
                 semantic_contracts = semantic_contract_requirements(
+                    proof_kind=proof_kind,
+                    guard=guard,
+                    runtime_evidence_observed=runtime_evidence_observed,
+                )
+                semantic_contract_definition_rows = semantic_contract_definitions(
                     proof_kind=proof_kind,
                     guard=guard,
                     runtime_evidence_observed=runtime_evidence_observed,
@@ -27394,6 +27472,32 @@ class AdminApiReadService:
                             if contract.runtime_evidence_observed
                         ),
                         semantic_contract_requirements=semantic_contracts,
+                        semantic_contract_definition_count=len(
+                            semantic_contract_definition_rows
+                        ),
+                        blocking_semantic_contract_definition_count=sum(
+                            1
+                            for definition in semantic_contract_definition_rows
+                            if definition.blocking
+                        ),
+                        ready_semantic_contract_definition_count=sum(
+                            1
+                            for definition in semantic_contract_definition_rows
+                            if definition.definition_ready
+                        ),
+                        registered_semantic_contract_definition_count=sum(
+                            1
+                            for definition in semantic_contract_definition_rows
+                            if definition.contract_registered
+                        ),
+                        runtime_observed_semantic_contract_definition_count=sum(
+                            1
+                            for definition in semantic_contract_definition_rows
+                            if definition.runtime_evidence_observed
+                        ),
+                        semantic_contract_definitions=(
+                            semantic_contract_definition_rows
+                        ),
                         proof_route_required=True,
                         proof_route_registered=False,
                         proof_writer_enabled=False,
@@ -28124,6 +28228,26 @@ class AdminApiReadService:
                     item.runtime_observed_semantic_contract_requirement_count
                     for item in proof_requirements
                 ),
+                risk_proof_semantic_contract_definition_count=sum(
+                    item.semantic_contract_definition_count
+                    for item in proof_requirements
+                ),
+                blocking_risk_proof_semantic_contract_definition_count=sum(
+                    item.blocking_semantic_contract_definition_count
+                    for item in proof_requirements
+                ),
+                ready_risk_proof_semantic_contract_definition_count=sum(
+                    item.ready_semantic_contract_definition_count
+                    for item in proof_requirements
+                ),
+                registered_risk_proof_semantic_contract_definition_count=sum(
+                    item.registered_semantic_contract_definition_count
+                    for item in proof_requirements
+                ),
+                runtime_observed_risk_proof_semantic_contract_definition_count=sum(
+                    item.runtime_observed_semantic_contract_definition_count
+                    for item in proof_requirements
+                ),
                 risk_proof_contract_count=sum(
                     item.proof_contract_count for item in proof_requirements
                 ),
@@ -28613,6 +28737,26 @@ class AdminApiReadService:
             ),
             runtime_observed_risk_proof_semantic_contract_requirement_count=sum(
                 command.runtime_observed_risk_proof_semantic_contract_requirement_count
+                for command in commands
+            ),
+            risk_proof_semantic_contract_definition_count=sum(
+                command.risk_proof_semantic_contract_definition_count
+                for command in commands
+            ),
+            blocking_risk_proof_semantic_contract_definition_count=sum(
+                command.blocking_risk_proof_semantic_contract_definition_count
+                for command in commands
+            ),
+            ready_risk_proof_semantic_contract_definition_count=sum(
+                command.ready_risk_proof_semantic_contract_definition_count
+                for command in commands
+            ),
+            registered_risk_proof_semantic_contract_definition_count=sum(
+                command.registered_risk_proof_semantic_contract_definition_count
+                for command in commands
+            ),
+            runtime_observed_risk_proof_semantic_contract_definition_count=sum(
+                command.runtime_observed_risk_proof_semantic_contract_definition_count
                 for command in commands
             ),
             risk_proof_contract_count=sum(

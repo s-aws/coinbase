@@ -624,6 +624,14 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
         command_suite.runtime_observed_risk_proof_semantic_contract_requirement_count
         == 8
     )
+    assert command_suite.risk_proof_semantic_contract_definition_count == 34
+    assert command_suite.blocking_risk_proof_semantic_contract_definition_count == 34
+    assert command_suite.ready_risk_proof_semantic_contract_definition_count == 0
+    assert command_suite.registered_risk_proof_semantic_contract_definition_count == 0
+    assert (
+        command_suite.runtime_observed_risk_proof_semantic_contract_definition_count
+        == 8
+    )
     assert place.resolved_risk_proof_record_resolver_count == 1
     assert place.risk_proof_acceptance_blocker_count == 36
     assert place.proof_record_resolved_but_acceptance_blocked_count == 1
@@ -631,6 +639,11 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert place.blocking_risk_proof_semantic_contract_requirement_count == 10
     assert place.registered_risk_proof_semantic_contract_count == 0
     assert place.runtime_observed_risk_proof_semantic_contract_requirement_count == 4
+    assert place.risk_proof_semantic_contract_definition_count == 10
+    assert place.blocking_risk_proof_semantic_contract_definition_count == 10
+    assert place.ready_risk_proof_semantic_contract_definition_count == 0
+    assert place.registered_risk_proof_semantic_contract_definition_count == 0
+    assert place.runtime_observed_risk_proof_semantic_contract_definition_count == 4
     assert margin_collateral.proof_record_lookup_status.value == "resolved"
     assert margin_collateral.latest_futures_risk_proof_id == (
         record.futures_risk_proof_id
@@ -645,12 +658,31 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert margin_collateral.blocking_semantic_contract_requirement_count == 2
     assert margin_collateral.registered_semantic_contract_count == 0
     assert margin_collateral.runtime_observed_semantic_contract_requirement_count == 2
+    assert margin_collateral.semantic_contract_definition_count == 2
+    assert margin_collateral.blocking_semantic_contract_definition_count == 2
+    assert margin_collateral.ready_semantic_contract_definition_count == 0
+    assert margin_collateral.registered_semantic_contract_definition_count == 0
+    assert margin_collateral.runtime_observed_semantic_contract_definition_count == 2
     assert [
         item.required_contract_ref
         for item in margin_collateral.semantic_contract_requirements
     ] == [
         "futures_margin_collateral_risk_contract",
         "futures_cap_guard_margin_collateral_link",
+    ]
+    assert [
+        item.contract_ref
+        for item in margin_collateral.semantic_contract_definitions
+    ] == [
+        "futures_margin_collateral_risk_contract",
+        "futures_cap_guard_margin_collateral_link",
+    ]
+    assert [
+        item.semantic_contract_definition_ref
+        for item in margin_collateral.semantic_contract_definitions
+    ] == [
+        "futures_margin_collateral_risk_contract_definition",
+        "futures_cap_guard_margin_collateral_link_definition",
     ]
     assert all(
         item.blocking is True
@@ -667,6 +699,24 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
         and item.browser_authority == "display_only"
         and item.bff_authority == "forward_only_no_execution"
         for item in margin_collateral.semantic_contract_requirements
+    )
+    assert all(
+        item.blocking is True
+        and item.contract_registered is False
+        and item.definition_ready is False
+        and item.validation_ready is False
+        and item.acceptance_ready is False
+        and item.runtime_evidence_satisfies_definition is False
+        and item.satisfies_risk_proof is False
+        and item.command_route_registered is False
+        and item.command_draft_allowed is False
+        and item.execution_allowed is False
+        and item.proof_route_registered is False
+        and item.proof_writer_enabled is False
+        and item.spot_rule_authority is False
+        and item.browser_authority == "display_only"
+        and item.bff_authority == "forward_only_no_execution"
+        for item in margin_collateral.semantic_contract_definitions
     )
     assert margin_collateral.proof_acceptance_blockers == [
         AdminFuturesCommandRiskProofAcceptanceBlocker.FUTURES_SEMANTIC_CONTRACTS_MISSING,
@@ -740,6 +790,8 @@ def test_futures_command_suite_fails_closed_on_latest_unsafe_risk_proof_record(
     assert command_suite.proof_record_resolved_but_acceptance_blocked_count == 0
     assert command_suite.risk_proof_semantic_contract_requirement_count == 34
     assert command_suite.registered_risk_proof_semantic_contract_count == 0
+    assert command_suite.risk_proof_semantic_contract_definition_count == 34
+    assert command_suite.registered_risk_proof_semantic_contract_definition_count == 0
     assert margin_collateral.proof_record_lookup_status.value == "stale_or_invalid"
     assert margin_collateral.latest_futures_risk_proof_id == (
         unsafe_record.futures_risk_proof_id
@@ -758,6 +810,8 @@ def test_futures_command_suite_fails_closed_on_latest_unsafe_risk_proof_record(
     assert margin_collateral.proof_record_resolves_acceptance is False
     assert margin_collateral.semantic_contract_requirement_count == 2
     assert margin_collateral.registered_semantic_contract_count == 0
+    assert margin_collateral.semantic_contract_definition_count == 2
+    assert margin_collateral.registered_semantic_contract_definition_count == 0
     assert (
         AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED
         in margin_collateral.proof_acceptance_blockers
@@ -807,6 +861,8 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert margin_collateral["proof_record_resolves_acceptance"] is False
     assert margin_collateral["semantic_contract_requirement_count"] == 2
     assert margin_collateral["registered_semantic_contract_count"] == 0
+    assert margin_collateral["semantic_contract_definition_count"] == 2
+    assert margin_collateral["registered_semantic_contract_definition_count"] == 0
     assert [
         item["required_contract_ref"]
         for item in margin_collateral["semantic_contract_requirements"]
@@ -814,6 +870,22 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
         "futures_margin_collateral_risk_contract",
         "futures_cap_guard_margin_collateral_link",
     ]
+    assert [
+        item["contract_ref"]
+        for item in margin_collateral["semantic_contract_definitions"]
+    ] == [
+        "futures_margin_collateral_risk_contract",
+        "futures_cap_guard_margin_collateral_link",
+    ]
+    assert (
+        margin_collateral["semantic_contract_definitions"][0][
+            "required_backend_contract"
+        ]
+        == (
+            "application/admin_api/futures_semantic_contracts.py::"
+            "futures_margin_collateral_risk_contract_definition"
+        )
+    )
     assert "acceptance_criteria_blocking" in (
         margin_collateral["proof_acceptance_blockers"]
     )

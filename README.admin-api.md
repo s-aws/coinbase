@@ -468,6 +468,13 @@ runtime-observed evidence as display-only, and keep semantic contract
 registration, proof acceptance, command route registration, command drafting,
 Coinbase activity, reconciliation execution, state mutation, browser
 authority, and BFF execution authority disabled.
+M57 phases 5861-5880 add semantic contract definition rows for those refs.
+Each row names the missing backend definition contract, validation gate,
+acceptance gate, required/missing evidence refs, definition readiness false,
+validation readiness false, and runtime-evidence-satisfies-definition false.
+These rows remain backend-owned display evidence and do not register semantic
+contracts, satisfy proof acceptance, enable command routes, create drafts, call
+Coinbase, execute reconciliation, mutate state, or grant browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
