@@ -156,6 +156,20 @@ browser, BFF, and notional evidence fields.
   contracts, register validators, make validation gates ready, satisfy proof
   acceptance, create command drafts, register futures routes, call Coinbase,
   execute reconciliation, mutate state, or grant browser/BFF authority.
+- Each risk proof requirement also exposes backend-owned semantic validator
+  registration rows through `semantic_validator_registrations` and registration
+  counts such as `risk_proof_semantic_validator_registration_count`. These rows
+  name the missing backend registration contract, registry record,
+  validator-contract ref, input-schema ref, output-schema ref, registration
+  field refs, required evidence refs, and missing evidence refs for each
+  semantic validator contract. They remain blocked with
+  `validator_registration_ready=false`, `validator_registered=false`,
+  `validation_ready=false`, and
+  `runtime_evidence_satisfies_validator_registration=false`; observed runtime
+  evidence does not satisfy validator registration, register validators, make
+  validation gates ready, satisfy proof acceptance, create command drafts,
+  register futures routes, call Coinbase, execute reconciliation, mutate state,
+  or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned proof record/store
   contract rows, blocked record-validation rows, and blocked
   record-validation remediation rows. These rows name required store refs,

@@ -685,6 +685,20 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
         command_suite.runtime_observed_risk_proof_semantic_validator_output_schema_count
         == 8
     )
+    assert command_suite.risk_proof_semantic_validator_registration_count == 34
+    assert (
+        command_suite.blocking_risk_proof_semantic_validator_registration_count
+        == 34
+    )
+    assert command_suite.ready_risk_proof_semantic_validator_registration_count == 0
+    assert (
+        command_suite.registered_risk_proof_semantic_validator_registration_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_risk_proof_semantic_validator_registration_count
+        == 8
+    )
     assert place.resolved_risk_proof_record_resolver_count == 1
     assert place.risk_proof_acceptance_blocker_count == 36
     assert place.proof_record_resolved_but_acceptance_blocked_count == 1
@@ -717,6 +731,11 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert place.ready_risk_proof_semantic_validator_output_schema_count == 0
     assert place.registered_risk_proof_semantic_validator_output_schema_count == 0
     assert place.runtime_observed_risk_proof_semantic_validator_output_schema_count == 4
+    assert place.risk_proof_semantic_validator_registration_count == 10
+    assert place.blocking_risk_proof_semantic_validator_registration_count == 10
+    assert place.ready_risk_proof_semantic_validator_registration_count == 0
+    assert place.registered_risk_proof_semantic_validator_registration_count == 0
+    assert place.runtime_observed_risk_proof_semantic_validator_registration_count == 4
     assert margin_collateral.proof_record_lookup_status.value == "resolved"
     assert margin_collateral.latest_futures_risk_proof_id == (
         record.futures_risk_proof_id
@@ -756,6 +775,11 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert margin_collateral.ready_semantic_validator_output_schema_count == 0
     assert margin_collateral.registered_semantic_validator_output_schema_count == 0
     assert margin_collateral.runtime_observed_semantic_validator_output_schema_count == 2
+    assert margin_collateral.semantic_validator_registration_count == 2
+    assert margin_collateral.blocking_semantic_validator_registration_count == 2
+    assert margin_collateral.ready_semantic_validator_registration_count == 0
+    assert margin_collateral.registered_semantic_validator_registration_count == 0
+    assert margin_collateral.runtime_observed_semantic_validator_registration_count == 2
     assert [
         item.required_contract_ref
         for item in margin_collateral.semantic_contract_requirements
@@ -835,6 +859,21 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
             "futures_place_margin_collateral_"
             "futures_cap_guard_margin_collateral_link_"
             "semantic_contract_validation_validator_output_schema"
+        ),
+    ]
+    assert [
+        item.validator_registration_ref
+        for item in margin_collateral.semantic_validator_registrations
+    ] == [
+        (
+            "futures_place_margin_collateral_"
+            "futures_margin_collateral_risk_contract_"
+            "semantic_contract_validation_validator_registration"
+        ),
+        (
+            "futures_place_margin_collateral_"
+            "futures_cap_guard_margin_collateral_link_"
+            "semantic_contract_validation_validator_registration"
         ),
     ]
     assert all(
@@ -950,6 +989,28 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
         and item.bff_authority == "forward_only_no_execution"
         for item in margin_collateral.semantic_validator_output_schemas
     )
+    assert all(
+        item.blocking is True
+        and item.validator_contract_registered is False
+        and item.input_schema_registered is False
+        and item.output_schema_registered is False
+        and item.validator_registration_ready is False
+        and item.validator_registered is False
+        and item.validation_ready is False
+        and item.definition_ready is False
+        and item.acceptance_ready is False
+        and item.runtime_evidence_satisfies_validator_registration is False
+        and item.satisfies_risk_proof is False
+        and item.command_route_registered is False
+        and item.command_draft_allowed is False
+        and item.execution_allowed is False
+        and item.proof_route_registered is False
+        and item.proof_writer_enabled is False
+        and item.spot_rule_authority is False
+        and item.browser_authority == "display_only"
+        and item.bff_authority == "forward_only_no_execution"
+        for item in margin_collateral.semantic_validator_registrations
+    )
     assert margin_collateral.proof_acceptance_blockers == [
         AdminFuturesCommandRiskProofAcceptanceBlocker.FUTURES_SEMANTIC_CONTRACTS_MISSING,
         AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED,
@@ -1035,6 +1096,11 @@ def test_futures_command_suite_fails_closed_on_latest_unsafe_risk_proof_record(
         command_suite.registered_risk_proof_semantic_validator_output_schema_count
         == 0
     )
+    assert command_suite.risk_proof_semantic_validator_registration_count == 34
+    assert (
+        command_suite.registered_risk_proof_semantic_validator_registration_count
+        == 0
+    )
     assert margin_collateral.proof_record_lookup_status.value == "stale_or_invalid"
     assert margin_collateral.latest_futures_risk_proof_id == (
         unsafe_record.futures_risk_proof_id
@@ -1063,6 +1129,8 @@ def test_futures_command_suite_fails_closed_on_latest_unsafe_risk_proof_record(
     assert margin_collateral.registered_semantic_validator_input_schema_count == 0
     assert margin_collateral.semantic_validator_output_schema_count == 2
     assert margin_collateral.registered_semantic_validator_output_schema_count == 0
+    assert margin_collateral.semantic_validator_registration_count == 2
+    assert margin_collateral.registered_semantic_validator_registration_count == 0
     assert (
         AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED
         in margin_collateral.proof_acceptance_blockers
@@ -1127,6 +1195,8 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert margin_collateral["registered_semantic_validator_input_schema_count"] == 0
     assert margin_collateral["semantic_validator_output_schema_count"] == 2
     assert margin_collateral["registered_semantic_validator_output_schema_count"] == 0
+    assert margin_collateral["semantic_validator_registration_count"] == 2
+    assert margin_collateral["registered_semantic_validator_registration_count"] == 0
     assert [
         item["required_contract_ref"]
         for item in margin_collateral["semantic_contract_requirements"]
@@ -1215,6 +1285,23 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert (
         margin_collateral["semantic_validator_output_schemas"][0][
             "runtime_evidence_satisfies_output_schema"
+        ]
+        is False
+    )
+    assert (
+        margin_collateral["semantic_validator_registrations"][0][
+            "required_backend_contract"
+        ]
+        == (
+            "application/admin_api/futures_semantic_contracts.py::"
+            "futures_place_margin_collateral_"
+            "futures_margin_collateral_risk_contract_"
+            "semantic_contract_validation_validator_registration"
+        )
+    )
+    assert (
+        margin_collateral["semantic_validator_registrations"][0][
+            "runtime_evidence_satisfies_validator_registration"
         ]
         is False
     )

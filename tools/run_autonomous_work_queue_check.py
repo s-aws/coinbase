@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5941-5960"
-APPROVED_PHASES = tuple(range(5941, 5961))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5921-5940"
+APPROVED_PHASE_RANGE = "5961-5980"
+APPROVED_PHASES = tuple(range(5961, 5981))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5941-5960"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -598,7 +598,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` adds futures semantic validator output schema evidence",
+        f"Active `{APPROVED_PHASE_RANGE}` adds futures semantic validator registration evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -737,7 +737,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
-        "futures semantic validator output schema evidence",
+        "futures semantic validator registration evidence",
         "/api/v1/futures/risk-proofs",
         "risk_proof_record_resolver_count",
         "risk_proof_acceptance_blocker_count",
@@ -747,12 +747,14 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "risk_proof_semantic_contract_validator_contract_count",
         "risk_proof_semantic_validator_input_schema_count",
         "risk_proof_semantic_validator_output_schema_count",
+        "risk_proof_semantic_validator_registration_count",
         "semantic_contract_requirements",
         "semantic_contract_definitions",
         "semantic_contract_validation_gates",
         "semantic_contract_validator_contracts",
         "semantic_validator_input_schemas",
         "semantic_validator_output_schemas",
+        "semantic_validator_registrations",
         "proof_record_lookup_status",
         "proof_acceptance_blockers",
         "proof_record_resolves_acceptance",
@@ -764,6 +766,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "semanticContractValidatorContracts",
         "semanticValidatorInputSchemas",
         "semanticValidatorOutputSchemas",
+        "semanticValidatorRegistrations",
         "backend_futures_risk_proof_store_read_only_no_execution",
         "backend_futures_semantics_no_execution",
         "no futures command route",

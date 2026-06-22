@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5941-5960 range adds explicit M57 futures/perpetual semantic
-validator output schema evidence to `GET /api/v1/futures/command-suite`.
+The active 5961-5980 range adds explicit M57 futures/perpetual semantic
+validator registration evidence to `GET /api/v1/futures/command-suite`.
 Concrete risk-proof record routes at `/api/v1/futures/risk-proofs` remain
 read-only resolver evidence. Exact safe latest records may be displayed, while
 missing or stale/invalid records fail closed. Resolver evidence and runtime
@@ -96,7 +96,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5941-5960",
+  "approved_phase_range": "5961-5980",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -151,6 +151,11 @@ Expected response posture:
   "ready_risk_proof_semantic_validator_output_schema_count": 0,
   "registered_risk_proof_semantic_validator_output_schema_count": 0,
   "runtime_observed_risk_proof_semantic_validator_output_schema_count": 8,
+  "risk_proof_semantic_validator_registration_count": 34,
+  "blocking_risk_proof_semantic_validator_registration_count": 34,
+  "ready_risk_proof_semantic_validator_registration_count": 0,
+  "registered_risk_proof_semantic_validator_registration_count": 0,
+  "runtime_observed_risk_proof_semantic_validator_registration_count": 8,
   "risk_proof_contract_count": 40,
   "blocking_risk_proof_contract_count": 40,
   "registered_risk_proof_route_count": 0,
@@ -701,6 +706,11 @@ Expected response posture:
       "ready_risk_proof_semantic_validator_output_schema_count": 0,
       "registered_risk_proof_semantic_validator_output_schema_count": 0,
       "runtime_observed_risk_proof_semantic_validator_output_schema_count": 4,
+      "risk_proof_semantic_validator_registration_count": 10,
+      "blocking_risk_proof_semantic_validator_registration_count": 10,
+      "ready_risk_proof_semantic_validator_registration_count": 0,
+      "registered_risk_proof_semantic_validator_registration_count": 0,
+      "runtime_observed_risk_proof_semantic_validator_registration_count": 4,
       "risk_proof_requirements": [
         {
           "proof_kind": "product_scope",
@@ -940,6 +950,11 @@ Expected response posture:
           "ready_semantic_validator_output_schema_count": 0,
           "registered_semantic_validator_output_schema_count": 0,
           "runtime_observed_semantic_validator_output_schema_count": 0,
+          "semantic_validator_registration_count": 1,
+          "blocking_semantic_validator_registration_count": 1,
+          "ready_semantic_validator_registration_count": 0,
+          "registered_semantic_validator_registration_count": 0,
+          "runtime_observed_semantic_validator_registration_count": 0,
           "semantic_validator_input_schemas": [
             {
               "proof_kind": "product_scope",
@@ -1039,6 +1054,71 @@ Expected response posture:
               "runtime_evidence_satisfies_output_schema": false,
               "output_schema_registered": false,
               "validator_contract_registered": false,
+              "validator_registered": false,
+              "validation_ready": false,
+              "definition_ready": false,
+              "acceptance_ready": false,
+              "satisfies_risk_proof": false,
+              "command_route_registered": false,
+              "command_draft_allowed": false,
+              "execution_allowed": false,
+              "proof_route_registered": false,
+              "proof_writer_enabled": false,
+              "backend_owned": true,
+              "read_only": true,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            }
+          ],
+          "semantic_validator_registrations": [
+            {
+              "proof_kind": "product_scope",
+              "semantic_guard": "product_scope",
+              "sequence": 1,
+              "status": "blocked",
+              "blocking": true,
+              "source": "backend_contract",
+              "contract_ref": "futures_product_scope_readback",
+              "semantic_contract_definition_ref": "futures_product_scope_readback_definition",
+              "validation_gate": "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation",
+              "validation_contract_ref": "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator",
+              "validator_contract_ref": "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_contract",
+              "validator_input_schema_ref": "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_input_schema",
+              "validator_output_schema_ref": "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_output_schema",
+              "validator_registration_ref": "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration",
+              "required_backend_contract": "application/admin_api/futures_semantic_contracts.py::futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration",
+              "missing_backend_contract": "application/admin_api/futures_semantic_contracts.py::futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration",
+              "validator_registration_field_refs": [
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration.validator_contract_ref",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration.validator_input_schema_ref",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration.validator_output_schema_ref",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration.semantic_contract_definition_ref",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration.validation_gate_ref",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration.authority_flags"
+              ],
+              "required_evidence_refs": [
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_contract",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_input_schema",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_output_schema",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration_registry_record",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration_contextless_review"
+              ],
+              "missing_evidence_refs": [
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_contract",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_input_schema",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_output_schema",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration_registry_record",
+                "futures_place_product_scope_futures_product_scope_readback_semantic_contract_validation_validator_registration_contextless_review"
+              ],
+              "runtime_evidence_observed": false,
+              "runtime_evidence_satisfies_validator_registration": false,
+              "validator_contract_registered": false,
+              "input_schema_registered": false,
+              "output_schema_registered": false,
+              "validator_registration_ready": false,
               "validator_registered": false,
               "validation_ready": false,
               "definition_ready": false,

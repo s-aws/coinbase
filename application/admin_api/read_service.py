@@ -160,6 +160,7 @@ from .models import (
     AdminFuturesCommandRiskProofSemanticContractValidatorContractItem,
     AdminFuturesCommandRiskProofSemanticValidatorInputSchemaItem,
     AdminFuturesCommandRiskProofSemanticValidatorOutputSchemaItem,
+    AdminFuturesCommandRiskProofSemanticValidatorRegistrationItem,
     AdminFuturesCommandSemanticGuardItem,
     AdminFuturesCommandSuiteResponse,
     AdminLiveAdmissionAuditFactItem,
@@ -394,7 +395,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5941-5960"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5961-5980"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -27495,6 +27496,158 @@ class AdminApiReadService:
                     )
                 return rows
 
+            def semantic_validator_registrations(
+                *,
+                validator_contracts: list[
+                    AdminFuturesCommandRiskProofSemanticContractValidatorContractItem
+                ],
+                input_schemas: list[
+                    AdminFuturesCommandRiskProofSemanticValidatorInputSchemaItem
+                ],
+                output_schemas: list[
+                    AdminFuturesCommandRiskProofSemanticValidatorOutputSchemaItem
+                ],
+            ) -> list[
+                AdminFuturesCommandRiskProofSemanticValidatorRegistrationItem
+            ]:
+                rows: list[
+                    AdminFuturesCommandRiskProofSemanticValidatorRegistrationItem
+                ] = []
+                input_schema_refs_by_contract = {
+                    item.validator_contract_ref: item.validator_input_schema_ref
+                    for item in input_schemas
+                }
+                output_schema_refs_by_contract = {
+                    item.validator_contract_ref: item.validator_output_schema_ref
+                    for item in output_schemas
+                }
+                for validator_contract in validator_contracts:
+                    validator_input_schema_ref = input_schema_refs_by_contract.get(
+                        validator_contract.validator_contract_ref,
+                        validator_contract.validator_input_schema_ref,
+                    )
+                    validator_output_schema_ref = output_schema_refs_by_contract.get(
+                        validator_contract.validator_contract_ref,
+                        validator_contract.validator_output_schema_ref,
+                    )
+                    validator_registration_field_refs = [
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            ".validator_contract_ref"
+                        ),
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            ".validator_input_schema_ref"
+                        ),
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            ".validator_output_schema_ref"
+                        ),
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            ".semantic_contract_definition_ref"
+                        ),
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            ".validation_gate_ref"
+                        ),
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            ".authority_flags"
+                        ),
+                    ]
+                    required_evidence_refs = [
+                        validator_contract.validator_contract_ref,
+                        validator_input_schema_ref,
+                        validator_output_schema_ref,
+                        validator_contract.validator_registration_ref,
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            "_registry_record"
+                        ),
+                        (
+                            f"{validator_contract.validator_registration_ref}"
+                            "_contextless_review"
+                        ),
+                    ]
+                    rows.append(
+                        AdminFuturesCommandRiskProofSemanticValidatorRegistrationItem(
+                            proof_kind=validator_contract.proof_kind,
+                            semantic_guard=validator_contract.semantic_guard,
+                            sequence=validator_contract.sequence,
+                            contract_ref=validator_contract.contract_ref,
+                            semantic_contract_definition_ref=(
+                                validator_contract.semantic_contract_definition_ref
+                            ),
+                            validation_gate=validator_contract.validation_gate,
+                            validation_contract_ref=(
+                                validator_contract.validation_contract_ref
+                            ),
+                            validator_contract_ref=(
+                                validator_contract.validator_contract_ref
+                            ),
+                            validator_input_schema_ref=validator_input_schema_ref,
+                            validator_output_schema_ref=validator_output_schema_ref,
+                            validator_registration_ref=(
+                                validator_contract.validator_registration_ref
+                            ),
+                            required_backend_contract=(
+                                "application/admin_api/futures_semantic_contracts.py::"
+                                f"{validator_contract.validator_registration_ref}"
+                            ),
+                            missing_backend_contract=(
+                                "application/admin_api/futures_semantic_contracts.py::"
+                                f"{validator_contract.validator_registration_ref}"
+                            ),
+                            validator_registration_field_refs=(
+                                validator_registration_field_refs
+                            ),
+                            validator_registration_field_count=len(
+                                validator_registration_field_refs
+                            ),
+                            evidence_routes=validator_contract.evidence_routes,
+                            evidence_route_count=(
+                                validator_contract.evidence_route_count
+                            ),
+                            required_evidence_refs=required_evidence_refs,
+                            required_evidence_count=len(required_evidence_refs),
+                            missing_evidence_refs=required_evidence_refs,
+                            missing_evidence_count=len(required_evidence_refs),
+                            runtime_evidence_observed=(
+                                validator_contract.runtime_evidence_observed
+                            ),
+                            runtime_evidence_satisfies_validator_registration=False,
+                            validator_contract_registered=False,
+                            input_schema_registered=False,
+                            output_schema_registered=False,
+                            validator_registration_ready=False,
+                            validator_registered=False,
+                            validation_ready=False,
+                            definition_ready=False,
+                            acceptance_ready=False,
+                            satisfies_risk_proof=False,
+                            command_route_registered=False,
+                            command_draft_allowed=False,
+                            execution_allowed=False,
+                            proof_route_registered=False,
+                            proof_writer_enabled=False,
+                            detail=(
+                                f"{validator_contract.proof_kind.value} "
+                                f"validator contract "
+                                f"{validator_contract.validator_contract_ref} "
+                                "requires a backend-owned registration record "
+                                "that binds the validator contract, input "
+                                "schema, output schema, semantic definition, "
+                                "validation gate, and authority flags before "
+                                "the validator can be registered. Runtime "
+                                "read evidence, browser display, and BFF "
+                                "forwarding cannot satisfy registration or "
+                                "enable futures command execution."
+                            ),
+                        )
+                    )
+                return rows
+
             def proof_acceptance_blocker_evidence(
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
@@ -27590,6 +27743,15 @@ class AdminApiReadService:
                 semantic_validator_output_schema_rows = (
                     semantic_validator_output_schemas(
                         validator_contracts=semantic_contract_validator_contract_rows
+                    )
+                )
+                semantic_validator_registration_rows = (
+                    semantic_validator_registrations(
+                        validator_contracts=(
+                            semantic_contract_validator_contract_rows
+                        ),
+                        input_schemas=semantic_validator_input_schema_rows,
+                        output_schemas=semantic_validator_output_schema_rows,
                     )
                 )
                 criteria = acceptance_criteria(
@@ -28055,6 +28217,40 @@ class AdminApiReadService:
                         ),
                         semantic_validator_output_schemas=(
                             semantic_validator_output_schema_rows
+                        ),
+                        semantic_validator_registration_count=len(
+                            semantic_validator_registration_rows
+                        ),
+                        blocking_semantic_validator_registration_count=sum(
+                            1
+                            for registration in (
+                                semantic_validator_registration_rows
+                            )
+                            if registration.blocking
+                        ),
+                        ready_semantic_validator_registration_count=sum(
+                            1
+                            for registration in (
+                                semantic_validator_registration_rows
+                            )
+                            if registration.validator_registration_ready
+                        ),
+                        registered_semantic_validator_registration_count=sum(
+                            1
+                            for registration in (
+                                semantic_validator_registration_rows
+                            )
+                            if registration.validator_registered
+                        ),
+                        runtime_observed_semantic_validator_registration_count=sum(
+                            1
+                            for registration in (
+                                semantic_validator_registration_rows
+                            )
+                            if registration.runtime_evidence_observed
+                        ),
+                        semantic_validator_registrations=(
+                            semantic_validator_registration_rows
                         ),
                         proof_route_required=True,
                         proof_route_registered=False,
@@ -28886,6 +29082,26 @@ class AdminApiReadService:
                     item.runtime_observed_semantic_validator_output_schema_count
                     for item in proof_requirements
                 ),
+                risk_proof_semantic_validator_registration_count=sum(
+                    item.semantic_validator_registration_count
+                    for item in proof_requirements
+                ),
+                blocking_risk_proof_semantic_validator_registration_count=sum(
+                    item.blocking_semantic_validator_registration_count
+                    for item in proof_requirements
+                ),
+                ready_risk_proof_semantic_validator_registration_count=sum(
+                    item.ready_semantic_validator_registration_count
+                    for item in proof_requirements
+                ),
+                registered_risk_proof_semantic_validator_registration_count=sum(
+                    item.registered_semantic_validator_registration_count
+                    for item in proof_requirements
+                ),
+                runtime_observed_risk_proof_semantic_validator_registration_count=sum(
+                    item.runtime_observed_semantic_validator_registration_count
+                    for item in proof_requirements
+                ),
                 risk_proof_contract_count=sum(
                     item.proof_contract_count for item in proof_requirements
                 ),
@@ -29475,6 +29691,26 @@ class AdminApiReadService:
             ),
             runtime_observed_risk_proof_semantic_validator_output_schema_count=sum(
                 command.runtime_observed_risk_proof_semantic_validator_output_schema_count
+                for command in commands
+            ),
+            risk_proof_semantic_validator_registration_count=sum(
+                command.risk_proof_semantic_validator_registration_count
+                for command in commands
+            ),
+            blocking_risk_proof_semantic_validator_registration_count=sum(
+                command.blocking_risk_proof_semantic_validator_registration_count
+                for command in commands
+            ),
+            ready_risk_proof_semantic_validator_registration_count=sum(
+                command.ready_risk_proof_semantic_validator_registration_count
+                for command in commands
+            ),
+            registered_risk_proof_semantic_validator_registration_count=sum(
+                command.registered_risk_proof_semantic_validator_registration_count
+                for command in commands
+            ),
+            runtime_observed_risk_proof_semantic_validator_registration_count=sum(
+                command.runtime_observed_risk_proof_semantic_validator_registration_count
                 for command in commands
             ),
             risk_proof_contract_count=sum(

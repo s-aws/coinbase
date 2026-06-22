@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-22
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): completed range `5921-5940`; current active range is `5941-5960`.
+- Commit (optional): completed range `5941-5960`; current active range is `5961-5980`.
 
 ## Current Objective
 
@@ -56,23 +56,22 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `5921-5940`.
-- Active autonomous range: `5941-5960`.
-- Active `5941-5960` adds futures semantic validator output schema evidence to
+- Latest completed autonomous range before current work: `5941-5960`.
+- Active autonomous range: `5961-5980`.
+- Active `5961-5980` adds futures semantic validator registration evidence to
   the M57 futures/perpetual command suite. Resolved safe proof records,
   proof-acceptance blockers, semantic contract requirement refs, semantic
   contract definition refs, validation gate rows, validator contract rows, and
-  validator input schema rows from `/api/v1/futures/risk-proofs` remain display
-  evidence, but each risk-proof row now must enumerate the missing backend
-  validator output schema contract, field refs, schema registration evidence,
-  and required evidence refs that still block output schema registration,
-  validator contract registration, validator registration, validation gate
-  readiness, semantic definition readiness, proof acceptance, command drafting,
-  command route registration, and live execution.
-- Phase-end subagent sweep for the completed `5921-5940` work was performed:
+  validator input/output schema rows from `/api/v1/futures/risk-proofs` remain
+  display evidence, but each risk-proof row now must enumerate the missing
+  backend validator registration contract, registry record, input/output schema
+  bindings, and required evidence refs that still block validator registration,
+  validation gate readiness, semantic definition readiness, proof acceptance,
+  command drafting, command route registration, and live execution.
+- Phase-end subagent sweep for the completed `5941-5960` work was performed:
   all phase-scoped blind/contextless reviewers were closed after findings were
   consumed and remediated. No phase-scoped subagent remains intentionally open.
-  Active `5941-5960` must not satisfy risk proof requirements, register futures
+  Active `5961-5980` must not satisfy risk proof requirements, register futures
   command routes, create command drafts, live execution, Coinbase calls,
   reconciliation execution, state mutation, evidence acceptance, semantic
   contract registration, semantic contract definition readiness, semantic
@@ -80,17 +79,17 @@ Keep it short. Keep it factual.
   registration, semantic
   validator registration, validation gate readiness, or browser/BFF authority.
   Runtime evidence may be observed but cannot satisfy a missing semantic
-  validator output schema. Spot wallet,
+  validator registration. Spot wallet,
   no-shorting, USDC, cost-basis,
   average-cost, and inventory-lot assumptions are forbidden as
   futures/perpetual authority.
-- Current direction: complete phases `5941-5960` by adding typed semantic
-  validator output schema fields and aggregates for futures risk-proof
+- Current direction: complete phases `5961-5980` by adding typed semantic
+  validator registration fields and aggregates for futures risk-proof
   requirement rows, proving runtime-observed evidence remains insufficient to
-  satisfy output schemas, register output schemas, register validator contracts,
-  make a validation gate ready, register validators, or satisfy proof
-  acceptance, syncing backend/frontend schema and read-model consumption, docs,
-  focused gates, blind/contextless review, and phase-end stale-subagent sweep.
+  satisfy validator registration, register validators, make a validation gate
+  ready, or satisfy proof acceptance, syncing backend/frontend schema and
+  read-model consumption, docs, focused gates, blind/contextless review, and
+  phase-end stale-subagent sweep.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.
@@ -692,10 +691,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `5941-5960`.
+- Active autonomous range: `5961-5980`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `5941-5960` by adding explicit
-  semantic validator output schema evidence to futures risk-proof requirement rows.
+- Current direction: complete active phases `5961-5980` by adding explicit
+  semantic validator registration evidence to futures risk-proof requirement rows.
   Resolver evidence can show exact safe latest records, proof-acceptance
   blockers can explain why records remain insufficient, requirement rows can
   enumerate missing contract refs, definition rows can name the missing backend
@@ -703,14 +702,16 @@ Keep it short. Keep it factual.
   validator contract rows name required backend contracts, input schema refs,
   output schema refs, registration refs, and evidence refs; input schema rows
   name the missing input schema contract, field refs, schema registration
-  evidence, and contextless-review refs; output schema rows must now name the
+  evidence, and contextless-review refs; output schema rows name the
   missing output schema contract, field refs, schema registration evidence,
-  and contextless-review refs that still prevent validation readiness and
-  proof acceptance. Runtime evidence may be observed, but it does not satisfy
-  output schemas, register schemas, register validator contracts, make
-  validation gates ready, satisfy risk proof requirements, register command
-  routes, create command drafts, call Coinbase, execute reconciliation, mutate
-  state, or grant browser/BFF authority.
+  and contextless-review refs. Active registration rows must now name the
+  missing registration contract, registry record, input/output schema bindings,
+  required evidence refs, and contextless-review refs that still prevent
+  validator registration, validation readiness, and proof acceptance. Runtime
+  evidence may be observed, but it does not satisfy validator registration,
+  register validators, make validation gates ready, satisfy risk proof
+  requirements, register command routes, create command drafts, call Coinbase,
+  execute reconciliation, mutate state, or grant browser/BFF authority.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1558,12 +1559,12 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `5941-5960` by adding semantic
-  validator output schema fields and aggregates to futures/perpetual
+- Exact next command: complete active phases `5961-5980` by adding semantic
+  validator registration fields and aggregates to futures/perpetual
   risk-proof rows, syncing OpenAPI and frontend generated schema, mapping
   runtime/mock/read-model display, updating docs and validators, then running
   focused gates, blind/contextless review, phase-end stale-subagent sweep, and
-  no-live proof. The active gap is semantic validator output schema evidence only;
+  no-live proof. The active gap is semantic validator registration evidence only;
   no futures command route, command draft, exchange order
   placement/cancellation, reconciliation execution, Coinbase read/write,
   futures/order/exchange-state mutation, accepted proof requirement, accepted

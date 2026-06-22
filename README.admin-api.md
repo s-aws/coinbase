@@ -512,6 +512,16 @@ display evidence and do not satisfy output schemas, register schemas, register
 validator contracts, register validators, satisfy proof acceptance, enable
 command routes, create drafts, call Coinbase, execute reconciliation, mutate
 state, or grant browser/BFF authority.
+M57 phases 5961-5980 add semantic validator registration rows for those
+validator contracts. Each row names the missing backend registration contract,
+registry record, validator contract ref, input schema ref, output schema ref,
+registration field refs, required/missing evidence refs, validator registration
+ready false, validator registered false, validation readiness false, and
+runtime-evidence-satisfies-validator-registration false. These rows remain
+backend-owned display evidence and do not satisfy validator registration,
+register validators, satisfy proof acceptance, enable command routes, create
+drafts, call Coinbase, execute reconciliation, mutate state, or grant
+browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
