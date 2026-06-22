@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5961-5980",
+  "approved_phase_range": "5981-6000",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5961-5980",
+  "approved_phase_range": "5981-6000",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5961-5980",
+  "approved_phase_range": "5981-6000",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2245,7 +2245,7 @@ evidence are explicit. Completed 5941-5960 rows add
 `"output_schema_field_refs"`, `"output_schema_registered": false`, and
 `"runtime_evidence_satisfies_output_schema": false` so the missing backend
 output schema contract, output fields, schema registration, and
-contextless-review evidence are explicit. Active 5961-5980 rows add
+contextless-review evidence are explicit. Completed 5961-5980 rows add
 `"semantic_validator_registrations"`,
 `"risk_proof_semantic_validator_registration_count"`,
 `"validator_registration_field_refs"`,
@@ -2253,7 +2253,12 @@ contextless-review evidence are explicit. Active 5961-5980 rows add
 `"runtime_evidence_satisfies_validator_registration": false` so the missing
 backend validator registration contract, registry record, input/output schema
 bindings, and contextless-review evidence are explicit. These rows are blocked
-evidence only.
+evidence only. Active 5981-6000 rows add disabled futures command-service
+contract evidence: `place_futures_order`,
+`close_or_reduce_futures_position`, and `cancel_futures_order` are named
+disabled backend service methods. Their service contracts remain required, but
+the command-suite no longer reports them as missing; futures risk guard and
+reconciliation remain missing.
 They do not
 register command routes, create drafts, validate payloads, write proofs, enable
 writers, resolve dependencies, create remediation or dependency work items,

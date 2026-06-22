@@ -22,6 +22,11 @@ from application.admin_api.command_service import (
     AdminApiCommandService,
 )
 from application.admin_api.futures_risk_proof import FileFuturesRiskProofStore
+from application.admin_api.futures_command_service import (
+    AdminApiFuturesCommandService,
+    FUTURES_COMMAND_SERVICE_CONTRACTS,
+    FuturesCommandServiceDisabledError,
+)
 from application.admin_api.futures_risk_proof_service import (
     AdminApiFuturesRiskProofService,
     FuturesRiskProofError,
@@ -54,6 +59,29 @@ from core.enums import (
 
 
 PAYLOAD_HASH = "a" * 64
+
+
+def test_futures_command_service_contracts_are_disabled() -> None:
+    service = AdminApiFuturesCommandService()
+
+    assert set(FUTURES_COMMAND_SERVICE_CONTRACTS) == {
+        AdminFuturesCommandAction.PLACE,
+        AdminFuturesCommandAction.CLOSE_REDUCE,
+        AdminFuturesCommandAction.CANCEL,
+    }
+    assert (
+        FUTURES_COMMAND_SERVICE_CONTRACTS[
+            AdminFuturesCommandAction.PLACE
+        ].contract_ref
+        == "application/admin_api/futures_command_service.py::place_futures_order"
+    )
+
+    with pytest.raises(FuturesCommandServiceDisabledError) as exc_info:
+        service.place_futures_order()
+
+    message = str(exc_info.value)
+    assert "contract-defined but not executable" in message
+    assert "Coinbase calls" in message
 
 
 def _headers(*, roles: str = "viewer") -> dict[str, str]:

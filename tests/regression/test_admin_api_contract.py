@@ -44005,12 +44005,20 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "5961-5980"
+    assert futures_command_suite_fixture["approved_phase_range"] == "5981-6000"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 0
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
     assert futures_command_suite_fixture["executable_command_count"] == 0
     assert futures_command_suite_fixture["live_coinbase_orders_ran"] is False
+    assert any(
+        contract.startswith("application/admin_api/futures_command_service.py::")
+        for contract in futures_command_suite_fixture["required_backend_contracts"]
+    )
+    assert not any(
+        contract.startswith("application/admin_api/futures_command_service.py::")
+        for contract in futures_command_suite_fixture["missing_backend_contracts"]
+    )
 
 
 @pytest.mark.regression
@@ -47208,7 +47216,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5961-5980",
+            "approved_phase_range": "5981-6000",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -47216,7 +47224,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             "command_route_count": 0,
             "command_draft_allowed_count": 0,
             "prerequisite_count": 2,
-            "blocking_prerequisite_count": 2,
+            "blocking_prerequisite_count": 1,
             "request_field_count": 2,
             "required_request_field_count": 2,
             "blocking_request_field_count": 2,
@@ -47234,12 +47242,12 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                     "action_class": "live_exchange_place",
                     "route": None,
                     "method": None,
-                    "service_method": "place_futures_order_contract_required",
+                    "service_method": "place_futures_order",
                     "identity_key": "product_id",
                     "required_permission": "order:create",
                     "prerequisite_count": 2,
-                    "resolved_prerequisite_count": 0,
-                    "blocking_prerequisite_count": 2,
+                    "resolved_prerequisite_count": 1,
+                    "blocking_prerequisite_count": 1,
                     "prerequisites": [
                         {
                             "prerequisite": "margin",
@@ -47257,17 +47265,17 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                         },
                         {
                             "prerequisite": "backend_command_service",
-                            "status": "blocked",
+                            "status": "passed",
                             "source": "backend_contract",
                             "evidence_route": None,
                             "required": True,
-                            "blocking": True,
-                            "resolved": False,
+                            "blocking": False,
+                            "resolved": True,
                             "backend_owned": True,
                             "spot_rule_authority": False,
                             "browser_authority": "display_only",
                             "bff_authority": "forward_only_no_execution",
-                            "detail": "Futures command service is missing.",
+                            "detail": "Disabled futures command service contract is present.",
                         },
                     ],
                     "request_field_count": 2,
@@ -47383,10 +47391,11 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                         },
                     ],
                     "required_backend_contracts": [
-                        "application/admin_api/futures_command_service.py::place_futures_order"
+                        "application/admin_api/futures_command_service.py::place_futures_order",
+                        "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
                     ],
                     "missing_backend_contracts": [
-                        "application/admin_api/futures_command_service.py::place_futures_order"
+                        "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation"
                     ],
                     "forbidden_spot_assumptions": [
                         "spot_wallet_available",
@@ -47396,8 +47405,8 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                         "decision": "blocked_backend_contracts_required",
                         "status": "blocked",
                         "ready": False,
-                        "blocker_count": 7,
-                        "blocking_prerequisite_count": 2,
+                        "blocker_count": 6,
+                        "blocking_prerequisite_count": 1,
                         "blocking_request_field_count": 2,
                         "blocking_semantic_guard_count": 2,
                         "missing_backend_contract_count": 1,
@@ -47405,7 +47414,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                         "evidence_route_count": 3,
                         "first_blocker": "prerequisite:margin",
                         "next_required_backend_contract": (
-                            "application/admin_api/futures_command_service.py::place_futures_order"
+                            "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation"
                         ),
                         "command_route_registered": False,
                         "command_draft_allowed": False,
@@ -47431,10 +47440,13 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             "account_evidence_routes": ["/api/v1/futures/account"],
             "position_evidence_routes": ["/api/v1/futures/positions"],
             "required_backend_contracts": [
-                "application/admin_api/futures_command_service.py::place_futures_order"
+                "application/admin_api/futures_command_service.py::place_futures_order",
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             "missing_backend_contracts": [
-                "application/admin_api/futures_command_service.py::place_futures_order"
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             "forbidden_spot_assumptions": [
                 "spot_wallet_available",
@@ -47523,7 +47535,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5961-5980"
+    assert command_suite["approved_phase_range"] == "5981-6000"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -47679,7 +47691,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5961-5980"
+    assert command_suite.approved_phase_range == "5981-6000"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -48147,20 +48159,43 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     }
     for command_id, expected_contracts in expected_command_backend_contracts.items():
         command_item = commands_by_id[command_id]
+        expected_missing_contracts = [
+            contract
+            for contract in expected_contracts
+            if not contract.startswith(
+                "application/admin_api/futures_command_service.py::"
+            )
+        ]
         assert command_item.required_backend_contracts == expected_contracts
-        assert command_item.missing_backend_contracts == expected_contracts
+        assert command_item.missing_backend_contracts == expected_missing_contracts
+        assert not any(
+            contract.startswith("application/admin_api/futures_command_service.py::")
+            for contract in command_item.missing_backend_contracts
+        )
         assert (
             command_item.readiness_decision.next_required_backend_contract
-            == expected_contracts[0]
+            == expected_missing_contracts[0]
         )
+        backend_service_prerequisites = [
+            item
+            for item in command_item.prerequisites
+            if item.prerequisite.value == "backend_command_service"
+        ]
+        assert len(backend_service_prerequisites) == 1
+        assert backend_service_prerequisites[0].status.value == "passed"
+        assert backend_service_prerequisites[0].resolved is True
+        assert backend_service_prerequisites[0].blocking is False
         backend_service_steps = [
             item
             for item in command_item.readiness_closure_steps
             if item.step.value == "define_backend_command_service"
         ]
         assert len(backend_service_steps) == 1
-        assert backend_service_steps[0].required_backend_contract == expected_contracts[0]
-        assert backend_service_steps[0].required_evidence_refs == expected_contracts
+        assert (
+            backend_service_steps[0].required_backend_contract
+            == expected_missing_contracts[0]
+        )
+        assert backend_service_steps[0].required_evidence_refs == expected_missing_contracts
         assert command_item.risk_proof_requirement_count == len(
             expected_risk_proof_kinds[command_id]
         )
@@ -51860,8 +51895,16 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert place.readiness_decision.spot_rule_authority is False
     assert place.readiness_decision.first_blocker is not None
     assert place.readiness_decision.next_required_backend_contract == (
-        "application/admin_api/futures_command_service.py::place_futures_order"
+        "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation"
     )
+    backend_service_prerequisite = next(
+        item
+        for item in place.prerequisites
+        if item.prerequisite.value == "backend_command_service"
+    )
+    assert backend_service_prerequisite.status.value == "passed"
+    assert backend_service_prerequisite.resolved is True
+    assert backend_service_prerequisite.blocking is False
     assert place.readiness_closure_step_count == 7
     assert place.blocking_readiness_closure_step_count == 7
     assert [item.sequence for item in place.readiness_closure_steps] == list(

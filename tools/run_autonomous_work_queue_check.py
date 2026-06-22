@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5961-5980"
-APPROVED_PHASES = tuple(range(5961, 5981))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5941-5960"
+APPROVED_PHASE_RANGE = "5981-6000"
+APPROVED_PHASES = tuple(range(5981, 6001))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5961-5980"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -598,7 +598,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` adds futures semantic validator registration evidence",
+        f"Active `{APPROVED_PHASE_RANGE}` adds disabled futures command service contract evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -737,8 +737,12 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
-        "futures semantic validator registration evidence",
+        "futures disabled command service contract evidence",
         "/api/v1/futures/risk-proofs",
+        "application/admin_api/futures_command_service.py",
+        "place_futures_order",
+        "close_or_reduce_futures_position",
+        "cancel_futures_order",
         "risk_proof_record_resolver_count",
         "risk_proof_acceptance_blocker_count",
         "risk_proof_semantic_contract_requirement_count",

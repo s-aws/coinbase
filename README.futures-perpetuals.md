@@ -275,6 +275,14 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   remain blocked while backend command routes, drafts, live adapters, guard
   proof, admission audit, reconciliation proof, and service contracts are
   missing.
+- Do not treat disabled command-service methods as executable. M57 phases
+  5981-6000 define `place_futures_order`,
+  `close_or_reduce_futures_position`, and `cancel_futures_order` as disabled
+  backend service-contract evidence only. These methods prove there is a
+  shared backend boundary for future work; they do not register routes, create
+  drafts, call Coinbase, execute reconciliation, mutate futures state, or grant
+  browser/BFF authority. Futures risk guard and reconciliation contracts remain
+  missing.
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.

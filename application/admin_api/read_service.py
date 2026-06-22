@@ -297,6 +297,7 @@ from .models import (
     StealthCommandSuiteResponse,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
+from .futures_command_service import FUTURES_COMMAND_SERVICE_CONTRACTS
 from .futures_risk_proof import FileFuturesRiskProofStore, FuturesRiskProofRecord
 from .stealth_cancel_replace_boundary import (
     build_stealth_active_placement_cancel_replace_contract,
@@ -395,7 +396,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5961-5980"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5981-6000"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -19917,26 +19918,51 @@ class AdminApiReadService:
             "spot_average_cost_basis",
             "spot_inventory_lot_authority",
         ]
+        futures_command_service_contract_refs = {
+            command: contract.contract_ref
+            for command, contract in FUTURES_COMMAND_SERVICE_CONTRACTS.items()
+        }
         backend_contracts = [
-            "application/admin_api/futures_command_service.py::place_futures_order",
-            "application/admin_api/futures_command_service.py::close_or_reduce_futures_position",
-            "application/admin_api/futures_command_service.py::cancel_futures_order",
+            futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
+            futures_command_service_contract_refs[
+                AdminFuturesCommandAction.CLOSE_REDUCE
+            ],
+            futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
             "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         ]
-        command_backend_contracts = {
+        command_required_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
-                "application/admin_api/futures_command_service.py::place_futures_order",
+                futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
                 "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
-                "application/admin_api/futures_command_service.py::close_or_reduce_futures_position",
+                futures_command_service_contract_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
                 "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             AdminFuturesCommandAction.CANCEL: [
-                "application/admin_api/futures_command_service.py::cancel_futures_order",
+                futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            ],
+            AdminFuturesCommandAction.RECONCILE: [
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+            ],
+        }
+        command_missing_backend_contracts = {
+            AdminFuturesCommandAction.PLACE: [
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            ],
+            AdminFuturesCommandAction.CLOSE_REDUCE: [
+                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            ],
+            AdminFuturesCommandAction.CANCEL: [
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             AdminFuturesCommandAction.RECONCILE: [
@@ -20231,10 +20257,16 @@ class AdminApiReadService:
         def contract_prerequisite(
             prerequisite_id: AdminFuturesCommandPrerequisite,
             *,
+            status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED,
+            resolved: bool = False,
+            evidence_route: str | None = None,
             detail: str,
         ) -> AdminFuturesCommandPrerequisiteItem:
             return prerequisite(
                 prerequisite_id,
+                status=status,
+                evidence_route=evidence_route,
+                resolved=resolved,
                 detail=detail,
             )
 
@@ -20265,7 +20297,15 @@ class AdminApiReadService:
             ),
             contract_prerequisite(
                 AdminFuturesCommandPrerequisite.BACKEND_COMMAND_SERVICE,
-                detail="A futures/perpetual command service contract does not exist yet.",
+                status=AdminApiGateStatus.PASSED,
+                resolved=True,
+                detail=(
+                    "A disabled backend futures/perpetual command service "
+                    "contract exists. It defines service boundaries only; "
+                    "command routes, drafts, live adapters, Coinbase calls, "
+                    "reconciliation execution, and state mutation remain "
+                    "blocked."
+                ),
             ),
         ]
 
@@ -28872,7 +28912,12 @@ class AdminApiReadService:
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
-            missing_backend_contracts = list(command_backend_contracts[command_id])
+            required_backend_contracts = list(
+                command_required_backend_contracts[command_id]
+            )
+            missing_backend_contracts = list(
+                command_missing_backend_contracts[command_id]
+            )
             closure_steps = readiness_closure_steps(
                 command_id,
                 prerequisites=prerequisites,
@@ -28922,7 +28967,7 @@ class AdminApiReadService:
                     1 for item in semantic_guards if item.risk_semantic
                 ),
                 semantic_guards=semantic_guards,
-                required_backend_contracts=missing_backend_contracts,
+                required_backend_contracts=required_backend_contracts,
                 missing_backend_contracts=missing_backend_contracts,
                 forbidden_spot_assumptions=forbidden_spot_assumptions,
                 readiness_decision=readiness_decision(
@@ -29460,7 +29505,9 @@ class AdminApiReadService:
             command(
                 AdminFuturesCommandAction.PLACE,
                 action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
-                service_method="place_futures_order_contract_required",
+                service_method=FUTURES_COMMAND_SERVICE_CONTRACTS[
+                    AdminFuturesCommandAction.PLACE
+                ].method_name,
                 identity_key="product_id",
                 permission=AdminApiPermission.ORDER_CREATE,
                 prerequisites=placement_prerequisites,
@@ -29471,7 +29518,9 @@ class AdminApiReadService:
             command(
                 AdminFuturesCommandAction.CLOSE_REDUCE,
                 action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
-                service_method="close_or_reduce_futures_position_contract_required",
+                service_method=FUTURES_COMMAND_SERVICE_CONTRACTS[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ].method_name,
                 identity_key="position_key",
                 permission=AdminApiPermission.ORDER_CREATE,
                 prerequisites=close_reduce_prerequisites,
@@ -29482,7 +29531,9 @@ class AdminApiReadService:
             command(
                 AdminFuturesCommandAction.CANCEL,
                 action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
-                service_method="cancel_futures_order_contract_required",
+                service_method=FUTURES_COMMAND_SERVICE_CONTRACTS[
+                    AdminFuturesCommandAction.CANCEL
+                ].method_name,
                 identity_key="client_order_id",
                 permission=AdminApiPermission.ORDER_CANCEL,
                 prerequisites=cancel_prerequisites,
@@ -29506,6 +29557,13 @@ class AdminApiReadService:
                 detail="Futures reconciliation must be position, margin, collateral, funding, and liquidation aware before any executor exists.",
             ),
         ]
+        suite_missing_backend_contracts = sorted(
+            {
+                missing_contract
+                for command_item in commands
+                for missing_contract in command_item.missing_backend_contracts
+            }
+        )
 
         return AdminFuturesCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
@@ -30069,7 +30127,7 @@ class AdminApiReadService:
                 "/api/v1/futures/positions/{position_key}",
             ],
             required_backend_contracts=backend_contracts,
-            missing_backend_contracts=backend_contracts,
+            missing_backend_contracts=suite_missing_backend_contracts,
             forbidden_spot_assumptions=forbidden_spot_assumptions,
             message=(
                 "Futures/perpetual command contracts are M57 readiness evidence "

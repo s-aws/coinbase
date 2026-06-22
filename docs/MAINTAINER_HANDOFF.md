@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5941-5960` under M57.
-- Active autonomous range: `5961-5980` under M57.
+- Latest completed autonomous range: `5961-5980` under M57.
+- Active autonomous range: `5981-6000` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -773,17 +773,16 @@ notional, retained inventory, reconciliation result, and audit ids.
   authority. Completed 5941-5960 work adds typed semantic validator output
   schema evidence, including the missing backend output schema contract, field
   refs, schema registration evidence, required evidence refs, and no-execution
-  authority. Active 5961-5980 work adds typed semantic validator registration
+  authority. Completed 5961-5980 work adds typed semantic validator registration
   evidence, including the missing backend registration contract, registry
   record, validator contract ref, input schema ref, output schema ref,
   registration field refs, required evidence refs, and no-execution authority.
-  Runtime-observed evidence remains display-only; the new rows do not satisfy
-  validator registration, register validator contracts, register schemas,
-  register validators, make validation gates ready, register semantic
-  contracts, make definitions ready, satisfy proof acceptance, enable command
-  routes, create command drafts, call Coinbase, execute reconciliation, mutate
-  state, use spot wallet/no-shorting/cost-basis authority, or grant
-  browser/BFF authority.
+  Active 5981-6000 work adds disabled backend futures command service contract
+  evidence for placement, close/reduce, and cancel. Runtime-observed evidence
+  remains display-only; the new service-contract rows do not register command
+  routes, create command drafts, bind live adapters, call Coinbase, execute
+  reconciliation, mutate state, satisfy proof acceptance, use spot
+  wallet/no-shorting/cost-basis authority, or grant browser/BFF authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

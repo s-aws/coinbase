@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **5961-5980**.
+- Approved phase range: **5981-6000**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5941-5960`.
+- Previous completed range: `5961-5980`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5960`.
+- `current_phase`: `5980`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,127 +81,143 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5961-5980
+## Active Phases 5981-6000
 
-Batch label: Futures/Perpetuals Semantic Validator Registration Evidence.
+Batch label: Futures/Perpetuals Disabled Command Service Contract Evidence.
 
-These phases make the next M57 futures/perpetual semantic-validator gap
-explicit inside `GET /api/v1/futures/command-suite`. Completed phases
-`5941-5960` named missing validator output schema contract refs, field refs,
-schema registration refs, and contextless review refs. Active `5961-5980`
-adds backend-owned semantic validator registration rows for those validator
-contracts so a contextless maintainer can see the missing registration
-contract, registry record, input/output schema bindings, required evidence
-refs, and no-execution authority before any validator can be treated as
-registered, any validation gate can become ready, any proof can be accepted,
-any command route can be registered, or any live Coinbase execution can be
-considered.
+These phases stop the M57 futures/perpetual path from drifting into another
+nested missing-evidence layer by creating the first concrete backend-owned
+disabled command-service contract. Completed phases `5961-5980` made semantic
+validator registration blockers explicit. Active `5981-6000` adds
+`application/admin_api/futures_command_service.py` with disabled service
+methods for placement, close/reduce, and cancel, then updates
+`GET /api/v1/futures/command-suite` so the backend command-service prerequisite
+is resolved while futures risk guard, reconciliation, command route, command
+draft, live adapter, Coinbase, reconciliation execution, state mutation,
+browser, BFF, and spot-rule authority remain blocked.
 
-### Phase 5961 - Prior Range Closure
+### Phase 5981 - Prior Range Closure
 
-- Record completed phases `5941-5960` as historical semantic validator output
-  schema evidence and move active metadata to `5961-5980`.
+- Record completed phases `5961-5980` as historical semantic validator
+  registration evidence and move active metadata to `5981-6000`.
 
-### Phase 5962 - Validator Registration Evidence Scope
+### Phase 5982 - Disabled Service Contract Scope
 
-- Define semantic validator registration evidence as backend-owned display
-  evidence derived from existing semantic validator contract, input schema, and
-  output schema rows.
+- Define futures command-service contracts as backend-owned disabled service
+  boundaries, not Admin API routes, command drafts, live adapters, Coinbase
+  execution, reconciliation execution, or state mutation.
 
-### Phase 5963 - Validator Registration Row Model
+### Phase 5983 - Backend Service Contract Module
 
-- Add typed per-proof semantic validator registration rows with registration
-  refs, registry record refs, input/output schema refs, required evidence refs,
-  missing evidence refs, and no-execution authority.
+- Add `application/admin_api/futures_command_service.py` with disabled service
+  methods for `place_futures_order`, `close_or_reduce_futures_position`, and
+  `cancel_futures_order`.
 
-### Phase 5964 - Per-Proof Validator Registration Aggregates
+### Phase 5984 - Disabled Invocation Guard
 
-- Add per-risk-proof counts for validator registrations, blocking rows, ready
-  rows, registered validators, and runtime-observed display rows.
+- Ensure any direct invocation of the disabled futures command service raises a
+  backend disabled-service error and records no Coinbase, reconciliation, or
+  state-mutation behavior.
 
-### Phase 5965 - Command Validator Registration Aggregates
+### Phase 5985 - Command Service Prerequisite Resolution
 
-- Add command-level semantic validator registration totals across risk-proof
-  requirements.
+- Update command-suite prerequisites so `backend_command_service` is passed and
+  resolved for futures placement, close/reduce, cancel, and reconciliation
+  evidence without changing route, draft, or execution authority.
 
-### Phase 5966 - Suite Validator Registration Aggregates
+### Phase 5986 - Required Versus Missing Backend Contracts
 
-- Add suite-level semantic validator registration totals across futures command
-  families.
+- Preserve service contracts in `required_backend_contracts` while removing
+  them from `missing_backend_contracts`; leave futures risk guard and
+  reconciliation contracts as missing.
 
-### Phase 5967 - Runtime Registration Boundary
+### Phase 5987 - Readiness Decision Next Contract Shift
 
-- Prove observed runtime evidence is not the same as satisfying an output
-  schema, satisfying a validator registration, registering a validator,
-  accepting a proof, or enabling execution.
+- Shift readiness `next_required_backend_contract` from command-service methods
+  to the next actual missing contracts: futures risk guard for placement and
+  close/reduce, reconciliation for cancel and reconcile.
 
-### Phase 5968 - Missing Validator Registry References
+### Phase 5988 - Backend Contract Tests
 
-- Preserve validator registration contract refs, registry record refs, schema
-  binding refs, and contextless review refs as missing until futures semantic
-  validator registration actually exists.
+- Add focused regression coverage for disabled service-method behavior,
+  resolved service prerequisites, missing risk/reconciliation contracts, and
+  unchanged no-route/no-draft/no-live boundaries.
 
-### Phase 5969 - Backend Schema Contract Tests
+### Phase 5989 - OpenAPI Regeneration
 
-- Update OpenAPI/schema tests so generated clients discover validator
-  registration rows and aggregate fields.
+- Regenerate backend OpenAPI from backend-owned models and read-service
+  behavior after the active range and service-contract updates.
 
-### Phase 5970 - Backend Read-Service Tests
-
-- Add focused regression coverage for suite, command, and per-proof semantic
-  validator registration evidence.
-
-### Phase 5971 - OpenAPI Regeneration
-
-- Regenerate backend OpenAPI from backend-owned source after contract changes.
-
-### Phase 5972 - Frontend Schema Sync
+### Phase 5990 - Frontend Schema Sync
 
 - Regenerate the frontend generated TypeScript schema from backend OpenAPI.
 
-### Phase 5973 - Frontend Mock Contract
+### Phase 5991 - Frontend Mock Contract Alignment
 
-- Update frontend mock futures command-suite fixtures and quality artifacts
-  with validator registration fields and active range `5961-5980`.
+- Update frontend mock futures command-suite fixtures so service contracts are
+  required, service prerequisites are resolved, and only risk/reconciliation
+  contracts remain missing.
 
-### Phase 5974 - Frontend Adapter Mapping
+### Phase 5992 - Frontend Adapter And Read Model Review
 
-- Map semantic validator registration rows and counts into the
-  futures/perpetual read model through the canonical backend API adapter.
+- Verify the existing futures/perpetual adapter and read model render the new
+  service-method names and next-contract shift without browser authority.
 
-### Phase 5975 - Frontend Display
+### Phase 5993 - Frontend Unit Coverage
 
-- Render validator registration evidence as blocked backend evidence, separate
-  from proof records, acceptance blockers, requirements, definitions,
-  validation gates, validator contracts, input schemas, and command enablement.
+- Update focused Vitest coverage for mock backend, runtime, quality gates, and
+  futures/perpetual read-model assertions around disabled service contracts.
 
-### Phase 5976 - Frontend Unit Coverage
-
-- Add focused unit coverage for generated schema consumption, mocks, runtime
-  snapshots, read-model rendering, and quality-gate active range.
-
-### Phase 5977 - Docs And Examples
+### Phase 5994 - Docs And Examples
 
 - Update backend/frontend docs, examples, maintainer handoff, contextless review
-  logs, and agent state for validator registration semantics.
+  logs, and agent state for disabled service-contract semantics.
 
-### Phase 5978 - Focused Gates
+### Phase 5995 - Active-Range Drift Sweep
 
-- Run focused backend compile/regression/contract/queue/ownership checks and
-  focused frontend API/type/unit checks that cover validator registration
-  evidence.
+- Search backend/frontend docs, tests, mocks, generated schema, and validators
+  for stale active `5961-5980` wording that should now be historical only.
 
-### Phase 5979 - Contextless Review And Subagent Sweep
+### Phase 5996 - Backend Focused Gates
 
-- Run blind/contextless review for backend/frontend clarity, remediate or
-  explicitly defer findings, then close phase-scoped, stale, and unused
-  subagents after findings are consumed.
+- Run backend compile, OpenAPI, focused futures command-suite regression,
+  autonomous queue, and ownership checks.
 
-### Phase 5980 - Phase Closeout Evidence
+### Phase 5997 - Frontend Focused Gates
+
+- Run frontend generated API, typecheck, lint/security where relevant,
+  focused unit tests, and autonomous/deployment checks.
+
+### Phase 5998 - Contextless Review And Remediation
+
+- Run blind/contextless backend/frontend review for disabled service-contract
+  clarity, no spot-rule leakage, and no browser/BFF/live authority; remediate
+  or explicitly defer findings.
+
+### Phase 5999 - Subagent Sweep
+
+- Close phase-scoped, stale, and unused subagents after findings are consumed,
+  remediated, or explicitly deferred.
+
+### Phase 6000 - Phase Closeout Evidence
 
 - Record implementation, verification, no-live Coinbase posture, submitted and
   executed notional `0` USDC, review outcome, stale-subagent sweep result,
   commits, pushes, and the next milestone-linked work.
+
+## Completed Phases 5961-5980
+
+Batch label: Futures/Perpetuals Semantic Validator Registration Evidence.
+
+These phases added backend-owned semantic validator registration rows for M57
+futures/perpetual validator contracts. Each row names missing registration
+contracts, registry records, input/output schema bindings, required evidence
+refs, missing evidence refs, runtime-observed display boundaries, and disabled
+authority flags. The completed work remains read-only display evidence and
+does not register validators, satisfy proof acceptance, enable command routes,
+create drafts, call Coinbase, execute reconciliation, mutate state, or grant
+browser/BFF authority. Backend commit `6a3d14eb` and frontend commit
+`7ea5292` completed the range with `0` USDC submitted/executed notional.
 
 ## Completed Phases 5941-5960
 

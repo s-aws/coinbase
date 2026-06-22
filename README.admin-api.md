@@ -522,6 +522,17 @@ backend-owned display evidence and do not satisfy validator registration,
 register validators, satisfy proof acceptance, enable command routes, create
 drafts, call Coinbase, execute reconciliation, mutate state, or grant
 browser/BFF authority.
+M57 phases 5981-6000 add disabled futures/perpetual command-service contract
+evidence. `place_futures_order`, `close_or_reduce_futures_position`, and
+`cancel_futures_order` now exist as disabled backend service methods and the
+command-suite marks the backend command-service prerequisite resolved for those
+commands. This is not execution authority: futures risk guard, reconciliation,
+command routes, command drafts, live adapters, Coinbase calls, reconciliation
+execution, state mutation, browser authority, BFF authority, and spot-rule
+authority remain blocked. The command-suite keeps the service contracts in
+`required_backend_contracts` while removing them from
+`missing_backend_contracts`; the next missing backend contracts are the futures
+risk guard and reconciliation plan contracts.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

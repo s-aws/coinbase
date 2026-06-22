@@ -1,5 +1,79 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Disabled Command Service Contract Evidence - Phases 5981-6000
+
+Scope: phases `5981-6000`, after completed history `5961-5980`, add disabled
+futures command-service contract evidence to `GET /api/v1/futures/command-suite`.
+Completed semantic validator registration evidence from `5961-5980` remains
+backend-owned display evidence. This range defines
+`application/admin_api/futures_command_service.py` with disabled
+`place_futures_order`, `close_or_reduce_futures_position`, and
+`cancel_futures_order` methods.
+
+Result: PASS after remediation.
+
+- Disabled service evidence: `backend_command_service` prerequisites are
+  resolved. Command-service contracts remain in `required_backend_contracts`,
+  but `missing_backend_contracts` now names only unresolved futures risk guard
+  and reconciliation contracts:
+  `application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation`
+  and
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
+  The disabled
+  methods raise a disabled-service error and do not call Coinbase, execute
+  reconciliation, mutate order/futures/exchange state, create command drafts,
+  register futures command routes, or grant browser/BFF authority.
+- Carried-forward proof evidence remains display-only:
+  `risk_proof_record_resolver_count`, `risk_proof_acceptance_blocker_count`,
+  `risk_proof_semantic_contract_requirement_count`,
+  `risk_proof_semantic_contract_definition_count`,
+  `risk_proof_semantic_contract_validation_gate_count`,
+  `risk_proof_semantic_contract_validator_contract_count`,
+  `risk_proof_semantic_validator_input_schema_count`,
+  `risk_proof_semantic_validator_output_schema_count`,
+  `risk_proof_semantic_validator_registration_count`,
+  `semantic_contract_requirements`, `semantic_contract_definitions`,
+  `semantic_contract_validation_gates`,
+  `semantic_contract_validator_contracts`,
+  `semantic_validator_input_schemas`, `semantic_validator_output_schemas`,
+  `semantic_validator_registrations`, `proof_record_lookup_status`,
+  `proof_acceptance_blockers`, `proof_record_resolves_acceptance`,
+  `proofRecordLookupStatus`, `proofAcceptanceBlockers`,
+  `semanticContractRequirements`, `semanticContractDefinitions`,
+  `semanticContractValidationGates`, `semanticContractValidatorContracts`,
+  `semanticValidatorInputSchemas`, `semanticValidatorOutputSchemas`, and
+  `semanticValidatorRegistrations`.
+- Backend/source boundary: `/api/v1/futures/risk-proofs` remains read-only
+  proof-record resolver evidence. `backend_futures_risk_proof_store_read_only_no_execution`
+  and `backend_futures_semantics_no_execution` remain true boundary labels.
+- Authority boundary: no futures command route, no command draft, no Coinbase
+  activity, no reconciliation execution, no futures state mutation, and
+  forbidden spot assumptions remain enforced. Spot wallet, no-shorting, USDC
+  quote, average-cost, cost-basis, and inventory-lot assumptions are not
+  futures/perpetual command authority.
+- Initial blind/contextless backend reviewer `019ef113-107a-75f1-bced-a6f2f93b10c4`
+  found a stale regression fixture that still reported
+  `application/admin_api/futures_command_service.py::place_futures_order` as a
+  missing top-level backend contract. Remediation updated the fixture and added
+  assertions that service-contract refs may be required but must not be
+  reported missing.
+- Backend re-review by `019ef113-107a-75f1-bced-a6f2f93b10c4` returned PASS
+  after remediation and confirmed the disabled service boundary remains
+  non-executable.
+- Frontend re-review by `019ef113-451c-7aa3-a1fd-74593ab5334d` returned PASS
+  after the backend review-log top entry included the exact
+  `backend_command_service`, futures risk guard, and reconciliation contract
+  refs required by the frontend autonomous checker.
+- No live Coinbase execution was run; submitted notional `0` USDC and executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5981-6000` are ordinary
+  phase work, not durable milestone closeout.
+- Phase-end stale-subagent sweep completed after consuming remediation and
+  re-review results. Backend reviewer `019ef113-107a-75f1-bced-a6f2f93b10c4`
+  and frontend reviewer `019ef113-451c-7aa3-a1fd-74593ab5334d` were closed. No
+  phase-scoped, stale, or unused subagent remains intentionally open.
+- Machine-check exact phrase line: futures disabled command service contract evidence; /api/v1/futures/risk-proofs; application/admin_api/futures_command_service.py; place_futures_order; close_or_reduce_futures_position; cancel_futures_order; backend_command_service; required_backend_contracts; missing_backend_contracts; application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan; risk_proof_record_resolver_count; risk_proof_acceptance_blocker_count; risk_proof_semantic_contract_requirement_count; risk_proof_semantic_contract_definition_count; risk_proof_semantic_contract_validation_gate_count; risk_proof_semantic_contract_validator_contract_count; risk_proof_semantic_validator_input_schema_count; risk_proof_semantic_validator_output_schema_count; risk_proof_semantic_validator_registration_count; semantic_contract_requirements; semantic_contract_definitions; semantic_contract_validation_gates; semantic_contract_validator_contracts; semantic_validator_input_schemas; semantic_validator_output_schemas; semantic_validator_registrations; proof_record_lookup_status; proof_acceptance_blockers; proof_record_resolves_acceptance; proofRecordLookupStatus; proofAcceptanceBlockers; semanticContractRequirements; semanticContractDefinitions; semanticContractValidationGates; semanticContractValidatorContracts; semanticValidatorInputSchemas; semanticValidatorOutputSchemas; semanticValidatorRegistrations; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+
 ## M57 Futures/Perpetual Semantic Validator Registration Evidence - Phases 5961-5980
 
 Scope: phases `5961-5980`, after completed history `5941-5960`, add futures
