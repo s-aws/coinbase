@@ -28,6 +28,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
+    AdminFuturesCommandRiskProofRecordLookupStatus,
     AdminFuturesCommandRiskProofPayloadField,
     AdminFuturesCommandRiskProofRecordContractKind,
     AdminFuturesCommandRiskProofRecordValidationRemediationAction,
@@ -288,6 +289,7 @@ from .models import (
     StealthCommandSuiteResponse,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
+from .futures_risk_proof import FileFuturesRiskProofStore, FuturesRiskProofRecord
 from .stealth_cancel_replace_boundary import (
     build_stealth_active_placement_cancel_replace_contract,
 )
@@ -385,7 +387,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5781-5800"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5801-5820"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -4453,6 +4455,7 @@ class AdminApiReadService:
         stealth_post_write_reconciliation_verification_store: (
             FileStealthPostWriteReconciliationVerificationStore | None
         ) = None,
+        futures_risk_proof_store: FileFuturesRiskProofStore | None = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -4529,6 +4532,9 @@ class AdminApiReadService:
         self.stealth_post_write_reconciliation_verification_store = (
             stealth_post_write_reconciliation_verification_store
             or FileStealthPostWriteReconciliationVerificationStore()
+        )
+        self.futures_risk_proof_store = (
+            futures_risk_proof_store or FileFuturesRiskProofStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -20928,6 +20934,61 @@ class AdminApiReadService:
             )
             return rows
 
+        def safe_futures_risk_proof_record(
+            record: FuturesRiskProofRecord,
+            *,
+            command_id: AdminFuturesCommandAction,
+            proof_kind: AdminFuturesCommandRiskProofKind,
+        ) -> bool:
+            return all((
+                record.command == command_id,
+                record.proof_kind == proof_kind,
+                record.route == "/api/v1/futures/risk-proofs",
+                record.method == "POST",
+                record.module_id == "futures_perpetuals",
+                record.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION,
+                record.required_permission == AdminApiPermission.FUTURES_RISK_PROOF_RECORD,
+                record.service_method == "record_futures_risk_proof",
+                record.dry_run is True,
+                record.manual_live_acknowledgement is False,
+                record.proof_persisted is True,
+                record.risk_proof_verified is False,
+                record.risk_proof_accepted is False,
+                record.command_route_registered is False,
+                record.command_draft_created is False,
+                record.command_execution_allowed is False,
+                record.margin_validated is False,
+                record.collateral_validated is False,
+                record.liquidation_validated is False,
+                record.funding_validated is False,
+                record.reduce_only_validated is False,
+                record.close_only_validated is False,
+                record.reconciliation_executed is False,
+                record.order_state_mutated is False,
+                record.exchange_state_mutated is False,
+                record.coinbase_read_attempted is False,
+                record.coinbase_read_succeeded is False,
+                record.coinbase_rest_read_ran is False,
+                record.coinbase_order_submitted is False,
+                record.coinbase_order_cancel_submitted is False,
+                record.live_exchange_submitted is False,
+                record.live_coinbase_orders_ran is False,
+                record.browser_authority == "display_only",
+                record.bff_authority == "forward_only_no_execution",
+            ))
+
+        def latest_futures_risk_proof_record(
+            *,
+            command_id: AdminFuturesCommandAction,
+            proof_kind: AdminFuturesCommandRiskProofKind,
+        ) -> FuturesRiskProofRecord | None:
+            records = self.futures_risk_proof_store.read_for_command(
+                command=command_id,
+                proof_kind=proof_kind,
+                limit=1,
+            )
+            return records[0] if records else None
+
         def risk_proof_requirements(
             command_id: AdminFuturesCommandAction,
             *,
@@ -27165,6 +27226,42 @@ class AdminApiReadService:
                         is not AdminFuturesCommandRiskProofRecordContractKind.STORE_SCHEMA
                     ):
                         nested_clearance_review.remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs = []
+                latest_proof_record = latest_futures_risk_proof_record(
+                    command_id=command_id,
+                    proof_kind=proof_kind,
+                )
+                latest_proof_record_safe = (
+                    safe_futures_risk_proof_record(
+                        latest_proof_record,
+                        command_id=command_id,
+                        proof_kind=proof_kind,
+                    )
+                    if latest_proof_record is not None
+                    else False
+                )
+                proof_record_missing_reason = (
+                    None
+                    if latest_proof_record_safe
+                    else (
+                        "no_exact_futures_risk_proof_record"
+                        if latest_proof_record is None
+                        else (
+                            "latest_futures_risk_proof_record_"
+                            "unsafe_or_authority_claimed"
+                        )
+                    )
+                )
+                proof_record_lookup_status = (
+                    AdminFuturesCommandRiskProofRecordLookupStatus.RESOLVED
+                    if latest_proof_record_safe
+                    else (
+                        AdminFuturesCommandRiskProofRecordLookupStatus.MISSING
+                        if latest_proof_record is None
+                        else (
+                            AdminFuturesCommandRiskProofRecordLookupStatus.STALE_OR_INVALID
+                        )
+                    )
+                )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
                         proof_kind=proof_kind,
@@ -27701,6 +27798,58 @@ class AdminApiReadService:
                             )
                             if input_row.clearance_step_review_input_accepted
                         ),
+                        proof_record_lookup_status=proof_record_lookup_status,
+                        proof_record_resolver_lookup_ran=True,
+                        proof_record_resolved=latest_proof_record_safe,
+                        proof_record_stale_or_invalid=(
+                            latest_proof_record is not None
+                            and not latest_proof_record_safe
+                        ),
+                        proof_record_missing_reason=proof_record_missing_reason,
+                        proof_record_satisfies_requirement=False,
+                        latest_futures_risk_proof_id=(
+                            latest_proof_record.futures_risk_proof_id
+                            if latest_proof_record is not None
+                            else None
+                        ),
+                        latest_futures_risk_proof_recorded_at=(
+                            latest_proof_record.recorded_at
+                            if latest_proof_record is not None
+                            else None
+                        ),
+                        latest_futures_risk_proof_evidence_ref=(
+                            latest_proof_record.evidence_ref
+                            if latest_proof_record is not None
+                            else None
+                        ),
+                        latest_futures_risk_proof_safe_for_display=(
+                            latest_proof_record_safe
+                        ),
+                        latest_futures_risk_proof_risk_proof_verified=(
+                            latest_proof_record.risk_proof_verified
+                            if latest_proof_record is not None
+                            else False
+                        ),
+                        latest_futures_risk_proof_risk_proof_accepted=(
+                            latest_proof_record.risk_proof_accepted
+                            if latest_proof_record is not None
+                            else False
+                        ),
+                        latest_futures_risk_proof_command_route_registered=(
+                            latest_proof_record.command_route_registered
+                            if latest_proof_record is not None
+                            else False
+                        ),
+                        latest_futures_risk_proof_command_execution_allowed=(
+                            latest_proof_record.command_execution_allowed
+                            if latest_proof_record is not None
+                            else False
+                        ),
+                        latest_futures_risk_proof_live_coinbase_orders_ran=(
+                            latest_proof_record.live_coinbase_orders_ran
+                            if latest_proof_record is not None
+                            else False
+                        ),
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -27802,6 +27951,21 @@ class AdminApiReadService:
                 risk_proof_requirement_count=len(proof_requirements),
                 blocking_risk_proof_requirement_count=sum(
                     1 for item in proof_requirements if item.blocking
+                ),
+                risk_proof_record_resolver_count=len(proof_requirements),
+                resolved_risk_proof_record_resolver_count=sum(
+                    1 for item in proof_requirements if item.proof_record_resolved
+                ),
+                missing_risk_proof_record_resolver_count=sum(
+                    1
+                    for item in proof_requirements
+                    if item.proof_record_lookup_status
+                    == AdminFuturesCommandRiskProofRecordLookupStatus.MISSING
+                ),
+                stale_or_invalid_risk_proof_record_resolver_count=sum(
+                    1
+                    for item in proof_requirements
+                    if item.proof_record_stale_or_invalid
                 ),
                 risk_proof_contract_count=sum(
                     item.proof_contract_count for item in proof_requirements
@@ -28254,6 +28418,21 @@ class AdminApiReadService:
             ),
             blocking_risk_proof_requirement_count=sum(
                 command.blocking_risk_proof_requirement_count for command in commands
+            ),
+            risk_proof_record_resolver_count=sum(
+                command.risk_proof_record_resolver_count for command in commands
+            ),
+            resolved_risk_proof_record_resolver_count=sum(
+                command.resolved_risk_proof_record_resolver_count
+                for command in commands
+            ),
+            missing_risk_proof_record_resolver_count=sum(
+                command.missing_risk_proof_record_resolver_count
+                for command in commands
+            ),
+            stale_or_invalid_risk_proof_record_resolver_count=sum(
+                command.stale_or_invalid_risk_proof_record_resolver_count
+                for command in commands
             ),
             risk_proof_contract_count=sum(
                 command.risk_proof_contract_count for command in commands

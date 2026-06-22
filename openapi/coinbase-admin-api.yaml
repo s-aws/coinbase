@@ -12857,6 +12857,26 @@ components:
           minimum: 0.0
           title: Blocking Risk Proof Requirement Count
           default: 0
+        risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Resolver Count
+          default: 0
+        resolved_risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Risk Proof Record Resolver Count
+          default: 0
+        missing_risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Risk Proof Record Resolver Count
+          default: 0
+        stale_or_invalid_risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Stale Or Invalid Risk Proof Record Resolver Count
+          default: 0
         risk_proof_contract_count:
           type: integer
           minimum: 0.0
@@ -14281,6 +14301,16 @@ components:
       title: AdminFuturesCommandRiskProofRecordContractKind
       description: Backend record/store contracts required before futures proofs can
         persist.
+    AdminFuturesCommandRiskProofRecordLookupStatus:
+      type: string
+      enum:
+      - not_checked
+      - resolved
+      - missing
+      - stale_or_invalid
+      - unavailable
+      title: AdminFuturesCommandRiskProofRecordLookupStatus
+      description: Read-only lookup status for futures risk proof record evidence.
     AdminFuturesCommandRiskProofRecordValidationItem:
       properties:
         contract_kind:
@@ -25981,6 +26011,73 @@ components:
             Trace Clearance Step Review Input Store Record Validation Remediation
             Dependency Work Item Claim Trace Clearance Step Review Input Count
           default: 0
+        proof_record_lookup_status:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordLookupStatus'
+          default: not_checked
+        proof_record_resolver_authority:
+          type: string
+          title: Proof Record Resolver Authority
+          default: backend_futures_risk_proof_store_read_only_no_execution
+        proof_record_resolver_lookup_ran:
+          type: boolean
+          title: Proof Record Resolver Lookup Ran
+          default: false
+        proof_record_resolved:
+          type: boolean
+          title: Proof Record Resolved
+          default: false
+        proof_record_stale_or_invalid:
+          type: boolean
+          title: Proof Record Stale Or Invalid
+          default: false
+        proof_record_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Proof Record Missing Reason
+        proof_record_satisfies_requirement:
+          type: boolean
+          title: Proof Record Satisfies Requirement
+          default: false
+        latest_futures_risk_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Futures Risk Proof Id
+        latest_futures_risk_proof_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Futures Risk Proof Recorded At
+        latest_futures_risk_proof_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Futures Risk Proof Evidence Ref
+        latest_futures_risk_proof_safe_for_display:
+          type: boolean
+          title: Latest Futures Risk Proof Safe For Display
+          default: false
+        latest_futures_risk_proof_risk_proof_verified:
+          type: boolean
+          title: Latest Futures Risk Proof Risk Proof Verified
+          default: false
+        latest_futures_risk_proof_risk_proof_accepted:
+          type: boolean
+          title: Latest Futures Risk Proof Risk Proof Accepted
+          default: false
+        latest_futures_risk_proof_command_route_registered:
+          type: boolean
+          title: Latest Futures Risk Proof Command Route Registered
+          default: false
+        latest_futures_risk_proof_command_execution_allowed:
+          type: boolean
+          title: Latest Futures Risk Proof Command Execution Allowed
+          default: false
+        latest_futures_risk_proof_live_coinbase_orders_ran:
+          type: boolean
+          title: Latest Futures Risk Proof Live Coinbase Orders Ran
+          default: false
         acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -26008,6 +26105,26 @@ components:
         satisfies_risk_proof:
           type: boolean
           title: Satisfies Risk Proof
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        command_execution_allowed:
+          type: boolean
+          title: Command Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
           default: false
         backend_owned:
           type: boolean
@@ -26289,6 +26406,26 @@ components:
           type: integer
           minimum: 0.0
           title: Blocking Risk Proof Requirement Count
+          default: 0
+        risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Resolver Count
+          default: 0
+        resolved_risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Risk Proof Record Resolver Count
+          default: 0
+        missing_risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Risk Proof Record Resolver Count
+          default: 0
+        stale_or_invalid_risk_proof_record_resolver_count:
+          type: integer
+          minimum: 0.0
+          title: Stale Or Invalid Risk Proof Record Resolver Count
           default: 0
         risk_proof_contract_count:
           type: integer

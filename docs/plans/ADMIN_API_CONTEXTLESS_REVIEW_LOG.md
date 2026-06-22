@@ -1,5 +1,48 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk-Proof Record Resolver Evidence - Phases 5801-5820
+
+Scope: phases `5801-5820`, after completed history `5781-5800`, consume the
+append-only futures/perpetual proof records from `/api/v1/futures/risk-proofs`
+as futures risk-proof record resolver evidence inside
+`GET /api/v1/futures/command-suite`.
+
+Result: PASS after remediation.
+
+- Review result: initial blind/contextless backend and frontend reviews found
+  stale active-range and review-log drift, not an unsafe resolver code path.
+  Remediation updated the stale phase tuple, durable state route source,
+  frontend readiness scripts, frontend futures/perpetual read examples, and
+  this top review entry.
+- Resolver evidence: command-suite rows expose
+  `risk_proof_record_resolver_count`, `proof_record_lookup_status`, frontend
+  `proofRecordLookupStatus`, latest proof id/evidence-ref fields, and
+  `backend_futures_risk_proof_store_read_only_no_execution` as backend-owned
+  read-only evidence.
+- Authority boundary: safe latest exact proof records may be displayed but do
+  not satisfy a risk proof requirement. Missing records stay missing, and
+  unsafe latest records are stale/invalid without falling back to older safe
+  records.
+- Route/source boundary: the source is the append-only futures proof record
+  store behind `/api/v1/futures/risk-proofs`; the resolver does not create a
+  new write path, no futures command route, no command draft, no Coinbase
+  activity, no reconciliation execution, no futures state mutation, no
+  order/exchange-state mutation, no browser authority, and no BFF execution
+  authority.
+- Spot-boundary review: forbidden spot assumptions remain rejected. Spot
+  wallet, no-shorting, USDC quote, cost-basis, average-cost, and inventory-lot
+  assumptions are not futures/perpetual proof authority.
+- Machine-check exact phrase line: futures risk-proof record resolver evidence; /api/v1/futures/risk-proofs; risk_proof_record_resolver_count; proof_record_lookup_status; proofRecordLookupStatus; backend_futures_risk_proof_store_read_only_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+- No live Coinbase execution was run; submitted notional `0` USDC and executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5801-5820` are ordinary
+  phase work, not durable milestone closeout.
+- Phase-end stale-subagent sweep completed: closed backend reviewer
+  `019eef87-adc0-7513-ba5f-2138b1df5250` and frontend reviewer
+  `019eef87-c2c4-78b3-959f-f8668dfa10d8` after their initial blockers were
+  remediated and both re-reviews returned PASS. No phase-scoped, stale, or
+  unused subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Risk-Proof Record Contract - Phases 5781-5800
 
 Scope: phases `5781-5800`, after completed history `5761-5780`, add

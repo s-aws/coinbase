@@ -11,13 +11,13 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5781-5800 range adds concrete M57 futures/perpetual risk-proof
-record routes at `/api/v1/futures/risk-proofs`. The `GET` routes read
-persisted local proof evidence, and the `POST` route records append-only local
-proof evidence through the shared Admin API command path. These routes do not
-accept proof requirements, register futures command routes, create command
-drafts, call Coinbase, execute reconciliation, mutate futures/order/exchange
-state, or grant browser/BFF authority.
+The active 5801-5820 range consumes concrete M57 futures/perpetual risk-proof
+record routes at `/api/v1/futures/risk-proofs` as read-only command-suite
+resolver evidence. Exact safe latest records may be displayed as resolver
+evidence, while missing or stale/invalid records fail closed. Resolver evidence
+does not satisfy risk proof requirements, register futures command routes,
+create command drafts, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF authority.
 
 The command-suite contract still exposes read-only M57 futures/perpetual risk
 proof record-validation remediation dependency work-item claim-trace
@@ -91,7 +91,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5781-5800",
+  "approved_phase_range": "5801-5820",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -111,6 +111,10 @@ Expected response posture:
   "blocking_readiness_closure_step_count": 28,
   "risk_proof_requirement_count": 20,
   "blocking_risk_proof_requirement_count": 20,
+  "risk_proof_record_resolver_count": 20,
+  "resolved_risk_proof_record_resolver_count": 0,
+  "missing_risk_proof_record_resolver_count": 20,
+  "stale_or_invalid_risk_proof_record_resolver_count": 0,
   "risk_proof_contract_count": 40,
   "blocking_risk_proof_contract_count": 40,
   "registered_risk_proof_route_count": 0,

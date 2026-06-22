@@ -31,6 +31,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
+    AdminFuturesCommandRiskProofRecordLookupStatus,
     AdminFuturesCommandRiskProofPayloadField,
     AdminFuturesCommandRiskProofRecordContractKind,
     AdminFuturesCommandRiskProofRecordValidationRemediationAction,
@@ -7816,6 +7817,26 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
         default=0,
         ge=0,
     )
+    proof_record_lookup_status: AdminFuturesCommandRiskProofRecordLookupStatus = (
+        AdminFuturesCommandRiskProofRecordLookupStatus.NOT_CHECKED
+    )
+    proof_record_resolver_authority: str = (
+        "backend_futures_risk_proof_store_read_only_no_execution"
+    )
+    proof_record_resolver_lookup_ran: bool = False
+    proof_record_resolved: bool = False
+    proof_record_stale_or_invalid: bool = False
+    proof_record_missing_reason: str | None = None
+    proof_record_satisfies_requirement: bool = False
+    latest_futures_risk_proof_id: str | None = None
+    latest_futures_risk_proof_recorded_at: str | None = None
+    latest_futures_risk_proof_evidence_ref: str | None = None
+    latest_futures_risk_proof_safe_for_display: bool = False
+    latest_futures_risk_proof_risk_proof_verified: bool = False
+    latest_futures_risk_proof_risk_proof_accepted: bool = False
+    latest_futures_risk_proof_command_route_registered: bool = False
+    latest_futures_risk_proof_command_execution_allowed: bool = False
+    latest_futures_risk_proof_live_coinbase_orders_ran: bool = False
     acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -7824,6 +7845,11 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     )
     all_acceptance_criteria_accepted: bool = False
     satisfies_risk_proof: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    command_execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
     backend_owned: bool = True
     read_only: bool = True
     spot_rule_authority: bool = False
@@ -7877,6 +7903,10 @@ class AdminFuturesCommandContractItem(BaseModel):
     )
     risk_proof_requirement_count: int = Field(default=0, ge=0)
     blocking_risk_proof_requirement_count: int = Field(default=0, ge=0)
+    risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    resolved_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    missing_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    stale_or_invalid_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     risk_proof_contract_count: int = Field(default=0, ge=0)
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
     registered_risk_proof_route_count: int = Field(default=0, ge=0)
@@ -8252,6 +8282,10 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     blocking_readiness_closure_step_count: int = Field(default=0, ge=0)
     risk_proof_requirement_count: int = Field(default=0, ge=0)
     blocking_risk_proof_requirement_count: int = Field(default=0, ge=0)
+    risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    resolved_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    missing_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    stale_or_invalid_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     risk_proof_contract_count: int = Field(default=0, ge=0)
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
     registered_risk_proof_route_count: int = Field(default=0, ge=0)

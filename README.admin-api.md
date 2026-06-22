@@ -449,6 +449,12 @@ idempotency, approval, cap/guard, and audit evidence, but it does not accept
 proof requirements, register futures command routes, create command drafts,
 call Coinbase, execute reconciliation, mutate futures/order/exchange state, or
 grant browser/BFF authority.
+M57 phases 5801-5820 consume those persisted proof records as read-only
+command-suite resolver evidence. Exact safe latest records may be displayed as
+resolver evidence, while missing or stale/invalid records fail closed. Resolver
+evidence does not satisfy risk proof requirements, register futures command
+routes, create command drafts, call Coinbase, execute reconciliation, mutate
+state, or grant browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

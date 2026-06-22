@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5781-5800"
-APPROVED_PHASES = tuple(range(5781, 5801))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5761-5780"
+APPROVED_PHASE_RANGE = "5801-5820"
+APPROVED_PHASES = tuple(range(5801, 5821))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5781-5800"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -537,7 +537,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` replaces the recursive M57 evidence-layer pattern",
+        f"Active `{APPROVED_PHASE_RANGE}` consumes the append-only M57 futures/perpetual risk-proof",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -676,16 +676,12 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
-        "futures risk-proof record routes",
+        "futures risk-proof record resolver evidence",
         "/api/v1/futures/risk-proofs",
-        "FuturesRiskProofRecordRequest",
-        "FuturesRiskProofListResponse",
-        "FuturesRiskProofDetailResponse",
-        "FileFuturesRiskProofStore",
-        "AdminApiFuturesRiskProofService",
-        "record_futures_risk_proof",
-        "futures_risk_proof:record",
-        "append-only local proof evidence",
+        "risk_proof_record_resolver_count",
+        "proof_record_lookup_status",
+        "proofRecordLookupStatus",
+        "backend_futures_risk_proof_store_read_only_no_execution",
         "no futures command route",
         "no command draft",
         "no Coinbase activity",

@@ -1178,6 +1178,16 @@ class AdminFuturesCommandRiskProofKind(str, Enum):
     RECONCILIATION_PLAN = "reconciliation_plan"
 
 
+class AdminFuturesCommandRiskProofRecordLookupStatus(str, Enum):
+    """Read-only lookup status for futures risk proof record evidence."""
+
+    NOT_CHECKED = "not_checked"
+    RESOLVED = "resolved"
+    MISSING = "missing"
+    STALE_OR_INVALID = "stale_or_invalid"
+    UNAVAILABLE = "unavailable"
+
+
 class AdminFuturesCommandRiskProofAcceptanceCheck(str, Enum):
     """Acceptance checks required before a futures risk proof can satisfy readiness."""
 

@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5761-5780` under M57.
-- Active autonomous range: `5781-5800` under M57.
+- Latest completed autonomous range: `5781-5800` under M57.
+- Active autonomous range: `5801-5820` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -735,11 +735,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   input sequencing can name required owner/contextless input refs, input gates,
   predecessor/successor input refs, and inherited blockers while still adding
   no review input acceptance, validation, evidence writing, Coinbase calls,
-  state mutation, browser authority, or BFF execution authority. Active
-  5781-5800 work adds concrete append-only futures risk-proof record routes at
-  `/api/v1/futures/risk-proofs` plus list/detail readbacks so proof evidence
-  can be recorded through the shared Admin API command path without accepting
-  a futures command, creating a command draft, calling Coinbase, executing
+  state mutation, browser authority, or BFF execution authority. Completed
+  5781-5800 work added concrete append-only futures risk-proof record routes at
+  `/api/v1/futures/risk-proofs` plus list/detail readbacks. Active 5801-5820
+  work consumes those records as read-only command-suite resolver evidence so
+  exact safe latest records can be displayed and missing/stale records fail
+  closed without satisfying risk proof requirements, accepting a futures
+  command, creating a command draft, calling Coinbase, executing
   reconciliation, mutating futures/order/exchange state, or granting browser
   or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input

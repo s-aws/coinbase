@@ -70,16 +70,21 @@ READ_ONLY_ROUTE_RESPONSES = {
 }
 
 
-def get_read_service() -> AdminApiReadService:
-    """Return the read-only Admin API status service."""
-
-    return AdminApiReadService()
-
-
 def get_futures_risk_proof_store() -> FileFuturesRiskProofStore:
     """Return the append-only futures risk proof store."""
 
     return FileFuturesRiskProofStore()
+
+
+def get_read_service(
+    futures_risk_proof_store: Annotated[
+        FileFuturesRiskProofStore,
+        Depends(get_futures_risk_proof_store),
+    ],
+) -> AdminApiReadService:
+    """Return the read-only Admin API status service."""
+
+    return AdminApiReadService(futures_risk_proof_store=futures_risk_proof_store)
 
 
 TReadModel = TypeVar("TReadModel", bound=BaseModel)

@@ -33,6 +33,7 @@ from application.admin_api.models import (
     AdminLiveAdmissionDecisionEvidence,
     FuturesRiskProofRecordRequest,
 )
+from application.admin_api.read_service import AdminApiReadService
 from application.admin_api.reconciliation import (
     FileAdminApiReconciliationStore,
     ReconciliationPlanRecord,
@@ -573,3 +574,155 @@ def test_futures_risk_proof_routes_are_inventory_and_openapi_bound(
         "/api/v1/futures/risk-proofs/{futures_risk_proof_id}"
         in schema["paths"]
     )
+
+
+def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority(
+    tmp_path,
+) -> None:
+    store = FileFuturesRiskProofStore(tmp_path / "futures_risk_proofs.jsonl")
+    request = _risk_proof_request()
+    record = AdminApiFuturesRiskProofService().record_proof(
+        proof_store=store,
+        body=request,
+        admission_decision=_admission_decision(request),
+        actor_id="operator-001",
+        operator_intent="record futures risk proof evidence",
+        idempotency_key="futures-risk-proof-idem-001",
+        correlation_id="corr-futures-risk-proof-001",
+        payload_hash=PAYLOAD_HASH,
+        audit_id="audit-futures-risk-proof-001",
+    )
+
+    command_suite = AdminApiReadService(
+        futures_risk_proof_store=store,
+    ).build_futures_command_suite()
+    place = next(
+        item
+        for item in command_suite.commands
+        if item.command == AdminFuturesCommandAction.PLACE
+    )
+    margin_collateral = next(
+        item
+        for item in place.risk_proof_requirements
+        if item.proof_kind == AdminFuturesCommandRiskProofKind.MARGIN_COLLATERAL
+    )
+
+    assert command_suite.risk_proof_record_resolver_count == 20
+    assert command_suite.resolved_risk_proof_record_resolver_count == 1
+    assert command_suite.missing_risk_proof_record_resolver_count == 19
+    assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 0
+    assert place.resolved_risk_proof_record_resolver_count == 1
+    assert margin_collateral.proof_record_lookup_status.value == "resolved"
+    assert margin_collateral.latest_futures_risk_proof_id == (
+        record.futures_risk_proof_id
+    )
+    assert margin_collateral.proof_record_resolved is True
+    assert margin_collateral.proof_record_stale_or_invalid is False
+    assert margin_collateral.proof_record_satisfies_requirement is False
+    assert margin_collateral.satisfies_risk_proof is False
+    assert margin_collateral.command_route_registered is False
+    assert margin_collateral.command_draft_allowed is False
+    assert margin_collateral.execution_allowed is False
+    assert margin_collateral.live_coinbase_orders_ran is False
+
+
+def test_futures_command_suite_fails_closed_on_latest_unsafe_risk_proof_record(
+    tmp_path,
+) -> None:
+    store = FileFuturesRiskProofStore(tmp_path / "futures_risk_proofs.jsonl")
+    request = _risk_proof_request()
+    safe_record = AdminApiFuturesRiskProofService().record_proof(
+        proof_store=store,
+        body=request,
+        admission_decision=_admission_decision(request),
+        actor_id="operator-001",
+        operator_intent="record futures risk proof evidence",
+        idempotency_key="futures-risk-proof-idem-001",
+        correlation_id="corr-futures-risk-proof-001",
+        payload_hash=PAYLOAD_HASH,
+        audit_id="audit-futures-risk-proof-001",
+    )
+    unsafe_record = safe_record.model_copy(
+        update={
+            "futures_risk_proof_id": "futures-risk-proof-unsafe-latest",
+            "risk_proof_accepted": True,
+            "command_route_registered": True,
+            "command_execution_allowed": True,
+            "live_coinbase_orders_ran": True,
+            "idempotency_key": "futures-risk-proof-unsafe-idem",
+            "correlation_id": "corr-futures-risk-proof-unsafe",
+            "audit_id": "audit-futures-risk-proof-unsafe",
+        }
+    )
+    store.append(unsafe_record)
+
+    command_suite = AdminApiReadService(
+        futures_risk_proof_store=store,
+    ).build_futures_command_suite()
+    place = next(
+        item
+        for item in command_suite.commands
+        if item.command == AdminFuturesCommandAction.PLACE
+    )
+    margin_collateral = next(
+        item
+        for item in place.risk_proof_requirements
+        if item.proof_kind == AdminFuturesCommandRiskProofKind.MARGIN_COLLATERAL
+    )
+
+    assert command_suite.resolved_risk_proof_record_resolver_count == 0
+    assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 1
+    assert margin_collateral.proof_record_lookup_status.value == "stale_or_invalid"
+    assert margin_collateral.latest_futures_risk_proof_id == (
+        unsafe_record.futures_risk_proof_id
+    )
+    assert margin_collateral.latest_futures_risk_proof_id != (
+        safe_record.futures_risk_proof_id
+    )
+    assert margin_collateral.proof_record_resolved is False
+    assert margin_collateral.proof_record_stale_or_invalid is True
+    assert margin_collateral.proof_record_missing_reason == (
+        "latest_futures_risk_proof_record_unsafe_or_authority_claimed"
+    )
+    assert margin_collateral.proof_record_satisfies_requirement is False
+    assert margin_collateral.satisfies_risk_proof is False
+    assert margin_collateral.command_execution_allowed is False
+
+
+def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
+    tmp_path,
+) -> None:
+    store = FileFuturesRiskProofStore(tmp_path / "futures_risk_proofs.jsonl")
+    request = _risk_proof_request()
+    record = AdminApiFuturesRiskProofService().record_proof(
+        proof_store=store,
+        body=request,
+        admission_decision=_admission_decision(request),
+        actor_id="operator-001",
+        operator_intent="record futures risk proof evidence",
+        idempotency_key="futures-risk-proof-idem-001",
+        correlation_id="corr-futures-risk-proof-001",
+        payload_hash=PAYLOAD_HASH,
+        audit_id="audit-futures-risk-proof-001",
+    )
+    service = futures_routes.get_read_service(store)
+    assert service.futures_risk_proof_store is store
+
+    payload = service.build_futures_command_suite().model_dump(mode="json")
+    place = next(
+        item
+        for item in payload["commands"]
+        if item["command"] == AdminFuturesCommandAction.PLACE.value
+    )
+    margin_collateral = next(
+        item
+        for item in place["risk_proof_requirements"]
+        if item["proof_kind"]
+        == AdminFuturesCommandRiskProofKind.MARGIN_COLLATERAL.value
+    )
+    assert margin_collateral["proof_record_lookup_status"] == "resolved"
+    assert margin_collateral["latest_futures_risk_proof_id"] == (
+        record.futures_risk_proof_id
+    )
+    assert margin_collateral["proof_record_satisfies_requirement"] is False
+    assert margin_collateral["command_execution_allowed"] is False

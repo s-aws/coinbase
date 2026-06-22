@@ -43623,7 +43623,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "5781-5800"
+    assert futures_command_suite_fixture["approved_phase_range"] == "5801-5820"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 0
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
@@ -46826,7 +46826,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5781-5800",
+            "approved_phase_range": "5801-5820",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -47141,7 +47141,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5781-5800"
+    assert command_suite["approved_phase_range"] == "5801-5820"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -47297,7 +47297,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5781-5800"
+    assert command_suite.approved_phase_range == "5801-5820"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -47316,6 +47316,10 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.blocking_readiness_closure_step_count == 28
     assert command_suite.risk_proof_requirement_count == 20
     assert command_suite.blocking_risk_proof_requirement_count == 20
+    assert command_suite.risk_proof_record_resolver_count == 20
+    assert command_suite.resolved_risk_proof_record_resolver_count == 0
+    assert command_suite.missing_risk_proof_record_resolver_count == 20
+    assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 0
     assert command_suite.risk_proof_contract_count == 40
     assert command_suite.blocking_risk_proof_contract_count == 40
     assert command_suite.registered_risk_proof_route_count == 0
@@ -47682,6 +47686,14 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
         assert command_item.blocking_risk_proof_requirement_count == len(
             expected_risk_proof_kinds[command_id]
         )
+        assert command_item.risk_proof_record_resolver_count == len(
+            expected_risk_proof_kinds[command_id]
+        )
+        assert command_item.resolved_risk_proof_record_resolver_count == 0
+        assert command_item.missing_risk_proof_record_resolver_count == len(
+            expected_risk_proof_kinds[command_id]
+        )
+        assert command_item.stale_or_invalid_risk_proof_record_resolver_count == 0
         assert command_item.risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -48008,6 +48020,28 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             and item.blocking_proof_contract_count == 2
             and item.registered_proof_route_count == 0
             and item.enabled_proof_writer_count == 0
+            and item.proof_record_lookup_status.value == "missing"
+            and item.proof_record_resolver_authority
+            == "backend_futures_risk_proof_store_read_only_no_execution"
+            and item.proof_record_resolver_lookup_ran is True
+            and item.proof_record_resolved is False
+            and item.proof_record_stale_or_invalid is False
+            and item.proof_record_missing_reason == "no_exact_futures_risk_proof_record"
+            and item.proof_record_satisfies_requirement is False
+            and item.latest_futures_risk_proof_id is None
+            and item.latest_futures_risk_proof_recorded_at is None
+            and item.latest_futures_risk_proof_evidence_ref is None
+            and item.latest_futures_risk_proof_safe_for_display is False
+            and item.latest_futures_risk_proof_risk_proof_verified is False
+            and item.latest_futures_risk_proof_risk_proof_accepted is False
+            and item.latest_futures_risk_proof_command_route_registered is False
+            and item.latest_futures_risk_proof_command_execution_allowed is False
+            and item.latest_futures_risk_proof_live_coinbase_orders_ran is False
+            and item.command_route_registered is False
+            and item.command_draft_allowed is False
+            and item.execution_allowed is False
+            and item.command_execution_allowed is False
+            and item.live_coinbase_orders_ran is False
             and item.payload_field_count == 10
             and item.blocking_payload_field_count == 10
             and item.present_payload_field_count == 0
