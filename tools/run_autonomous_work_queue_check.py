@@ -59,9 +59,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5821-5840"
-APPROVED_PHASES = tuple(range(5821, 5841))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5801-5820"
+APPROVED_PHASE_RANGE = "5841-5860"
+APPROVED_PHASES = tuple(range(5841, 5861))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5821-5840"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -545,7 +545,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` adds explicit proof-acceptance blocker evidence",
+        f"Active `{APPROVED_PHASE_RANGE}` adds explicit futures semantic contract requirement evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -684,15 +684,18 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
-        "futures risk-proof acceptance blocker evidence",
+        "futures semantic contract requirement evidence",
         "/api/v1/futures/risk-proofs",
         "risk_proof_record_resolver_count",
         "risk_proof_acceptance_blocker_count",
+        "risk_proof_semantic_contract_requirement_count",
+        "semantic_contract_requirements",
         "proof_record_lookup_status",
         "proof_acceptance_blockers",
         "proof_record_resolves_acceptance",
         "proofRecordLookupStatus",
         "proofAcceptanceBlockers",
+        "semanticContractRequirements",
         "backend_futures_risk_proof_store_read_only_no_execution",
         "backend_futures_semantics_no_execution",
         "no futures command route",

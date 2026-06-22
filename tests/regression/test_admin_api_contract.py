@@ -7442,6 +7442,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "proof_record_resolved_but_acceptance_blocked_count" in (
         futures_command_suite_schema["properties"]
     )
+    for property_name in (
+        "risk_proof_semantic_contract_requirement_count",
+        "blocking_risk_proof_semantic_contract_requirement_count",
+        "registered_risk_proof_semantic_contract_count",
+        "runtime_observed_risk_proof_semantic_contract_requirement_count",
+    ):
+        assert property_name in futures_command_suite_schema["properties"]
     assert "forbidden_spot_assumptions" in futures_command_suite_schema[
         "properties"
     ]
@@ -7571,6 +7578,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "proof_record_resolved_but_acceptance_blocked_count" in (
         futures_command_item_schema["properties"]
     )
+    for property_name in (
+        "risk_proof_semantic_contract_requirement_count",
+        "blocking_risk_proof_semantic_contract_requirement_count",
+        "registered_risk_proof_semantic_contract_count",
+        "runtime_observed_risk_proof_semantic_contract_requirement_count",
+    ):
+        assert property_name in futures_command_item_schema["properties"]
     assert "risk_proof_requirements" in futures_command_item_schema["properties"]
     assert "command_route_registered" in futures_command_item_schema["properties"]
     assert "command_draft_allowed" in futures_command_item_schema["properties"]
@@ -7607,6 +7621,14 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "proof_kind" in futures_risk_proof_schema["properties"]
     assert "semantic_guard" in futures_risk_proof_schema["properties"]
     assert "runtime_evidence_observed" in futures_risk_proof_schema["properties"]
+    for property_name in (
+        "semantic_contract_requirement_count",
+        "blocking_semantic_contract_requirement_count",
+        "registered_semantic_contract_count",
+        "runtime_observed_semantic_contract_requirement_count",
+        "semantic_contract_requirements",
+    ):
+        assert property_name in futures_risk_proof_schema["properties"]
     assert "proof_route_registered" in futures_risk_proof_schema["properties"]
     assert "proof_writer_enabled" in futures_risk_proof_schema["properties"]
     assert "proof_contract_count" in futures_risk_proof_schema["properties"]
@@ -7701,6 +7723,30 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "proof_record_resolves_acceptance",
     ):
         assert property_name in futures_risk_proof_schema["properties"]
+    futures_semantic_contract_schema = written["components"]["schemas"][
+        "AdminFuturesCommandRiskProofSemanticContractRequirementItem"
+    ]
+    for property_name in (
+        "proof_kind",
+        "semantic_guard",
+        "required_contract_ref",
+        "missing_contract_ref",
+        "evidence_routes",
+        "runtime_evidence_observed",
+        "runtime_evidence_satisfies_contract",
+        "contract_registered",
+        "acceptance_ready",
+        "satisfies_risk_proof",
+        "command_route_registered",
+        "command_draft_allowed",
+        "execution_allowed",
+        "proof_route_registered",
+        "proof_writer_enabled",
+        "spot_rule_authority",
+        "browser_authority",
+        "bff_authority",
+    ):
+        assert property_name in futures_semantic_contract_schema["properties"]
     assert "satisfies_risk_proof" in futures_risk_proof_schema["properties"]
     assert "spot_rule_authority" in futures_risk_proof_schema["properties"]
     futures_proof_contract_schema = written["components"]["schemas"][
@@ -47344,6 +47390,16 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 0
     assert command_suite.risk_proof_acceptance_blocker_count == 120
     assert command_suite.proof_record_resolved_but_acceptance_blocked_count == 0
+    assert command_suite.risk_proof_semantic_contract_requirement_count == 34
+    assert (
+        command_suite.blocking_risk_proof_semantic_contract_requirement_count
+        == 34
+    )
+    assert command_suite.registered_risk_proof_semantic_contract_count == 0
+    assert (
+        command_suite.runtime_observed_risk_proof_semantic_contract_requirement_count
+        == 8
+    )
     assert command_suite.risk_proof_contract_count == 40
     assert command_suite.blocking_risk_proof_contract_count == 40
     assert command_suite.registered_risk_proof_route_count == 0
@@ -47688,6 +47744,18 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             "reconciliation_plan",
         ],
     }
+    expected_semantic_contract_requirement_counts = {
+        "futures_place": 10,
+        "futures_close_reduce": 12,
+        "futures_cancel": 3,
+        "futures_reconcile": 9,
+    }
+    expected_runtime_observed_semantic_contract_requirement_counts = {
+        "futures_place": 4,
+        "futures_close_reduce": 2,
+        "futures_cancel": 0,
+        "futures_reconcile": 2,
+    }
     for command_id, expected_contracts in expected_command_backend_contracts.items():
         command_item = commands_by_id[command_id]
         assert command_item.required_backend_contracts == expected_contracts
@@ -47722,6 +47790,20 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             len(expected_risk_proof_kinds[command_id]) * 6
         )
         assert command_item.proof_record_resolved_but_acceptance_blocked_count == 0
+        assert command_item.risk_proof_semantic_contract_requirement_count == (
+            expected_semantic_contract_requirement_counts[command_id]
+        )
+        assert (
+            command_item.blocking_risk_proof_semantic_contract_requirement_count
+            == expected_semantic_contract_requirement_counts[command_id]
+        )
+        assert command_item.registered_risk_proof_semantic_contract_count == 0
+        assert (
+            command_item.runtime_observed_risk_proof_semantic_contract_requirement_count
+            == expected_runtime_observed_semantic_contract_requirement_counts[
+                command_id
+            ]
+        )
         assert command_item.risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -51287,6 +51369,34 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                             == "forward_only_no_execution"
                             for input_row in nested_review_inputs
                         )
+            assert item.semantic_contract_requirement_count == len(
+                item.required_evidence_refs
+            )
+            assert item.blocking_semantic_contract_requirement_count == len(
+                item.required_evidence_refs
+            )
+            assert item.registered_semantic_contract_count == 0
+            assert [
+                contract.required_contract_ref
+                for contract in item.semantic_contract_requirements
+            ] == item.required_evidence_refs
+            assert all(
+                contract.blocking is True
+                and contract.missing_contract_ref == contract.required_contract_ref
+                and contract.runtime_evidence_satisfies_contract is False
+                and contract.contract_registered is False
+                and contract.acceptance_ready is False
+                and contract.satisfies_risk_proof is False
+                and contract.command_route_registered is False
+                and contract.command_draft_allowed is False
+                and contract.execution_allowed is False
+                and contract.proof_route_registered is False
+                and contract.proof_writer_enabled is False
+                and contract.spot_rule_authority is False
+                and contract.browser_authority == "display_only"
+                and contract.bff_authority == "forward_only_no_execution"
+                for contract in item.semantic_contract_requirements
+            )
             assert item.proof_acceptance_blocked is True
             assert item.proof_acceptance_blocker_count == 6
             assert item.proof_record_resolves_acceptance is False

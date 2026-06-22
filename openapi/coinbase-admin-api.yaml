@@ -12887,6 +12887,26 @@ components:
           minimum: 0.0
           title: Proof Record Resolved But Acceptance Blocked Count
           default: 0
+        risk_proof_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Semantic Contract Requirement Count
+          default: 0
+        blocking_risk_proof_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Semantic Contract Requirement Count
+          default: 0
+        registered_risk_proof_semantic_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Semantic Contract Count
+          default: 0
+        runtime_observed_risk_proof_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Risk Proof Semantic Contract Requirement Count
+          default: 0
         risk_proof_contract_count:
           type: integer
           minimum: 0.0
@@ -25395,6 +25415,31 @@ components:
           type: boolean
           title: Runtime Evidence Observed
           default: false
+        semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Semantic Contract Requirement Count
+          default: 0
+        blocking_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Semantic Contract Requirement Count
+          default: 0
+        registered_semantic_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Semantic Contract Count
+          default: 0
+        runtime_observed_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Semantic Contract Requirement Count
+          default: 0
+        semantic_contract_requirements:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofSemanticContractRequirementItem'
+          type: array
+          title: Semantic Contract Requirements
         proof_route_required:
           type: boolean
           title: Proof Route Required
@@ -26212,6 +26257,117 @@ components:
       - detail
       title: AdminFuturesCommandRiskProofRequirementItem
       description: One backend-owned futures/perpetual proof requirement before commands.
+    AdminFuturesCommandRiskProofSemanticContractRequirementItem:
+      properties:
+        proof_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+        semantic_guard:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticGuard'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required_contract_ref:
+          type: string
+          title: Required Contract Ref
+        missing_contract_ref:
+          type: string
+          title: Missing Contract Ref
+        evidence_routes:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEvidenceRoute'
+          type: array
+          title: Evidence Routes
+        evidence_route_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Route Count
+          default: 0
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        runtime_evidence_satisfies_contract:
+          type: boolean
+          title: Runtime Evidence Satisfies Contract
+          default: false
+        contract_registered:
+          type: boolean
+          title: Contract Registered
+          default: false
+        acceptance_ready:
+          type: boolean
+          title: Acceptance Ready
+          default: false
+        satisfies_risk_proof:
+          type: boolean
+          title: Satisfies Risk Proof
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - proof_kind
+      - semantic_guard
+      - sequence
+      - required_contract_ref
+      - missing_contract_ref
+      - detail
+      title: AdminFuturesCommandRiskProofSemanticContractRequirementItem
+      description: One missing futures/perpetual semantic contract behind a proof
+        row.
     AdminFuturesCommandSemanticGuard:
       type: string
       enum:
@@ -26490,6 +26646,26 @@ components:
           type: integer
           minimum: 0.0
           title: Proof Record Resolved But Acceptance Blocked Count
+          default: 0
+        risk_proof_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Semantic Contract Requirement Count
+          default: 0
+        blocking_risk_proof_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Semantic Contract Requirement Count
+          default: 0
+        registered_risk_proof_semantic_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Semantic Contract Count
+          default: 0
+        runtime_observed_risk_proof_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Risk Proof Semantic Contract Requirement Count
           default: 0
         risk_proof_contract_count:
           type: integer

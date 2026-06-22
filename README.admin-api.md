@@ -461,6 +461,13 @@ shown as display evidence, but `proof_record_resolves_acceptance` remains
 false and blocker fields explain the missing futures semantic contracts,
 blocking acceptance criteria, missing command route, disabled command draft,
 and disabled live execution posture.
+M57 phases 5841-5860 add semantic contract requirement rows below each
+futures/perpetual risk-proof requirement. These rows enumerate the exact
+missing contract refs derived from existing futures semantic guards, expose
+runtime-observed evidence as display-only, and keep semantic contract
+registration, proof acceptance, command route registration, command drafting,
+Coinbase activity, reconciliation execution, state mutation, browser
+authority, and BFF execution authority disabled.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

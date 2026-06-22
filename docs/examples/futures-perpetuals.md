@@ -11,14 +11,15 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5821-5840 range adds explicit M57 futures/perpetual risk-proof
-acceptance blocker evidence to `GET /api/v1/futures/command-suite`. Concrete
-risk-proof record routes at `/api/v1/futures/risk-proofs` remain read-only
-resolver evidence. Exact safe latest records may be displayed, while missing or
-stale/invalid records fail closed. Resolver evidence does not satisfy risk
-proof requirements, register futures command routes, create command drafts,
-call Coinbase, execute reconciliation, mutate futures/order/exchange state, or
-grant browser/BFF authority.
+The active 5841-5860 range adds explicit M57 futures/perpetual semantic
+contract requirement evidence to `GET /api/v1/futures/command-suite`.
+Concrete risk-proof record routes at `/api/v1/futures/risk-proofs` remain
+read-only resolver evidence. Exact safe latest records may be displayed, while
+missing or stale/invalid records fail closed. Resolver evidence and runtime
+evidence do not register semantic contracts, satisfy risk proof requirements,
+register futures command routes, create command drafts, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+authority.
 
 The command-suite contract still exposes read-only M57 futures/perpetual risk
 proof record-validation remediation dependency work-item claim-trace
@@ -92,7 +93,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5821-5840",
+  "approved_phase_range": "5841-5860",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -118,6 +119,10 @@ Expected response posture:
   "stale_or_invalid_risk_proof_record_resolver_count": 0,
   "risk_proof_acceptance_blocker_count": 120,
   "proof_record_resolved_but_acceptance_blocked_count": 0,
+  "risk_proof_semantic_contract_requirement_count": 34,
+  "blocking_risk_proof_semantic_contract_requirement_count": 34,
+  "registered_risk_proof_semantic_contract_count": 0,
+  "runtime_observed_risk_proof_semantic_contract_requirement_count": 8,
   "risk_proof_contract_count": 40,
   "blocking_risk_proof_contract_count": 40,
   "registered_risk_proof_route_count": 0,
@@ -639,6 +644,10 @@ Expected response posture:
       "accepted_risk_proof_acceptance_criterion_count": 0,
       "risk_proof_acceptance_blocker_count": 36,
       "proof_record_resolved_but_acceptance_blocked_count": 0,
+      "risk_proof_semantic_contract_requirement_count": 10,
+      "blocking_risk_proof_semantic_contract_requirement_count": 10,
+      "registered_risk_proof_semantic_contract_count": 0,
+      "runtime_observed_risk_proof_semantic_contract_requirement_count": 4,
       "risk_proof_requirements": [
         {
           "proof_kind": "product_scope",
@@ -661,6 +670,40 @@ Expected response posture:
             "futures_command_product_scope_contract"
           ],
           "runtime_evidence_observed": false,
+          "semantic_contract_requirement_count": 2,
+          "blocking_semantic_contract_requirement_count": 2,
+          "registered_semantic_contract_count": 0,
+          "runtime_observed_semantic_contract_requirement_count": 0,
+          "semantic_contract_requirements": [
+            {
+              "proof_kind": "product_scope",
+              "semantic_guard": "product_scope",
+              "sequence": 1,
+              "status": "blocked",
+              "blocking": true,
+              "required_contract_ref": "futures_product_scope_readback",
+              "missing_contract_ref": "futures_product_scope_readback",
+              "evidence_routes": [
+                "/api/v1/futures/account",
+                "/api/v1/futures/positions"
+              ],
+              "runtime_evidence_observed": false,
+              "runtime_evidence_satisfies_contract": false,
+              "contract_registered": false,
+              "acceptance_ready": false,
+              "satisfies_risk_proof": false,
+              "command_route_registered": false,
+              "command_draft_allowed": false,
+              "execution_allowed": false,
+              "proof_route_registered": false,
+              "proof_writer_enabled": false,
+              "backend_owned": true,
+              "read_only": true,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            }
+          ],
           "proof_route_required": true,
           "proof_route_registered": false,
           "proof_writer_enabled": false,
@@ -1215,6 +1258,40 @@ Expected response posture:
             "futures_cap_guard_margin_collateral_link"
           ],
           "runtime_evidence_observed": true,
+          "semantic_contract_requirement_count": 2,
+          "blocking_semantic_contract_requirement_count": 2,
+          "registered_semantic_contract_count": 0,
+          "runtime_observed_semantic_contract_requirement_count": 2,
+          "semantic_contract_requirements": [
+            {
+              "proof_kind": "margin_collateral",
+              "semantic_guard": "margin_collateral",
+              "sequence": 1,
+              "status": "blocked",
+              "blocking": true,
+              "required_contract_ref": "futures_margin_collateral_risk_contract",
+              "missing_contract_ref": "futures_margin_collateral_risk_contract",
+              "evidence_routes": [
+                "/api/v1/futures/account",
+                "/api/v1/admin/cap-guard/decisions"
+              ],
+              "runtime_evidence_observed": true,
+              "runtime_evidence_satisfies_contract": false,
+              "contract_registered": false,
+              "acceptance_ready": false,
+              "satisfies_risk_proof": false,
+              "command_route_registered": false,
+              "command_draft_allowed": false,
+              "execution_allowed": false,
+              "proof_route_registered": false,
+              "proof_writer_enabled": false,
+              "backend_owned": true,
+              "read_only": true,
+              "spot_rule_authority": false,
+              "browser_authority": "display_only",
+              "bff_authority": "forward_only_no_execution"
+            }
+          ],
           "proof_route_required": true,
           "proof_route_registered": false,
           "proof_writer_enabled": false,

@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5821-5840",
+  "approved_phase_range": "5841-5860",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5821-5840",
+  "approved_phase_range": "5841-5860",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5821-5840",
+  "approved_phase_range": "5841-5860",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1986,6 +1986,10 @@ Expected command-suite posture:
   "accepted_risk_proof_acceptance_criterion_count": 0,
   "risk_proof_acceptance_blocker_count": 120,
   "proof_record_resolved_but_acceptance_blocked_count": 0,
+  "risk_proof_semantic_contract_requirement_count": 34,
+  "blocking_risk_proof_semantic_contract_requirement_count": 34,
+  "registered_risk_proof_semantic_contract_count": 0,
+  "runtime_observed_risk_proof_semantic_contract_requirement_count": 8,
   "forbidden_spot_assumptions": [
     "spot_wallet_available",
     "spot_no_shorting",
@@ -2175,9 +2179,12 @@ recorded:
 Each proof also includes
 `"acceptance_criteria"` for required evidence, proof route registration,
 proof-writer review, spot-rule boundary review, and browser/BFF authority
-review. Active 5821-5840 rows also expose `"proof_acceptance_blockers"` and
+review. Completed 5821-5840 rows also expose `"proof_acceptance_blockers"` and
 `"proof_record_resolves_acceptance"` so a resolved safe proof record remains
-display evidence only. These rows are blocked evidence only. They do not
+display evidence only. Active 5841-5860 rows add
+`"semantic_contract_requirements"` plus semantic-contract aggregate counters
+so the exact missing futures semantic contract refs are visible. These rows
+are blocked evidence only. They do not
 register command routes, create drafts, validate payloads, write proofs, enable
 writers, resolve dependencies, create remediation or dependency work items,
 claim work items, create or resolve claim traces, create or execute clearance

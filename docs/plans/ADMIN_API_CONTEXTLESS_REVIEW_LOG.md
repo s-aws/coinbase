@@ -1,5 +1,50 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Semantic Contract Requirement Evidence - Phases 5841-5860
+
+Scope: phases `5841-5860`, after completed history `5821-5840`, add explicit
+futures semantic contract requirement evidence to `GET
+/api/v1/futures/command-suite`. The command suite may consume safe display
+evidence from `/api/v1/futures/risk-proofs` and explicit proof-acceptance
+blocker evidence, but semantic contract refs remain missing until backend
+contracts are actually registered. Runtime evidence may be observed, but it
+does not satisfy proof acceptance, register command routes, create command
+drafts, trigger Coinbase activity, execute reconciliation, mutate futures
+state, or grant browser/BFF authority.
+
+Result: PASS after remediation.
+
+- Backend rows must expose `risk_proof_record_resolver_count`,
+  `risk_proof_acceptance_blocker_count`,
+  `risk_proof_semantic_contract_requirement_count`,
+  `semantic_contract_requirements`, `proof_record_lookup_status`,
+  `proof_acceptance_blockers`, `proof_record_resolves_acceptance`, and
+  `backend_futures_semantics_no_execution` so a contextless reader can see
+  that resolved safe proof records and observed runtime evidence remain
+  display-only blocker evidence.
+- Frontend rows must consume `proofRecordLookupStatus`,
+  `proofAcceptanceBlockers`, and `semanticContractRequirements` as
+  backend-owned display evidence. The browser must not infer semantic contract
+  registration, proof acceptance, command drafting, execution permission, or
+  futures risk semantics from these rows.
+- Machine-check exact phrase line: futures semantic contract requirement evidence; /api/v1/futures/risk-proofs; risk_proof_record_resolver_count; risk_proof_acceptance_blocker_count; risk_proof_semantic_contract_requirement_count; semantic_contract_requirements; proof_record_lookup_status; proof_acceptance_blockers; proof_record_resolves_acceptance; proofRecordLookupStatus; proofAcceptanceBlockers; semanticContractRequirements; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+- Review result: blind/contextless backend reviewer
+  `019eefe3-f703-7e81-8e5c-6086a76fa73c` found no blockers. The reviewer
+  confirmed semantic contract requirement rows remain display-only,
+  backend-owned, blocked, unregistered, no-route, no-draft, no-execution, and
+  no browser/BFF/spot-rule authority. The only note was this top log entry
+  still being marked pending; that note was remediated here.
+- No live Coinbase execution was run. Submitted notional `0` USDC. Executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5841-5860` are
+  ordinary phase work; focused gates cover the changed contract. Full
+  regression remains reserved for durable milestone closeout or explicit user
+  request.
+- Phase-end stale-subagent sweep completed after consuming the review result:
+  backend reviewer `019eefe3-f703-7e81-8e5c-6086a76fa73c` and frontend
+  reviewer `019eefe4-0b25-7712-ae16-eed5cd6c70fe` were closed. No
+  phase-scoped, stale, or unused subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Risk-Proof Acceptance Blocker Evidence - Phases 5821-5840
 
 Scope: phases `5821-5840`, after completed history `5801-5820`, add explicit
