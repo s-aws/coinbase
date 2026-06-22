@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5781-5800` under M57.
-- Active autonomous range: `5801-5820` under M57.
+- Latest completed autonomous range: `5801-5820` under M57.
+- Active autonomous range: `5821-5840` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -737,13 +737,14 @@ notional, retained inventory, reconciliation result, and audit ids.
   no review input acceptance, validation, evidence writing, Coinbase calls,
   state mutation, browser authority, or BFF execution authority. Completed
   5781-5800 work added concrete append-only futures risk-proof record routes at
-  `/api/v1/futures/risk-proofs` plus list/detail readbacks. Active 5801-5820
-  work consumes those records as read-only command-suite resolver evidence so
-  exact safe latest records can be displayed and missing/stale records fail
-  closed without satisfying risk proof requirements, accepting a futures
-  command, creating a command draft, calling Coinbase, executing
-  reconciliation, mutating futures/order/exchange state, or granting browser
-  or BFF execution authority.
+  `/api/v1/futures/risk-proofs` plus list/detail readbacks. Completed
+  5801-5820 work consumes those records as read-only command-suite resolver
+  evidence so exact safe latest records can be displayed and missing/stale
+  records fail closed. Active 5821-5840 work adds explicit proof-acceptance
+  blocker evidence so a resolved safe proof record still cannot satisfy risk
+  proof requirements, accept a futures command, create a command draft, call
+  Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+  grant browser or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

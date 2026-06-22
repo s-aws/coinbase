@@ -1198,6 +1198,17 @@ class AdminFuturesCommandRiskProofAcceptanceCheck(str, Enum):
     BROWSER_BFF_AUTHORITY_REVIEWED = "browser_bff_authority_reviewed"
 
 
+class AdminFuturesCommandRiskProofAcceptanceBlocker(str, Enum):
+    """Reasons a futures risk proof record cannot yet satisfy command readiness."""
+
+    FUTURES_SEMANTIC_CONTRACTS_MISSING = "futures_semantic_contracts_missing"
+    PROOF_RECORD_NOT_ACCEPTED = "proof_record_not_accepted"
+    ACCEPTANCE_CRITERIA_BLOCKING = "acceptance_criteria_blocking"
+    COMMAND_ROUTE_MISSING = "command_route_missing"
+    COMMAND_DRAFT_DISABLED = "command_draft_disabled"
+    LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+
+
 class AdminFuturesCommandRiskProofContractKind(str, Enum):
     """Backend contracts required before a futures risk proof can be accepted."""
 

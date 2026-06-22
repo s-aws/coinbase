@@ -25,6 +25,7 @@ from core.enums import (
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
+    AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
@@ -387,7 +388,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5801-5820"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "5821-5840"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -26967,6 +26968,60 @@ class AdminApiReadService:
                     ) in enumerate(checks)
                 ]
 
+            def proof_acceptance_blocker_evidence(
+                *,
+                proof_kind: AdminFuturesCommandRiskProofKind,
+                criteria: list[AdminFuturesCommandRiskProofAcceptanceCriterionItem],
+            ) -> tuple[
+                list[AdminFuturesCommandRiskProofAcceptanceBlocker],
+                list[str],
+                list[str],
+            ]:
+                blockers = [
+                    AdminFuturesCommandRiskProofAcceptanceBlocker.FUTURES_SEMANTIC_CONTRACTS_MISSING,
+                    AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED,
+                    AdminFuturesCommandRiskProofAcceptanceBlocker.ACCEPTANCE_CRITERIA_BLOCKING,
+                    AdminFuturesCommandRiskProofAcceptanceBlocker.COMMAND_ROUTE_MISSING,
+                    AdminFuturesCommandRiskProofAcceptanceBlocker.COMMAND_DRAFT_DISABLED,
+                    AdminFuturesCommandRiskProofAcceptanceBlocker.LIVE_EXECUTION_DISABLED,
+                ]
+                refs = [
+                    f"{command_id.value}_{proof_kind.value}_futures_semantic_contracts",
+                    f"{command_id.value}_{proof_kind.value}_proof_record_acceptance",
+                    f"{command_id.value}_{proof_kind.value}_acceptance_criteria",
+                    f"{command_id.value}_command_route",
+                    f"{command_id.value}_command_draft",
+                    f"{command_id.value}_live_execution",
+                ]
+                details = [
+                    (
+                        "Backend-owned futures/perpetual semantic contracts "
+                        "are still missing for this command and proof kind."
+                    ),
+                    (
+                        "The latest futures risk proof record is display "
+                        "evidence only and cannot be accepted as readiness "
+                        "authority yet."
+                    ),
+                    (
+                        f"{sum(1 for criterion in criteria if criterion.blocking)} "
+                        "risk-proof acceptance criteria remain blocking."
+                    ),
+                    (
+                        "No backend futures/perpetual command route is "
+                        "registered for this command."
+                    ),
+                    (
+                        "Command drafting remains disabled until backend "
+                        "contracts and proof acceptance are implemented."
+                    ),
+                    (
+                        "Live futures/perpetual execution remains disabled; "
+                        "this row cannot call Coinbase or authorize execution."
+                    ),
+                ]
+                return blockers, refs, details
+
             prerequisites_by_id = {
                 item.prerequisite: item for item in prerequisites
             }
@@ -27261,6 +27316,14 @@ class AdminApiReadService:
                             AdminFuturesCommandRiskProofRecordLookupStatus.STALE_OR_INVALID
                         )
                     )
+                )
+                (
+                    proof_acceptance_blockers,
+                    proof_acceptance_blocker_refs,
+                    proof_acceptance_blocker_details,
+                ) = proof_acceptance_blocker_evidence(
+                    proof_kind=proof_kind,
+                    criteria=criteria,
                 )
                 rows.append(
                     AdminFuturesCommandRiskProofRequirementItem(
@@ -27850,6 +27913,18 @@ class AdminApiReadService:
                             if latest_proof_record is not None
                             else False
                         ),
+                        proof_acceptance_blocked=True,
+                        proof_acceptance_blocker_count=len(
+                            proof_acceptance_blockers
+                        ),
+                        proof_acceptance_blockers=proof_acceptance_blockers,
+                        proof_acceptance_blocker_refs=(
+                            proof_acceptance_blocker_refs
+                        ),
+                        proof_acceptance_blocker_details=(
+                            proof_acceptance_blocker_details
+                        ),
+                        proof_record_resolves_acceptance=False,
                         acceptance_criterion_count=len(criteria),
                         blocking_acceptance_criterion_count=sum(
                             1 for criterion in criteria if criterion.blocking
@@ -27966,6 +28041,16 @@ class AdminApiReadService:
                     1
                     for item in proof_requirements
                     if item.proof_record_stale_or_invalid
+                ),
+                risk_proof_acceptance_blocker_count=sum(
+                    item.proof_acceptance_blocker_count
+                    for item in proof_requirements
+                ),
+                proof_record_resolved_but_acceptance_blocked_count=sum(
+                    1
+                    for item in proof_requirements
+                    if item.proof_record_resolved
+                    and item.proof_acceptance_blocked
                 ),
                 risk_proof_contract_count=sum(
                     item.proof_contract_count for item in proof_requirements
@@ -28432,6 +28517,14 @@ class AdminApiReadService:
             ),
             stale_or_invalid_risk_proof_record_resolver_count=sum(
                 command.stale_or_invalid_risk_proof_record_resolver_count
+                for command in commands
+            ),
+            risk_proof_acceptance_blocker_count=sum(
+                command.risk_proof_acceptance_blocker_count
+                for command in commands
+            ),
+            proof_record_resolved_but_acceptance_blocked_count=sum(
+                command.proof_record_resolved_but_acceptance_blocked_count
                 for command in commands
             ),
             risk_proof_contract_count=sum(

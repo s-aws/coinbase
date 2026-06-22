@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **5801-5820**.
+- Approved phase range: **5821-5840**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5781-5800`.
+- Previous completed range: `5801-5820`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5800`.
+- `current_phase`: `5820`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,128 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5801-5820
+## Active Phases 5821-5840
+
+Batch label: Futures/Perpetuals Risk Proof Acceptance Blocker Evidence.
+
+These phases make M57 proof-acceptance blockers explicit in
+`GET /api/v1/futures/command-suite`. Phases `5801-5820` proved the suite can
+resolve the latest exact futures/perpetual risk-proof record from
+`/api/v1/futures/risk-proofs` as safe display evidence. Active `5821-5840`
+adds typed blocker evidence showing why even a resolved safe proof record does
+not satisfy risk proof readiness, register command routes, create command
+drafts, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, grant browser/BFF authority, or import Spot wallet/no-shorting/USDC/
+cost-basis rules into futures/perpetuals.
+
+### Phase 5821 - Prior Range Closure
+
+- Record completed phases `5801-5820` as historical M57 proof-record resolver
+  evidence and move active metadata to `5821-5840`.
+
+### Phase 5822 - Acceptance Blocker Scope Contract
+
+- Document the blocker-only gap: safe proof records can be resolved for display,
+  but proof acceptance still remains blocked until futures semantic contracts,
+  proof acceptance criteria, command routes, drafts, and live execution gates
+  exist.
+
+### Phase 5823 - Acceptance Blocker Enum
+
+- Add enum-backed futures/perpetual risk-proof acceptance blocker values without
+  reusing stealth or spot-specific blocker enums.
+
+### Phase 5824 - Requirement Blocker Fields
+
+- Add typed blocker fields to each futures risk-proof requirement row:
+  `proof_acceptance_blocked`, blocker count, blocker ids, blocker refs, blocker
+  details, blocker authority, and `proof_record_resolves_acceptance`.
+
+### Phase 5825 - Safe Record Still Blocked Proof
+
+- Prove a resolved safe latest proof record remains display evidence only:
+  `proof_record_resolved` may be true, but `proof_record_resolves_acceptance`,
+  `satisfies_risk_proof`, command route, draft, execution, and live flags remain
+  false.
+
+### Phase 5826 - Missing And Unsafe Record Blockers
+
+- Keep missing proof records and unsafe latest proof records blocked with the
+  same no-acceptance semantics while preserving missing/stale resolver posture.
+
+### Phase 5827 - Command Aggregates
+
+- Add command-level acceptance blocker counts and resolved-but-blocked proof
+  record counts.
+
+### Phase 5828 - Suite Aggregates
+
+- Add suite-level acceptance blocker counts and resolved-but-blocked proof
+  record counts.
+
+### Phase 5829 - Backend Schema Contract Tests
+
+- Update OpenAPI/schema tests so contextless consumers can discover the new
+  blocker fields without chat context.
+
+### Phase 5830 - Backend Resolver Tests
+
+- Add focused regression coverage for safe resolved, missing, and unsafe latest
+  proof rows proving blocker evidence does not enable command drafting or live
+  execution.
+
+### Phase 5831 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI and route inventory artifacts from backend-owned
+  source after the blocker contract changes.
+
+### Phase 5832 - Frontend Schema Sync
+
+- Regenerate the frontend generated TypeScript schema from backend OpenAPI.
+
+### Phase 5833 - Frontend Mock Contract
+
+- Update frontend mock futures command-suite fixtures and quality artifacts
+  with blocker fields and active range `5821-5840`.
+
+### Phase 5834 - Frontend Adapter Mapping
+
+- Map blocker fields into the futures/perpetual read model using the canonical
+  backend API adapter path.
+
+### Phase 5835 - Frontend Blocker Display
+
+- Render proof-acceptance blockers as display-only backend evidence, clearly
+  separate from resolver status and command enablement.
+
+### Phase 5836 - Frontend Unit Coverage
+
+- Add focused unit coverage for schema consumption, mocks, runtime snapshots,
+  read-model rendering, and quality-gate active range.
+
+### Phase 5837 - Docs And Examples
+
+- Update backend/frontend docs, examples, capability matrix, maintainer
+  handoff, contextless review logs, and agent state for blocker semantics.
+
+### Phase 5838 - Focused Gates
+
+- Run focused backend compile/regression/contract/queue/ownership checks and
+  focused frontend API/type/unit checks that cover the blocker contract.
+
+### Phase 5839 - Contextless Review And Subagent Sweep
+
+- Run blind/contextless review for backend/frontend clarity, remediate or
+  explicitly defer findings, then close phase-scoped, stale, and unused
+  subagents after findings are consumed.
+
+### Phase 5840 - Phase Closeout Evidence
+
+- Record implementation, verification, no-live Coinbase posture, submitted and
+  executed notional `0` USDC, review outcome, stale-subagent sweep result,
+  commits, pushes, and the next milestone-linked work.
+
+## Completed Phases 5801-5820
 
 Batch label: Futures/Perpetuals Risk Proof Record Resolver Evidence.
 
@@ -94,113 +215,6 @@ drafts, call Coinbase, execute reconciliation, mutate futures/order/exchange
 state, grant browser/BFF authority, or import Spot wallet/no-shorting/USDC/
 cost-basis rules into futures/perpetuals. Latest unsafe records fail closed as
 stale/invalid and must not fall back to older safe records.
-
-### Phase 5801 - Prior Range Closure
-
-- Record completed phases `5781-5800` as historical M57 proof-record route
-  evidence and move active metadata to `5801-5820`.
-
-### Phase 5802 - Resolver Scope Contract
-
-- Document the resolver-only gap: proof records can be found from the
-  append-only store, but they remain display evidence and cannot satisfy M57
-  futures command prerequisites.
-
-### Phase 5803 - Resolver Enum
-
-- Add enum-backed futures/perpetual risk-proof record lookup status values
-  without reusing stealth or spot-specific status enums.
-
-### Phase 5804 - Read Service Store Binding
-
-- Thread the existing `FileFuturesRiskProofStore` into `AdminApiReadService`
-  and the futures route dependency so command-suite reads use the same
-  backend-owned source as risk-proof list/detail routes.
-
-### Phase 5805 - Exact Latest Lookup
-
-- Resolve only the latest exact command/proof-kind futures risk-proof record
-  from the append-only store.
-
-### Phase 5806 - Safe Display Validation
-
-- Treat a record as safe display evidence only when it is dry-run,
-  append-only, no-live, no-command-route, no-command-draft, no-Coinbase,
-  no-reconciliation-execution, and no state-mutation evidence.
-
-### Phase 5807 - Fail-Closed Unsafe Latest Record
-
-- Mark unsafe latest records `stale_or_invalid`, expose the unsafe latest
-  proof id for audit visibility, and do not fall back to older safe records.
-
-### Phase 5808 - Requirement Resolver Fields
-
-- Add typed lookup status, resolved proof id, evidence ref, missing reason,
-  stale/invalid posture, and no-authority fields to each risk-proof
-  requirement row.
-
-### Phase 5809 - Command And Suite Aggregates
-
-- Add command-level and suite-level resolver counts for total, resolved,
-  missing, and stale/invalid proof-record evidence.
-
-### Phase 5810 - Route Dependency Proof
-
-- Add focused coverage proving the command-suite route dependency builds the
-  read service with the same futures risk-proof store dependency used by the
-  risk-proof readback routes.
-
-### Phase 5811 - Backend Focused Tests
-
-- Add focused regression coverage for safe resolver evidence, unsafe latest
-  fail-closed behavior, missing evidence, no command enablement, and no live
-  Coinbase state.
-
-### Phase 5812 - OpenAPI Regeneration
-
-- Regenerate backend OpenAPI and route inventory artifacts from backend-owned
-  source after the command-suite contract changes.
-
-### Phase 5813 - Frontend Schema Sync
-
-- Regenerate the frontend generated TypeScript schema from backend OpenAPI.
-
-### Phase 5814 - Frontend Mock Contract
-
-- Update frontend mock futures command-suite fixtures and quality artifacts
-  with resolver fields and active range `5801-5820`.
-
-### Phase 5815 - Frontend Read Model Display
-
-- Render resolver status for futures risk-proof requirements as display-only
-  evidence, clearly separated from proof acceptance and command enablement.
-
-### Phase 5816 - Frontend Unit Coverage
-
-- Add focused unit coverage for schema consumption, mocks, runtime snapshots,
-  read-model rendering, and quality-gate active range.
-
-### Phase 5817 - Docs And Examples
-
-- Update backend/frontend docs, examples, capability matrix, maintainer
-  handoff, contextless review logs, and agent state for resolver semantics.
-
-### Phase 5818 - Focused Gates
-
-- Run focused backend compile/regression/contract/queue/ownership checks and
-  focused frontend API/type/unit checks that cover the resolver contract.
-
-### Phase 5819 - Contextless Review And Subagent Sweep
-
-- Run blind/contextless review for backend/frontend clarity, remediate or
-  explicitly defer findings, then close phase-scoped, stale, and unused
-  subagents after findings are consumed.
-
-### Phase 5820 - Phase Closeout Evidence
-
-- Record implementation, verification, no-live Coinbase posture, submitted and
-  executed notional `0` USDC, review outcome, stale-subagent sweep result,
-  commits, pushes, and the next milestone-linked work.
 
 ## Completed Phases 5781-5800
 

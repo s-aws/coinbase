@@ -455,6 +455,12 @@ resolver evidence, while missing or stale/invalid records fail closed. Resolver
 evidence does not satisfy risk proof requirements, register futures command
 routes, create command drafts, call Coinbase, execute reconciliation, mutate
 state, or grant browser/BFF authority.
+M57 phases 5821-5840 add explicit proof-acceptance blocker evidence to the
+same futures/perpetual command-suite rows. A safe resolved proof record can be
+shown as display evidence, but `proof_record_resolves_acceptance` remains
+false and blocker fields explain the missing futures semantic contracts,
+blocking acceptance criteria, missing command route, disabled command draft,
+and disabled live execution posture.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

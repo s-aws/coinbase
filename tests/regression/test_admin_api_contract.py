@@ -7436,6 +7436,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "accepted_risk_proof_acceptance_criterion_count" in (
         futures_command_suite_schema["properties"]
     )
+    assert "risk_proof_acceptance_blocker_count" in (
+        futures_command_suite_schema["properties"]
+    )
+    assert "proof_record_resolved_but_acceptance_blocked_count" in (
+        futures_command_suite_schema["properties"]
+    )
     assert "forbidden_spot_assumptions" in futures_command_suite_schema[
         "properties"
     ]
@@ -7559,6 +7565,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "accepted_risk_proof_acceptance_criterion_count" in (
         futures_command_item_schema["properties"]
     )
+    assert "risk_proof_acceptance_blocker_count" in (
+        futures_command_item_schema["properties"]
+    )
+    assert "proof_record_resolved_but_acceptance_blocked_count" in (
+        futures_command_item_schema["properties"]
+    )
     assert "risk_proof_requirements" in futures_command_item_schema["properties"]
     assert "command_route_registered" in futures_command_item_schema["properties"]
     assert "command_draft_allowed" in futures_command_item_schema["properties"]
@@ -7679,6 +7691,16 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "accepted_acceptance_criterion_count" in (
         futures_risk_proof_schema["properties"]
     )
+    for property_name in (
+        "proof_acceptance_blocked",
+        "proof_acceptance_blocker_count",
+        "proof_acceptance_blockers",
+        "proof_acceptance_blocker_refs",
+        "proof_acceptance_blocker_details",
+        "proof_acceptance_blocker_authority",
+        "proof_record_resolves_acceptance",
+    ):
+        assert property_name in futures_risk_proof_schema["properties"]
     assert "satisfies_risk_proof" in futures_risk_proof_schema["properties"]
     assert "spot_rule_authority" in futures_risk_proof_schema["properties"]
     futures_proof_contract_schema = written["components"]["schemas"][
@@ -43623,7 +43645,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "5801-5820"
+    assert futures_command_suite_fixture["approved_phase_range"] == "5821-5840"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 0
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
@@ -46826,7 +46848,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "5801-5820",
+            "approved_phase_range": "5821-5840",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -47141,7 +47163,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "5801-5820"
+    assert command_suite["approved_phase_range"] == "5821-5840"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -47297,7 +47319,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "5801-5820"
+    assert command_suite.approved_phase_range == "5821-5840"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -47320,6 +47342,8 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.resolved_risk_proof_record_resolver_count == 0
     assert command_suite.missing_risk_proof_record_resolver_count == 20
     assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 0
+    assert command_suite.risk_proof_acceptance_blocker_count == 120
+    assert command_suite.proof_record_resolved_but_acceptance_blocked_count == 0
     assert command_suite.risk_proof_contract_count == 40
     assert command_suite.blocking_risk_proof_contract_count == 40
     assert command_suite.registered_risk_proof_route_count == 0
@@ -47694,6 +47718,10 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             expected_risk_proof_kinds[command_id]
         )
         assert command_item.stale_or_invalid_risk_proof_record_resolver_count == 0
+        assert command_item.risk_proof_acceptance_blocker_count == (
+            len(expected_risk_proof_kinds[command_id]) * 6
+        )
+        assert command_item.proof_record_resolved_but_acceptance_blocked_count == 0
         assert command_item.risk_proof_acceptance_criterion_count == (
             len(expected_risk_proof_kinds[command_id]) * 5
         )
@@ -51259,6 +51287,22 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
                             == "forward_only_no_execution"
                             for input_row in nested_review_inputs
                         )
+            assert item.proof_acceptance_blocked is True
+            assert item.proof_acceptance_blocker_count == 6
+            assert item.proof_record_resolves_acceptance is False
+            assert item.proof_acceptance_blocker_authority == (
+                "backend_futures_semantics_no_execution"
+            )
+            assert [blocker.value for blocker in item.proof_acceptance_blockers] == [
+                "futures_semantic_contracts_missing",
+                "proof_record_not_accepted",
+                "acceptance_criteria_blocking",
+                "command_route_missing",
+                "command_draft_disabled",
+                "live_execution_disabled",
+            ]
+            assert len(item.proof_acceptance_blocker_refs) == 6
+            assert len(item.proof_acceptance_blocker_details) == 6
             assert [criterion.sequence for criterion in item.acceptance_criteria] == [
                 1,
                 2,

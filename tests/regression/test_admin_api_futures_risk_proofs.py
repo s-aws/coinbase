@@ -47,6 +47,7 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRole,
     AdminFuturesCommandAction,
+    AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesRiskProofEvidenceSource,
 )
@@ -611,7 +612,11 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert command_suite.resolved_risk_proof_record_resolver_count == 1
     assert command_suite.missing_risk_proof_record_resolver_count == 19
     assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 0
+    assert command_suite.risk_proof_acceptance_blocker_count == 120
+    assert command_suite.proof_record_resolved_but_acceptance_blocked_count == 1
     assert place.resolved_risk_proof_record_resolver_count == 1
+    assert place.risk_proof_acceptance_blocker_count == 36
+    assert place.proof_record_resolved_but_acceptance_blocked_count == 1
     assert margin_collateral.proof_record_lookup_status.value == "resolved"
     assert margin_collateral.latest_futures_risk_proof_id == (
         record.futures_risk_proof_id
@@ -619,6 +624,24 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert margin_collateral.proof_record_resolved is True
     assert margin_collateral.proof_record_stale_or_invalid is False
     assert margin_collateral.proof_record_satisfies_requirement is False
+    assert margin_collateral.proof_acceptance_blocked is True
+    assert margin_collateral.proof_acceptance_blocker_count == 6
+    assert margin_collateral.proof_record_resolves_acceptance is False
+    assert margin_collateral.proof_acceptance_blockers == [
+        AdminFuturesCommandRiskProofAcceptanceBlocker.FUTURES_SEMANTIC_CONTRACTS_MISSING,
+        AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED,
+        AdminFuturesCommandRiskProofAcceptanceBlocker.ACCEPTANCE_CRITERIA_BLOCKING,
+        AdminFuturesCommandRiskProofAcceptanceBlocker.COMMAND_ROUTE_MISSING,
+        AdminFuturesCommandRiskProofAcceptanceBlocker.COMMAND_DRAFT_DISABLED,
+        AdminFuturesCommandRiskProofAcceptanceBlocker.LIVE_EXECUTION_DISABLED,
+    ]
+    assert (
+        "futures_place_margin_collateral_acceptance_criteria"
+        in margin_collateral.proof_acceptance_blocker_refs
+    )
+    assert margin_collateral.proof_acceptance_blocker_authority == (
+        "backend_futures_semantics_no_execution"
+    )
     assert margin_collateral.satisfies_risk_proof is False
     assert margin_collateral.command_route_registered is False
     assert margin_collateral.command_draft_allowed is False
@@ -672,6 +695,8 @@ def test_futures_command_suite_fails_closed_on_latest_unsafe_risk_proof_record(
 
     assert command_suite.resolved_risk_proof_record_resolver_count == 0
     assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 1
+    assert command_suite.risk_proof_acceptance_blocker_count == 120
+    assert command_suite.proof_record_resolved_but_acceptance_blocked_count == 0
     assert margin_collateral.proof_record_lookup_status.value == "stale_or_invalid"
     assert margin_collateral.latest_futures_risk_proof_id == (
         unsafe_record.futures_risk_proof_id
@@ -685,6 +710,13 @@ def test_futures_command_suite_fails_closed_on_latest_unsafe_risk_proof_record(
         "latest_futures_risk_proof_record_unsafe_or_authority_claimed"
     )
     assert margin_collateral.proof_record_satisfies_requirement is False
+    assert margin_collateral.proof_acceptance_blocked is True
+    assert margin_collateral.proof_acceptance_blocker_count == 6
+    assert margin_collateral.proof_record_resolves_acceptance is False
+    assert (
+        AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED
+        in margin_collateral.proof_acceptance_blockers
+    )
     assert margin_collateral.satisfies_risk_proof is False
     assert margin_collateral.command_execution_allowed is False
 
@@ -725,4 +757,10 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
         record.futures_risk_proof_id
     )
     assert margin_collateral["proof_record_satisfies_requirement"] is False
+    assert margin_collateral["proof_acceptance_blocked"] is True
+    assert margin_collateral["proof_acceptance_blocker_count"] == 6
+    assert margin_collateral["proof_record_resolves_acceptance"] is False
+    assert "acceptance_criteria_blocking" in (
+        margin_collateral["proof_acceptance_blockers"]
+    )
     assert margin_collateral["command_execution_allowed"] is False

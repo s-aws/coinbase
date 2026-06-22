@@ -1,5 +1,39 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Risk-Proof Acceptance Blocker Evidence - Phases 5821-5840
+
+Scope: phases `5821-5840`, after completed history `5801-5820`, add explicit
+futures risk-proof acceptance blocker evidence to `GET
+/api/v1/futures/command-suite`. The command suite may consume safe display
+evidence from `/api/v1/futures/risk-proofs`, but proof acceptance remains
+blocked and no command route, command draft, Coinbase activity, reconciliation
+execution, futures state mutation, or browser/BFF authority is allowed.
+
+Result: PASS after remediation.
+
+- Backend rows expose `risk_proof_record_resolver_count`,
+  `risk_proof_acceptance_blocker_count`, `proof_record_lookup_status`,
+  `proof_acceptance_blockers`, `proof_record_resolves_acceptance`, and
+  `backend_futures_semantics_no_execution` so a contextless reader can see that
+  resolved safe proof records remain display-only blocker evidence.
+- Frontend rows consume `proofRecordLookupStatus` and
+  `proofAcceptanceBlockers` as backend-owned display evidence. The browser does
+  not infer proof acceptance, command drafting, execution permission, or
+  futures risk semantics from these rows.
+- Review result: blind/contextless backend and frontend reviewers found no
+  unsafe code-path blocker. Both reviewers blocked only on this top log entry
+  still being marked pending and on line-wrapped validator phrases; those
+  review-log findings were remediated here.
+- Machine-check exact phrase line: futures risk-proof acceptance blocker evidence; /api/v1/futures/risk-proofs; risk_proof_record_resolver_count; risk_proof_acceptance_blocker_count; proof_record_lookup_status; proof_acceptance_blockers; proof_record_resolves_acceptance; proofRecordLookupStatus; proofAcceptanceBlockers; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+- No live Coinbase execution was run. Submitted notional `0` USDC. Executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5821-5840` are ordinary
+  phase work; focused gates cover the changed contract.
+- Phase-end stale-subagent sweep completed after consuming and remediating the
+  review findings: backend reviewer `019eefbc-fa1a-7423-9a1e-296a367a1c09`
+  and frontend reviewer `019eefbd-371a-7293-8360-6f9c7732ca06` were closed.
+  No phase-scoped, stale, or unused subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Risk-Proof Record Resolver Evidence - Phases 5801-5820
 
 Scope: phases `5801-5820`, after completed history `5781-5800`, consume the

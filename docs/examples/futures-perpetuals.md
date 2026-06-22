@@ -11,13 +11,14 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5801-5820 range consumes concrete M57 futures/perpetual risk-proof
-record routes at `/api/v1/futures/risk-proofs` as read-only command-suite
-resolver evidence. Exact safe latest records may be displayed as resolver
-evidence, while missing or stale/invalid records fail closed. Resolver evidence
-does not satisfy risk proof requirements, register futures command routes,
-create command drafts, call Coinbase, execute reconciliation, mutate
-futures/order/exchange state, or grant browser/BFF authority.
+The active 5821-5840 range adds explicit M57 futures/perpetual risk-proof
+acceptance blocker evidence to `GET /api/v1/futures/command-suite`. Concrete
+risk-proof record routes at `/api/v1/futures/risk-proofs` remain read-only
+resolver evidence. Exact safe latest records may be displayed, while missing or
+stale/invalid records fail closed. Resolver evidence does not satisfy risk
+proof requirements, register futures command routes, create command drafts,
+call Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+grant browser/BFF authority.
 
 The command-suite contract still exposes read-only M57 futures/perpetual risk
 proof record-validation remediation dependency work-item claim-trace
@@ -91,7 +92,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5801-5820",
+  "approved_phase_range": "5821-5840",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -115,6 +116,8 @@ Expected response posture:
   "resolved_risk_proof_record_resolver_count": 0,
   "missing_risk_proof_record_resolver_count": 20,
   "stale_or_invalid_risk_proof_record_resolver_count": 0,
+  "risk_proof_acceptance_blocker_count": 120,
+  "proof_record_resolved_but_acceptance_blocked_count": 0,
   "risk_proof_contract_count": 40,
   "blocking_risk_proof_contract_count": 40,
   "registered_risk_proof_route_count": 0,
@@ -634,6 +637,8 @@ Expected response posture:
       "risk_proof_acceptance_criterion_count": 30,
       "blocking_risk_proof_acceptance_criterion_count": 30,
       "accepted_risk_proof_acceptance_criterion_count": 0,
+      "risk_proof_acceptance_blocker_count": 36,
+      "proof_record_resolved_but_acceptance_blocked_count": 0,
       "risk_proof_requirements": [
         {
           "proof_kind": "product_scope",
@@ -1087,6 +1092,26 @@ Expected response posture:
           "acceptance_criterion_count": 5,
           "blocking_acceptance_criterion_count": 5,
           "accepted_acceptance_criterion_count": 0,
+          "proof_acceptance_blocked": true,
+          "proof_acceptance_blocker_count": 6,
+          "proof_acceptance_blockers": [
+            "futures_semantic_contracts_missing",
+            "proof_record_not_accepted",
+            "acceptance_criteria_blocking",
+            "command_route_missing",
+            "command_draft_disabled",
+            "live_execution_disabled"
+          ],
+          "proof_acceptance_blocker_refs": [
+            "futures_place_product_scope_futures_semantic_contracts",
+            "futures_place_product_scope_proof_record_acceptance",
+            "futures_place_product_scope_acceptance_criteria",
+            "futures_place_command_route",
+            "futures_place_command_draft",
+            "futures_place_live_execution"
+          ],
+          "proof_acceptance_blocker_authority": "backend_futures_semantics_no_execution",
+          "proof_record_resolves_acceptance": false,
           "acceptance_criteria": [
             {
               "check": "required_evidence_present",

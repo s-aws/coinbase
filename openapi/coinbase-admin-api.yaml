@@ -12877,6 +12877,16 @@ components:
           minimum: 0.0
           title: Stale Or Invalid Risk Proof Record Resolver Count
           default: 0
+        risk_proof_acceptance_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Acceptance Blocker Count
+          default: 0
+        proof_record_resolved_but_acceptance_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Record Resolved But Acceptance Blocked Count
+          default: 0
         risk_proof_contract_count:
           type: integer
           minimum: 0.0
@@ -13834,6 +13844,18 @@ components:
       - detail
       title: AdminFuturesCommandRequestFieldItem
       description: One planned futures/perpetual command request field row.
+    AdminFuturesCommandRiskProofAcceptanceBlocker:
+      type: string
+      enum:
+      - futures_semantic_contracts_missing
+      - proof_record_not_accepted
+      - acceptance_criteria_blocking
+      - command_route_missing
+      - command_draft_disabled
+      - live_execution_disabled
+      title: AdminFuturesCommandRiskProofAcceptanceBlocker
+      description: Reasons a futures risk proof record cannot yet satisfy command
+        readiness.
     AdminFuturesCommandRiskProofAcceptanceCheck:
       type: string
       enum:
@@ -26078,6 +26100,38 @@ components:
           type: boolean
           title: Latest Futures Risk Proof Live Coinbase Orders Ran
           default: false
+        proof_acceptance_blocked:
+          type: boolean
+          title: Proof Acceptance Blocked
+          default: true
+        proof_acceptance_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Acceptance Blocker Count
+          default: 0
+        proof_acceptance_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofAcceptanceBlocker'
+          type: array
+          title: Proof Acceptance Blockers
+        proof_acceptance_blocker_refs:
+          items:
+            type: string
+          type: array
+          title: Proof Acceptance Blocker Refs
+        proof_acceptance_blocker_details:
+          items:
+            type: string
+          type: array
+          title: Proof Acceptance Blocker Details
+        proof_acceptance_blocker_authority:
+          type: string
+          title: Proof Acceptance Blocker Authority
+          default: backend_futures_semantics_no_execution
+        proof_record_resolves_acceptance:
+          type: boolean
+          title: Proof Record Resolves Acceptance
+          default: false
         acceptance_criterion_count:
           type: integer
           minimum: 0.0
@@ -26426,6 +26480,16 @@ components:
           type: integer
           minimum: 0.0
           title: Stale Or Invalid Risk Proof Record Resolver Count
+          default: 0
+        risk_proof_acceptance_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Acceptance Blocker Count
+          default: 0
+        proof_record_resolved_but_acceptance_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Record Resolved But Acceptance Blocked Count
           default: 0
         risk_proof_contract_count:
           type: integer

@@ -28,6 +28,7 @@ from core.enums import (
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
+    AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
@@ -7837,6 +7838,17 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     latest_futures_risk_proof_command_route_registered: bool = False
     latest_futures_risk_proof_command_execution_allowed: bool = False
     latest_futures_risk_proof_live_coinbase_orders_ran: bool = False
+    proof_acceptance_blocked: bool = True
+    proof_acceptance_blocker_count: int = Field(default=0, ge=0)
+    proof_acceptance_blockers: list[
+        AdminFuturesCommandRiskProofAcceptanceBlocker
+    ] = Field(default_factory=list)
+    proof_acceptance_blocker_refs: list[str] = Field(default_factory=list)
+    proof_acceptance_blocker_details: list[str] = Field(default_factory=list)
+    proof_acceptance_blocker_authority: str = (
+        "backend_futures_semantics_no_execution"
+    )
+    proof_record_resolves_acceptance: bool = False
     acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_acceptance_criterion_count: int = Field(default=0, ge=0)
@@ -7907,6 +7919,11 @@ class AdminFuturesCommandContractItem(BaseModel):
     resolved_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     missing_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     stale_or_invalid_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    risk_proof_acceptance_blocker_count: int = Field(default=0, ge=0)
+    proof_record_resolved_but_acceptance_blocked_count: int = Field(
+        default=0,
+        ge=0,
+    )
     risk_proof_contract_count: int = Field(default=0, ge=0)
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
     registered_risk_proof_route_count: int = Field(default=0, ge=0)
@@ -8286,6 +8303,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     resolved_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     missing_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     stale_or_invalid_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    risk_proof_acceptance_blocker_count: int = Field(default=0, ge=0)
+    proof_record_resolved_but_acceptance_blocked_count: int = Field(
+        default=0,
+        ge=0,
+    )
     risk_proof_contract_count: int = Field(default=0, ge=0)
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
     registered_risk_proof_route_count: int = Field(default=0, ge=0)
