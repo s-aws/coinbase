@@ -111,8 +111,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5721-5740` under M57.
-- Active autonomous range: `5741-5760` under M57.
+- Latest completed autonomous range: `5741-5760` under M57.
+- Active autonomous range: `5761-5780` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -723,19 +723,24 @@ notional, retained inventory, reconciliation result, and audit ids.
   clearance steps, and inherited blockers while still adding no clearance-step
   execution, clearance-plan readiness, claim-trace clearance, claim resolution,
   work-item claiming, evidence writing, Coinbase calls, state mutation,
-  browser authority, or BFF execution authority. Active 5741-5760 work adds
+  browser authority, or BFF execution authority. Completed 5741-5760 work adds
   blocked nested dependency work-item claim-trace clearance-step review rows
   below those nested clearance steps so future review sequencing can name
   required owner/contextless review input evidence, review gates,
   predecessor/successor review refs, and inherited blockers while still adding
   no review completion, review input acceptance, evidence writing, Coinbase
-  calls, state mutation, browser authority, or BFF execution authority.
+  calls, state mutation, browser authority, or BFF execution authority. Active
+  5761-5780 work adds blocked nested dependency work-item claim-trace
+  clearance-step review input rows below those nested review rows so future
+  input sequencing can name required owner/contextless input refs, input gates,
+  predecessor/successor input refs, and inherited blockers while still adding
+  no review input acceptance, validation, evidence writing, Coinbase calls,
+  state mutation, browser authority, or BFF execution authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
-  arrays are intentionally capped representative readbacks. Use the summary
-  totals for full logical scope and the `materialized_*`, `detail_row_limit`,
-  and `detail_rows_limited` fields to identify how many detail rows were
-  returned.
+  arrays are intentionally capped representative readbacks. Use the aggregate
+  count fields for full logical scope; default nested detail arrays are
+  representative rows, not exhaustive drill-down output.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through

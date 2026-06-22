@@ -11,11 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5741-5760 range adds read-only M57 futures/perpetual risk proof
+The active 5761-5780 range adds read-only M57 futures/perpetual risk proof
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation remediation dependency work-item
-claim-trace clearance-step review evidence below the existing nested
-clearance-step evidence in the command-suite contract.
+claim-trace clearance-step review input evidence below the existing nested
+clearance-step review evidence in the command-suite contract.
 Each readiness decision, ordered closure step, risk proof requirement, proof
 contract, payload field, record/store contract,
 record-validation row, record-validation remediation row, remediation
@@ -64,6 +64,12 @@ idempotency binder, payload validator, replay protector, input validator,
 record-validator registrar, validation-gate passer, replay acceptor, command
 draft surface, or execution approval.
 
+Aggregate count fields are authoritative for the full logical scope. The
+default command-suite response intentionally materializes only bounded
+representative nested detail rows, currently the `futures_cancel` /
+`product_scope` / `store_schema` branch, so the admin read model remains
+serializable without losing total blocked/present/accepted counts.
+
 ```http
 GET /api/v1/futures/command-suite
 Authorization: Bearer local-admin-token
@@ -77,7 +83,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5741-5760",
+  "approved_phase_range": "5761-5780",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -172,6 +178,10 @@ Expected response posture:
   "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 8640,
   "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
   "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 17280,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 17280,
+  "present_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
+  "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
   "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": [
     {
       "clearance_plan_created": false,
@@ -605,6 +615,10 @@ Expected response posture:
       "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 2592,
       "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
       "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
+      "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 5184,
+      "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 5184,
+      "present_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
+      "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
       "risk_proof_acceptance_criterion_count": 30,
       "blocking_risk_proof_acceptance_criterion_count": 30,
       "accepted_risk_proof_acceptance_criterion_count": 0,
@@ -1054,6 +1068,10 @@ Expected response posture:
           "blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 432,
           "ready_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
           "completed_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
+          "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 864,
+          "blocking_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 864,
+          "present_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
+          "accepted_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
           "acceptance_criterion_count": 5,
           "blocking_acceptance_criterion_count": 5,
           "accepted_acceptance_criterion_count": 0,
