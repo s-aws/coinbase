@@ -1,5 +1,62 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Semantic Validator Input Schema Evidence - Phases 5921-5940
+
+Scope: phases `5921-5940`, after completed history `5901-5920`, add futures
+semantic validator input schema evidence to `GET /api/v1/futures/command-suite`.
+Completed validator-contract rows from `5901-5920` remain backend-owned display
+evidence. This range adds the missing backend input schema contract, input
+schema field refs, schema registration evidence, required/missing evidence
+refs, and explicit no-execution authority below those validator contracts.
+
+Result: PASS after remediation.
+
+- Semantic validator input schema evidence: backend schema, read service,
+  OpenAPI, tests, docs, and examples expose `risk_proof_record_resolver_count`,
+  `risk_proof_acceptance_blocker_count`,
+  `risk_proof_semantic_contract_requirement_count`,
+  `risk_proof_semantic_contract_definition_count`,
+  `risk_proof_semantic_contract_validation_gate_count`,
+  `risk_proof_semantic_contract_validator_contract_count`,
+  `risk_proof_semantic_validator_input_schema_count`,
+  `semantic_contract_requirements`, `semantic_contract_definitions`,
+  `semantic_contract_validation_gates`,
+  `semantic_contract_validator_contracts`,
+  `semantic_validator_input_schemas`, `proof_record_lookup_status`,
+  `proof_acceptance_blockers`, and `proof_record_resolves_acceptance`.
+- Authority boundary: semantic validator input schema rows are blocked,
+  backend-owned, read-only evidence. Runtime evidence and safe latest exact
+  proof records may be shown, but they do not satisfy input schemas, register
+  input schemas, register validator contracts, register semantic validators,
+  make validation gates ready, satisfy risk proof requirements, accept proof
+  evidence, create command drafts, register futures routes, call Coinbase,
+  execute reconciliation, mutate futures/order/exchange state, or grant
+  browser/BFF authority.
+- Backend/source boundary: `/api/v1/futures/risk-proofs` remains the backend
+  source for proof records. This range creates no futures command route, no
+  command draft, no Coinbase activity, no reconciliation execution, no futures
+  state mutation, no order/exchange-state mutation, no browser authority, and
+  no BFF execution authority.
+- Spot-boundary review: forbidden spot assumptions remain rejected. Spot
+  wallet, no-shorting, USDC quote, cost-basis, average-cost, and inventory-lot
+  assumptions are not futures/perpetual proof authority.
+- Machine-check exact phrase line: futures semantic validator input schema evidence; /api/v1/futures/risk-proofs; risk_proof_record_resolver_count; risk_proof_acceptance_blocker_count; risk_proof_semantic_contract_requirement_count; risk_proof_semantic_contract_definition_count; risk_proof_semantic_contract_validation_gate_count; risk_proof_semantic_contract_validator_contract_count; risk_proof_semantic_validator_input_schema_count; semantic_contract_requirements; semantic_contract_definitions; semantic_contract_validation_gates; semantic_contract_validator_contracts; semantic_validator_input_schemas; proof_record_lookup_status; proof_acceptance_blockers; proof_record_resolves_acceptance; proofRecordLookupStatus; proofAcceptanceBlockers; semanticContractRequirements; semanticContractDefinitions; semanticContractValidationGates; semanticContractValidatorContracts; semanticValidatorInputSchemas; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+- Review result: blind/contextless backend reviewer
+  `019ef073-4cab-76f2-9c7e-2f675518f1fb` initially failed because this log
+  still led with the completed `5901-5920` validator-contract range. The
+  contract implementation and durable subagent hygiene policy were otherwise
+  clear. Remediation added this current `5921-5940` entry; re-review passed
+  with backend queue and spot-readiness gate checks reporting no live Coinbase
+  execution and `0` USDC notional.
+- No live Coinbase execution was run; submitted notional `0` USDC and executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `5921-5940` are ordinary
+  phase work, not durable milestone closeout.
+- Phase-end stale-subagent sweep completed after consuming and remediating the
+  review results. Backend reviewer `019ef073-4cab-76f2-9c7e-2f675518f1fb` and
+  frontend reviewer `019ef073-7cbc-7ac1-9475-3089f87a7637` were closed. No
+  phase-scoped, stale, or unused subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Semantic Validator Contract Evidence - Phases 5901-5920
 
 Scope: phases `5901-5920`, after completed history `5881-5900`, add futures

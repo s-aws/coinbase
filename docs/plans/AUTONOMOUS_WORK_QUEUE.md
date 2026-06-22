@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **5901-5920**.
+- Approved phase range: **5921-5940**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5881-5900`.
+- Previous completed range: `5901-5920`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5900`.
+- `current_phase`: `5920`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,129 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5901-5920
+## Active Phases 5921-5940
+
+Batch label: Futures/Perpetuals Semantic Validator Input Schema Evidence.
+
+These phases make the next M57 futures/perpetual semantic-validator gap
+explicit inside `GET /api/v1/futures/command-suite`. Completed phases
+`5901-5920` named missing validator contract refs, input schema refs, output
+schema refs, and registration refs. Active `5921-5940` adds backend-owned
+semantic validator input schema rows for those validator contracts so a
+contextless maintainer can see the missing input schema contract, field refs,
+schema registration evidence, required evidence refs, and no-execution
+authority before any validator contract can be treated as registered, any
+validator can be registered, any validation gate can become ready, any proof can
+be accepted, any command route can be registered, or any live Coinbase
+execution can be considered.
+
+### Phase 5921 - Prior Range Closure
+
+- Record completed phases `5901-5920` as historical semantic validator
+  contract evidence and move active metadata to `5921-5940`.
+
+### Phase 5922 - Validator Input Schema Evidence Scope
+
+- Define semantic validator input schema evidence as backend-owned display
+  evidence derived from existing semantic validator contract rows.
+
+### Phase 5923 - Validator Input Schema Row Model
+
+- Add typed per-proof semantic validator input schema rows with input schema
+  refs, field refs, schema registration evidence, required evidence refs,
+  missing evidence refs, and no-execution authority.
+
+### Phase 5924 - Per-Proof Validator Input Schema Aggregates
+
+- Add per-risk-proof counts for validator input schemas, blocking rows, ready
+  rows, registered schemas, and runtime-observed display rows.
+
+### Phase 5925 - Command Validator Input Schema Aggregates
+
+- Add command-level semantic validator input schema totals across risk-proof
+  requirements.
+
+### Phase 5926 - Suite Validator Input Schema Aggregates
+
+- Add suite-level semantic validator input schema totals across futures command
+  families.
+
+### Phase 5927 - Runtime Input Schema Boundary
+
+- Prove observed runtime evidence is not the same as satisfying an input
+  schema, registering an input schema, registering a validator contract,
+  registering a semantic validator, accepting a proof, or enabling execution.
+
+### Phase 5928 - Missing Input Schema Registration References
+
+- Preserve input schema field contracts, schema registration refs, and
+  contextless review refs as missing until futures semantic validator input
+  schemas actually exist.
+
+### Phase 5929 - Backend Schema Contract Tests
+
+- Update OpenAPI/schema tests so generated clients discover validator input
+  schema rows and aggregate fields.
+
+### Phase 5930 - Backend Read-Service Tests
+
+- Add focused regression coverage for suite, command, and per-proof semantic
+  validator input schema evidence.
+
+### Phase 5931 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI from backend-owned source after contract changes.
+
+### Phase 5932 - Frontend Schema Sync
+
+- Regenerate the frontend generated TypeScript schema from backend OpenAPI.
+
+### Phase 5933 - Frontend Mock Contract
+
+- Update frontend mock futures command-suite fixtures and quality artifacts
+  with validator input schema fields and active range `5921-5940`.
+
+### Phase 5934 - Frontend Adapter Mapping
+
+- Map semantic validator input schema rows and counts into the
+  futures/perpetual read model through the canonical backend API adapter.
+
+### Phase 5935 - Frontend Display
+
+- Render validator input schema evidence as blocked backend evidence, separate
+  from proof records, acceptance blockers, requirements, definitions,
+  validation gates, validator contracts, and command enablement.
+
+### Phase 5936 - Frontend Unit Coverage
+
+- Add focused unit coverage for generated schema consumption, mocks, runtime
+  snapshots, read-model rendering, and quality-gate active range.
+
+### Phase 5937 - Docs And Examples
+
+- Update backend/frontend docs, examples, capability matrix, maintainer
+  handoff, contextless review logs, and agent state for validator input schema
+  semantics.
+
+### Phase 5938 - Focused Gates
+
+- Run focused backend compile/regression/contract/queue/ownership checks and
+  focused frontend API/type/unit checks that cover validator input schema
+  evidence.
+
+### Phase 5939 - Contextless Review And Subagent Sweep
+
+- Run blind/contextless review for backend/frontend clarity, remediate or
+  explicitly defer findings, then close phase-scoped, stale, and unused
+  subagents after findings are consumed.
+
+### Phase 5940 - Phase Closeout Evidence
+
+- Record implementation, verification, no-live Coinbase posture, submitted and
+  executed notional `0` USDC, review outcome, stale-subagent sweep result,
+  commits, pushes, and the next milestone-linked work.
+
+## Completed Phases 5901-5920
 
 Batch label: Futures/Perpetuals Semantic Validator Contract Evidence.
 

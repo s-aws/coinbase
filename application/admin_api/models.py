@@ -4379,6 +4379,57 @@ class AdminFuturesCommandRiskProofSemanticContractValidatorContractItem(BaseMode
     detail: str
 
 
+class AdminFuturesCommandRiskProofSemanticValidatorInputSchemaItem(BaseModel):
+    """One blocked backend input schema required before validator registration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proof_kind: AdminFuturesCommandRiskProofKind
+    semantic_guard: AdminFuturesCommandSemanticGuard
+    sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    contract_ref: str
+    semantic_contract_definition_ref: str
+    validation_gate: str
+    validation_contract_ref: str
+    validator_contract_ref: str
+    validator_input_schema_ref: str
+    required_backend_contract: str
+    missing_backend_contract: str
+    input_schema_field_refs: list[str] = Field(default_factory=list)
+    input_schema_field_count: int = Field(default=0, ge=0)
+    evidence_routes: list[AdminFuturesCommandEvidenceRoute] = Field(
+        default_factory=list
+    )
+    evidence_route_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_input_schema: bool = False
+    input_schema_registered: bool = False
+    validator_contract_registered: bool = False
+    validator_registered: bool = False
+    validation_ready: bool = False
+    definition_ready: bool = False
+    acceptance_ready: bool = False
+    satisfies_risk_proof: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    proof_route_registered: bool = False
+    proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofContractItem(BaseModel):
     """One blocked backend contract required for a futures risk proof."""
 
@@ -7704,6 +7755,17 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     semantic_contract_validator_contracts: list[
         AdminFuturesCommandRiskProofSemanticContractValidatorContractItem
     ] = Field(default_factory=list)
+    semantic_validator_input_schema_count: int = Field(default=0, ge=0)
+    blocking_semantic_validator_input_schema_count: int = Field(default=0, ge=0)
+    ready_semantic_validator_input_schema_count: int = Field(default=0, ge=0)
+    registered_semantic_validator_input_schema_count: int = Field(default=0, ge=0)
+    runtime_observed_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    semantic_validator_input_schemas: list[
+        AdminFuturesCommandRiskProofSemanticValidatorInputSchemaItem
+    ] = Field(default_factory=list)
     proof_route_required: bool = True
     proof_route_registered: bool = False
     proof_writer_enabled: bool = False
@@ -8223,6 +8285,26 @@ class AdminFuturesCommandContractItem(BaseModel):
             ge=0,
         )
     )
+    risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    registered_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
     risk_proof_contract_count: int = Field(default=0, ge=0)
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)
     registered_risk_proof_route_count: int = Field(default=0, ge=0)
@@ -8675,6 +8757,26 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
             default=0,
             ge=0,
         )
+    )
+    risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    registered_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_risk_proof_semantic_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
     )
     risk_proof_contract_count: int = Field(default=0, ge=0)
     blocking_risk_proof_contract_count: int = Field(default=0, ge=0)

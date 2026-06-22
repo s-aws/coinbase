@@ -12983,6 +12983,31 @@ components:
           title: Runtime Observed Risk Proof Semantic Contract Validator Contract
             Count
           default: 0
+        risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        blocking_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        ready_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        registered_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        runtime_observed_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Risk Proof Semantic Validator Input Schema Count
+          default: 0
         risk_proof_contract_count:
           type: integer
           minimum: 0.0
@@ -25606,6 +25631,36 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRiskProofSemanticContractValidatorContractItem'
           type: array
           title: Semantic Contract Validator Contracts
+        semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Semantic Validator Input Schema Count
+          default: 0
+        blocking_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Semantic Validator Input Schema Count
+          default: 0
+        ready_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Semantic Validator Input Schema Count
+          default: 0
+        registered_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Semantic Validator Input Schema Count
+          default: 0
+        runtime_observed_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Semantic Validator Input Schema Count
+          default: 0
+        semantic_validator_input_schemas:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofSemanticValidatorInputSchemaItem'
+          type: array
+          title: Semantic Validator Input Schemas
         proof_route_required:
           type: boolean
           title: Proof Route Required
@@ -27045,6 +27100,186 @@ components:
       - detail
       title: AdminFuturesCommandRiskProofSemanticContractValidatorContractItem
       description: One blocked backend validator contract required before validation.
+    AdminFuturesCommandRiskProofSemanticValidatorInputSchemaItem:
+      properties:
+        proof_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+        semantic_guard:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticGuard'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        contract_ref:
+          type: string
+          title: Contract Ref
+        semantic_contract_definition_ref:
+          type: string
+          title: Semantic Contract Definition Ref
+        validation_gate:
+          type: string
+          title: Validation Gate
+        validation_contract_ref:
+          type: string
+          title: Validation Contract Ref
+        validator_contract_ref:
+          type: string
+          title: Validator Contract Ref
+        validator_input_schema_ref:
+          type: string
+          title: Validator Input Schema Ref
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        missing_backend_contract:
+          type: string
+          title: Missing Backend Contract
+        input_schema_field_refs:
+          items:
+            type: string
+          type: array
+          title: Input Schema Field Refs
+        input_schema_field_count:
+          type: integer
+          minimum: 0.0
+          title: Input Schema Field Count
+          default: 0
+        evidence_routes:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEvidenceRoute'
+          type: array
+          title: Evidence Routes
+        evidence_route_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Route Count
+          default: 0
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        runtime_evidence_satisfies_input_schema:
+          type: boolean
+          title: Runtime Evidence Satisfies Input Schema
+          default: false
+        input_schema_registered:
+          type: boolean
+          title: Input Schema Registered
+          default: false
+        validator_contract_registered:
+          type: boolean
+          title: Validator Contract Registered
+          default: false
+        validator_registered:
+          type: boolean
+          title: Validator Registered
+          default: false
+        validation_ready:
+          type: boolean
+          title: Validation Ready
+          default: false
+        definition_ready:
+          type: boolean
+          title: Definition Ready
+          default: false
+        acceptance_ready:
+          type: boolean
+          title: Acceptance Ready
+          default: false
+        satisfies_risk_proof:
+          type: boolean
+          title: Satisfies Risk Proof
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        proof_route_registered:
+          type: boolean
+          title: Proof Route Registered
+          default: false
+        proof_writer_enabled:
+          type: boolean
+          title: Proof Writer Enabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - proof_kind
+      - semantic_guard
+      - sequence
+      - contract_ref
+      - semantic_contract_definition_ref
+      - validation_gate
+      - validation_contract_ref
+      - validator_contract_ref
+      - validator_input_schema_ref
+      - required_backend_contract
+      - missing_backend_contract
+      - detail
+      title: AdminFuturesCommandRiskProofSemanticValidatorInputSchemaItem
+      description: One blocked backend input schema required before validator registration.
     AdminFuturesCommandSemanticGuard:
       type: string
       enum:
@@ -27419,6 +27654,31 @@ components:
           minimum: 0.0
           title: Runtime Observed Risk Proof Semantic Contract Validator Contract
             Count
+          default: 0
+        risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        blocking_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        ready_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        registered_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Risk Proof Semantic Validator Input Schema Count
+          default: 0
+        runtime_observed_risk_proof_semantic_validator_input_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Risk Proof Semantic Validator Input Schema Count
           default: 0
         risk_proof_contract_count:
           type: integer
