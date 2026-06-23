@@ -413,6 +413,7 @@ def build_stealth_create_lifecycle_write_execution_contract(
                 if admission_decision is not None
                 else AdminApiActionClass.LOCAL_STATE_MUTATION
             ),
+            include_construction_contract=False,
         ),
         post_write_reconciliation_route=POST_WRITE_RECONCILIATION_ROUTE,
         post_write_reconciliation_method=POST_WRITE_RECONCILIATION_METHOD,

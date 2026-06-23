@@ -102,6 +102,27 @@ Do not manually kill generic `node.exe`, `python.exe`, `Code.exe`, `Codex.exe`,
 Chrome, or VS Code extension processes based only on process name. Use command
 line, repository path, age, and active validation state as the evidence.
 
+## Generated Test Artifacts
+
+Regression tests must not write disposable per-test stores under
+`runtime_state/`, `genai_tools/`, or other watched repository paths. Use pytest
+temporary directories or OS temporary directories for high-churn stores, and
+delete them during test teardown. Durable runtime examples may still live under
+`runtime_state/` when a runbook explicitly asks for them, but regression tests
+must isolate those paths with temporary files.
+
+Large Admin API idempotency responses are especially sensitive: the file store
+externalizes responses over the inline limit into gzip blobs, and replay
+hydration reads the gzip body back into memory. Tests that exercise those
+routes must keep their stores disposable and must not accumulate
+`idempotency_responses/*.json.gz` blobs across runs.
+
+Command responses must also stay bounded. If a route exposes live-adapter
+readiness evidence, command and idempotency-replay payloads may include
+`construction_contract_available` and `construction_contract_ref`, but must not
+inline the full `construction_contract` evidence graph. Keep that full graph on
+explicit construction-contract/readiness surfaces only.
+
 ## Serial Lane Classification
 
 The process-parallel runner validates serial-lane classification before running

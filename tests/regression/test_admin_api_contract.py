@@ -3,6 +3,8 @@ from __future__ import annotations
 import gc
 import inspect
 import json
+import shutil
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -467,6 +469,7 @@ ROUTE_INVENTORY_DOC = ROOT / "docs" / "plans" / "ADMIN_API_ROUTE_INVENTORY.md"
 pytestmark = pytest.mark.serial
 
 _ACTIVE_TEST_CLIENTS: list[TestClient] = []
+_ACTIVE_TEST_STORE_DIRS: list[Path] = []
 
 
 def _tracked_test_client(app) -> TestClient:
@@ -485,6 +488,8 @@ def _close_admin_api_test_clients_after_each_test():
         finally:
             client.close()
     gc.collect()
+    while _ACTIVE_TEST_STORE_DIRS:
+        shutil.rmtree(_ACTIVE_TEST_STORE_DIRS.pop(), ignore_errors=True)
 
 
 def _headers(
@@ -504,9 +509,18 @@ def _headers(
 
 
 def _store_dir() -> Path:
-    path = ROOT / "runtime_state" / "test_admin_api_contract" / str(uuid4())
-    path.mkdir(parents=True, exist_ok=True)
+    path = Path(tempfile.mkdtemp(prefix="coinbase-admin-api-contract-"))
+    _ACTIVE_TEST_STORE_DIRS.append(path)
     return path
+
+
+@pytest.mark.regression
+def test_admin_api_contract_store_dir_is_disposable_and_outside_runtime_state():
+    store_dir = _store_dir()
+
+    assert store_dir.name.startswith("coinbase-admin-api-contract-")
+    assert not store_dir.is_relative_to(ROOT / "runtime_state")
+    assert not store_dir.is_relative_to(ROOT / "genai_tools")
 
 
 def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
@@ -9724,13 +9738,7 @@ def _assert_stealth_live_execution_adapter_contract(
         LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT
     )
     assert adapter["construction_contract_satisfies_construction"] is False
-    _assert_live_adapter_construction_contract(
-        adapter["construction_contract"],
-        route=route,
-        module_id=module_id,
-        service_method=service_method,
-        action_class=action_class,
-    )
+    assert adapter["construction_contract"] is None
     assert adapter["route_mapping_satisfies_construction"] is False
     assert adapter["adapter_configuration_satisfies_construction"] is False
     assert adapter["construction_satisfaction_authority"] == (
@@ -30720,7 +30728,11 @@ def test_admin_api_stealth_cancel_replace_execution_contract_resolves_proof(
         )
 
         assert response.status_code == 501
+        assert len(response.content) < 2_000_000
         contract = response.json()["stealth_command_execution_contract"]
+        adapter_contract = contract["live_execution_adapter_contract"]
+        assert adapter_contract["construction_contract_available"] is True
+        assert adapter_contract["construction_contract"] is None
         assert contract["execution_allowed"] is False
         assert contract["cancel_replace_proof_required"] is True
         assert contract["cancel_replace_proof_resolved"] is True
@@ -30769,6 +30781,7 @@ def test_admin_api_stealth_cancel_replace_execution_contract_resolves_proof(
         assert contract["reconciliation_executed"] is False
         del (
             cancel_replace_proof,
+            adapter_contract,
             contract,
             resolution_by_prerequisite,
             response,
@@ -30832,7 +30845,11 @@ def test_admin_api_stealth_cancel_replace_execution_contract_resolves_proof(
         )
 
         assert unsafe_response.status_code == 501
+        assert len(unsafe_response.content) < 2_000_000
         unsafe_contract = unsafe_response.json()["stealth_command_execution_contract"]
+        unsafe_adapter_contract = unsafe_contract["live_execution_adapter_contract"]
+        assert unsafe_adapter_contract["construction_contract_available"] is True
+        assert unsafe_adapter_contract["construction_contract"] is None
         assert unsafe_contract["cancel_replace_proof_resolved"] is False
         assert (
             StealthCommandExecutionPrerequisite.CANCEL_REPLACE_PROOF.value
@@ -30856,6 +30873,7 @@ def test_admin_api_stealth_cancel_replace_execution_contract_resolves_proof(
         )
         del (
             unsafe_cancel_replace_proof,
+            unsafe_adapter_contract,
             unsafe_contract,
             unsafe_response,
         )

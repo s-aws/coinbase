@@ -524,6 +524,7 @@ def build_stealth_command_execution_contract(
         module_id=admission_decision.module_id,
         service_method=metadata.service_method,
         action_class=admission_decision.action_class,
+        include_construction_contract=False,
     )
     live_execution_service_contract = build_live_execution_service_contract(
         method=admission_decision.method,
@@ -1327,6 +1328,7 @@ def _command_specific_prerequisite(
             module_id=admission_decision.module_id,
             service_method=metadata.service_method,
             action_class=admission_decision.action_class,
+            include_construction_contract=False,
         )
         if bool(live_execution_adapter_contract.get("configured")):
             return _resolver_item(

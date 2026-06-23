@@ -360,7 +360,10 @@ and M53 pilot configuration remain separate from construction satisfaction:
 `adapter_configuration_satisfies_construction=false`, and satisfied
 construction artifacts stay empty while required construction artifacts remain
 unsatisfied.
-The nested construction contract may also expose
+Command and idempotency-replay payloads must keep this adapter evidence compact:
+`construction_contract_available` and `construction_contract_ref` may point to
+the required construction contract, but `construction_contract` remains `null`
+on those responses. Dedicated construction-contract evidence may expose
 `acceptance_evidence_producer_clearance_dependency_summary`, a blocked
 backend-derived aggregate over producer-readiness clearance action rows.
 Workflows may display counts, dependency-blocked refs, clearable refs,

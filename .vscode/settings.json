@@ -1,3 +1,27 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "files.watcherExclude": {
+        "**/.pytest_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/__pycache__/**": true,
+        "**/genai_tools/**": true,
+        "**/htmlcov/**": true,
+        "**/runtime_state/**": true
+    },
+    "search.exclude": {
+        "**/.pytest_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/__pycache__/**": true,
+        "**/genai_tools/**": true,
+        "**/htmlcov/**": true,
+        "**/runtime_state/**": true
+    },
+    "python.analysis.exclude": [
+        "**/.pytest_cache",
+        "**/.ruff_cache",
+        "**/__pycache__",
+        "**/genai_tools",
+        "**/htmlcov",
+        "**/runtime_state"
+    ]
 }

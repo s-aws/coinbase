@@ -315,6 +315,9 @@ methods while reporting `executable=false`, `browser_authority=display_only`,
 and `bff_authority=forward_only_no_execution`. It is not an adapter
 implementation, manager invocation path, Coinbase caller, or command-enablement
 signal.
+Exact command responses keep that object compact for API/idempotency replay:
+they may expose construction availability and the construction-contract ref, but
+they do not inline the full construction-contract graph.
 It may also resolve `reconciliation_proof` for reconciliation from the
 backend reconciliation proof store when the latest safe same-`stealth_order_id`
 proof exactly matches route, method, service method, actor, operator intent,

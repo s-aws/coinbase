@@ -1268,11 +1268,13 @@ while `construction_contract_ref` still points at
 `backend_live_adapter_construction_contract`; this keeps the live-enablement
 read usable without hiding that full construction evidence is still required.
 
-Command responses and dedicated adapter-contract evidence may include active
-M55 record-validation remediation dependency readback. The following JSON is a
-full construction-contract excerpt, not the compact live-enablement read shape.
-The dependency rows derive from the remediation rows shown here, expose
-immediate predecessor/successor links only, and do not perform remediation.
+Dedicated adapter-construction evidence may include active M55
+record-validation remediation dependency readback. Command responses and
+idempotency replays keep `construction_contract` null and expose only the
+construction-contract ref. The following JSON is a full construction-contract
+excerpt, not the compact command response or live-enablement read shape. The
+dependency rows derive from the remediation rows shown here, expose immediate
+predecessor/successor links only, and do not perform remediation.
 
 ```json
 {
