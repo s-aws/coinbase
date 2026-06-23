@@ -20,6 +20,7 @@ from .live_execution import (
     FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS,
     FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACTS,
+    FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACTS,
 )
 
 
@@ -134,8 +135,8 @@ def futures_coinbase_exchange_submission_contract_ref(
 def futures_post_exchange_submission_reconciliation_contract_ref(
     command: AdminFuturesCommandAction,
 ) -> str:
-    """Return the missing post-exchange-submission reconciliation contract ref."""
+    """Return the disabled post-submission reconciliation contract ref."""
 
-    return FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACTS[
+    return FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACTS[
         command
-    ].post_exchange_submission_reconciliation_contract_ref
+    ].contract_ref

@@ -61,6 +61,8 @@ from application.admin_api.live_execution import (
     FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS,
     FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACTS,
+    FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACTS,
+    FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON,
     FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
     get_disabled_live_execution_service,
 )
@@ -231,8 +233,13 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert adapter_contract.browser_authority == "display_only"
         assert adapter_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in adapter_contract.forbidden_methods
-        assert FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON in (
-            adapter_contract.blockers
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in adapter_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in adapter_contract.blockers
         )
 
         construction_contract = FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS[
@@ -256,8 +263,13 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert construction_contract.browser_authority == "display_only"
         assert construction_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in construction_contract.forbidden_methods
-        assert FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON in (
-            construction_contract.blockers
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in construction_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in construction_contract.blockers
         )
 
         decision_contract = FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS[command]
@@ -284,8 +296,13 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert decision_contract.browser_authority == "display_only"
         assert decision_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in decision_contract.forbidden_methods
-        assert FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON in (
-            decision_contract.blockers
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in decision_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in decision_contract.blockers
         )
 
         decision_record_contract = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS[
@@ -317,8 +334,13 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert decision_record_contract.browser_authority == "display_only"
         assert decision_record_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in decision_record_contract.forbidden_methods
-        assert FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON in (
-            decision_record_contract.blockers
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in decision_record_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in decision_record_contract.blockers
         )
 
         invocation_contract = FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACTS[command]
@@ -349,8 +371,13 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert invocation_contract.browser_authority == "display_only"
         assert invocation_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in invocation_contract.forbidden_methods
-        assert FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON in (
-            invocation_contract.blockers
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in invocation_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in invocation_contract.blockers
         )
 
         execution_contract = FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS[command]
@@ -385,8 +412,13 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert execution_contract.browser_authority == "display_only"
         assert execution_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in execution_contract.forbidden_methods
-        assert FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON in (
-            execution_contract.blockers
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in execution_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in execution_contract.blockers
         )
 
         submission_contract = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACTS[command]
@@ -405,7 +437,7 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert submission_contract.coinbase_cancel_submit_ran is False
         assert submission_contract.exchange_order_acknowledged is False
         assert submission_contract.post_exchange_reconciliation_required is True
-        assert submission_contract.post_exchange_reconciliation_available is False
+        assert submission_contract.post_exchange_reconciliation_available is True
         assert submission_contract.command_route_registered is False
         assert submission_contract.command_draft_allowed is False
         assert submission_contract.execution_allowed is False
@@ -415,8 +447,52 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert submission_contract.browser_authority == "display_only"
         assert submission_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in submission_contract.forbidden_methods
-        assert FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON in (
-            submission_contract.blockers
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in submission_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in submission_contract.blockers
+        )
+
+        reconciliation_contract = (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACTS[command]
+        )
+        assert reconciliation_contract.contract_ref == (
+            futures_post_exchange_submission_reconciliation_contract_ref(command)
+        )
+        assert reconciliation_contract.coinbase_exchange_submission_contract_ref == (
+            futures_coinbase_exchange_submission_contract_ref(command)
+        )
+        assert reconciliation_contract.execution_contract_ref == (
+            futures_live_adapter_execution_contract_ref(command)
+        )
+        assert reconciliation_contract.present is True
+        assert reconciliation_contract.reconciliation_required is True
+        assert reconciliation_contract.reconciliation_available is True
+        assert reconciliation_contract.exchange_order_acknowledgement_required is True
+        assert reconciliation_contract.exchange_order_acknowledged is False
+        assert reconciliation_contract.reconciliation_execution_enabled is False
+        assert reconciliation_contract.reconciliation_executed is False
+        assert reconciliation_contract.command_route_registered is False
+        assert reconciliation_contract.command_draft_allowed is False
+        assert reconciliation_contract.execution_allowed is False
+        assert reconciliation_contract.coinbase_submission_allowed is False
+        assert reconciliation_contract.coinbase_order_submit_ran is False
+        assert reconciliation_contract.coinbase_cancel_submit_ran is False
+        assert reconciliation_contract.state_mutation_allowed is False
+        assert reconciliation_contract.live_coinbase_orders_ran is False
+        assert reconciliation_contract.browser_authority == "display_only"
+        assert reconciliation_contract.bff_authority == "forward_only_no_execution"
+        assert "create_order" in reconciliation_contract.forbidden_methods
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON
+            in reconciliation_contract.blockers
+        )
+        assert (
+            FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+            not in reconciliation_contract.blockers
         )
 
 

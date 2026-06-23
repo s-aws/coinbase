@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): backend `fce46b8b` completed adapter execution evidence; current active range is `6181-6200`.
+- Commit (optional): current active range is `6201-6220`.
 
 ## Current Objective
 
@@ -56,32 +56,35 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6161-6180`.
-- Active autonomous range: `6181-6200`.
-- Completed `6161-6180` added disabled futures adapter-execution contract
-  evidence to the M57 futures/perpetual command suite. Adapter execution refs
-  remain required/present disabled backend evidence in
+- Latest completed autonomous range before current work: `6181-6200`.
+- Active autonomous range: `6201-6220`.
+- Completed `6181-6200` added disabled futures Coinbase exchange-submission
+  contract evidence to the M57 futures/perpetual command suite. Coinbase
+  exchange-submission refs remain required/present disabled backend evidence in
   `application/admin_api/live_execution.py`, while command route, command
-  draft, Coinbase submission authority, reconciliation execution,
-  futures state mutation, browser, BFF, and spot-rule authority remain
-  blocked. The range completed with `0` USDC submitted/executed notional.
-- Phase-end subagent sweep for the completed `6161-6180` work was performed:
+  draft, Coinbase submission authority, exchange acknowledgement,
+  reconciliation execution, futures state mutation, browser, BFF, and
+  spot-rule authority remain blocked. The range completed with `0` USDC
+  submitted/executed notional.
+- Phase-end subagent sweep for the completed `6181-6200` work was performed:
   all phase-scoped blind/contextless reviewers were closed after findings were
   consumed and remediated. No phase-scoped subagent remains intentionally open.
-  Active `6181-6200` must not register futures command routes, create command
+  Active `6201-6220` must not register futures command routes, create command
   drafts, record executable adapter decisions, construct, invoke, or execute
-  live adapters, submit Coinbase orders, execute post-exchange reconciliation,
-  mutate futures state, accept proof records as sufficient for execution, or
-  grant browser/BFF authority. Spot wallet, no-shorting, USDC, cost-basis,
-  average-cost, and inventory-lot assumptions are forbidden as
+  live adapters, submit Coinbase orders, acknowledge exchange orders, execute
+  post-exchange reconciliation, mutate futures state, accept proof records as
+  sufficient for execution, or grant browser/BFF authority. Spot wallet,
+  no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
+  are forbidden as
   futures/perpetual authority.
-- Current direction: complete phases `6181-6200` by syncing disabled futures
-  Coinbase exchange-submission contract evidence, shifting command-suite
-  missing-contract evidence to post-exchange-submission reconciliation refs, syncing
-  backend/frontend schema and read-model consumption, docs, focused gates,
-  blind/contextless review, and phase-end stale-subagent sweep.
-- Current boundary label: disabled futures Coinbase exchange-submission contract evidence.
-- Previous completed boundary label: disabled futures adapter-execution contract evidence.
+- Current direction: complete phases `6201-6220` by syncing disabled futures
+  post-exchange-submission reconciliation contract evidence, removing those
+  refs from command-suite missing backend contracts, syncing backend/frontend
+  schema and read-model consumption, docs, focused gates, blind/contextless
+  review, and phase-end stale-subagent sweep.
+- Current boundary label: disabled futures post-exchange-submission reconciliation contract evidence.
+- Previous completed boundary label: disabled futures Coinbase exchange-submission contract evidence.
+- Historical boundary label retained for validators: disabled futures adapter-execution contract evidence.
 - Current contract split: adapter contract refs are required/present disabled
   evidence; adapter construction refs are required/present disabled evidence;
   adapter decision refs are required/present disabled evidence; adapter
@@ -89,10 +92,10 @@ Keep it short. Keep it factual.
   invocation refs are required/present disabled evidence; adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
   refs are required/present disabled evidence; post-exchange-submission
-  reconciliation refs remain missing. `/api/v1/futures/risk-proofs` GET
-  readbacks use read-only resolver evidence. `POST /api/v1/futures/risk-proofs`
-  records append-only local proof evidence only and does not accept proof
-  records as sufficient for execution.
+  reconciliation refs are required/present disabled evidence.
+  `/api/v1/futures/risk-proofs` GET readbacks use read-only resolver evidence.
+  `POST /api/v1/futures/risk-proofs` records append-only local proof evidence
+  only and does not accept proof records as sufficient for execution.
 - Exact current boundary phrase: adapter contract refs are required/present disabled evidence.
 - Exact current boundary phrase: adapter construction refs are required/present disabled evidence.
 - Exact current boundary phrase: adapter decision refs are required/present disabled evidence.
@@ -100,7 +103,7 @@ Keep it short. Keep it factual.
 - Exact current boundary phrase: adapter invocation refs are required/present disabled evidence.
 - Exact current boundary phrase: adapter execution refs are required/present disabled evidence.
 - Exact current boundary phrase: Coinbase exchange-submission refs are required/present disabled evidence.
-- Exact current boundary phrase: post-exchange-submission reconciliation refs remain missing.
+- Exact current boundary phrase: post-exchange-submission reconciliation refs are required/present disabled evidence.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.
@@ -702,18 +705,20 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6161-6180`.
+- Active autonomous range: `6201-6220`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6161-6180` by syncing disabled
-  backend futures adapter-execution contract evidence for placement,
-  close/reduce, cancel, and reconcile across backend/frontend evidence.
+- Current direction: complete active phases `6201-6220` by syncing disabled
+  backend futures post-exchange-submission reconciliation contract evidence
+  for placement, close/reduce, cancel, and reconcile across backend/frontend
+  evidence.
   Adapter contract refs, adapter construction refs, adapter decision refs,
   adapter decision-record refs, adapter invocation refs, and adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
-  refs remain missing.
-  Command route, command draft, constructed/invoked executable adapter, Coinbase,
-  reconciliation execution, state mutation, browser, BFF, and spot-rule
-  authority remain blocked.
+  refs are required/present disabled evidence; post-exchange-submission
+  reconciliation refs are required/present disabled evidence.
+  Command route, command draft, constructed/invoked executable adapter,
+  Coinbase submission, exchange acknowledgement, reconciliation execution,
+  state mutation, browser, BFF, and spot-rule authority remain blocked.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1561,16 +1566,17 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `6161-6180` by adding disabled
-  futures adapter-execution contract evidence, shifting missing backend
-  contracts to Coinbase exchange-submission refs after adapter execution refs
-  become required/present, syncing OpenAPI and frontend generated schema, mapping
-  runtime/mock/read-model display, updating docs and validators, then running focused gates,
+- Exact next command: complete active phases `6201-6220` by adding disabled
+  futures post-exchange-submission reconciliation contract evidence, removing
+  those refs from missing backend contracts after they become required/present,
+  syncing OpenAPI and frontend generated schema, mapping runtime/mock/read-model
+  display, updating docs and validators, then running focused gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live proof.
-  The active gap is disabled adapter-execution contract evidence only; no futures
-  command route, command draft, exchange order placement/cancellation,
-  reconciliation execution, Coinbase read/write, futures/order/exchange-state
-  mutation, accepted proof requirement, accepted proof payload, accepted proof
-  record as command readiness, adapter invocation authority, adapter
-  construction/invocation execution, adapter execution, or browser/BFF authority
-  is allowed in this range.
+  The active gap is disabled futures post-exchange-submission reconciliation
+  contract evidence only; no futures command route, command draft, exchange
+  order placement/cancellation, exchange acknowledgement, reconciliation
+  execution, Coinbase read/write, futures/order/exchange-state mutation,
+  accepted proof requirement, accepted proof payload, accepted proof record as
+  command readiness, adapter invocation authority, adapter construction/
+  invocation execution, adapter execution, or browser/BFF authority is allowed
+  in this range.

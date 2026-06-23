@@ -60,9 +60,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6181-6200"
-APPROVED_PHASES = tuple(range(6181, 6201))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6161-6180"
+APPROVED_PHASE_RANGE = "6201-6220"
+APPROVED_PHASES = tuple(range(6201, 6221))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6181-6200"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -275,7 +275,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "adapter invocation refs are required/present disabled evidence",
             "adapter execution refs are required/present disabled evidence",
             "Coinbase exchange-submission refs are required/present disabled evidence",
-            "post-exchange-submission reconciliation refs remain missing",
+            "post-exchange-submission reconciliation refs are required/present disabled evidence",
             "application/admin_api/live_execution.py::futures_place_adapter_construction_contract",
             "application/admin_api/live_execution.py::futures_close_reduce_adapter_construction_contract",
             "application/admin_api/live_execution.py::futures_cancel_adapter_construction_contract",
@@ -679,10 +679,15 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
         for contract_ref in coinbase_exchange_submission_refs
         if contract_ref not in body
     ]
-    missing_post_exchange_submission_reconciliation_ref_patterns = [
+    missing_post_exchange_submission_reconciliation_refs = [
         contract_ref
         for contract_ref in post_exchange_submission_reconciliation_refs
-        if not re.search(
+        if contract_ref not in body
+    ]
+    post_exchange_submission_reconciliation_refs_reported_missing = [
+        contract_ref
+        for contract_ref in post_exchange_submission_reconciliation_refs
+        if re.search(
             r'"missing_backend_contracts"\s*:\s*\[[^\]]*'
             + re.escape(contract_ref),
             body,
@@ -700,7 +705,8 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
         and not missing_live_adapter_invocation_refs
         and not missing_live_adapter_execution_refs
         and not missing_coinbase_exchange_submission_refs
-        and not missing_post_exchange_submission_reconciliation_ref_patterns,
+        and not missing_post_exchange_submission_reconciliation_refs
+        and not post_exchange_submission_reconciliation_refs_reported_missing,
         evidence={
             "path": str(FUTURES_PERPETUALS_EXAMPLES_DOC.relative_to(PROJECT_ROOT)),
             "stale_patterns": stale_patterns,
@@ -722,7 +728,10 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
                 missing_coinbase_exchange_submission_refs
             ),
             "missing_post_exchange_submission_reconciliation_refs": (
-                missing_post_exchange_submission_reconciliation_ref_patterns
+                missing_post_exchange_submission_reconciliation_refs
+            ),
+            "post_exchange_submission_reconciliation_refs_reported_missing": (
+                post_exchange_submission_reconciliation_refs_reported_missing
             ),
         },
     )
@@ -872,7 +881,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "adapter invocation refs are required/present disabled evidence",
         "adapter execution refs are required/present disabled evidence",
         "Coinbase exchange-submission refs are required/present disabled evidence",
-        "post-exchange-submission reconciliation refs remain missing",
+        "post-exchange-submission reconciliation refs are required/present disabled evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -1031,7 +1040,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "adapter invocation refs are required/present disabled evidence",
         "adapter execution refs are required/present disabled evidence",
         "Coinbase exchange-submission refs are required/present disabled evidence",
-        "post-exchange-submission reconciliation refs remain missing",
+        "post-exchange-submission reconciliation refs are required/present disabled evidence",
         "application/admin_api/live_execution.py::futures_place_adapter_contract",
         "application/admin_api/live_execution.py::futures_close_reduce_adapter_contract",
         "application/admin_api/live_execution.py::futures_cancel_adapter_contract",

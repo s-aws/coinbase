@@ -409,7 +409,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6181-6200"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6201-6220"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20272,26 +20272,10 @@ class AdminApiReadService:
             ],
         }
         command_missing_backend_contracts = {
-            AdminFuturesCommandAction.PLACE: [
-                futures_post_exchange_submission_reconciliation_contract_refs[
-                    AdminFuturesCommandAction.PLACE
-                ],
-            ],
-            AdminFuturesCommandAction.CLOSE_REDUCE: [
-                futures_post_exchange_submission_reconciliation_contract_refs[
-                    AdminFuturesCommandAction.CLOSE_REDUCE
-                ],
-            ],
-            AdminFuturesCommandAction.CANCEL: [
-                futures_post_exchange_submission_reconciliation_contract_refs[
-                    AdminFuturesCommandAction.CANCEL
-                ],
-            ],
-            AdminFuturesCommandAction.RECONCILE: [
-                futures_post_exchange_submission_reconciliation_contract_refs[
-                    AdminFuturesCommandAction.RECONCILE
-                ],
-            ],
+            AdminFuturesCommandAction.PLACE: [],
+            AdminFuturesCommandAction.CLOSE_REDUCE: [],
+            AdminFuturesCommandAction.CANCEL: [],
+            AdminFuturesCommandAction.RECONCILE: [],
         }
         product_scope_evidence_routes = [
             AdminFuturesCommandEvidenceRoute.FUTURES_ACCOUNT,
