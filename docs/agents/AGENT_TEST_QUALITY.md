@@ -41,10 +41,12 @@ See `docs/REGRESSION_PROCESS.md` for the canonical regression policy.
 python tools/run_parallel_regression.py --workers 4
 ```
 
-Increase workers only after the split lane has passed locally. Tests that
-create fixed database tables, touch fixed files, or depend on process-global
-state must carry the `serial` marker. The runner validates this classification
-before invoking pytest. To run only the fast classification preflight:
+The runner rejects `--workers auto` and values above `4` to keep peak memory
+bounded. Raise that cap only after measuring peak memory on the target host and
+updating the runner, tests, and `docs/REGRESSION_PROCESS.md`. Tests that create
+fixed database tables, touch fixed files, or depend on process-global state
+must carry the `serial` marker. The runner validates this classification before
+invoking pytest. To run only the fast classification preflight:
 
 ```powershell
 python tools/run_parallel_regression.py --check-serial-classification-only

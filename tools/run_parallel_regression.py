@@ -21,6 +21,7 @@ from uuid import uuid4
 
 SUMMARY_PREFIX = "PARALLEL_REGRESSION_RUNNER_SUMMARY "
 SERIAL_SAFE_COMMENT = "parallel-regression: serial-safe"
+MAX_PARALLEL_WORKERS = 4
 
 
 @dataclass(frozen=True)
@@ -149,16 +150,24 @@ def emit_serial_classification_findings(
 
 def _validate_workers(value: str) -> str:
     if value == "auto":
-        return value
+        raise argparse.ArgumentTypeError(
+            f"workers must be a positive integer no greater than {MAX_PARALLEL_WORKERS}; "
+            "'auto' is disabled to keep regression memory bounded"
+        )
     try:
         workers = int(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
-            "workers must be a positive integer or 'auto'"
+            f"workers must be a positive integer no greater than {MAX_PARALLEL_WORKERS}"
         ) from exc
     if workers < 1:
         raise argparse.ArgumentTypeError(
-            "workers must be a positive integer or 'auto'"
+            f"workers must be a positive integer no greater than {MAX_PARALLEL_WORKERS}"
+        )
+    if workers > MAX_PARALLEL_WORKERS:
+        raise argparse.ArgumentTypeError(
+            f"workers must be no greater than {MAX_PARALLEL_WORKERS}; "
+            "raise this cap only after measuring peak memory on the target host"
         )
     return value
 
@@ -174,7 +183,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--workers",
         default="4",
         type=_validate_workers,
-        help="xdist worker count for the parallel-safe lane; use 'auto' or an integer.",
+        help=(
+            "xdist worker count for the parallel-safe lane; capped at 4 to "
+            "keep regression memory bounded."
+        ),
     )
     parser.add_argument(
         "--dry-run",

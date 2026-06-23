@@ -38,6 +38,12 @@ Canonical closeout command:
 python tools/run_parallel_regression.py --workers 4
 ```
 
+The runner rejects `--workers auto` and any value above `4`. Raise that code
+cap only after measuring peak memory on the target host and updating this
+policy and the runner tests. The regression suite is process-parallel, so each
+worker imports project and test state independently; unbounded worker fan-out
+can multiply memory use even when individual tests are not leaking.
+
 This runner is process-parallel. It must not be replaced with thread-based
 parallelism. Many regression files touch Python process globals, monkeypatch
 environment variables, bind local services, use shared temp paths, or exercise

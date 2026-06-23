@@ -150,6 +150,16 @@ def test_parallel_regression_runner_lane_switches():
     ]
 
 
+def test_parallel_regression_runner_rejects_unbounded_worker_counts():
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--workers", "auto"])
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--workers", "5"])
+
+
 def test_parallel_regression_runner_accepts_per_run_basetemp():
     args = build_parser().parse_args(["--workers", "2"])
 
