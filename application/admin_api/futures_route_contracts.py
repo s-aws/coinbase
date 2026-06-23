@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from core.enums import AdminFuturesCommandAction
 
 from .live_execution import (
+    FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_CONTRACTS,
     FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS,
@@ -125,10 +126,16 @@ def futures_live_adapter_execution_contract_ref(
 def futures_coinbase_exchange_submission_contract_ref(
     command: AdminFuturesCommandAction,
 ) -> str:
-    """Return the missing Coinbase submission contract ref for a futures command."""
+    """Return the disabled Coinbase submission contract ref for a futures command."""
 
-    return (
-        FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS[
-            command
-        ].coinbase_exchange_submission_contract_ref
-    )
+    return FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACTS[command].contract_ref
+
+
+def futures_post_exchange_submission_reconciliation_contract_ref(
+    command: AdminFuturesCommandAction,
+) -> str:
+    """Return the missing post-exchange-submission reconciliation contract ref."""
+
+    return FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACTS[
+        command
+    ].post_exchange_submission_reconciliation_contract_ref

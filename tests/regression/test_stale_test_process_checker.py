@@ -73,6 +73,33 @@ def test_stale_checker_respects_age_threshold():
     ) == [old_pytest]
 
 
+def test_stale_checker_matches_backend_relative_regression_commands():
+    repo = Path("C:/coinbase")
+    relative_regression = _process(
+        name="python.exe",
+        process_id=103,
+        age_seconds=901,
+        command_line=(
+            "C:/Python314/python.exe -m pytest "
+            r"tests\regression\test_admin_api_contract.py -q --tb=short"
+        ),
+    )
+    unrelated_relative_pytest = _process(
+        name="python.exe",
+        process_id=104,
+        age_seconds=901,
+        command_line="C:/Python314/python.exe -m pytest tests/unit",
+    )
+
+    assert is_test_process(relative_regression, [repo])
+    assert not is_test_process(unrelated_relative_pytest, [repo])
+    assert find_stale_test_processes(
+        [relative_regression, unrelated_relative_pytest],
+        roots=[repo],
+        min_age_seconds=900,
+    ) == [relative_regression]
+
+
 def test_parse_process_json_accepts_single_or_list_payload():
     single = parse_process_json(
         json.dumps(

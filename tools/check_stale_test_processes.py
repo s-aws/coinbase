@@ -40,6 +40,13 @@ TEST_COMMAND_TOKENS = (
     "node_modules/@playwright",
 )
 
+BACKEND_RELATIVE_REGRESSION_TOKENS = (
+    " pytest tests\\regression",
+    " pytest tests/regression",
+    " pytest .\\tests\\regression",
+    " pytest ./tests/regression",
+)
+
 
 @dataclass(frozen=True)
 class ProcessInfo:
@@ -74,6 +81,13 @@ def _matches_any_root(command_line: str, roots: Iterable[Path]) -> bool:
     return False
 
 
+def _matches_backend_relative_regression(command_line: str) -> bool:
+    """Return whether pytest was launched from the repo root with a relative path."""
+
+    normalized = f" {command_line.lower()}"
+    return any(token in normalized for token in BACKEND_RELATIVE_REGRESSION_TOKENS)
+
+
 def is_test_process(process: ProcessInfo, roots: Iterable[Path]) -> bool:
     """Return whether a process looks like a repo-owned test worker."""
 
@@ -81,10 +95,12 @@ def is_test_process(process: ProcessInfo, roots: Iterable[Path]) -> bool:
         return False
     if not process.command_line:
         return False
-    return _matches_any_root(process.command_line, roots) and _matches_any_token(
+    if not _matches_any_token(process.command_line, TEST_COMMAND_TOKENS):
+        return False
+    return _matches_any_root(
         process.command_line,
-        TEST_COMMAND_TOKENS,
-    )
+        roots,
+    ) or _matches_backend_relative_regression(process.command_line)
 
 
 def find_stale_test_processes(

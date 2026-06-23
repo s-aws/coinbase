@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): backend `3443181c` completed adapter invocation evidence; current active range is `6161-6180`.
+- Commit (optional): backend `fce46b8b` completed adapter execution evidence; current active range is `6181-6200`.
 
 ## Current Objective
 
@@ -56,37 +56,40 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6141-6160`.
-- Active autonomous range: `6161-6180`.
-- Completed `6141-6160` added disabled futures adapter-invocation contract
-  evidence to the M57 futures/perpetual command suite. Adapter invocation refs
+- Latest completed autonomous range before current work: `6161-6180`.
+- Active autonomous range: `6181-6200`.
+- Completed `6161-6180` added disabled futures adapter-execution contract
+  evidence to the M57 futures/perpetual command suite. Adapter execution refs
   remain required/present disabled backend evidence in
   `application/admin_api/live_execution.py`, while command route, command
-  draft, adapter execution authority, Coinbase, reconciliation execution,
+  draft, Coinbase submission authority, reconciliation execution,
   futures state mutation, browser, BFF, and spot-rule authority remain
   blocked. The range completed with `0` USDC submitted/executed notional.
-- Phase-end subagent sweep for the completed `6141-6160` work was performed:
+- Phase-end subagent sweep for the completed `6161-6180` work was performed:
   all phase-scoped blind/contextless reviewers were closed after findings were
   consumed and remediated. No phase-scoped subagent remains intentionally open.
-  Active `6161-6180` must not register futures command routes, create command
+  Active `6181-6200` must not register futures command routes, create command
   drafts, record executable adapter decisions, construct, invoke, or execute
-  live adapters, call Coinbase, execute reconciliation, mutate futures state,
-  accept proof records as sufficient for execution, or grant browser/BFF
-  authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
-  inventory-lot assumptions are forbidden as futures/perpetual authority.
-- Current direction: complete phases `6161-6180` by syncing disabled futures
-  adapter-execution contract evidence, shifting command-suite
-  missing-contract evidence to Coinbase exchange-submission refs, syncing
+  live adapters, submit Coinbase orders, execute post-exchange reconciliation,
+  mutate futures state, accept proof records as sufficient for execution, or
+  grant browser/BFF authority. Spot wallet, no-shorting, USDC, cost-basis,
+  average-cost, and inventory-lot assumptions are forbidden as
+  futures/perpetual authority.
+- Current direction: complete phases `6181-6200` by syncing disabled futures
+  Coinbase exchange-submission contract evidence, shifting command-suite
+  missing-contract evidence to post-exchange-submission reconciliation refs, syncing
   backend/frontend schema and read-model consumption, docs, focused gates,
   blind/contextless review, and phase-end stale-subagent sweep.
-- Current boundary label: disabled futures adapter-execution contract evidence.
+- Current boundary label: disabled futures Coinbase exchange-submission contract evidence.
+- Previous completed boundary label: disabled futures adapter-execution contract evidence.
 - Current contract split: adapter contract refs are required/present disabled
   evidence; adapter construction refs are required/present disabled evidence;
   adapter decision refs are required/present disabled evidence; adapter
   decision-record refs are required/present disabled evidence; adapter
   invocation refs are required/present disabled evidence; adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
-  refs remain missing. `/api/v1/futures/risk-proofs` GET
+  refs are required/present disabled evidence; post-exchange-submission
+  reconciliation refs remain missing. `/api/v1/futures/risk-proofs` GET
   readbacks use read-only resolver evidence. `POST /api/v1/futures/risk-proofs`
   records append-only local proof evidence only and does not accept proof
   records as sufficient for execution.
@@ -96,7 +99,8 @@ Keep it short. Keep it factual.
 - Exact current boundary phrase: adapter decision-record refs are required/present disabled evidence.
 - Exact current boundary phrase: adapter invocation refs are required/present disabled evidence.
 - Exact current boundary phrase: adapter execution refs are required/present disabled evidence.
-- Exact current boundary phrase: Coinbase exchange-submission refs remain missing.
+- Exact current boundary phrase: Coinbase exchange-submission refs are required/present disabled evidence.
+- Exact current boundary phrase: post-exchange-submission reconciliation refs remain missing.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.

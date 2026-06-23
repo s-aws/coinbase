@@ -142,6 +142,12 @@ FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_AUTHORITY = (
 FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON = (
     "futures_coinbase_exchange_submission_contract_missing"
 )
+FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_AUTHORITY = (
+    "backend_futures_coinbase_exchange_submission_contract_only_no_execution"
+)
+FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON = (
+    "futures_post_exchange_submission_reconciliation_contract_missing"
+)
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY = (
     "backend_artifact_acceptance_requirements_only_no_execution"
 )
@@ -834,11 +840,11 @@ class FuturesLiveAdapterContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_contract"
     authority: str = FUTURES_LIVE_ADAPTER_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON,
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
     forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
@@ -866,11 +872,11 @@ class FuturesLiveAdapterConstructionContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_construction_contract"
     authority: str = FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON,
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
     forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
@@ -901,11 +907,11 @@ class FuturesLiveAdapterDecisionContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_decision_contract"
     authority: str = FUTURES_LIVE_ADAPTER_DECISION_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON,
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
         LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
@@ -938,11 +944,11 @@ class FuturesLiveAdapterDecisionRecordContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_decision_record_contract"
     authority: str = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON,
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
         LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
@@ -974,11 +980,11 @@ class FuturesLiveAdapterInvocationContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_invocation_contract"
     authority: str = FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON,
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
         LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
@@ -1012,11 +1018,54 @@ class FuturesLiveAdapterExecutionContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_execution_contract"
     authority: str = FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_MISSING_REASON,
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
+        LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
+        LIVE_EXECUTION_DISABLED_REASON,
+    )
+    forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesCoinbaseExchangeSubmissionContract:
+    """Disabled futures/perpetual Coinbase exchange-submission contract metadata."""
+
+    command: AdminFuturesCommandAction
+    contract_name: str
+    contract_ref: str
+    adapter_contract_ref: str
+    construction_contract_ref: str
+    decision_contract_ref: str
+    decision_record_contract_ref: str
+    invocation_contract_ref: str
+    execution_contract_ref: str
+    post_exchange_submission_reconciliation_contract_ref: str
+    required: bool = True
+    present: bool = True
+    coinbase_submission_allowed: bool = False
+    coinbase_order_submit_ran: bool = False
+    coinbase_cancel_submit_ran: bool = False
+    exchange_order_acknowledged: bool = False
+    post_exchange_reconciliation_required: bool = True
+    post_exchange_reconciliation_available: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    reconciliation_execution_enabled: bool = False
+    state_mutation_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    source: str = "disabled_futures_coinbase_exchange_submission_contract"
+    authority: str = FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACT_AUTHORITY
+    missing_reason: str = (
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON
+    )
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    blockers: tuple[str, ...] = (
+        FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
         LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
@@ -1122,6 +1171,29 @@ def _futures_live_adapter_execution_contract(
         coinbase_exchange_submission_contract_ref=(
             "application/admin_api/live_execution.py::"
             f"{coinbase_exchange_submission_contract_name}"
+        ),
+    )
+
+
+def _futures_coinbase_exchange_submission_contract(
+    execution_contract: FuturesLiveAdapterExecutionContract,
+    post_exchange_submission_reconciliation_contract_name: str,
+) -> FuturesCoinbaseExchangeSubmissionContract:
+    return FuturesCoinbaseExchangeSubmissionContract(
+        command=execution_contract.command,
+        contract_name=execution_contract.coinbase_exchange_submission_contract_ref.rsplit(
+            "::", 1
+        )[1],
+        contract_ref=execution_contract.coinbase_exchange_submission_contract_ref,
+        adapter_contract_ref=execution_contract.adapter_contract_ref,
+        construction_contract_ref=execution_contract.construction_contract_ref,
+        decision_contract_ref=execution_contract.decision_contract_ref,
+        decision_record_contract_ref=execution_contract.decision_record_contract_ref,
+        invocation_contract_ref=execution_contract.invocation_contract_ref,
+        execution_contract_ref=execution_contract.contract_ref,
+        post_exchange_submission_reconciliation_contract_ref=(
+            "application/admin_api/live_execution.py::"
+            f"{post_exchange_submission_reconciliation_contract_name}"
         ),
     )
 
@@ -1345,6 +1417,47 @@ FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS: dict[
     ),
     futures_reconcile_adapter_execution_contract.command: (
         futures_reconcile_adapter_execution_contract
+    ),
+}
+
+futures_place_coinbase_exchange_submission_contract = (
+    _futures_coinbase_exchange_submission_contract(
+        futures_place_adapter_execution_contract,
+        "futures_place_post_exchange_submission_reconciliation_contract",
+    )
+)
+futures_close_reduce_coinbase_exchange_submission_contract = (
+    _futures_coinbase_exchange_submission_contract(
+        futures_close_reduce_adapter_execution_contract,
+        "futures_close_reduce_post_exchange_submission_reconciliation_contract",
+    )
+)
+futures_cancel_coinbase_exchange_submission_contract = (
+    _futures_coinbase_exchange_submission_contract(
+        futures_cancel_adapter_execution_contract,
+        "futures_cancel_post_exchange_submission_reconciliation_contract",
+    )
+)
+futures_reconcile_coinbase_exchange_submission_contract = (
+    _futures_coinbase_exchange_submission_contract(
+        futures_reconcile_adapter_execution_contract,
+        "futures_reconcile_post_exchange_submission_reconciliation_contract",
+    )
+)
+FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACTS: dict[
+    AdminFuturesCommandAction, FuturesCoinbaseExchangeSubmissionContract
+] = {
+    futures_place_coinbase_exchange_submission_contract.command: (
+        futures_place_coinbase_exchange_submission_contract
+    ),
+    futures_close_reduce_coinbase_exchange_submission_contract.command: (
+        futures_close_reduce_coinbase_exchange_submission_contract
+    ),
+    futures_cancel_coinbase_exchange_submission_contract.command: (
+        futures_cancel_coinbase_exchange_submission_contract
+    ),
+    futures_reconcile_coinbase_exchange_submission_contract.command: (
+        futures_reconcile_coinbase_exchange_submission_contract
     ),
 }
 

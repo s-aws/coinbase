@@ -86,9 +86,13 @@ python tools/check_stale_test_processes.py --include-sibling-frontend
 
 The checker is report-only by default and only matches pytest, Vitest,
 Playwright, npm test, release-gate, or local Next.js test-server command lines
-that include this repository or the sibling `coinbase-frontend` path. If it
-reports stale workers that are no longer part of an active validation run,
-terminate only those matched process trees explicitly:
+that include this repository or the sibling `coinbase-frontend` path. Backend
+pytest regression commands launched from the repo root with relative
+`tests/regression` paths are also treated as repo-owned, because those children
+can survive an interrupted parent shell without retaining the absolute
+`C:\coinbase` path in their command line. If the checker reports stale workers
+that are no longer part of an active validation run, terminate only those
+matched process trees explicitly:
 
 ```powershell
 python tools/check_stale_test_processes.py --include-sibling-frontend --kill
