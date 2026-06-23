@@ -538,7 +538,7 @@ def read_top_process_memory_snapshots(
     limit: int = 12,
     command_line_limit: int = 220,
 ) -> tuple[ProcessMemorySnapshot, ...]:
-    """Return top Windows process private-memory rows for abort attribution."""
+    """Return top Windows process private-memory rows for host attribution."""
 
     if not sys.platform.startswith("win"):
         return ()
@@ -634,12 +634,14 @@ def run_regression_command(
     process = subprocess.Popen(command.command)
     next_sample_at = time.monotonic()
     peak_snapshot: MemorySnapshot | None = None
+    peak_process_snapshots: tuple[ProcessMemorySnapshot, ...] | None = None
     while True:
         returncode = process.poll()
         if returncode is not None:
             return RegressionRunResult(
                 returncode=returncode,
                 peak_memory_snapshot=peak_snapshot,
+                process_memory_snapshots=peak_process_snapshots,
             )
 
         now = time.monotonic()
@@ -653,6 +655,7 @@ def run_regression_command(
                 )
             ):
                 peak_snapshot = snapshot
+                peak_process_snapshots = read_top_process_memory_snapshots()
             if snapshot is not None and _memory_guard_triggered(
                 snapshot,
                 max_commit_gb=max_commit_gb,
@@ -661,6 +664,7 @@ def run_regression_command(
                 min_available_physical_gb=min_available_physical_gb,
             ):
                 process_snapshots = read_top_process_memory_snapshots()
+                peak_process_snapshots = process_snapshots
                 print(
                     (
                         f"Memory guard aborting {command.name}: "

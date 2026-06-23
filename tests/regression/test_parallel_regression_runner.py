@@ -315,6 +315,14 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
         physical_percent=30.47,
         available_physical_gb=89.0,
     )
+    process_snapshot = ProcessMemorySnapshot(
+        process_id=4321,
+        parent_process_id=1234,
+        name="python.exe",
+        private_mb=4096.0,
+        working_set_mb=2048.0,
+        command_line="python -m pytest tests/regression",
+    )
 
     def fake_run_regression_command(command, **kwargs):
         basetemp = Path(command.command[command.command.index("--basetemp") + 1])
@@ -322,7 +330,11 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
         seen_basetemps.append(basetemp)
         assert kwargs["memory_sample_seconds"] == 5
         assert kwargs["max_commit_gb"] == DEFAULT_MAX_COMMIT_GB
-        return RegressionRunResult(returncode=0, peak_memory_snapshot=peak)
+        return RegressionRunResult(
+            returncode=0,
+            peak_memory_snapshot=peak,
+            process_memory_snapshots=(process_snapshot,),
+        )
 
     monkeypatch.setattr(
         "tools.run_parallel_regression.is_xdist_available", lambda: True
@@ -371,6 +383,34 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
             "physical_percent": 30.47,
             "total_physical_gb": 128.0,
             "used_physical_gb": 39.0,
+        },
+    ]
+    assert summary["process_memory_snapshots"] == [
+        {
+            "command": "parallel_safe_regression",
+            "top_processes": [
+                {
+                    "process_id": 4321,
+                    "parent_process_id": 1234,
+                    "name": "python.exe",
+                    "private_mb": 4096.0,
+                    "working_set_mb": 2048.0,
+                    "command_line": "python -m pytest tests/regression",
+                }
+            ],
+        },
+        {
+            "command": "serial_regression",
+            "top_processes": [
+                {
+                    "process_id": 4321,
+                    "parent_process_id": 1234,
+                    "name": "python.exe",
+                    "private_mb": 4096.0,
+                    "working_set_mb": 2048.0,
+                    "command_line": "python -m pytest tests/regression",
+                }
+            ],
         },
     ]
 
@@ -496,6 +536,16 @@ def test_run_regression_command_aborts_on_absolute_commit_pressure(
 def test_run_regression_command_reports_peak_memory_without_abort(monkeypatch):
     poll_results = iter([None, None, 0])
     monotonic_values = [0.0, 0.0, 0.0, 6.0, 6.0]
+    process_snapshots = (
+        ProcessMemorySnapshot(
+            process_id=4321,
+            parent_process_id=1234,
+            name="python.exe",
+            private_mb=4096.0,
+            working_set_mb=2048.0,
+            command_line="python -m pytest tests/regression",
+        ),
+    )
     samples = iter(
         [
             MemorySnapshot(
@@ -534,6 +584,10 @@ def test_run_regression_command_reports_peak_memory_without_abort(monkeypatch):
         lambda: next(samples),
     )
     monkeypatch.setattr(
+        "tools.run_parallel_regression.read_top_process_memory_snapshots",
+        lambda: process_snapshots,
+    )
+    monkeypatch.setattr(
         "tools.run_parallel_regression.time.monotonic",
         lambda: monotonic_values.pop(0) if monotonic_values else 6.0,
     )
@@ -552,3 +606,4 @@ def test_run_regression_command_reports_peak_memory_without_abort(monkeypatch):
     assert result.returncode == 0
     assert result.peak_memory_snapshot is not None
     assert result.peak_memory_snapshot.commit_used_gb == 48.5
+    assert result.process_memory_snapshots == process_snapshots

@@ -52,8 +52,10 @@ To run only the fast classification preflight:
 
 The runner uses short tracebacks and a Windows memory-pressure guard by default.
 It samples every 5 seconds and aborts on high commit pressure, high
-physical-memory pressure, or low available physical memory. If the summary
-status is `memory_guard_aborted`, the closeout gate failed. Run the
+physical-memory pressure, or low available physical memory. Preserve the
+summary JSON because it includes per-lane peak memory samples and top-process
+`process_memory_snapshots` captured at each lane's observed peak. If the
+summary status is `memory_guard_aborted`, the closeout gate failed. Run the
 stale-process checker, preserve the evidence, and reduce or split the offending
 regression file before retrying. Do not disable the guard for normal milestone
 closeout.
