@@ -313,13 +313,17 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   as required/present disabled backend evidence only. M57 phases 6121-6140
   define
   `application/admin_api/live_execution.py::*_adapter_decision_record_contract`
+  refs as required/present disabled backend evidence only. M57 phases
+  6141-6160 define
+  `application/admin_api/live_execution.py::*_adapter_invocation_contract`
   refs as required/present disabled backend evidence only. The next missing
   backend gaps are
-  `application/admin_api/live_execution.py::*_adapter_invocation_contract`
-  refs. Adapter, adapter-construction, adapter-decision, and adapter
-  decision-record refs do not configure or construct adapters, record
-  executable decisions, invoke adapters, call Coinbase, execute reconciliation,
-  mutate futures state, or grant browser/BFF authority.
+  `application/admin_api/live_execution.py::*_adapter_execution_contract`
+  refs. Adapter, adapter-construction, adapter-decision, adapter
+  decision-record, and adapter-invocation refs do not configure or construct
+  adapters, record executable decisions, invoke adapters, execute adapters,
+  call Coinbase, execute reconciliation, mutate futures state, or grant
+  browser/BFF authority.
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.

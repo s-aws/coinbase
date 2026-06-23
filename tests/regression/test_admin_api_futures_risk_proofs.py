@@ -38,6 +38,7 @@ from application.admin_api.futures_route_contracts import (
     futures_live_adapter_construction_contract_ref,
     futures_live_adapter_decision_contract_ref,
     futures_live_adapter_decision_record_contract_ref,
+    futures_live_adapter_execution_contract_ref,
     futures_live_adapter_invocation_contract_ref,
 )
 from application.admin_api.futures_risk_guard import (
@@ -55,7 +56,8 @@ from application.admin_api.live_execution import (
     FUTURES_LIVE_ADAPTER_CONTRACTS,
     FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS,
-    FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON,
+    FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_MISSING_REASON,
+    FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACTS,
     get_disabled_live_execution_service,
 )
 from application.admin_api.models import (
@@ -225,7 +227,7 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert adapter_contract.browser_authority == "display_only"
         assert adapter_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in adapter_contract.forbidden_methods
-        assert "futures_live_adapter_construction_missing" in (
+        assert FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_MISSING_REASON in (
             adapter_contract.blockers
         )
 
@@ -250,7 +252,7 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert construction_contract.browser_authority == "display_only"
         assert construction_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in construction_contract.forbidden_methods
-        assert FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON in (
+        assert FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_MISSING_REASON in (
             construction_contract.blockers
         )
 
@@ -278,7 +280,7 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert decision_contract.browser_authority == "display_only"
         assert decision_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in decision_contract.forbidden_methods
-        assert FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON in (
+        assert FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_MISSING_REASON in (
             decision_contract.blockers
         )
 
@@ -311,8 +313,40 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert decision_record_contract.browser_authority == "display_only"
         assert decision_record_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in decision_record_contract.forbidden_methods
-        assert FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON in (
+        assert FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_MISSING_REASON in (
             decision_record_contract.blockers
+        )
+
+        invocation_contract = FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACTS[command]
+        assert invocation_contract.contract_ref == (
+            futures_live_adapter_invocation_contract_ref(command)
+        )
+        assert invocation_contract.adapter_contract_ref == (
+            futures_live_adapter_contract_ref(command)
+        )
+        assert invocation_contract.construction_contract_ref == (
+            futures_live_adapter_construction_contract_ref(command)
+        )
+        assert invocation_contract.decision_contract_ref == (
+            futures_live_adapter_decision_contract_ref(command)
+        )
+        assert invocation_contract.decision_record_contract_ref == (
+            futures_live_adapter_decision_record_contract_ref(command)
+        )
+        assert invocation_contract.execution_contract_ref == (
+            futures_live_adapter_execution_contract_ref(command)
+        )
+        assert invocation_contract.present is True
+        assert invocation_contract.invocation_adapter_configured is False
+        assert invocation_contract.invocation_allowed is False
+        assert invocation_contract.invocation_performed is False
+        assert invocation_contract.execution_allowed is False
+        assert invocation_contract.live_coinbase_orders_ran is False
+        assert invocation_contract.browser_authority == "display_only"
+        assert invocation_contract.bff_authority == "forward_only_no_execution"
+        assert "create_order" in invocation_contract.forbidden_methods
+        assert FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACT_MISSING_REASON in (
+            invocation_contract.blockers
         )
 
 

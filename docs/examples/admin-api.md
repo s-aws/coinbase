@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6121-6140",
+  "approved_phase_range": "6141-6160",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6121-6140",
+  "approved_phase_range": "6141-6160",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6121-6140",
+  "approved_phase_range": "6141-6160",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2276,13 +2276,16 @@ required/present disabled evidence and are no longer missing. Completed
 refs are required/present disabled evidence and are no longer missing.
 Completed 6101-6120 work adds disabled adapter-decision metadata only:
 `application/admin_api/live_execution.py::*_adapter_decision_contract` refs
-are required/present disabled evidence and are no longer missing. Active
+are required/present disabled evidence and are no longer missing. Completed
 6121-6140 work adds disabled adapter-decision-record metadata only:
 `application/admin_api/live_execution.py::*_adapter_decision_record_contract`
-refs are required/present disabled evidence, while
+refs are required/present disabled evidence and are no longer missing. Active
+6141-6160 work adds disabled adapter-invocation metadata only:
 `application/admin_api/live_execution.py::*_adapter_invocation_contract`
+refs are required/present disabled evidence, while
+`application/admin_api/live_execution.py::*_adapter_execution_contract`
 refs are the current missing backend contract gaps. These rows do not register
-command routes, create drafts, configure or construct adapters, invoke adapters, validate
+command routes, create drafts, configure or construct adapters, invoke adapters, execute adapters, validate
 payloads, write proofs, enable writers, resolve dependencies, create
 remediation or dependency work items, claim work items, create or resolve claim
 traces, create or execute clearance plans, execute clearance steps, complete
