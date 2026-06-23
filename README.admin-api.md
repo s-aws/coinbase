@@ -533,6 +533,15 @@ authority remain blocked. The command-suite keeps the service contracts in
 `required_backend_contracts` while removing them from
 `missing_backend_contracts`; the next missing backend contracts are the futures
 risk guard and reconciliation plan contracts.
+M57 phases 6001-6020 add disabled futures/perpetual risk-guard contract
+evidence. `evaluate_futures_margin_collateral_liquidation` now exists as a
+disabled backend risk-guard method and the command-suite keeps the risk-guard
+contract required but no longer reports it missing. This is not proof
+acceptance or execution authority: reconciliation, command routes, command
+drafts, live adapters, Coinbase calls, reconciliation execution, state
+mutation, browser authority, BFF authority, and spot-rule authority remain
+blocked. The next missing backend contract is
+`application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

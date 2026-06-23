@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "5981-6000",
+  "approved_phase_range": "6001-6020",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "5981-6000",
+  "approved_phase_range": "6001-6020",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5981-6000",
+  "approved_phase_range": "6001-6020",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2253,12 +2253,15 @@ contextless-review evidence are explicit. Completed 5961-5980 rows add
 `"runtime_evidence_satisfies_validator_registration": false` so the missing
 backend validator registration contract, registry record, input/output schema
 bindings, and contextless-review evidence are explicit. These rows are blocked
-evidence only. Active 5981-6000 rows add disabled futures command-service
+evidence only. Completed 5981-6000 rows add disabled futures command-service
 contract evidence: `place_futures_order`,
 `close_or_reduce_futures_position`, and `cancel_futures_order` are named
 disabled backend service methods. Their service contracts remain required, but
-the command-suite no longer reports them as missing; futures risk guard and
-reconciliation remain missing.
+the command-suite no longer reports them as missing. Active 6001-6020 rows add
+disabled futures risk-guard contract evidence:
+`evaluate_futures_margin_collateral_liquidation` is a named disabled backend
+risk-guard method. The risk-guard contract remains required, but the
+command-suite no longer reports it as missing; reconciliation remains missing.
 They do not
 register command routes, create drafts, validate payloads, write proofs, enable
 writers, resolve dependencies, create remediation or dependency work items,

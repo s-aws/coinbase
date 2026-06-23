@@ -83,7 +83,10 @@ from application.admin_api.models import (
     StealthRevealCommand,
     StealthRevealRequest,
 )
-from application.admin_api.read_service import AdminApiReadService
+from application.admin_api.read_service import (
+    AdminApiReadService,
+    stealth_command_suite_api_payload,
+)
 from core.enums import AdminApiActionClass, AdminApiPermission
 
 from .orders import (
@@ -617,7 +620,7 @@ def stealth_command_suite(
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_model_response(
         StealthCommandSuiteResponse,
-        service.build_stealth_command_suite().model_dump(mode="json"),
+        stealth_command_suite_api_payload(service.build_stealth_command_suite()),
     )
 
 

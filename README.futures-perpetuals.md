@@ -281,8 +281,16 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   backend service-contract evidence only. These methods prove there is a
   shared backend boundary for future work; they do not register routes, create
   drafts, call Coinbase, execute reconciliation, mutate futures state, or grant
-  browser/BFF authority. Futures risk guard and reconciliation contracts remain
-  missing.
+  browser/BFF authority.
+- Do not treat disabled risk-guard methods as executable proof acceptance.
+  M57 phases 6001-6020 define
+  `evaluate_futures_margin_collateral_liquidation` as disabled backend
+  risk-guard contract evidence only. The method proves there is a shared
+  backend boundary for future risk checks; it does not validate margin,
+  collateral, liquidation, or funding, accept proof records, register routes,
+  create drafts, call Coinbase, execute reconciliation, mutate futures state,
+  or grant browser/BFF authority. Reconciliation remains the missing backend
+  contract.
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.

@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 5981-6000 range adds explicit M57 futures/perpetual disabled
-command-service contract evidence to `GET /api/v1/futures/command-suite`.
+The active 6001-6020 range adds explicit M57 futures/perpetual disabled
+risk-guard contract evidence to `GET /api/v1/futures/command-suite`.
 Concrete risk-proof record routes at `/api/v1/futures/risk-proofs` remain
 read-only resolver evidence. Exact safe latest records may be displayed, while
 missing or stale/invalid records fail closed. Resolver evidence and runtime
@@ -25,10 +25,13 @@ Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant
 browser/BFF authority.
 
 `place_futures_order`, `close_or_reduce_futures_position`, and
-`cancel_futures_order` are named disabled backend methods. They are service
-boundary evidence only: the command-suite keeps those service contracts in
-`required_backend_contracts` but removes them from `missing_backend_contracts`.
-Futures risk guard and reconciliation contracts remain missing.
+`cancel_futures_order` are named disabled backend command-service methods from
+the completed 5981-6000 range. The active range adds
+`evaluate_futures_margin_collateral_liquidation` as a named disabled backend
+risk-guard method. These are service boundary evidence only: the command-suite
+keeps command-service and risk-guard contracts in `required_backend_contracts`
+but removes them from `missing_backend_contracts`. Reconciliation contract
+remains missing.
 
 The command-suite contract still exposes read-only M57 futures/perpetual risk
 proof record-validation remediation dependency work-item claim-trace
@@ -102,7 +105,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "5981-6000",
+  "approved_phase_range": "6001-6020",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -500,7 +503,6 @@ Expected response posture:
         "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
       ],
       "missing_backend_contracts": [
-        "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
       ],
       "request_field_count": 7,
@@ -602,15 +604,15 @@ Expected response posture:
         "decision": "blocked_backend_contracts_required",
         "status": "blocked",
         "ready": false,
-        "blocker_count": 28,
+        "blocker_count": 27,
         "blocking_prerequisite_count": 9,
         "blocking_request_field_count": 7,
         "blocking_semantic_guard_count": 10,
-        "missing_backend_contract_count": 2,
+        "missing_backend_contract_count": 1,
         "missing_evidence_ref_count": 13,
         "evidence_route_count": 6,
         "first_blocker": "prerequisite:product_scope",
-        "next_required_backend_contract": "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+        "next_required_backend_contract": "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
         "command_route_registered": false,
         "command_draft_allowed": false,
         "execution_allowed": false,
@@ -643,12 +645,11 @@ Expected response posture:
           "step": "define_backend_command_service",
           "sequence": 4,
           "status": "blocked",
-          "required_backend_contract": "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+          "required_backend_contract": "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
           "required_evidence_refs": [
-            "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
             "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
           ],
-          "required_evidence_count": 2,
+          "required_evidence_count": 1,
           "execution_allowed": false,
           "proof_writer_enabled": false,
           "spot_rule_authority": false
@@ -1780,15 +1781,14 @@ Expected response posture:
         "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
       ],
       "missing_backend_contracts": [
-        "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
       ],
       "readiness_decision": {
         "decision": "blocked_backend_contracts_required",
         "status": "blocked",
-        "blocker_count": 31,
-        "missing_backend_contract_count": 2,
-        "next_required_backend_contract": "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+        "blocker_count": 30,
+        "missing_backend_contract_count": 1,
+        "next_required_backend_contract": "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
         "command_route_registered": false,
         "command_draft_allowed": false,
         "execution_allowed": false
@@ -1800,12 +1800,11 @@ Expected response posture:
           "step": "define_backend_command_service",
           "sequence": 4,
           "status": "blocked",
-          "required_backend_contract": "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+          "required_backend_contract": "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
           "required_evidence_refs": [
-            "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
             "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
           ],
-          "required_evidence_count": 2,
+          "required_evidence_count": 1,
           "execution_allowed": false,
           "proof_writer_enabled": false,
           "spot_rule_authority": false
@@ -1907,14 +1906,13 @@ Expected response posture:
         "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation"
       ],
       "missing_backend_contracts": [
-        "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
-        "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation"
+        "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
       ],
       "readiness_decision": {
         "decision": "blocked_backend_contracts_required",
         "status": "blocked",
-        "blocker_count": 25,
-        "missing_backend_contract_count": 2,
+        "blocker_count": 23,
+        "missing_backend_contract_count": 1,
         "next_required_backend_contract": "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
         "command_route_registered": false,
         "command_draft_allowed": false,
@@ -1929,10 +1927,9 @@ Expected response posture:
           "status": "blocked",
           "required_backend_contract": "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
           "required_evidence_refs": [
-            "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
-            "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation"
+            "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"
           ],
-          "required_evidence_count": 2,
+          "required_evidence_count": 1,
           "execution_allowed": false,
           "proof_writer_enabled": false,
           "spot_rule_authority": false

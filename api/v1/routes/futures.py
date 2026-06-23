@@ -32,7 +32,10 @@ from application.admin_api.models import (
     FuturesRiskProofRecordItem,
     FuturesRiskProofRecordRequest,
 )
-from application.admin_api.read_service import AdminApiReadService
+from application.admin_api.read_service import (
+    AdminApiReadService,
+    futures_command_suite_api_payload,
+)
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from core.enums import (
     AdminApiActionClass,
@@ -115,7 +118,7 @@ def get_futures_command_suite(
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_model_response(
         AdminFuturesCommandSuiteResponse,
-        service.build_futures_command_suite(),
+        futures_command_suite_api_payload(service.build_futures_command_suite()),
     )
 
 

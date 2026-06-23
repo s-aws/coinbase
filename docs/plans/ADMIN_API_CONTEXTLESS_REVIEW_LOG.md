@@ -1,5 +1,100 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Disabled Risk Guard Contract Evidence - Phases 6001-6020
+
+Scope: phases `6001-6020`, after completed history `5981-6000`, add disabled
+futures risk-guard contract evidence to `GET /api/v1/futures/command-suite`.
+Completed disabled command-service evidence from `5981-6000` remains
+backend-owned disabled service evidence. This range defines
+`application/admin_api/futures_risk_guard.py` with disabled
+`evaluate_futures_margin_collateral_liquidation` evidence.
+
+Result: PASS after remediation.
+
+- Disabled risk guard evidence: `evaluate_futures_margin_collateral_liquidation`
+  is a named backend risk-guard method and remains disabled contract evidence.
+  Command-service contracts from `application/admin_api/futures_command_service.py`
+  remain in `required_backend_contracts` and remain absent from
+  `missing_backend_contracts`. The risk-guard contract is also required and no
+  longer missing. The only remaining backend contract gap is
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
+- Backend/source boundary: `GET /api/v1/futures/command-suite` reads the
+  contract posture and `/api/v1/futures/risk-proofs` remains read-only
+  proof-record resolver evidence. `backend_futures_risk_proof_store_read_only_no_execution`
+  and `backend_futures_semantics_no_execution` remain true boundary labels.
+- Authority boundary: the disabled risk guard does not accept proof records,
+  validate margin/collateral/liquidation/funding for execution, register
+  futures command routes, create command drafts, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+  authority. Spot wallet, no-shorting, USDC quote, average-cost, cost-basis,
+  and inventory-lot assumptions remain forbidden spot assumptions.
+- Carried-forward proof evidence remains display-only:
+  `risk_proof_record_resolver_count`, `risk_proof_acceptance_blocker_count`,
+  `risk_proof_semantic_contract_requirement_count`,
+  `risk_proof_semantic_contract_definition_count`,
+  `risk_proof_semantic_contract_validation_gate_count`,
+  `risk_proof_semantic_contract_validator_contract_count`,
+  `risk_proof_semantic_validator_input_schema_count`,
+  `risk_proof_semantic_validator_output_schema_count`,
+  `risk_proof_semantic_validator_registration_count`,
+  `semantic_contract_requirements`, `semantic_contract_definitions`,
+  `semantic_contract_validation_gates`,
+  `semantic_contract_validator_contracts`,
+  `semantic_validator_input_schemas`, `semantic_validator_output_schemas`,
+  `semantic_validator_registrations`, `proof_record_lookup_status`,
+  `proof_acceptance_blockers`, `proof_record_resolves_acceptance`,
+  `proofRecordLookupStatus`, `proofAcceptanceBlockers`,
+  `semanticContractRequirements`, `semanticContractDefinitions`,
+  `semanticContractValidationGates`, `semanticContractValidatorContracts`,
+  `semanticValidatorInputSchemas`, `semanticValidatorOutputSchemas`, and
+  `semanticValidatorRegistrations`.
+- Initial blind/contextless frontend reviewer `019ef13f-d4ee-7e60-9a6a-9dc67ce2108d`
+  found stale top review-log entries that still led with `5981-6000`
+  disabled command-service evidence. Remediation prepended this `6001-6020`
+  review-log entry and aligned frontend testing docs to disabled risk-guard
+  evidence.
+- Initial blind/contextless backend reviewer `019ef13f-9e13-7d03-b69b-f67c57b93b61`
+  found stale example payloads in `docs/examples/futures-perpetuals.md` that
+  still reported the risk-guard contract as missing and as the next required
+  backend contract. Remediation updated those examples so risk guard is
+  required but no longer missing and reconciliation is the only missing backend
+  contract.
+- Backend autonomous checker remediation added the
+  `futures_risk_guard_not_reported_missing` check so future contextless work
+  fails if the futures examples put the risk guard back into
+  `missing_backend_contracts` or `next_required_backend_contract`.
+- Fresh blind/contextless backend re-review by
+  `019ef16d-2cd7-7be1-ac08-90b4bf43a259` returned PASS after remediation and
+  confirmed no execution authority was introduced.
+- Fresh backend/Admin API review `019ef202-9de8-7f21-a4eb-182178aae32d`
+  returned PASS and confirmed the bounded command-suite serializers do not
+  hide schema-visible risk-proof fields.
+- Fresh frontend review `019ef202-b248-78b1-a227-cfef7a6d1dd7` found one
+  comprehension blocker: the frontend carried the risk-guard ref in data but
+  did not visibly render the exact required/present contract in the
+  futures/perpetual command-suite read model. Remediation mapped
+  command-level `required_backend_contracts` and `missing_backend_contracts`
+  into the frontend view model, rendered them in the command-suite evidence,
+  added focused UI coverage, and made backend closure-step detail name the
+  actual missing reconciliation contract instead of generic command-service
+  wording.
+- Fresh frontend re-review `019ef214-289b-7d52-ac57-925030dc5643` returned
+  PASS after remediation and confirmed the UI visibly shows
+  `application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation`
+  as required/present while missing evidence remains limited to
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
+- No live Coinbase execution was run; submitted notional `0` USDC and executed
+  notional `0` USDC.
+- Full backend regression was not run because phases `6001-6020` are ordinary
+  phase work, not durable milestone closeout.
+- Phase-end stale-subagent sweep completed after consuming remediation and
+  review results. Reviewers `019ef202-9de8-7f21-a4eb-182178aae32d`,
+  `019ef202-b248-78b1-a227-cfef7a6d1dd7`, and
+  `019ef214-289b-7d52-ac57-925030dc5643` were closed. Earlier completed
+  reviewer close attempts had returned not found; no phase-scoped, stale, or
+  unused subagent remains intentionally open.
+- Machine-check exact phrase line: futures disabled risk guard contract evidence; /api/v1/futures/command-suite; /api/v1/futures/risk-proofs; application/admin_api/futures_command_service.py; place_futures_order; close_or_reduce_futures_position; cancel_futures_order; application/admin_api/futures_risk_guard.py; evaluate_futures_margin_collateral_liquidation; backend_command_service; required_backend_contracts; missing_backend_contracts; application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan; risk_proof_record_resolver_count; risk_proof_acceptance_blocker_count; risk_proof_semantic_contract_requirement_count; risk_proof_semantic_contract_definition_count; risk_proof_semantic_contract_validation_gate_count; risk_proof_semantic_contract_validator_contract_count; risk_proof_semantic_validator_input_schema_count; risk_proof_semantic_validator_output_schema_count; risk_proof_semantic_validator_registration_count; semantic_contract_requirements; semantic_contract_definitions; semantic_contract_validation_gates; semantic_contract_validator_contracts; semantic_validator_input_schemas; semantic_validator_output_schemas; semantic_validator_registrations; proof_record_lookup_status; proof_acceptance_blockers; proof_record_resolves_acceptance; proofRecordLookupStatus; proofAcceptanceBlockers; semanticContractRequirements; semanticContractDefinitions; semanticContractValidationGates; semanticContractValidatorContracts; semanticValidatorInputSchemas; semanticValidatorOutputSchemas; semanticValidatorRegistrations; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+
 ## M57 Futures/Perpetual Disabled Command Service Contract Evidence - Phases 5981-6000
 
 Scope: phases `5981-6000`, after completed history `5961-5980`, add disabled

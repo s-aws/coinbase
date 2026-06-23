@@ -27,6 +27,11 @@ from application.admin_api.futures_command_service import (
     FUTURES_COMMAND_SERVICE_CONTRACTS,
     FuturesCommandServiceDisabledError,
 )
+from application.admin_api.futures_risk_guard import (
+    AdminApiFuturesRiskGuard,
+    FUTURES_RISK_GUARD_CONTRACT,
+    FuturesRiskGuardDisabledError,
+)
 from application.admin_api.futures_risk_proof_service import (
     AdminApiFuturesRiskProofService,
     FuturesRiskProofError,
@@ -38,7 +43,10 @@ from application.admin_api.models import (
     AdminLiveAdmissionDecisionEvidence,
     FuturesRiskProofRecordRequest,
 )
-from application.admin_api.read_service import AdminApiReadService
+from application.admin_api.read_service import (
+    AdminApiReadService,
+    futures_command_suite_api_payload,
+)
 from application.admin_api.reconciliation import (
     FileAdminApiReconciliationStore,
     ReconciliationPlanRecord,
@@ -81,6 +89,31 @@ def test_futures_command_service_contracts_are_disabled() -> None:
 
     message = str(exc_info.value)
     assert "contract-defined but not executable" in message
+    assert "Coinbase calls" in message
+
+
+def test_futures_risk_guard_contract_is_disabled() -> None:
+    guard = AdminApiFuturesRiskGuard()
+
+    assert FUTURES_RISK_GUARD_CONTRACT.method_name == (
+        "evaluate_futures_margin_collateral_liquidation"
+    )
+    assert FUTURES_RISK_GUARD_CONTRACT.contract_ref == (
+        "application/admin_api/futures_risk_guard.py::"
+        "evaluate_futures_margin_collateral_liquidation"
+    )
+    assert set(FUTURES_RISK_GUARD_CONTRACT.commands) == {
+        AdminFuturesCommandAction.PLACE,
+        AdminFuturesCommandAction.CLOSE_REDUCE,
+        AdminFuturesCommandAction.RECONCILE,
+    }
+
+    with pytest.raises(FuturesRiskGuardDisabledError) as exc_info:
+        guard.evaluate_futures_margin_collateral_liquidation()
+
+    message = str(exc_info.value)
+    assert "contract-defined but not executable" in message
+    assert "risk proof acceptance" in message
     assert "Coinbase calls" in message
 
 
@@ -1186,7 +1219,7 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     service = futures_routes.get_read_service(store)
     assert service.futures_risk_proof_store is store
 
-    payload = service.build_futures_command_suite().model_dump(mode="json")
+    payload = futures_command_suite_api_payload(service.build_futures_command_suite())
     place = next(
         item
         for item in payload["commands"]

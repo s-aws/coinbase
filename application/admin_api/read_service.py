@@ -298,6 +298,7 @@ from .models import (
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .futures_command_service import FUTURES_COMMAND_SERVICE_CONTRACTS
+from .futures_risk_guard import FUTURES_RISK_GUARD_CONTRACT
 from .futures_risk_proof import FileFuturesRiskProofStore, FuturesRiskProofRecord
 from .stealth_cancel_replace_boundary import (
     build_stealth_active_placement_cancel_replace_contract,
@@ -396,7 +397,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "5981-6000"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6001-6020"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -453,6 +454,64 @@ def _frontend_safe(surface: str, action_class: AdminApiActionClass) -> bool:
     if "WebSocket" in surface:
         return False
     return action_class == AdminApiActionClass.READ_ONLY or surface.startswith("POST /api/v1")
+
+
+STEALTH_COMMAND_SUITE_API_EXCLUDE = {
+    "create_lifecycle_write_audit": {"execution_contract": True},
+    "blocker_closures": {
+        "__all__": {"closure_readiness_criterion_traces": True}
+    },
+}
+
+
+FUTURES_RISK_PROOF_REQUIREMENT_API_EXCLUDE = {
+    "record_validation_remediation_dependencies": True,
+    "record_validation_remediation_dependency_work_items": True,
+    "record_validation_remediation_dependency_work_item_claim_traces": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_steps": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces": True,
+    "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans": True,
+}
+
+FUTURES_COMMAND_SUITE_API_EXCLUDE = {
+    "commands": {
+        "__all__": {
+            "risk_proof_requirements": {
+                "__all__": FUTURES_RISK_PROOF_REQUIREMENT_API_EXCLUDE
+            }
+        }
+    }
+}
+
+
+def futures_command_suite_api_payload(
+    response: AdminFuturesCommandSuiteResponse,
+) -> dict[str, Any]:
+    """Serialize futures command-suite evidence without deep proof child graphs."""
+
+    return response.model_dump(
+        mode="json",
+        exclude=FUTURES_COMMAND_SUITE_API_EXCLUDE,
+    )
+
+
+def stealth_command_suite_api_payload(
+    response: StealthCommandSuiteResponse,
+) -> dict[str, Any]:
+    """Serialize stealth command-suite evidence without embedded deep contracts."""
+
+    return response.model_dump(
+        mode="json",
+        exclude=STEALTH_COMMAND_SUITE_API_EXCLUDE,
+    )
 
 
 def _live_enablement_module(path: str) -> str:
@@ -9445,9 +9504,27 @@ class AdminApiReadService:
                     "funding, and collateral commands require backend-specific "
                     "contracts before any route or UI exists."
                 ),
-                identity_keys=["position_key", "product_id", "portfolio_id"],
-                action_classes=[],
-                required_permissions=[],
+                command_surfaces=["POST /api/v1/futures/risk-proofs"],
+                identity_keys=[
+                    "position_key",
+                    "product_id",
+                    "portfolio_id",
+                    "proof_kind",
+                ],
+                action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
+                required_permissions=[AdminApiPermission.FUTURES_RISK_PROOF_RECORD],
+                payload_binding_fields=[
+                    "command",
+                    "proof_kind",
+                    "identity_key",
+                    "identity_value",
+                    "required_evidence_refs",
+                    "source_snapshot_ref",
+                    "validation_status",
+                    "idempotency_key",
+                    "correlation_id",
+                    "audit_id",
+                ],
                 idempotency_contract="backend futures idempotency contract missing",
                 approval_contract="backend futures approval contract missing",
                 cap_guard_contract=(
@@ -9456,8 +9533,16 @@ class AdminApiReadService:
                 ),
                 admission_audit_contract="backend futures admission audit contract missing",
                 reconciliation_contract="backend futures reconciliation contract missing",
-                owning_backend_service="backend futures/perpetual command service missing",
-                backend_contract_refs=["api/v1/routes/futures.py"],
+                owning_backend_service=(
+                    "application/admin_api/futures_risk_proof_service.py::"
+                    "record_futures_risk_proof"
+                ),
+                route_inventory_refs=["POST /api/v1/futures/risk-proofs"],
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::record_futures_risk_proof",
+                    "application/admin_api/futures_risk_proof_service.py::record_futures_risk_proof",
+                    "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                ],
                 frontend_contract_refs=["src/features/admin-shell/AdminShell.tsx"],
                 documentation_refs=["README.futures-perpetuals.md"],
                 required_next_contract=(
@@ -9473,12 +9558,12 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Spot rules are forbidden in futures/perpetual command authority."
                 ),
-                idempotency_required=False,
-                operator_intent_required=False,
-                rbac_required=False,
-                approval_required=False,
-                cap_guard_required=False,
-                admission_audit_required=False,
+                idempotency_required=True,
+                operator_intent_required=True,
+                rbac_required=True,
+                approval_required=True,
+                cap_guard_required=True,
+                admission_audit_required=True,
                 reconciliation_required=False,
                 live_adapter_required=False,
             ),
@@ -19929,19 +20014,19 @@ class AdminApiReadService:
             ],
             futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
             "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
-            "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+            FUTURES_RISK_GUARD_CONTRACT.contract_ref,
         ]
         command_required_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
                 futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
-                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
                 futures_command_service_contract_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
-                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             AdminFuturesCommandAction.CANCEL: [
@@ -19950,16 +20035,14 @@ class AdminApiReadService:
             ],
             AdminFuturesCommandAction.RECONCILE: [
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
-                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
+                FUTURES_RISK_GUARD_CONTRACT.contract_ref,
             ],
         }
         command_missing_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
-                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
-                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
             ],
             AdminFuturesCommandAction.CANCEL: [
@@ -19967,7 +20050,6 @@ class AdminApiReadService:
             ],
             AdminFuturesCommandAction.RECONCILE: [
                 "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
-                "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
             ],
         }
         product_scope_evidence_routes = [
@@ -20945,9 +21027,10 @@ class AdminApiReadService:
                     required_backend_contract=missing_backend_contracts[0],
                     required_evidence_refs=missing_backend_contracts,
                     detail=(
-                        f"{command_id.value} requires a shared backend command "
-                        "service contract. Route-local or browser execution "
-                        "would be a parallel implementation."
+                        f"{command_id.value} requires the missing backend "
+                        f"contract {missing_backend_contracts[0]}. "
+                        "Route-local or browser execution would be a parallel "
+                        "implementation."
                     ),
                 )
             add_step(
@@ -30465,6 +30548,146 @@ class AdminApiReadService:
     def build_frontend_fixtures(self) -> AdminFrontendFixturesResponse:
         """Return backend-owned fixtures for frontend mock alignment."""
 
+        empty_pagination = {
+            "limit": 100,
+            "offset": 0,
+            "returned_count": 0,
+            "total_matching_count": 0,
+            "next_offset": None,
+            "has_more": False,
+        }
+        fixture_scope = {
+            "fixture_scope": "offline_frontend_contract",
+            "runtime_backing_store_queried": False,
+        }
+        empty_client_order_id = "00000000-0000-0000-0000-000000000000"
+        empty_stealth_order_id = "00000000-0000-0000-0000-000000000000"
+        order_list_fixture = AdminOrderListResponse(
+            filters=fixture_scope,
+            count=0,
+            pagination=empty_pagination,
+            items=[],
+        )
+        order_detail_fixture = AdminOrderDetailResponse(
+            client_order_id=empty_client_order_id,
+            found=False,
+            order=None,
+        )
+        movement_list_fixture = AdminMovementRepricingListResponse(
+            filters=fixture_scope,
+            count=0,
+            pagination=empty_pagination,
+            items=[],
+        )
+        movement_order_fixture = AdminMovementRepricingDetailResponse(
+            scope="client_order_id",
+            client_order_id=empty_client_order_id,
+            found=False,
+            items=[],
+        )
+        movement_stealth_fixture = AdminMovementRepricingDetailResponse(
+            scope="stealth_order_id",
+            stealth_order_id=empty_stealth_order_id,
+            found=False,
+            items=[],
+        )
+        audit_workbench_fixture = AdminAuditWorkbenchReadResponse(
+            filters=fixture_scope,
+            module_summary=_audit_module_summary(),
+            events=[],
+            pagination=empty_pagination,
+        )
+        spot_recovery_routes = [
+            "GET /api/v1/spot/recovery/preview",
+            "GET /api/v1/spot/recovery/apply-review",
+            "GET /api/v1/spot/recovery/rollback-plan",
+            "GET /api/v1/spot/recovery/reconciliation-proof",
+            "GET /api/v1/admin/recovery-gate",
+            "GET /api/v1/admin/fill-ledger-health",
+        ]
+        spot_recovery_boundary = (
+            "Spot recovery fixture evidence is offline and read-only. It does "
+            "not import runtime recovery tools, read databases, mutate local "
+            "state, read Coinbase, or submit Coinbase orders."
+        )
+        spot_recovery_preview_fixture = SpotRecoveryPreviewResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.PASSED,
+            filters=fixture_scope,
+            source_count=0,
+            candidate_count=0,
+            sources=[],
+            current_read_evidence_routes=spot_recovery_routes,
+            spot_rule_boundary=spot_recovery_boundary,
+            detail="Offline frontend fixture with no recovery candidates.",
+        )
+        spot_recovery_apply_review_fixture = SpotRecoveryApplyReviewResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.PASSED,
+            filters=fixture_scope,
+            candidate_count=0,
+            candidates=[],
+            current_read_evidence_routes=spot_recovery_routes,
+            contract_gate_evidence=[],
+            state_repair_taxonomy=[],
+            repair_targets=[],
+            pre_apply_snapshots=[],
+            dry_run_repair_plans=[],
+            completion_states=[],
+            persisted_executions=[],
+            persisted_repair_results=[],
+            missing_contracts=[],
+            spot_rule_boundary=spot_recovery_boundary,
+            detail="Offline frontend fixture with no apply-review candidates.",
+        )
+        spot_recovery_rollback_plan_fixture = SpotRecoveryRollbackPlanResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.PASSED,
+            filters=fixture_scope,
+            candidate_count=0,
+            candidates=[],
+            current_read_evidence_routes=spot_recovery_routes,
+            rollback_steps=[],
+            state_repair_taxonomy=[],
+            repair_targets=[],
+            pre_apply_snapshots=[],
+            dry_run_repair_plans=[],
+            completion_states=[],
+            persisted_executions=[],
+            persisted_repair_results=[],
+            missing_contracts=[],
+            spot_rule_boundary=spot_recovery_boundary,
+            detail="Offline frontend fixture with no rollback-plan candidates.",
+        )
+        spot_recovery_reconciliation_proof_fixture = (
+            SpotRecoveryReconciliationProofResponse(
+                approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+                status=AdminApiGateStatus.PASSED,
+                filters=fixture_scope,
+                candidate_count=0,
+                candidates=[],
+                current_read_evidence_routes=spot_recovery_routes,
+                required_proof_fields=[],
+                state_repair_taxonomy=[],
+                repair_targets=[],
+                pre_apply_snapshots=[],
+                dry_run_repair_plans=[],
+                completion_states=[],
+                persisted_proofs=[],
+                persisted_executions=[],
+                persisted_repair_results=[],
+                persisted_completions=[],
+                persisted_snapshots=[],
+                reconciliation_execution_boundaries=[],
+                missing_contracts=[],
+                spot_rule_boundary=spot_recovery_boundary,
+                detail=(
+                    "Offline frontend fixture with no reconciliation-proof "
+                    "candidates."
+                ),
+            )
+        )
+
         return AdminFrontendFixturesResponse(
             schema_version=SCHEMA_VERSION,
             fixtures={
@@ -30474,36 +30697,46 @@ class AdminApiReadService:
                 "admin.csrf": self.build_csrf_contract().model_dump(mode="json"),
                 "admin.liveEnablement": self.build_live_enablement().model_dump(mode="json"),
                 "admin.enterpriseReadiness": self.build_enterprise_readiness().model_dump(mode="json"),
-                "orders.list": self.build_order_list().model_dump(mode="json"),
-                "orders.detail.empty": self.build_order_detail(
-                    client_order_id="00000000-0000-0000-0000-000000000000"
-                ).model_dump(mode="json"),
-                "movementRepricing.evidence": self.build_movement_repricing_evidence().model_dump(mode="json"),
-                "movementRepricing.order.empty": self.build_movement_repricing_order_detail(
-                    client_order_id="00000000-0000-0000-0000-000000000000"
-                ).model_dump(mode="json"),
-                "movementRepricing.stealth.empty": self.build_movement_repricing_stealth_detail(
-                    stealth_order_id="00000000-0000-0000-0000-000000000000"
-                ).model_dump(mode="json"),
-                "futures.account": self.build_futures_account().model_dump(mode="json"),
-                "futures.commandSuite": self.build_futures_command_suite().model_dump(
+                "orders.list": order_list_fixture.model_dump(mode="json"),
+                "orders.detail.empty": order_detail_fixture.model_dump(mode="json"),
+                "movementRepricing.evidence": movement_list_fixture.model_dump(
                     mode="json"
+                ),
+                "movementRepricing.order.empty": movement_order_fixture.model_dump(
+                    mode="json"
+                ),
+                "movementRepricing.stealth.empty": movement_stealth_fixture.model_dump(
+                    mode="json"
+                ),
+                "futures.account": self.build_futures_account().model_dump(mode="json"),
+                "futures.commandSuite": futures_command_suite_api_payload(
+                    self.build_futures_command_suite()
                 ),
                 "futures.positions": self.build_futures_positions().model_dump(mode="json"),
                 "futures.position.empty": self.build_futures_position_detail(
                     position_key="futures_position:runtime:UNKNOWN"
                 ).model_dump(mode="json"),
                 "admin.guardRiskPolicy": self.build_guard_risk_policy().model_dump(mode="json"),
-                "admin.auditWorkbench": self.build_audit_workbench().model_dump(mode="json"),
+                "admin.auditWorkbench": audit_workbench_fixture.model_dump(mode="json"),
                 "admin.releaseGate": self.build_release_gate().model_dump(mode="json"),
                 "admin.recoveryGate": self.build_recovery_gate().model_dump(mode="json"),
                 "admin.fillLedgerHealth": self.build_fill_ledger_health().model_dump(mode="json"),
-                "stealth.commandSuite": self.build_stealth_command_suite().model_dump(mode="json"),
+                "stealth.commandSuite": stealth_command_suite_api_payload(
+                    self.build_stealth_command_suite()
+                ),
                 "spot.commandSuite": self.build_spot_command_suite().model_dump(mode="json"),
-                "spot.recoveryPreview": self.build_spot_recovery_preview().model_dump(mode="json"),
-                "spot.recoveryApplyReview": self.build_spot_recovery_apply_review().model_dump(mode="json"),
-                "spot.recoveryRollbackPlan": self.build_spot_recovery_rollback_plan().model_dump(mode="json"),
-                "spot.recoveryReconciliationProof": self.build_spot_recovery_reconciliation_proof().model_dump(mode="json"),
+                "spot.recoveryPreview": spot_recovery_preview_fixture.model_dump(
+                    mode="json"
+                ),
+                "spot.recoveryApplyReview": (
+                    spot_recovery_apply_review_fixture.model_dump(mode="json")
+                ),
+                "spot.recoveryRollbackPlan": (
+                    spot_recovery_rollback_plan_fixture.model_dump(mode="json")
+                ),
+                "spot.recoveryReconciliationProof": (
+                    spot_recovery_reconciliation_proof_fixture.model_dump(mode="json")
+                ),
             },
         )
 

@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `5961-5980` under M57.
-- Active autonomous range: `5981-6000` under M57.
+- Latest completed autonomous range: `5981-6000` under M57.
+- Active autonomous range: `6001-6020` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -777,12 +777,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   evidence, including the missing backend registration contract, registry
   record, validator contract ref, input schema ref, output schema ref,
   registration field refs, required evidence refs, and no-execution authority.
-  Active 5981-6000 work adds disabled backend futures command service contract
-  evidence for placement, close/reduce, and cancel. Runtime-observed evidence
-  remains display-only; the new service-contract rows do not register command
-  routes, create command drafts, bind live adapters, call Coinbase, execute
-  reconciliation, mutate state, satisfy proof acceptance, use spot
+  Completed 5981-6000 work adds disabled backend futures command service
+  contract evidence for placement, close/reduce, and cancel. Runtime-observed
+  evidence remains display-only; those service-contract rows do not register
+  command routes, create command drafts, bind live adapters, call Coinbase,
+  execute reconciliation, mutate state, satisfy proof acceptance, use spot
   wallet/no-shorting/cost-basis authority, or grant browser/BFF authority.
+  Active 6001-6020 work adds disabled backend futures risk-guard contract
+  evidence for placement, close/reduce, and reconcile. The risk-guard contract
+  becomes required but no longer missing; reconciliation, command routes,
+  command drafts, live adapters, Coinbase calls, reconciliation execution,
+  futures state mutation, proof acceptance, browser authority, BFF authority,
+  and spot-rule authority remain blocked.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

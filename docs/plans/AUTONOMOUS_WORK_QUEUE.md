@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **5981-6000**.
+- Approved phase range: **6001-6020**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `5961-5980`.
+- Previous completed range: `5981-6000`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `5980`.
+- `current_phase`: `6000`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,129 +81,187 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 5981-6000
+## Active Phases 6001-6020
 
-Batch label: Futures/Perpetuals Disabled Command Service Contract Evidence.
+Batch label: Futures/Perpetuals Disabled Risk Guard Contract Evidence.
 
-These phases stop the M57 futures/perpetual path from drifting into another
-nested missing-evidence layer by creating the first concrete backend-owned
-disabled command-service contract. Completed phases `5961-5980` made semantic
-validator registration blockers explicit. Active `5981-6000` adds
-`application/admin_api/futures_command_service.py` with disabled service
-methods for placement, close/reduce, and cancel, then updates
-`GET /api/v1/futures/command-suite` so the backend command-service prerequisite
-is resolved while futures risk guard, reconciliation, command route, command
-draft, live adapter, Coinbase, reconciliation execution, state mutation,
-browser, BFF, and spot-rule authority remain blocked.
+These phases continue M57 by turning the futures/perpetual risk-guard boundary
+from an unresolved missing backend contract into a named disabled backend
+contract. Completed phases `5981-6000` added disabled command-service methods
+for placement, close/reduce, and cancel. Active `6001-6020` adds
+`application/admin_api/futures_risk_guard.py` with
+`evaluate_futures_margin_collateral_liquidation`, then updates
+`GET /api/v1/futures/command-suite` so the futures risk-guard contract remains
+required but is no longer reported missing. Reconciliation, command routes,
+command drafts, live adapters, Coinbase calls, reconciliation execution,
+futures/order/exchange mutation, browser authority, BFF execution authority,
+and spot-rule authority remain blocked.
 
-### Phase 5981 - Prior Range Closure
+### Phase 6001 - Prior Range Closure
 
-- Record completed phases `5961-5980` as historical semantic validator
-  registration evidence and move active metadata to `5981-6000`.
+- Record completed phases `5981-6000` as historical disabled command-service
+  evidence and move active metadata to `6001-6020`.
 
-### Phase 5982 - Disabled Service Contract Scope
+### Phase 6002 - Disabled Risk Guard Scope
 
-- Define futures command-service contracts as backend-owned disabled service
-  boundaries, not Admin API routes, command drafts, live adapters, Coinbase
-  execution, reconciliation execution, or state mutation.
+- Define the futures risk guard as a backend-owned disabled service boundary,
+  not proof acceptance, margin validation, command execution, route
+  registration, live adapter construction, Coinbase activity, reconciliation
+  execution, or state mutation.
 
-### Phase 5983 - Backend Service Contract Module
+### Phase 6003 - Backend Risk Guard Module
 
-- Add `application/admin_api/futures_command_service.py` with disabled service
-  methods for `place_futures_order`, `close_or_reduce_futures_position`, and
-  `cancel_futures_order`.
+- Add `application/admin_api/futures_risk_guard.py` with the disabled
+  `evaluate_futures_margin_collateral_liquidation` method and immutable
+  contract metadata for placement, close/reduce, and reconcile commands.
 
-### Phase 5984 - Disabled Invocation Guard
+### Phase 6004 - Disabled Invocation Guard
 
-- Ensure any direct invocation of the disabled futures command service raises a
-  backend disabled-service error and records no Coinbase, reconciliation, or
-  state-mutation behavior.
+- Ensure direct risk-guard invocation raises a disabled-risk-guard error and
+  records no Coinbase, reconciliation, proof-acceptance, or state-mutation
+  behavior.
 
-### Phase 5985 - Command Service Prerequisite Resolution
+### Phase 6005 - Required Versus Missing Contract Shift
 
-- Update command-suite prerequisites so `backend_command_service` is passed and
-  resolved for futures placement, close/reduce, cancel, and reconciliation
-  evidence without changing route, draft, or execution authority.
+- Preserve the risk-guard contract in `required_backend_contracts` while
+  removing it from `missing_backend_contracts`; leave
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`
+  as the remaining backend contract gap.
 
-### Phase 5986 - Required Versus Missing Backend Contracts
+### Phase 6006 - Readiness Next Contract Shift
 
-- Preserve service contracts in `required_backend_contracts` while removing
-  them from `missing_backend_contracts`; leave futures risk guard and
-  reconciliation contracts as missing.
+- Shift readiness `next_required_backend_contract` to reconciliation for
+  placement, close/reduce, cancel, and reconcile without changing any
+  prerequisite, semantic guard, proof acceptance, route, draft, or execution
+  authority.
 
-### Phase 5987 - Readiness Decision Next Contract Shift
+### Phase 6007 - Backend Contract Tests
 
-- Shift readiness `next_required_backend_contract` from command-service methods
-  to the next actual missing contracts: futures risk guard for placement and
-  close/reduce, reconciliation for cancel and reconcile.
-
-### Phase 5988 - Backend Contract Tests
-
-- Add focused regression coverage for disabled service-method behavior,
-  resolved service prerequisites, missing risk/reconciliation contracts, and
+- Add focused regression coverage for disabled risk-guard behavior, required
+  but non-missing risk-guard refs, reconciliation-only missing refs, and
   unchanged no-route/no-draft/no-live boundaries.
 
-### Phase 5989 - OpenAPI Regeneration
+### Phase 6008 - OpenAPI Regeneration
 
 - Regenerate backend OpenAPI from backend-owned models and read-service
-  behavior after the active range and service-contract updates.
+  behavior after the active range and risk-guard updates.
 
-### Phase 5990 - Frontend Schema Sync
+### Phase 6009 - Frontend Schema Sync
 
-- Regenerate the frontend generated TypeScript schema from backend OpenAPI.
+- Regenerate or verify the frontend generated TypeScript schema from backend
+  OpenAPI.
 
-### Phase 5991 - Frontend Mock Contract Alignment
+### Phase 6010 - Frontend Mock Contract Alignment
 
-- Update frontend mock futures command-suite fixtures so service contracts are
-  required, service prerequisites are resolved, and only risk/reconciliation
-  contracts remain missing.
+- Update frontend mock futures command-suite fixtures so the risk guard is
+  required and present, while reconciliation remains the only missing backend
+  contract.
 
-### Phase 5992 - Frontend Adapter And Read Model Review
+### Phase 6011 - Frontend Adapter And Read Model Review
 
-- Verify the existing futures/perpetual adapter and read model render the new
-  service-method names and next-contract shift without browser authority.
+- Verify futures/perpetual read-model display renders the risk-guard contract
+  and reconciliation next-contract shift without browser authority.
 
-### Phase 5993 - Frontend Unit Coverage
+### Phase 6012 - Frontend Unit Coverage
 
 - Update focused Vitest coverage for mock backend, runtime, quality gates, and
-  futures/perpetual read-model assertions around disabled service contracts.
+  futures/perpetual read-model assertions around the disabled risk-guard shift.
 
-### Phase 5994 - Docs And Examples
+### Phase 6013 - Docs And Examples
 
 - Update backend/frontend docs, examples, maintainer handoff, contextless review
-  logs, and agent state for disabled service-contract semantics.
+  logs, and agent state for disabled risk-guard semantics.
 
-### Phase 5995 - Active-Range Drift Sweep
+### Phase 6014 - Active-Range Drift Sweep
 
 - Search backend/frontend docs, tests, mocks, generated schema, and validators
-  for stale active `5961-5980` wording that should now be historical only.
+  for stale active `5981-6000` wording that should now be historical only.
 
-### Phase 5996 - Backend Focused Gates
+### Phase 6015 - Backend Focused Gates
 
 - Run backend compile, OpenAPI, focused futures command-suite regression,
   autonomous queue, and ownership checks.
 
-### Phase 5997 - Frontend Focused Gates
+### Phase 6016 - Frontend Focused Gates
 
-- Run frontend generated API, typecheck, lint/security where relevant,
-  focused unit tests, and autonomous/deployment checks.
+- Run frontend generated API, typecheck, lint/security where relevant, focused
+  unit tests, and autonomous/deployment checks.
 
-### Phase 5998 - Contextless Review And Remediation
+### Phase 6017 - Contextless Review And Remediation
 
-- Run blind/contextless backend/frontend review for disabled service-contract
-  clarity, no spot-rule leakage, and no browser/BFF/live authority; remediate
-  or explicitly defer findings.
+- Run blind/contextless backend/frontend review for disabled risk-guard clarity,
+  no spot-rule leakage, and no browser/BFF/live authority; remediate or
+  explicitly defer findings.
 
-### Phase 5999 - Subagent Sweep
+### Phase 6018 - Subagent Sweep
 
 - Close phase-scoped, stale, and unused subagents after findings are consumed,
   remediated, or explicitly deferred.
 
-### Phase 6000 - Phase Closeout Evidence
+### Phase 6019 - No-Live Evidence
 
-- Record implementation, verification, no-live Coinbase posture, submitted and
-  executed notional `0` USDC, review outcome, stale-subagent sweep result,
-  commits, pushes, and the next milestone-linked work.
+- Record no live Coinbase execution, submitted notional `0` USDC, executed
+  notional `0` USDC, and the unchanged live-cap posture for this active range.
+
+### Phase 6020 - Phase Closeout Evidence
+
+- Record implementation, verification, review outcome, stale-subagent sweep
+  result, commits, pushes, and the next milestone-linked work.
+
+## Completion Evidence - Phases 6001-6020
+
+- `application/admin_api/futures_risk_guard.py` defines disabled backend
+  risk-guard contract evidence for
+  `evaluate_futures_margin_collateral_liquidation`.
+- `GET /api/v1/futures/command-suite` now keeps the futures risk-guard
+  contract in `required_backend_contracts` while removing it from
+  `missing_backend_contracts`; the only remaining backend contract gap is
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
+- Frontend generated schema, mock command-suite fixtures, adapter mapping, and
+  read-model rendering consume the backend-owned contract split. The UI visibly
+  renders risk guard as required/present and reconciliation as missing without
+  creating command buttons, command drafts, BFF mutation authority, browser
+  approval, Coinbase execution, reconciliation execution, futures state
+  mutation, or spot-rule authority.
+- Backend focused gates passed: Python compile, generated OpenAPI, global
+  ownership check, autonomous queue check, focused futures risk-proof/Admin API
+  contract checks (`14` tests passed with `1` warning), and
+  `tests/regression/test_spot_readiness_gate.py` (`8` tests passed with `1`
+  warning).
+- Frontend focused gates passed: generated API check, autonomous queue check,
+  release readiness, deployment readiness, command-fetch guard, typecheck,
+  lint, and focused mock/runtime/admin-shell/quality/futures read-model unit
+  tests (`61` tests passed).
+- Blind/contextless review passed after remediation. The first fresh frontend
+  reviewer found that the UI did not visibly render the exact required/present
+  risk-guard contract; remediation added command-level contract mapping,
+  rendering, and focused UI coverage. A fresh re-review found no blockers.
+- Phase-end stale-subagent sweep completed after findings were consumed:
+  reviewers `019ef202-9de8-7f21-a4eb-182178aae32d`,
+  `019ef202-b248-78b1-a227-cfef7a6d1dd7`, and
+  `019ef214-289b-7d52-ac57-925030dc5643` were closed. No phase-scoped,
+  stale, or unused subagent remains intentionally open.
+- Full backend regression was not run because this was ordinary phase work,
+  not durable milestone closeout. An extra full
+  `tests/regression/test_admin_api_contract.py` owner-level attempt timed out
+  after 20 minutes and the stale pytest process was terminated; focused
+  phase-level gates above are the closeout evidence for this range.
+- Live Coinbase execution was not run; submitted notional `0` USDC, executed
+  notional `0` USDC.
+
+## Completed Phases 5981-6000
+
+Batch label: Futures/Perpetuals Disabled Command Service Contract Evidence.
+
+These phases added `application/admin_api/futures_command_service.py` with
+disabled service methods for `place_futures_order`,
+`close_or_reduce_futures_position`, and `cancel_futures_order`. The command
+suite now treats command-service contracts as required and present rather than
+missing, while keeping futures risk guard, reconciliation, command routes,
+command drafts, live adapters, Coinbase calls, reconciliation execution,
+state mutation, browser authority, BFF authority, and spot-rule authority
+blocked. Backend commit `10d4fdd3` and frontend commit `eda2c5b` completed the
+range with `0` USDC submitted/executed notional.
 
 ## Completed Phases 5961-5980
 

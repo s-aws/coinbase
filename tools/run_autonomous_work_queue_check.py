@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -59,9 +60,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "5981-6000"
-APPROVED_PHASES = tuple(range(5981, 6001))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5961-5980"
+APPROVED_PHASE_RANGE = "6001-6020"
+APPROVED_PHASES = tuple(range(6001, 6021))
+PREVIOUS_COMPLETED_PHASE_RANGE = "5981-6000"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -106,6 +107,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_subagent_hygiene_policy(body),
         _check_required_gates(body),
         _check_example_phase_range_docs(),
+        _check_futures_risk_guard_not_reported_missing(),
         _check_regression_gate_policy_docs(),
         _check_frontend_release_docs(),
         _check_maintainer_handoff_docs(),
@@ -463,6 +465,36 @@ def _check_example_phase_range_docs() -> QueueCheck:
     )
 
 
+def _check_futures_risk_guard_not_reported_missing() -> QueueCheck:
+    body = (
+        FUTURES_PERPETUALS_EXAMPLES_DOC.read_text(encoding="utf-8")
+        if FUTURES_PERPETUALS_EXAMPLES_DOC.exists()
+        else ""
+    )
+    risk_guard_ref = (
+        "application/admin_api/futures_risk_guard.py::"
+        "evaluate_futures_margin_collateral_liquidation"
+    )
+    stale_patterns: list[str] = []
+    if re.search(
+        r'"missing_backend_contracts"\s*:\s*\[[^\]]*'
+        + re.escape(risk_guard_ref),
+        body,
+        flags=re.DOTALL,
+    ):
+        stale_patterns.append("risk_guard_ref_in_missing_backend_contracts")
+    if f'"next_required_backend_contract": "{risk_guard_ref}"' in body:
+        stale_patterns.append("risk_guard_ref_as_next_required_backend_contract")
+    return QueueCheck(
+        name="futures_risk_guard_not_reported_missing",
+        passed=FUTURES_PERPETUALS_EXAMPLES_DOC.exists() and not stale_patterns,
+        evidence={
+            "path": str(FUTURES_PERPETUALS_EXAMPLES_DOC.relative_to(PROJECT_ROOT)),
+            "stale_patterns": stale_patterns,
+        },
+    )
+
+
 def _check_regression_gate_policy_docs() -> QueueCheck:
     stale_matches: dict[str, list[str]] = {}
     missing_policy: dict[str, list[str]] = {}
@@ -598,7 +630,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` adds disabled futures command service contract evidence",
+        f"Active `{APPROVED_PHASE_RANGE}` adds disabled futures risk guard contract evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -737,12 +769,14 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "completed history",
         "No live Coinbase execution was run",
         "Full backend regression was not run because phases",
-        "futures disabled command service contract evidence",
+        "futures disabled risk guard contract evidence",
         "/api/v1/futures/risk-proofs",
         "application/admin_api/futures_command_service.py",
         "place_futures_order",
         "close_or_reduce_futures_position",
         "cancel_futures_order",
+        "application/admin_api/futures_risk_guard.py",
+        "evaluate_futures_margin_collateral_liquidation",
         "risk_proof_record_resolver_count",
         "risk_proof_acceptance_blocker_count",
         "risk_proof_semantic_contract_requirement_count",
