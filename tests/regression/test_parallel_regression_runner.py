@@ -168,6 +168,9 @@ def test_parallel_regression_runner_rejects_unbounded_worker_counts():
         parser.parse_args(["--max-commit-percent", "101"])
 
     with pytest.raises(SystemExit):
+        parser.parse_args(["--max-physical-percent", "101"])
+
+    with pytest.raises(SystemExit):
         parser.parse_args(["--min-available-physical-gb", "0"])
 
     with pytest.raises(SystemExit):
@@ -179,8 +182,9 @@ def test_parallel_regression_runner_defaults_to_bounded_memory_watch():
 
     assert args.disable_memory_watch is False
     assert args.max_commit_percent == 85.0
-    assert args.min_available_physical_gb == 12.0
-    assert args.memory_sample_seconds == 15
+    assert args.max_physical_percent == 75.0
+    assert args.min_available_physical_gb == 24.0
+    assert args.memory_sample_seconds == 5
 
 
 def test_parallel_regression_runner_accepts_per_run_basetemp():
@@ -224,6 +228,29 @@ def test_serial_classification_detects_default_db_cursor_without_marker(tmp_path
     assert len(findings) == 1
     assert findings[0].path == test_file
     assert "default PostgresDB cursor" in findings[0].reason
+
+
+def test_serial_classification_detects_full_fastapi_app_import_without_marker(
+    tmp_path,
+):
+    test_file = tmp_path / "test_imports_app.py"
+    test_file.write_text(
+        "\n".join(
+            [
+                "from api.v1.app import create_app",
+                "",
+                "def test_app_factory():",
+                "    assert create_app",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    findings = find_serial_classification_findings(tmp_path)
+
+    assert len(findings) == 1
+    assert findings[0].path == test_file
+    assert "FastAPI app/route graph" in findings[0].reason
 
 
 def test_serial_classification_accepts_serial_marker(tmp_path):
@@ -276,7 +303,7 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
         basetemp = Path(command.command[command.command.index("--basetemp") + 1])
         assert basetemp.exists()
         seen_basetemps.append(basetemp)
-        assert kwargs["memory_sample_seconds"] == 15
+        assert kwargs["memory_sample_seconds"] == 5
         return 0
 
     monkeypatch.setattr(
@@ -322,6 +349,9 @@ def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
             commit_used_gb=90.0,
             commit_limit_gb=100.0,
             commit_percent=90.0,
+            total_physical_gb=128.0,
+            used_physical_gb=120.0,
+            physical_percent=93.75,
             available_physical_gb=8.0,
         ),
     )
@@ -334,9 +364,10 @@ def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
     exit_code = run_regression_command(
         RegressionCommand("probe", ("python", "-m", "pytest")),
         memory_watch_enabled=True,
-        memory_sample_seconds=15,
+        memory_sample_seconds=5,
         max_commit_percent=85.0,
-        min_available_physical_gb=12.0,
+        max_physical_percent=75.0,
+        min_available_physical_gb=24.0,
     )
 
     captured = capsys.readouterr()

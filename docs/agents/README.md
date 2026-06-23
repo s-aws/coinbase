@@ -76,8 +76,10 @@ fallback when `pytest-xdist` is unavailable.
 
 The parallel runner validates serial-lane classification before running pytest.
 Shared DB cursor, fixed service port, process-global state, and other
-process-shared regression tests must be marked `pytest.mark.serial`; documented
-false positives use `parallel-regression: serial-safe`.
+process-shared regression tests must be marked `pytest.mark.serial`; regression
+files importing the full FastAPI app factory are also serial-lane-only to avoid
+multiplying the route-model memory footprint across workers. Documented false
+positives use `parallel-regression: serial-safe`.
 
 Before full closeout gates and after interrupted or timed-out backend/frontend
 test commands, run:

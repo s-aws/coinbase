@@ -45,14 +45,18 @@ The runner rejects `--workers auto` and values above `4` to keep peak memory
 bounded. Raise that cap only after measuring peak memory on the target host and
 updating the runner, tests, and `docs/REGRESSION_PROCESS.md`. Tests that create
 fixed database tables, touch fixed files, or depend on process-global state
-must carry the `serial` marker. The runner validates this classification before
-invoking pytest. To run only the fast classification preflight:
+must carry the `serial` marker. Regression files importing the full FastAPI app
+factory must also stay in the serial lane because the route-model graph is
+memory-heavy. The runner validates this classification before invoking pytest.
+To run only the fast classification preflight:
 
 The runner uses short tracebacks and a Windows memory-pressure guard by default.
-If the summary status is `memory_guard_aborted`, the closeout gate failed. Run
-the stale-process checker, preserve the evidence, and reduce or split the
-offending regression file before retrying. Do not disable the guard for normal
-milestone closeout.
+It samples every 5 seconds and aborts on high commit pressure, high
+physical-memory pressure, or low available physical memory. If the summary
+status is `memory_guard_aborted`, the closeout gate failed. Run the
+stale-process checker, preserve the evidence, and reduce or split the offending
+regression file before retrying. Do not disable the guard for normal milestone
+closeout.
 
 ```powershell
 python tools/run_parallel_regression.py --check-serial-classification-only

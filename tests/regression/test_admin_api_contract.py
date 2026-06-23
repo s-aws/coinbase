@@ -461,6 +461,10 @@ ROOT = Path(__file__).resolve().parents[2]
 OPENAPI_PATH = ROOT / "openapi" / "coinbase-admin-api.yaml"
 ROUTE_INVENTORY_DOC = ROOT / "docs" / "plans" / "ADMIN_API_ROUTE_INVENTORY.md"
 
+# This file imports the full FastAPI app/route graph. Keep it in the serial
+# regression lane so xdist cannot multiply the route-model memory footprint.
+pytestmark = pytest.mark.serial
+
 
 def _headers(
     *,

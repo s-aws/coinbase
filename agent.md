@@ -143,10 +143,12 @@ is the process-parallel helper. The durable policy lives in
 intentional fallback when `pytest-xdist` is unavailable.
 The helper validates serial-lane classification before running pytest. Mark
 regression files `pytest.mark.serial` when they touch shared DB cursors, fixed
-service ports, process-global state, or other process-shared resources. If the
-static classifier reports a false positive, add a `parallel-regression:
-serial-safe` comment with the reason.
+service ports, process-global state, full FastAPI app imports, or other
+process-shared/memory-heavy resources. If the static classifier reports a false
+positive, add a `parallel-regression: serial-safe` comment with the reason.
 The helper uses short tracebacks and a Windows memory-pressure guard by default.
+It samples every 5 seconds and aborts on high commit pressure, high
+physical-memory pressure, or low available physical memory.
 If it emits `memory_guard_aborted`, treat the full regression gate as failed:
 run the stale process checker, record the memory evidence, and split or reduce
 the offending regression surface before retrying. Do not pass

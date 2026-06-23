@@ -25,9 +25,10 @@ SUMMARY_PREFIX = "PARALLEL_REGRESSION_RUNNER_SUMMARY "
 SERIAL_SAFE_COMMENT = "parallel-regression: serial-safe"
 MAX_PARALLEL_WORKERS = 4
 PYTEST_TRACEBACK_STYLE = "short"
-DEFAULT_MEMORY_SAMPLE_SECONDS = 15
+DEFAULT_MEMORY_SAMPLE_SECONDS = 5
 DEFAULT_MAX_COMMIT_PERCENT = 85.0
-DEFAULT_MIN_AVAILABLE_PHYSICAL_GB = 12.0
+DEFAULT_MAX_PHYSICAL_PERCENT = 75.0
+DEFAULT_MIN_AVAILABLE_PHYSICAL_GB = 24.0
 MEMORY_ABORT_EXIT_CODE = 87
 
 
@@ -55,6 +56,9 @@ class MemorySnapshot:
     commit_used_gb: float
     commit_limit_gb: float
     commit_percent: float
+    total_physical_gb: float
+    used_physical_gb: float
+    physical_percent: float
     available_physical_gb: float
 
 
@@ -124,6 +128,15 @@ def _serial_classification_reasons(text: str) -> list[tuple[str, str]]:
                 )
             )
             break
+
+    if re.search(r"from\s+api\.v1\.app\s+import\s+create_app", text):
+        reasons.append(
+            (
+                "imports the full FastAPI app/route graph and must stay out "
+                "of the parallel lane to keep regression memory bounded",
+                _evidence_line(text, r"from\s+api\.v1\.app\s+import\s+create_app"),
+            )
+        )
 
     return reasons
 
@@ -269,6 +282,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Abort the active pytest lane when Windows committed memory reaches "
             f"this percent. Defaults to {DEFAULT_MAX_COMMIT_PERCENT}."
+        ),
+    )
+    parser.add_argument(
+        "--max-physical-percent",
+        default=DEFAULT_MAX_PHYSICAL_PERCENT,
+        type=_validate_percent,
+        help=(
+            "Abort the active pytest lane when Windows physical memory use "
+            f"reaches this percent. Defaults to {DEFAULT_MAX_PHYSICAL_PERCENT}."
         ),
     )
     parser.add_argument(
@@ -435,11 +457,20 @@ def read_system_memory_snapshot() -> MemorySnapshot | None:
     commit_limit = status.ullTotalPageFile
     commit_used = max(0, status.ullTotalPageFile - status.ullAvailPageFile)
     commit_percent = (commit_used / commit_limit * 100) if commit_limit else 0.0
+    total_physical = status.ullTotalPhys
+    available_physical = status.ullAvailPhys
+    used_physical = max(0, total_physical - available_physical)
+    physical_percent = (
+        (used_physical / total_physical * 100) if total_physical else 0.0
+    )
     return MemorySnapshot(
         commit_used_gb=round(commit_used / (1024**3), 2),
         commit_limit_gb=round(commit_limit / (1024**3), 2),
         commit_percent=round(commit_percent, 2),
-        available_physical_gb=round(status.ullAvailPhys / (1024**3), 2),
+        total_physical_gb=round(total_physical / (1024**3), 2),
+        used_physical_gb=round(used_physical / (1024**3), 2),
+        physical_percent=round(physical_percent, 2),
+        available_physical_gb=round(available_physical / (1024**3), 2),
     )
 
 
@@ -447,10 +478,12 @@ def _memory_guard_triggered(
     snapshot: MemorySnapshot,
     *,
     max_commit_percent: float,
+    max_physical_percent: float,
     min_available_physical_gb: float,
 ) -> bool:
     return (
         snapshot.commit_percent >= max_commit_percent
+        or snapshot.physical_percent >= max_physical_percent
         or snapshot.available_physical_gb <= min_available_physical_gb
     )
 
@@ -474,6 +507,7 @@ def run_regression_command(
     memory_watch_enabled: bool,
     memory_sample_seconds: int,
     max_commit_percent: float,
+    max_physical_percent: float,
     min_available_physical_gb: float,
 ) -> int:
     """Run one pytest lane and abort if system memory pressure is unsafe."""
@@ -494,6 +528,7 @@ def run_regression_command(
             if snapshot is not None and _memory_guard_triggered(
                 snapshot,
                 max_commit_percent=max_commit_percent,
+                max_physical_percent=max_physical_percent,
                 min_available_physical_gb=min_available_physical_gb,
             ):
                 print(
@@ -502,8 +537,12 @@ def run_regression_command(
                         f"commit={snapshot.commit_used_gb:.2f}GiB/"
                         f"{snapshot.commit_limit_gb:.2f}GiB "
                         f"({snapshot.commit_percent:.2f}%), "
+                        f"physical={snapshot.used_physical_gb:.2f}GiB/"
+                        f"{snapshot.total_physical_gb:.2f}GiB "
+                        f"({snapshot.physical_percent:.2f}%), "
                         f"available_physical={snapshot.available_physical_gb:.2f}GiB, "
                         f"limits=max_commit_percent={max_commit_percent:.2f}, "
+                        f"max_physical_percent={max_physical_percent:.2f}, "
                         f"min_available_physical_gb={min_available_physical_gb:.2f}"
                     ),
                     file=sys.stderr,
@@ -523,6 +562,7 @@ def _emit_summary(
     failed: str | None,
     memory_watch_enabled: bool,
     max_commit_percent: float,
+    max_physical_percent: float,
     min_available_physical_gb: float,
 ) -> None:
     print(
@@ -534,6 +574,7 @@ def _emit_summary(
                 "failed_command": failed,
                 "memory_watch_enabled": memory_watch_enabled,
                 "max_commit_percent": max_commit_percent,
+                "max_physical_percent": max_physical_percent,
                 "min_available_physical_gb": min_available_physical_gb,
                 "live_coinbase_execution": False,
                 "live_coinbase_notional_usdc": "0",
@@ -563,6 +604,7 @@ def main(argv: list[str] | None = None) -> int:
             failed="serial_classification",
             memory_watch_enabled=memory_watch_enabled,
             max_commit_percent=args.max_commit_percent,
+            max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
         )
         return 2
@@ -574,6 +616,7 @@ def main(argv: list[str] | None = None) -> int:
             failed=None,
             memory_watch_enabled=memory_watch_enabled,
             max_commit_percent=args.max_commit_percent,
+            max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
         )
         return 0
@@ -587,6 +630,7 @@ def main(argv: list[str] | None = None) -> int:
             failed=None,
             memory_watch_enabled=memory_watch_enabled,
             max_commit_percent=args.max_commit_percent,
+            max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
         )
         return 0
@@ -603,6 +647,7 @@ def main(argv: list[str] | None = None) -> int:
             failed="xdist",
             memory_watch_enabled=memory_watch_enabled,
             max_commit_percent=args.max_commit_percent,
+            max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
         )
         return 2
@@ -616,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
             memory_watch_enabled=memory_watch_enabled,
             memory_sample_seconds=args.memory_sample_seconds,
             max_commit_percent=args.max_commit_percent,
+            max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
         )
         if returncode != 0:
@@ -629,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
                 failed=command.name,
                 memory_watch_enabled=memory_watch_enabled,
                 max_commit_percent=args.max_commit_percent,
+                max_physical_percent=args.max_physical_percent,
                 min_available_physical_gb=args.min_available_physical_gb,
             )
             return returncode
@@ -639,6 +686,7 @@ def main(argv: list[str] | None = None) -> int:
         failed=None,
         memory_watch_enabled=memory_watch_enabled,
         max_commit_percent=args.max_commit_percent,
+        max_physical_percent=args.max_physical_percent,
         min_available_physical_gb=args.min_available_physical_gb,
     )
     return 0

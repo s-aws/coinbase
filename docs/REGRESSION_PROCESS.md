@@ -45,8 +45,9 @@ worker imports project and test state independently; unbounded worker fan-out
 can multiply memory use even when individual tests are not leaking.
 
 The runner also uses short pytest tracebacks and a Windows memory-pressure
-guard by default. It aborts the active pytest lane when committed memory reaches
-`85%` or available physical memory drops below `12 GiB`. Treat a
+guard by default. It samples every `5` seconds and aborts the active pytest lane
+when committed memory reaches `85%`, physical memory use reaches `75%`, or
+available physical memory drops below `24 GiB`. Treat a
 `memory_guard_aborted` summary as a failed closeout gate, then run the stale
 process checker and split or reduce the offending regression surface before
 retrying. Do not disable the memory watch for normal closeout; use
@@ -58,6 +59,12 @@ is intentionally broad, and `--dist loadfile` keeps that file in one xdist
 worker. If that file grows or starts retaining large failure payloads, split
 domain-specific assertions into smaller `test_admin_api_*.py` files instead of
 raising worker or memory limits.
+
+Regression files that import the full FastAPI app factory
+(`from api.v1.app import create_app`) are app/route-graph-heavy and must be
+kept in the serial lane with `pytest.mark.serial`. The serial-classification
+preflight enforces this so xdist cannot multiply the full route-model memory
+footprint across workers.
 
 This runner is process-parallel. It must not be replaced with thread-based
 parallelism. Many regression files touch Python process globals, monkeypatch

@@ -83,6 +83,10 @@ from core.enums import (
     AdminFuturesRiskProofEvidenceSource,
 )
 
+# This file imports the full FastAPI app/route graph. Keep it in the serial
+# regression lane so xdist cannot multiply the route-model memory footprint.
+pytestmark = pytest.mark.serial
+
 
 PAYLOAD_HASH = "a" * 64
 
