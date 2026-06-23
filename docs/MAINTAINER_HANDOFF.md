@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6061-6080` under M57.
-- Active autonomous range: `6081-6100` under M57.
+- Latest completed autonomous range: `6081-6100` under M57.
+- Active autonomous range: `6101-6120` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -793,14 +793,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   disabled route-registration evidence while command route count, command
   draft count, and executable command count stay zero. Completed 6061-6080
   work turns `application/admin_api/live_execution.py::*_adapter_contract`
-  refs into required/present disabled adapter contract evidence. Active
+  refs into required/present disabled adapter contract evidence. Completed
   6081-6100 work turns
   `application/admin_api/live_execution.py::*_adapter_construction_contract`
-  refs into required/present disabled adapter-construction evidence while
-  adapter decision refs remain missing. Adapter construction/invocation,
-  Coinbase calls, reconciliation execution, futures state mutation, proof
-  acceptance, browser authority, BFF authority, and spot-rule authority remain
-  blocked.
+  refs into required/present disabled adapter-construction evidence. Active
+  6101-6120 work turns
+  `application/admin_api/live_execution.py::*_adapter_decision_contract` refs
+  into required/present disabled adapter-decision evidence while adapter
+  decision-record refs remain missing. Adapter decision-record authority,
+  adapter construction/invocation, Coinbase calls, reconciliation execution,
+  futures state mutation, proof acceptance, browser authority, BFF authority,
+  and spot-rule authority remain blocked.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

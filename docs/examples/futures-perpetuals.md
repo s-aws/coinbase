@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6081-6100 range targets explicit M57 futures/perpetual disabled
-adapter-construction contract evidence for `GET /api/v1/futures/command-suite`.
+The active 6101-6120 range targets explicit M57 futures/perpetual disabled
+adapter-decision contract evidence for `GET /api/v1/futures/command-suite`.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
@@ -38,10 +38,12 @@ but removes them from `missing_backend_contracts`. The active range keeps
 `required_backend_contracts`. Route-registration contracts are required present
 disabled evidence. Adapter contract refs are required/present disabled evidence.
 Adapter construction refs are required/present disabled evidence. Adapter
-decision refs remain missing backend contracts. The adapter evidence does not
-configure adapters, construct adapters, invoke managers, call Coinbase, execute reconciliation,
+decision refs are required/present disabled evidence. Adapter decision-record
+refs remain missing backend contracts. The adapter evidence does not configure
+adapters, construct adapters, record executable decisions, invoke managers,
+call Coinbase, execute reconciliation,
 mutate futures/order/exchange state, or grant browser/BFF execution authority.
-Exact current boundary phrases: adapter contract refs are required/present disabled evidence; adapter construction refs are required/present disabled evidence; adapter decision refs remain missing.
+Exact current boundary phrases: adapter contract refs are required/present disabled evidence; adapter construction refs are required/present disabled evidence; adapter decision refs are required/present disabled evidence; adapter decision-record refs remain missing.
 
 The command-suite contract still exposes read-only M57 futures/perpetual risk
 proof record-validation remediation dependency work-item claim-trace
@@ -115,7 +117,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6081-6100",
+  "approved_phase_range": "6101-6120",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -514,10 +516,11 @@ Expected response posture:
         "api/v1/routes/futures.py::futures_place_route_contract",
         "application/admin_api/live_execution.py::futures_place_adapter_contract",
         "application/admin_api/live_execution.py::futures_place_adapter_construction_contract",
-        "application/admin_api/live_execution.py::futures_place_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_place_adapter_decision_contract",
+        "application/admin_api/live_execution.py::futures_place_adapter_decision_record_contract"
       ],
       "missing_backend_contracts": [
-        "application/admin_api/live_execution.py::futures_place_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_place_adapter_decision_record_contract"
       ],
       "request_field_count": 7,
       "blocking_request_field_count": 7,
@@ -626,7 +629,7 @@ Expected response posture:
         "missing_evidence_ref_count": 13,
         "evidence_route_count": 6,
         "first_blocker": "prerequisite:product_scope",
-        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_place_adapter_decision_contract",
+        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_place_adapter_decision_record_contract",
         "command_route_registered": false,
         "command_draft_allowed": false,
         "execution_allowed": false,
@@ -659,9 +662,9 @@ Expected response posture:
           "step": "define_backend_command_service",
           "sequence": 4,
           "status": "blocked",
-          "required_backend_contract": "application/admin_api/live_execution.py::futures_place_adapter_decision_contract",
+          "required_backend_contract": "application/admin_api/live_execution.py::futures_place_adapter_decision_record_contract",
           "required_evidence_refs": [
-            "application/admin_api/live_execution.py::futures_place_adapter_decision_contract"
+            "application/admin_api/live_execution.py::futures_place_adapter_decision_record_contract"
           ],
           "required_evidence_count": 1,
           "execution_allowed": false,
@@ -1796,17 +1799,18 @@ Expected response posture:
         "api/v1/routes/futures.py::futures_close_reduce_route_contract",
         "application/admin_api/live_execution.py::futures_close_reduce_adapter_contract",
         "application/admin_api/live_execution.py::futures_close_reduce_adapter_construction_contract",
-        "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract",
+        "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_record_contract"
       ],
       "missing_backend_contracts": [
-        "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_record_contract"
       ],
       "readiness_decision": {
         "decision": "blocked_backend_contracts_required",
         "status": "blocked",
         "blocker_count": 30,
         "missing_backend_contract_count": 1,
-        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract",
+        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_record_contract",
         "command_route_registered": false,
         "command_draft_allowed": false,
         "execution_allowed": false
@@ -1818,9 +1822,9 @@ Expected response posture:
           "step": "define_backend_command_service",
           "sequence": 4,
           "status": "blocked",
-          "required_backend_contract": "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract",
+          "required_backend_contract": "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_record_contract",
           "required_evidence_refs": [
-            "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract"
+            "application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_record_contract"
           ],
           "required_evidence_count": 1,
           "execution_allowed": false,
@@ -1845,10 +1849,11 @@ Expected response posture:
         "api/v1/routes/futures.py::futures_cancel_route_contract",
         "application/admin_api/live_execution.py::futures_cancel_adapter_contract",
         "application/admin_api/live_execution.py::futures_cancel_adapter_construction_contract",
-        "application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract",
+        "application/admin_api/live_execution.py::futures_cancel_adapter_decision_record_contract"
       ],
       "missing_backend_contracts": [
-        "application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_cancel_adapter_decision_record_contract"
       ],
       "semantic_guard_count": 5,
       "blocking_semantic_guard_count": 5,
@@ -1890,7 +1895,7 @@ Expected response posture:
         "status": "blocked",
         "blocker_count": 16,
         "missing_backend_contract_count": 1,
-        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract",
+        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_cancel_adapter_decision_record_contract",
         "command_route_registered": false,
         "command_draft_allowed": false,
         "execution_allowed": false
@@ -1902,9 +1907,9 @@ Expected response posture:
           "step": "define_backend_command_service",
           "sequence": 4,
           "status": "blocked",
-          "required_backend_contract": "application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract",
+          "required_backend_contract": "application/admin_api/live_execution.py::futures_cancel_adapter_decision_record_contract",
           "required_evidence_refs": [
-            "application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract"
+            "application/admin_api/live_execution.py::futures_cancel_adapter_decision_record_contract"
           ],
           "required_evidence_count": 1,
           "execution_allowed": false,
@@ -1929,17 +1934,18 @@ Expected response posture:
         "api/v1/routes/futures.py::futures_reconcile_route_contract",
         "application/admin_api/live_execution.py::futures_reconcile_adapter_contract",
         "application/admin_api/live_execution.py::futures_reconcile_adapter_construction_contract",
-        "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract",
+        "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_record_contract"
       ],
       "missing_backend_contracts": [
-        "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract"
+        "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_record_contract"
       ],
       "readiness_decision": {
         "decision": "blocked_backend_contracts_required",
         "status": "blocked",
         "blocker_count": 23,
         "missing_backend_contract_count": 1,
-        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract",
+        "next_required_backend_contract": "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_record_contract",
         "command_route_registered": false,
         "command_draft_allowed": false,
         "execution_allowed": false
@@ -1951,9 +1957,9 @@ Expected response posture:
           "step": "define_backend_command_service",
           "sequence": 4,
           "status": "blocked",
-          "required_backend_contract": "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract",
+          "required_backend_contract": "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_record_contract",
           "required_evidence_refs": [
-            "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract"
+            "application/admin_api/live_execution.py::futures_reconcile_adapter_decision_record_contract"
           ],
           "required_evidence_count": 1,
           "execution_allowed": false,

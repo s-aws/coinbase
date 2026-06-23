@@ -15,6 +15,7 @@ from core.enums import AdminFuturesCommandAction
 from .live_execution import (
     FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_CONTRACTS,
+    FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS,
 )
 
 
@@ -89,8 +90,16 @@ def futures_live_adapter_construction_contract_ref(
 def futures_live_adapter_decision_contract_ref(
     command: AdminFuturesCommandAction,
 ) -> str:
-    """Return the missing decision contract ref for a futures adapter."""
+    """Return the disabled decision contract ref for a futures adapter."""
 
-    return FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS[
+    return FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS[command].contract_ref
+
+
+def futures_live_adapter_decision_record_contract_ref(
+    command: AdminFuturesCommandAction,
+) -> str:
+    """Return the missing decision-record contract ref for a futures adapter."""
+
+    return FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS[
         command
-    ].decision_contract_ref
+    ].decision_record_contract_ref

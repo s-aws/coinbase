@@ -118,6 +118,12 @@ FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY = (
 FUTURES_LIVE_ADAPTER_DECISION_MISSING_REASON = (
     "futures_live_adapter_decision_contract_missing"
 )
+FUTURES_LIVE_ADAPTER_DECISION_CONTRACT_AUTHORITY = (
+    "backend_futures_live_adapter_decision_contract_only_no_execution"
+)
+FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON = (
+    "futures_live_adapter_decision_record_contract_missing"
+)
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY = (
     "backend_artifact_acceptance_requirements_only_no_execution"
 )
@@ -842,11 +848,47 @@ class FuturesLiveAdapterConstructionContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_construction_contract"
     authority: str = FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_LIVE_ADAPTER_DECISION_MISSING_REASON
+    missing_reason: str = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_LIVE_ADAPTER_DECISION_MISSING_REASON,
+        FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON,
+        LIVE_EXECUTION_DISABLED_REASON,
+    )
+    forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesLiveAdapterDecisionContract:
+    """Disabled futures/perpetual adapter-decision contract metadata."""
+
+    command: AdminFuturesCommandAction
+    contract_name: str
+    contract_ref: str
+    adapter_contract_ref: str
+    construction_contract_ref: str
+    decision_record_contract_ref: str
+    required: bool = True
+    present: bool = True
+    decision_allowed: bool = False
+    decision_record_required: bool = True
+    decision_record_available: bool = False
+    adapter_constructed: bool = False
+    invocation_allowed: bool = False
+    execution_allowed: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    reconciliation_execution_enabled: bool = False
+    state_mutation_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    source: str = "disabled_futures_live_adapter_decision_contract"
+    authority: str = FUTURES_LIVE_ADAPTER_DECISION_CONTRACT_AUTHORITY
+    missing_reason: str = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    blockers: tuple[str, ...] = (
+        FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON,
+        LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
     forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
@@ -878,6 +920,22 @@ def _futures_live_adapter_construction_contract(
         adapter_contract_ref=adapter_contract.contract_ref,
         decision_contract_ref=(
             f"application/admin_api/live_execution.py::{decision_contract_name}"
+        ),
+    )
+
+
+def _futures_live_adapter_decision_contract(
+    construction_contract: FuturesLiveAdapterConstructionContract,
+    decision_record_contract_name: str,
+) -> FuturesLiveAdapterDecisionContract:
+    return FuturesLiveAdapterDecisionContract(
+        command=construction_contract.command,
+        contract_name=construction_contract.decision_contract_ref.rsplit("::", 1)[1],
+        contract_ref=construction_contract.decision_contract_ref,
+        adapter_contract_ref=construction_contract.adapter_contract_ref,
+        construction_contract_ref=construction_contract.contract_ref,
+        decision_record_contract_ref=(
+            f"application/admin_api/live_execution.py::{decision_record_contract_name}"
         ),
     )
 
@@ -951,6 +1009,41 @@ FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS: dict[
     ),
     futures_reconcile_adapter_construction_contract.command: (
         futures_reconcile_adapter_construction_contract
+    ),
+}
+
+futures_place_adapter_decision_contract = _futures_live_adapter_decision_contract(
+    futures_place_adapter_construction_contract,
+    "futures_place_adapter_decision_record_contract",
+)
+futures_close_reduce_adapter_decision_contract = (
+    _futures_live_adapter_decision_contract(
+        futures_close_reduce_adapter_construction_contract,
+        "futures_close_reduce_adapter_decision_record_contract",
+    )
+)
+futures_cancel_adapter_decision_contract = _futures_live_adapter_decision_contract(
+    futures_cancel_adapter_construction_contract,
+    "futures_cancel_adapter_decision_record_contract",
+)
+futures_reconcile_adapter_decision_contract = _futures_live_adapter_decision_contract(
+    futures_reconcile_adapter_construction_contract,
+    "futures_reconcile_adapter_decision_record_contract",
+)
+FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS: dict[
+    AdminFuturesCommandAction, FuturesLiveAdapterDecisionContract
+] = {
+    futures_place_adapter_decision_contract.command: (
+        futures_place_adapter_decision_contract
+    ),
+    futures_close_reduce_adapter_decision_contract.command: (
+        futures_close_reduce_adapter_decision_contract
+    ),
+    futures_cancel_adapter_decision_contract.command: (
+        futures_cancel_adapter_decision_contract
+    ),
+    futures_reconcile_adapter_decision_contract.command: (
+        futures_reconcile_adapter_decision_contract
     ),
 }
 
