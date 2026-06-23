@@ -542,6 +542,10 @@ drafts, live adapters, Coinbase calls, reconciliation execution, state
 mutation, browser authority, BFF authority, and spot-rule authority remain
 blocked. The next missing backend contract is
 `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
+M57 phases 6021-6040 target that reconciliation gap by adding disabled
+backend-owned `record_futures_reconciliation_plan` contract evidence only.
+Until that module exists, reconciliation remains the current missing backend
+contract and no live reconciliation or trading authority is created.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

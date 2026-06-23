@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6001-6020 range adds explicit M57 futures/perpetual disabled
-risk-guard contract evidence to `GET /api/v1/futures/command-suite`.
+The active 6021-6040 range targets explicit M57 futures/perpetual disabled
+reconciliation contract evidence for `GET /api/v1/futures/command-suite`.
 Concrete risk-proof record routes at `/api/v1/futures/risk-proofs` remain
 read-only resolver evidence. Exact safe latest records may be displayed, while
 missing or stale/invalid records fail closed. Resolver evidence and runtime
@@ -26,12 +26,13 @@ browser/BFF authority.
 
 `place_futures_order`, `close_or_reduce_futures_position`, and
 `cancel_futures_order` are named disabled backend command-service methods from
-the completed 5981-6000 range. The active range adds
+the completed 5981-6000 range. The completed 6001-6020 range adds
 `evaluate_futures_margin_collateral_liquidation` as a named disabled backend
 risk-guard method. These are service boundary evidence only: the command-suite
 keeps command-service and risk-guard contracts in `required_backend_contracts`
-but removes them from `missing_backend_contracts`. Reconciliation contract
-remains missing.
+but removes them from `missing_backend_contracts`. The active range keeps
+reconciliation as the current missing backend contract until
+`record_futures_reconciliation_plan` exists as disabled backend evidence.
 
 The command-suite contract still exposes read-only M57 futures/perpetual risk
 proof record-validation remediation dependency work-item claim-trace
@@ -105,7 +106,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6001-6020",
+  "approved_phase_range": "6021-6040",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,

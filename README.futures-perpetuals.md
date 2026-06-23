@@ -291,6 +291,12 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   create drafts, call Coinbase, execute reconciliation, mutate futures state,
   or grant browser/BFF authority. Reconciliation remains the missing backend
   contract.
+- Do not treat disabled reconciliation planning as reconciliation execution.
+  M57 phases 6021-6040 target
+  `record_futures_reconciliation_plan` as disabled backend contract evidence
+  only. The method must not reconcile positions, read or write Coinbase,
+  mutate futures/order/exchange state, satisfy proof acceptance, register
+  command routes, create drafts, or grant browser/BFF authority.
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.

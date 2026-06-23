@@ -60,9 +60,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6001-6020"
-APPROVED_PHASES = tuple(range(6001, 6021))
-PREVIOUS_COMPLETED_PHASE_RANGE = "5981-6000"
+APPROVED_PHASE_RANGE = "6021-6040"
+APPROVED_PHASES = tuple(range(6021, 6041))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6001-6020"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -630,7 +630,8 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Latest completed autonomous range before current work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
-        f"Active `{APPROVED_PHASE_RANGE}` adds disabled futures risk guard contract evidence",
+        f"Active `{APPROVED_PHASE_RANGE}`",
+        "disabled futures reconciliation contract evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -764,12 +765,11 @@ def _check_contextless_review_log_docs() -> QueueCheck:
     heading, section = _first_review_section(body)
     required = [
         APPROVED_PHASE_RANGE,
-        "Result: PASS after remediation.",
+        "Result: PENDING - active range not yet reviewed.",
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
-        "No live Coinbase execution was run",
-        "Full backend regression was not run because phases",
-        "futures disabled risk guard contract evidence",
+        "No live Coinbase execution is planned",
+        "futures disabled reconciliation contract evidence",
         "/api/v1/futures/risk-proofs",
         "application/admin_api/futures_command_service.py",
         "place_futures_order",
@@ -777,34 +777,9 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "cancel_futures_order",
         "application/admin_api/futures_risk_guard.py",
         "evaluate_futures_margin_collateral_liquidation",
-        "risk_proof_record_resolver_count",
-        "risk_proof_acceptance_blocker_count",
-        "risk_proof_semantic_contract_requirement_count",
-        "risk_proof_semantic_contract_definition_count",
-        "risk_proof_semantic_contract_validation_gate_count",
-        "risk_proof_semantic_contract_validator_contract_count",
-        "risk_proof_semantic_validator_input_schema_count",
-        "risk_proof_semantic_validator_output_schema_count",
-        "risk_proof_semantic_validator_registration_count",
-        "semantic_contract_requirements",
-        "semantic_contract_definitions",
-        "semantic_contract_validation_gates",
-        "semantic_contract_validator_contracts",
-        "semantic_validator_input_schemas",
-        "semantic_validator_output_schemas",
-        "semantic_validator_registrations",
-        "proof_record_lookup_status",
-        "proof_acceptance_blockers",
-        "proof_record_resolves_acceptance",
-        "proofRecordLookupStatus",
-        "proofAcceptanceBlockers",
-        "semanticContractRequirements",
-        "semanticContractDefinitions",
-        "semanticContractValidationGates",
-        "semanticContractValidatorContracts",
-        "semanticValidatorInputSchemas",
-        "semanticValidatorOutputSchemas",
-        "semanticValidatorRegistrations",
+        "application/admin_api/futures_reconciliation.py",
+        "record_futures_reconciliation_plan",
+        "route-registration contracts remain missing until implemented",
         "backend_futures_risk_proof_store_read_only_no_execution",
         "backend_futures_semantics_no_execution",
         "no futures command route",

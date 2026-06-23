@@ -1,5 +1,51 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Disabled Reconciliation Contract Evidence - Phases 6021-6040
+
+Scope: phases `6021-6040`, after completed history `6001-6020`, add disabled
+futures reconciliation contract evidence to `GET /api/v1/futures/command-suite`.
+Completed disabled command-service evidence from `5981-6000` and completed
+disabled risk-guard evidence from `6001-6020` remain backend-owned disabled
+service evidence. This range targets
+`application/admin_api/futures_reconciliation.py` with disabled
+`record_futures_reconciliation_plan` evidence.
+
+Result: PENDING - active range not yet reviewed.
+
+- Planned reconciliation evidence:
+  `record_futures_reconciliation_plan` must become a named backend
+  reconciliation method and remain disabled contract evidence only.
+- Current source boundary: `GET /api/v1/futures/command-suite` still reports
+  reconciliation as the missing backend contract until the disabled
+  reconciliation module exists. `/api/v1/futures/risk-proofs` remains
+  read-only proof-record resolver evidence. `backend_futures_risk_proof_store_read_only_no_execution`
+  and `backend_futures_semantics_no_execution` remain true boundary labels.
+- Completed backend boundaries remain required/present:
+  `application/admin_api/futures_command_service.py` with
+  `place_futures_order`, `close_or_reduce_futures_position`, and
+  `cancel_futures_order`; and `application/admin_api/futures_risk_guard.py`
+  with `evaluate_futures_margin_collateral_liquidation`.
+- Contract field boundary: `backend_command_service`,
+  `required_backend_contracts`, and `missing_backend_contracts` remain
+  backend-owned evidence fields. The exact completed risk-guard ref is
+  `application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation`;
+  the exact active reconciliation target is
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
+- Authority boundary: the active reconciliation work must not execute
+  reconciliation, accept proof records, validate margin/collateral/liquidation
+  for execution, register futures command routes, create command drafts, call
+  Coinbase, mutate futures/order/exchange state, or grant browser/BFF
+  authority. Spot wallet, no-shorting, USDC quote, average-cost, cost-basis,
+  and inventory-lot assumptions remain forbidden spot assumptions.
+- Route-registration contracts remain missing until implemented after the
+  disabled reconciliation contract exists.
+- No live Coinbase execution is planned for this range; submitted notional
+  remains `0` USDC and executed notional remains `0` USDC unless a later
+  explicitly approved live phase changes that posture.
+- Phase-end stale-subagent sweep is required before closeout. No phase-scoped,
+  stale, or unused subagent is intentionally open at range start.
+- Machine-check exact phrase line: futures disabled reconciliation contract evidence; /api/v1/futures/command-suite; /api/v1/futures/risk-proofs; application/admin_api/futures_command_service.py; place_futures_order; close_or_reduce_futures_position; cancel_futures_order; application/admin_api/futures_risk_guard.py; evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py; record_futures_reconciliation_plan; backend_command_service; required_backend_contracts; missing_backend_contracts; application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan; route-registration contracts remain missing until implemented; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+
 ## M57 Futures/Perpetual Disabled Risk Guard Contract Evidence - Phases 6001-6020
 
 Scope: phases `6001-6020`, after completed history `5981-6000`, add disabled
