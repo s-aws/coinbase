@@ -89,6 +89,7 @@ from core.enums import (
     AdminApiRole,
     AdminFuturesCommandAction,
     AdminFuturesCommandEnablementBlocker,
+    AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesRiskProofEvidenceSource,
@@ -1028,6 +1029,8 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert all(not item.missing_backend_contracts for item in command_suite.commands)
     assert command_suite.command_enablement_blocker_summary_count == 7
     assert command_suite.command_enablement_blocker_summary_blocking_count == 7
+    assert command_suite.command_enablement_sequence_step_count == 6
+    assert command_suite.command_enablement_sequence_step_blocking_count == 6
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
@@ -1081,6 +1084,63 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert "blind_contextless_agent_review" in (
         contextless_summary.required_evidence_refs
     )
+
+    sequence_steps_by_step = {
+        item.step: item for item in command_suite.command_enablement_sequence_steps
+    }
+    assert list(sequence_steps_by_step) == [
+        AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS,
+        AdminFuturesCommandReadinessClosureStep.DEFINE_REQUEST_PAYLOAD_CONTRACT,
+        AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE,
+        AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE,
+        AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER,
+        AdminFuturesCommandReadinessClosureStep.RUN_CONTEXTLESS_REVIEW_GATE,
+    ]
+    for index, sequence_step in enumerate(
+        command_suite.command_enablement_sequence_steps,
+        start=1,
+    ):
+        assert sequence_step.sequence == index
+        assert sequence_step.status == AdminApiGateStatus.BLOCKED
+        assert sequence_step.blocking is True
+        assert sequence_step.command_count == 4
+        assert sequence_step.affected_commands == [
+            AdminFuturesCommandAction.PLACE,
+            AdminFuturesCommandAction.CLOSE_REDUCE,
+            AdminFuturesCommandAction.CANCEL,
+            AdminFuturesCommandAction.RECONCILE,
+        ]
+        assert sequence_step.source_blockers
+        assert sequence_step.command_route_registered is False
+        assert sequence_step.command_draft_allowed is False
+        assert sequence_step.execution_allowed is False
+        assert sequence_step.live_coinbase_orders_ran is False
+        assert sequence_step.backend_owned is True
+        assert sequence_step.read_only is True
+        assert sequence_step.spot_rule_authority is False
+        assert sequence_step.browser_authority == "display_only"
+        assert sequence_step.bff_authority == "forward_only_no_execution"
+
+    semantic_step = sequence_steps_by_step[
+        AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE
+    ]
+    assert AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE in (
+        semantic_step.source_blockers
+    )
+    route_step = sequence_steps_by_step[
+        AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE
+    ]
+    assert "api/v1/routes/futures.py::futures_place_route_contract" in (
+        route_step.required_backend_contracts
+    )
+    adapter_step = sequence_steps_by_step[
+        AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER
+    ]
+    assert (
+        "application/admin_api/live_execution.py::futures_place_adapter_contract"
+        in adapter_step.required_backend_contracts
+    )
+
     assert command_suite.live_coinbase_orders_ran is False
     assert command_suite.submitted_notional_usdc == "0"
     assert command_suite.executed_notional_usdc == "0"

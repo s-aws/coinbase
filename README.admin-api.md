@@ -570,7 +570,12 @@ authority is created. M57 phases 6221-6240 add aggregate command enablement
 blocker summaries to the read-only futures command suite so operators can see
 why unresolved prerequisites, request payload contracts, semantic guard
 evidence, risk proof acceptance, admin command routes, live service adapters,
-and contextless review still block command authority.
+and contextless review still block command authority. M57 phases 6241-6260 add
+backend-owned command enablement sequence steps to the same read-only command
+suite. The sequence is derived from existing readiness closure steps and does
+not register command routes, create drafts, configure adapters, call Coinbase,
+execute reconciliation, mutate futures/order/exchange state, or grant browser
+or BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

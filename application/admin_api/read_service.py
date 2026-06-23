@@ -127,6 +127,7 @@ from .models import (
     AdminFuturesAccountReadResponse,
     AdminFuturesCommandContractItem,
     AdminFuturesCommandEnablementBlockerSummaryItem,
+    AdminFuturesCommandEnablementSequenceStepItem,
     AdminFuturesCommandPrerequisiteItem,
     AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
@@ -411,7 +412,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6221-6240"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6241-6260"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -30071,6 +30072,132 @@ class AdminApiReadService:
             ),
         ]
 
+        def source_blockers_for_step(
+            step: AdminFuturesCommandReadinessClosureStep,
+        ) -> list[AdminFuturesCommandEnablementBlocker]:
+            mapping = {
+                AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS: [
+                    AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES
+                ],
+                AdminFuturesCommandReadinessClosureStep.DEFINE_REQUEST_PAYLOAD_CONTRACT: [
+                    AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS
+                ],
+                AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE: [
+                    AdminFuturesCommandEnablementBlocker.SEMANTIC_GUARD_EVIDENCE,
+                    AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE,
+                ],
+                AdminFuturesCommandReadinessClosureStep.DEFINE_BACKEND_COMMAND_SERVICE: [
+                    AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES
+                ],
+                AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE: [
+                    AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE
+                ],
+                AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER: [
+                    AdminFuturesCommandEnablementBlocker.LIVE_SERVICE_ADAPTER
+                ],
+                AdminFuturesCommandReadinessClosureStep.RUN_CONTEXTLESS_REVIEW_GATE: [
+                    AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE
+                ],
+            }
+            return mapping[step]
+
+        def step_detail(step: AdminFuturesCommandReadinessClosureStep) -> str:
+            details = {
+                AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS: (
+                    "Resolve futures/perpetual prerequisite contracts through "
+                    "backend-owned evidence before any command route or draft "
+                    "exists."
+                ),
+                AdminFuturesCommandReadinessClosureStep.DEFINE_REQUEST_PAYLOAD_CONTRACT: (
+                    "Define backend-owned request payload contracts; browser "
+                    "fields remain display evidence and cannot become accepted "
+                    "command payloads."
+                ),
+                AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE: (
+                    "Bind semantic guard and risk-proof acceptance evidence to "
+                    "backend-owned proof routes and writers before command "
+                    "enablement can advance."
+                ),
+                AdminFuturesCommandReadinessClosureStep.DEFINE_BACKEND_COMMAND_SERVICE: (
+                    "Define missing shared backend command service contracts "
+                    "before route-local or browser execution could be "
+                    "considered."
+                ),
+                AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE: (
+                    "Register Admin API command routes only after service, "
+                    "guard, audit, reconciliation, and review prerequisites "
+                    "are satisfied."
+                ),
+                AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER: (
+                    "Bind live service adapter evidence only after route, "
+                    "draft, guard, audit, reconciliation, and live-boundary "
+                    "contracts are ready."
+                ),
+                AdminFuturesCommandReadinessClosureStep.RUN_CONTEXTLESS_REVIEW_GATE: (
+                    "Run focused gates and blind/contextless review before any "
+                    "future enablement slice can advance."
+                ),
+            }
+            return (
+                details[step]
+                + " This aggregate sequence row is read-only evidence and "
+                "does not create a route, command draft, Coinbase call, "
+                "reconciliation execution, state mutation, browser authority, "
+                "BFF execution authority, or spot-rule authority."
+            )
+
+        def enablement_sequence_steps(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandEnablementSequenceStepItem]:
+            rows: list[AdminFuturesCommandEnablementSequenceStepItem] = []
+            for step in AdminFuturesCommandReadinessClosureStep:
+                closure_rows = [
+                    closure_step
+                    for command_item in command_items
+                    for closure_step in command_item.readiness_closure_steps
+                    if closure_step.step == step
+                ]
+                if not closure_rows:
+                    continue
+                affected_commands = [
+                    command_item.command
+                    for command_item in command_items
+                    if any(
+                        closure_step.step == step
+                        for closure_step in command_item.readiness_closure_steps
+                    )
+                ]
+                required_backend_contracts = unique_strings(
+                    [
+                        closure_step.required_backend_contract
+                        for closure_step in closure_rows
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        evidence_ref
+                        for closure_step in closure_rows
+                        for evidence_ref in closure_step.required_evidence_refs
+                    ]
+                )
+                rows.append(
+                    AdminFuturesCommandEnablementSequenceStepItem(
+                        step=step,
+                        sequence=len(rows) + 1,
+                        blocking=any(item.blocking for item in closure_rows),
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        source_blockers=source_blockers_for_step(step),
+                        required_backend_contracts=required_backend_contracts,
+                        required_evidence_refs=required_evidence_refs,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        detail=step_detail(step),
+                    )
+                )
+            return rows
+
+        command_enablement_sequence_steps = enablement_sequence_steps(commands)
+
         return AdminFuturesCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             command_count=len(commands),
@@ -30635,6 +30762,13 @@ class AdminApiReadService:
             command_enablement_blocker_summaries=(
                 command_enablement_blocker_summaries
             ),
+            command_enablement_sequence_step_count=len(
+                command_enablement_sequence_steps
+            ),
+            command_enablement_sequence_step_blocking_count=sum(
+                1 for item in command_enablement_sequence_steps if item.blocking
+            ),
+            command_enablement_sequence_steps=command_enablement_sequence_steps,
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],
             position_evidence_routes=[

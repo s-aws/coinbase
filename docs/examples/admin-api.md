@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6221-6240",
+  "approved_phase_range": "6241-6260",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6221-6240",
+  "approved_phase_range": "6241-6260",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1892,7 +1892,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6221-6240",
+  "approved_phase_range": "6241-6260",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2307,10 +2307,17 @@ refs remained missing backend contract gaps. Completed 6201-6220 work adds
 disabled post-exchange-submission reconciliation metadata only:
 `application/admin_api/live_execution.py::*_post_exchange_submission_reconciliation_contract`
 refs are required/present disabled evidence and are no longer listed in
-`missing_backend_contracts`. Active 6221-6240 work adds aggregate command
+`missing_backend_contracts`. Completed 6221-6240 work adds aggregate command
 enablement blocker summaries for unresolved prerequisites, request payload
 contracts, semantic guard evidence, risk proof acceptance, admin command routes,
-live service adapters, and contextless review. These rows do not register
+live service adapters, and contextless review. Active 6241-6260 work adds
+backend-owned `command_enablement_sequence_steps`,
+`command_enablement_sequence_step_count`, and
+`command_enablement_sequence_step_blocking_count` derived from
+`readiness_closure_steps` for `resolve_prerequisite_contracts`,
+`define_request_payload_contract`, `bind_semantic_guard_evidence`,
+`register_admin_command_route`, `bind_live_service_adapter`, and
+`run_contextless_review_gate`. These rows do not register
 command routes, create drafts, configure or construct adapters, invoke adapters,
 execute adapters, submit Coinbase orders, validate
 payloads, write proofs, enable writers, resolve dependencies, create
@@ -2319,6 +2326,10 @@ traces, create or execute clearance plans, execute clearance steps, complete
 clearance-step reviews, clear claim traces, accept review inputs, register
 claim ledgers, perform remediation, execute post-exchange reconciliation, or
 grant browser/BFF authority.
+
+Current sequence field examples: `"command_enablement_sequence_steps"`,
+`"command_enablement_sequence_step_count"`, and
+`"command_enablement_sequence_step_blocking_count"`.
 
 ```http
 GET /api/v1/futures/account

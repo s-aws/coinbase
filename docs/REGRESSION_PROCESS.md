@@ -113,9 +113,11 @@ must isolate those paths with temporary files.
 
 Large Admin API idempotency responses are especially sensitive: the file store
 externalizes responses over the inline limit into gzip blobs, and replay
-hydration reads the gzip body back into memory. Tests that exercise those
-routes must keep their stores disposable and must not accumulate
-`idempotency_responses/*.json.gz` blobs across runs.
+hydration must stay bounded. The Admin API file idempotency store rejects
+command response blobs above `50_000_000` bytes on write and on replay, using
+the gzip trailer as a preflight hint plus chunked reads as the enforcement
+fallback. Tests that exercise those routes must keep their stores disposable
+and must not accumulate `idempotency_responses/*.json.gz` blobs across runs.
 
 Command responses must also stay bounded. If a route exposes live-adapter
 readiness evidence, command and idempotency-replay payloads may include

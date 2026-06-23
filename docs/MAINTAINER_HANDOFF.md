@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6201-6220` under M57.
-- Active autonomous range: `6221-6240` under M57.
+- Latest completed autonomous range: `6221-6240` under M57.
+- Active autonomous range: `6241-6260` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -815,11 +815,14 @@ notional, retained inventory, reconciliation result, and audit ids.
   Completed 6201-6220 work turns
   `application/admin_api/live_execution.py::*_post_exchange_submission_reconciliation_contract`
   refs into required/present disabled post-exchange-submission reconciliation
-  evidence. Active 6221-6240 work adds aggregate futures command enablement
-  blocker summaries to the read-only command-suite response so operators can
-  see why unresolved prerequisites, request payload contracts, semantic guards,
-  risk proof acceptance, admin command routes, live service adapters, and
-  contextless review still block command authority. Coinbase order submission,
+  evidence. Completed 6221-6240 work adds aggregate futures command
+  enablement blocker summaries to the read-only command-suite response so
+  operators can see why unresolved prerequisites, request payload contracts,
+  semantic guards, risk proof acceptance, admin command routes, live service
+  adapters, and contextless review still block command authority. Active
+  6241-6260 work adds backend-owned futures command enablement sequence steps
+  derived from `readiness_closure_steps` so the ordered path to future command
+  eligibility is visible without adding authority. Coinbase order submission,
   exchange acknowledgement,
   post-exchange reconciliation execution,
   futures state mutation, proof acceptance, browser authority, BFF authority,

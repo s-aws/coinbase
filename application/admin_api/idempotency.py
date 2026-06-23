@@ -19,6 +19,8 @@ from core.enums import (
 
 
 MAX_INLINE_IDEMPOTENCY_RESPONSE_BYTES = 1_000_000
+MAX_IDEMPOTENCY_RESPONSE_BLOB_BYTES = 50_000_000
+IDEMPOTENCY_RESPONSE_READ_CHUNK_BYTES = 64 * 1024
 
 
 class IdempotencyRecord(BaseModel):
@@ -109,6 +111,44 @@ class FileIdempotencyStore:
             raise ValueError("Idempotency response blob path is outside the store.")
         return blob_path
 
+    def _ensure_blob_size_within_limit(self, *, byte_count: int, context: str) -> None:
+        if byte_count > MAX_IDEMPOTENCY_RESPONSE_BLOB_BYTES:
+            raise ValueError(
+                "Idempotency response blob exceeds bounded idempotency storage "
+                f"for {context}: {byte_count} bytes exceeds "
+                f"{MAX_IDEMPOTENCY_RESPONSE_BLOB_BYTES} bytes. Move large "
+                "diagnostic evidence to a read endpoint and persist only the "
+                "bounded command response."
+            )
+
+    def _gzip_uncompressed_size_hint(self, blob_path: Path) -> int | None:
+        """Return gzip trailer ISIZE when available without hydrating the blob."""
+
+        try:
+            if blob_path.stat().st_size < 4:
+                return None
+            with blob_path.open("rb") as handle:
+                handle.seek(-4, 2)
+                return int.from_bytes(handle.read(4), "little")
+        except OSError:
+            return None
+
+    def _read_gzip_response_with_limit(self, blob_path: Path, *, context: str) -> bytes:
+        chunks: list[bytes] = []
+        byte_count = 0
+        with gzip.open(blob_path, "rb") as handle:
+            while True:
+                chunk = handle.read(IDEMPOTENCY_RESPONSE_READ_CHUNK_BYTES)
+                if not chunk:
+                    break
+                byte_count += len(chunk)
+                self._ensure_blob_size_within_limit(
+                    byte_count=byte_count,
+                    context=context,
+                )
+                chunks.append(chunk)
+        return b"".join(chunks)
+
     def _externalize_large_response(self, record: IdempotencyRecord) -> IdempotencyRecord:
         if (
             not record.response
@@ -123,6 +163,10 @@ class FileIdempotencyStore:
         ).encode("utf-8")
         if len(encoded_response) <= MAX_INLINE_IDEMPOTENCY_RESPONSE_BYTES:
             return record
+        self._ensure_blob_size_within_limit(
+            byte_count=len(encoded_response),
+            context=f"write:{record.endpoint or record.idempotency_key}",
+        )
         response_sha256 = hashlib.sha256(encoded_response).hexdigest()
         blob_name = (
             hashlib.sha256(
@@ -153,8 +197,25 @@ class FileIdempotencyStore:
                 f"Unsupported idempotency response storage: {record.response_storage}"
             )
         blob_path = self._response_blob_path(record)
-        with gzip.open(blob_path, "rb") as handle:
-            encoded_response = handle.read()
+        if blob_path.stat().st_size > MAX_IDEMPOTENCY_RESPONSE_BLOB_BYTES:
+            self._ensure_blob_size_within_limit(
+                byte_count=blob_path.stat().st_size,
+                context=f"compressed-read:{record.endpoint or record.idempotency_key}",
+            )
+        uncompressed_size_hint = self._gzip_uncompressed_size_hint(blob_path)
+        if uncompressed_size_hint is not None:
+            self._ensure_blob_size_within_limit(
+                byte_count=uncompressed_size_hint,
+                context=f"read:{record.endpoint or record.idempotency_key}",
+            )
+        encoded_response = self._read_gzip_response_with_limit(
+            blob_path,
+            context=f"hydrated-read:{record.endpoint or record.idempotency_key}",
+        )
+        self._ensure_blob_size_within_limit(
+            byte_count=len(encoded_response),
+            context=f"hydrated-read:{record.endpoint or record.idempotency_key}",
+        )
         if record.response_blob_sha256:
             observed_sha256 = hashlib.sha256(encoded_response).hexdigest()
             if observed_sha256 != record.response_blob_sha256:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import gc
+import gzip
+import hashlib
 import inspect
 import json
 import shutil
@@ -26955,7 +26957,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27182,7 +27184,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27422,7 +27424,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27681,7 +27683,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -27906,7 +27908,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -28811,7 +28813,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -32024,7 +32026,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -32239,7 +32241,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6221-6240"
+    assert readback_payload["approved_phase_range"] == "6241-6260"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -32851,6 +32853,82 @@ def test_admin_api_idempotency_store_externalizes_large_responses():
     assert replay.record is not None
     assert replay.record.response == large_response
     assert replay.record.stealth_order_id == "stealth-001"
+
+
+@pytest.mark.regression
+def test_admin_api_idempotency_store_rejects_oversized_response_blobs(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from application.admin_api import idempotency as idempotency_module
+
+    monkeypatch.setattr(
+        idempotency_module,
+        "MAX_INLINE_IDEMPOTENCY_RESPONSE_BYTES",
+        1,
+    )
+    monkeypatch.setattr(
+        idempotency_module,
+        "MAX_IDEMPOTENCY_RESPONSE_BLOB_BYTES",
+        32,
+    )
+    payload_hash = make_payload_hash({"route": "/api/v1/stealth/orders/{id}/move"})
+    store = FileIdempotencyStore(_store_dir() / "oversized_idempotency.jsonl")
+
+    with pytest.raises(ValueError, match="bounded idempotency storage"):
+        store.put_record(
+            IdempotencyRecord(
+                idempotency_key="idem-oversized-write",
+                payload_hash=payload_hash,
+                stealth_order_id="stealth-oversized",
+                status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+                response={"diagnostic_evidence": "x" * 64},
+                actor_id="operator-001",
+                endpoint="POST /api/v1/stealth/orders/stealth-oversized/move",
+            )
+        )
+
+    replay_store = FileIdempotencyStore(
+        _store_dir() / "oversized_replay_idempotency.jsonl"
+    )
+    encoded_response = json.dumps(
+        {"diagnostic_evidence": "x" * 64},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    blob_dir = replay_store.path.parent / "oversized_replay_idempotency_responses"
+    blob_dir.mkdir(parents=True)
+    blob_path = blob_dir / "oversized.json.gz"
+    with gzip.open(blob_path, "wb") as handle:
+        handle.write(encoded_response)
+
+    replay_store.path.write_text(
+        IdempotencyRecord(
+            idempotency_key="idem-oversized-replay",
+            payload_hash=payload_hash,
+            stealth_order_id="stealth-oversized",
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            response={},
+            response_storage=AdminApiIdempotencyResponseStorage.GZIP_FILE,
+            response_blob_path=str(blob_path.relative_to(replay_store.path.parent)),
+            response_blob_sha256=hashlib.sha256(encoded_response).hexdigest(),
+            response_blob_compression="gzip",
+            actor_id="operator-001",
+            endpoint="POST /api/v1/stealth/orders/stealth-oversized/move",
+        ).model_dump_json()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        replay_store,
+        "_gzip_uncompressed_size_hint",
+        lambda _blob_path: None,
+    )
+
+    with pytest.raises(ValueError, match="bounded idempotency storage"):
+        replay_store.evaluate(
+            idempotency_key="idem-oversized-replay",
+            payload_hash=payload_hash,
+        )
 
 
 @pytest.mark.regression
@@ -35481,7 +35559,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "6221-6240"
+    assert payload["approved_phase_range"] == "6241-6260"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -42542,7 +42620,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "6221-6240"
+    assert live_payload["approved_phase_range"] == "6241-6260"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -43200,7 +43278,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "6221-6240"
+    assert enterprise_payload["approved_phase_range"] == "6241-6260"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -43986,7 +44064,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "6221-6240"
+    assert recovery_preview_payload["approved_phase_range"] == "6241-6260"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -44072,7 +44150,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "6221-6240"
+    assert futures_command_suite_fixture["approved_phase_range"] == "6241-6260"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 0
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
@@ -47344,7 +47422,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "6221-6240",
+            "approved_phase_range": "6241-6260",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -47675,7 +47753,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "6221-6240"
+    assert command_suite["approved_phase_range"] == "6241-6260"
     assert command_suite["command_route_count"] == 0
     assert command_suite["command_draft_allowed_count"] == 0
     assert command_suite["request_field_count"] == 2
@@ -47831,7 +47909,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "6221-6240"
+    assert command_suite.approved_phase_range == "6241-6260"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0

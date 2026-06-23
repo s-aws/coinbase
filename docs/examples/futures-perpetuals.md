@@ -11,13 +11,17 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6221-6240 range targets explicit M57 futures/perpetual command
-enablement blocker summary evidence for `GET /api/v1/futures/command-suite`.
-Completed 6201-6220 work made post-exchange-submission reconciliation refs
-required/present disabled evidence. The active range adds aggregate blocked
-summaries for unresolved prerequisites, request payload contracts, semantic
-guard evidence, risk proof acceptance, admin command routes, live service
-adapters, and contextless review.
+The active 6241-6260 range targets explicit M57 futures/perpetual command
+enablement sequence evidence for `GET /api/v1/futures/command-suite`.
+Completed 6221-6240 work added aggregate blocked summaries for unresolved
+prerequisites, request payload contracts, semantic guard evidence, risk proof
+acceptance, admin command routes, live service adapters, and contextless
+review. Active 6241-6260 work adds ordered
+`command_enablement_sequence_steps` derived from backend
+`readiness_closure_steps` so contextless maintainers can see the sequence:
+`resolve_prerequisite_contracts`, `define_request_payload_contract`,
+`bind_semantic_guard_evidence`, `register_admin_command_route`,
+`bind_live_service_adapter`, and `run_contextless_review_gate`.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
@@ -128,7 +132,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6221-6240",
+  "approved_phase_range": "6241-6260",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -145,6 +149,16 @@ Expected response posture:
     {"blocker": "admin_command_route", "status": "blocked"},
     {"blocker": "live_service_adapter", "status": "blocked"},
     {"blocker": "contextless_review_gate", "status": "blocked"}
+  ],
+  "command_enablement_sequence_step_count": 6,
+  "command_enablement_sequence_step_blocking_count": 6,
+  "command_enablement_sequence_steps": [
+    {"step": "resolve_prerequisite_contracts", "status": "blocked"},
+    {"step": "define_request_payload_contract", "status": "blocked"},
+    {"step": "bind_semantic_guard_evidence", "status": "blocked"},
+    {"step": "register_admin_command_route", "status": "blocked"},
+    {"step": "bind_live_service_adapter", "status": "blocked"},
+    {"step": "run_contextless_review_gate", "status": "blocked"}
   ],
   "request_field_count": 22,
   "required_request_field_count": 22,

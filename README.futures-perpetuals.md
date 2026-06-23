@@ -69,6 +69,13 @@ browser, BFF, and notional evidence fields.
   route, live-adapter, and contextless-review work. These steps are planning
   evidence only; they do not register a route, write proofs, call Coinbase, or
   make the browser an execution authority.
+- The command-suite route also aggregates those closure steps into
+  backend-owned `command_enablement_sequence_steps` with sequence counts,
+  source blockers, affected commands, required backend contracts, and required
+  evidence refs. These aggregate rows are read-only orientation evidence; they
+  do not create routes, drafts, adapters, Coinbase calls, reconciliation
+  execution, futures state mutation, browser authority, BFF authority, or
+  spot-rule authority.
 - Each command row also exposes backend-owned risk proof requirements for
   product scope, position scope, margin, collateral, liquidation buffer,
   funding fee, reduce-only, close-only, cap guard, and reconciliation-plan

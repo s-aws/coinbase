@@ -60,9 +60,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6221-6240"
-APPROVED_PHASES = tuple(range(6221, 6241))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6201-6220"
+APPROVED_PHASE_RANGE = "6241-6260"
+APPROVED_PHASES = tuple(range(6241, 6261))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6221-6240"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -266,12 +266,24 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"semantic_validator_output_schemas"',
             '"command_enablement_blocker_summaries"',
             '"command_enablement_blocker_summary_count"',
+            '"command_enablement_sequence_steps"',
+            '"command_enablement_sequence_step_count"',
+            '"command_enablement_sequence_step_blocking_count"',
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
             f"active {APPROVED_PHASE_RANGE} range",
             '"command_enablement_blocker_summaries"',
             '"command_enablement_blocker_summary_count"',
+            '"command_enablement_sequence_steps"',
+            '"command_enablement_sequence_step_count"',
+            '"command_enablement_sequence_step_blocking_count"',
+            "resolve_prerequisite_contracts",
+            "define_request_payload_contract",
+            "bind_semantic_guard_evidence",
+            "register_admin_command_route",
+            "bind_live_service_adapter",
+            "run_contextless_review_gate",
             "unresolved_prerequisites",
             "request_payload_contracts",
             "semantic_guard_evidence",
@@ -884,8 +896,8 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
-        "futures command enablement blocker summary evidence",
-        "backend-owned futures command enablement blocker summaries",
+        "futures command enablement sequence evidence",
+        "backend-owned futures command enablement sequence steps",
         "disabled futures adapter-execution contract evidence",
         "adapter contract refs are required/present disabled evidence",
         "adapter construction refs are required/present disabled evidence",
@@ -1032,10 +1044,20 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
-        "futures command enablement blocker summary evidence",
+        "futures command enablement sequence evidence",
         "command_enablement_blocker_summaries",
         "command_enablement_blocker_summary_count",
         "command_enablement_blocker_summary_blocking_count",
+        "command_enablement_sequence_steps",
+        "command_enablement_sequence_step_count",
+        "command_enablement_sequence_step_blocking_count",
+        "AdminFuturesCommandEnablementSequenceStepItem",
+        "resolve_prerequisite_contracts",
+        "define_request_payload_contract",
+        "bind_semantic_guard_evidence",
+        "register_admin_command_route",
+        "bind_live_service_adapter",
+        "run_contextless_review_gate",
         "AdminFuturesCommandEnablementBlocker",
         "unresolved_prerequisites",
         "request_payload_contracts",
