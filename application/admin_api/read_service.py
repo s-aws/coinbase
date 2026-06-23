@@ -302,6 +302,9 @@ from .models import (
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .futures_command_service import FUTURES_COMMAND_SERVICE_CONTRACTS
+from .futures_proof_payload_fields import (
+    iter_futures_proof_payload_field_contracts,
+)
 from .futures_proof_routes import get_futures_proof_route_contract
 from .futures_proof_writer import get_futures_proof_writer_contract
 from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
@@ -415,7 +418,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6301-6320"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6321-6340"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -21445,88 +21448,39 @@ class AdminApiReadService:
                 proof_kind: AdminFuturesCommandRiskProofKind,
                 identity_key: str,
             ) -> list[AdminFuturesCommandRiskProofPayloadFieldItem]:
-                specs = [
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.COMMAND,
-                        "proof_payload.command",
-                        f"Must equal {command_id.value}.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.PROOF_KIND,
-                        "proof_payload.proof_kind",
-                        f"Must equal {proof_kind.value}.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.IDENTITY_KEY,
-                        "proof_payload.identity.key",
-                        f"Must equal {identity_key}.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.IDENTITY_VALUE,
-                        "proof_payload.identity.value",
-                        f"Must bind the backend-owned {identity_key} value.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.REQUIRED_EVIDENCE_REFS,
-                        "proof_payload.required_evidence_refs",
-                        "Must contain every required evidence ref for this proof.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.SOURCE_SNAPSHOT_REF,
-                        "proof_payload.source_snapshot_ref",
-                        "Must reference the backend source snapshot used to build proof evidence.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.VALIDATION_STATUS,
-                        "proof_payload.validation.status",
-                        "Must be accepted only by backend proof validation.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.IDEMPOTENCY_KEY,
-                        "proof_payload.idempotency_key",
-                        "Must bind the backend idempotency key for replay safety.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.CORRELATION_ID,
-                        "proof_payload.correlation_id",
-                        "Must bind the backend correlation id used for audit traceability.",
-                    ),
-                    (
-                        AdminFuturesCommandRiskProofPayloadField.AUDIT_ID,
-                        "proof_payload.audit_id",
-                        "Must bind the backend audit id for durable proof readback.",
-                    ),
-                ]
                 return [
                     AdminFuturesCommandRiskProofPayloadFieldItem(
-                        field=field,
+                        field=contract.field,
                         sequence=index + 1,
-                        payload_path=payload_path,
+                        payload_path=contract.payload_path,
                         validation_rule=validation_rule,
-                        required_evidence_ref=(
-                            f"{command_id.value}_{proof_kind.value}_payload_"
-                            f"{field.value}_validated"
-                        ),
-                        missing_evidence_ref=(
-                            f"{command_id.value}_{proof_kind.value}_payload_"
-                            f"{field.value}_validated"
-                        ),
-                        payload_field_present=False,
-                        validation_registered=False,
-                        command_route_registered=False,
-                        command_draft_allowed=False,
-                        execution_allowed=False,
-                        proof_route_registered=False,
-                        proof_writer_enabled=False,
+                        required_evidence_ref=required_evidence_ref,
+                        missing_evidence_ref=required_evidence_ref,
+                        payload_field_present=contract.payload_field_present,
+                        validation_registered=contract.validation_registered,
+                        command_route_registered=contract.command_route_registered,
+                        command_draft_allowed=contract.command_draft_allowed,
+                        execution_allowed=contract.execution_allowed,
+                        proof_route_registered=contract.proof_route_registered,
+                        proof_writer_enabled=contract.proof_writer_enabled,
                         detail=(
                             f"{command_id.value} {proof_kind.value} proof payload "
-                            f"field {field.value} is a backend-owned validation "
-                            "contract only. This row does not validate a submitted "
-                            "payload, write proof records, or enable execution."
+                            f"field {contract.field.value} is backed by the "
+                            "backend-owned disabled payload-field contract registry. "
+                            "This row does not validate a submitted payload, write "
+                            "proof records, or enable execution."
                         ),
                     )
-                    for index, (field, payload_path, validation_rule) in enumerate(
-                        specs
+                    for index, (
+                        contract,
+                        validation_rule,
+                        required_evidence_ref,
+                    ) in enumerate(
+                        iter_futures_proof_payload_field_contracts(
+                            command=command_id,
+                            proof_kind=proof_kind,
+                            identity_key=identity_key,
+                        )
                     )
                 ]
 

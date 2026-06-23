@@ -326,6 +326,18 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   accept proof records, satisfy risk proof requirements, register command
   routes, create drafts, call Coinbase, execute reconciliation, mutate
   futures/order/exchange state, or grant browser/BFF authority.
+- Do not treat futures proof payload-field contract registry evidence as
+  payload validation or proof acceptance. M57 phases 6321-6340 define
+  `FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS` and
+  `iter_futures_proof_payload_field_contracts` as disabled backend-owned
+  registry evidence for payload paths and validation refs such as
+  `proof_payload.command`, `proof_payload.validation.status`, and
+  `futures_place_margin_collateral_payload_command_validated`. These rows keep
+  `payload_field_present=false` and `validation_registered=false`; they must
+  not validate submitted proof payloads, register validators, accept proof
+  records, create proof writers, create command drafts, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+  authority.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define
   `evaluate_futures_margin_collateral_liquidation` as disabled backend

@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6281-6300` under M57.
-- Active autonomous range: `6301-6320` under M57.
+- Latest completed autonomous range: `6301-6320` under M57.
+- Active autonomous range: `6321-6340` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -828,17 +828,24 @@ notional, retained inventory, reconciliation result, and audit ids.
   evidence without adding authority. Completed 6281-6300 work adds the disabled
   `reconcile_futures_position` shared command-service bridge for
   `futures_reconcile` while keeping `record_futures_reconciliation_plan` as a
-  separate required reconciliation-plan contract. Active 6301-6320 work adds
+  separate required reconciliation-plan contract. Completed 6301-6320 work adds
   disabled futures proof route/writer contract registry evidence through
   `FUTURES_PROOF_ROUTE_CONTRACTS` and `FUTURES_PROOF_WRITER_CONTRACTS`,
   including
   `application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`
   and
   `application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`.
+  Active 6321-6340 work adds disabled futures proof payload-field contract
+  registry evidence through `FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS` and
+  `iter_futures_proof_payload_field_contracts`, including
+  `proof_payload.command`, `proof_payload.validation.status`,
+  `futures_place_margin_collateral_payload_command_validated`,
+  `payload_field_present=false`, and `validation_registered=false`.
   Coinbase order submission, exchange acknowledgement, proof route
-  registration, proof writer enablement, proof acceptance, post-exchange
-  reconciliation execution, futures state mutation, browser authority, BFF
-  authority, and spot-rule authority remain blocked.
+  registration, proof writer enablement, proof payload validation, validation
+  registration, proof acceptance, post-exchange reconciliation execution,
+  futures state mutation, browser authority, BFF authority, and spot-rule
+  authority remain blocked.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

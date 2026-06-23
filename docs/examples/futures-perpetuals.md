@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6301-6320 range targets explicit M57 futures/perpetual proof
-route/writer contract registry evidence for
+The active 6321-6340 range targets explicit M57 futures/perpetual proof
+payload-field contract registry evidence for
 `GET /api/v1/futures/command-suite`. Completed 6221-6240 work added aggregate
 blocked summaries for unresolved prerequisites, request payload contracts,
 semantic guard evidence, risk proof acceptance, admin command routes, live
@@ -27,7 +27,7 @@ which per-command closure rows back the sequence:
 6281-6300 work reports `service_method="reconcile_futures_position"` for the
 `futures_reconcile` row as a disabled shared command-service bridge while
 keeping `record_futures_reconciliation_plan` as the separate required
-reconciliation-plan contract. Active 6301-6320 work reports registry-backed
+reconciliation-plan contract. Completed 6301-6320 work reports registry-backed
 `proof_contracts` with
 `application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`,
 `application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`,
@@ -36,6 +36,14 @@ Machine-check evidence: proof route/writer contract registry evidence;
 `"application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof"`;
 `"application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof"`;
 `"registered_proof_route_count": 0`; `"enabled_proof_writer_count": 0`.
+Active 6321-6340 work reports registry-backed `payload_fields` with
+`proof_payload.command`, `proof_payload.validation.status`,
+`futures_place_margin_collateral_payload_command_validated`,
+`payload_field_present=false`, and `validation_registered=false`.
+Machine-check evidence: proof payload-field contract registry evidence;
+`"proof_payload.command"`; `"proof_payload.validation.status"`;
+`"futures_place_margin_collateral_payload_command_validated"`;
+`"payload_field_present": false`; `"validation_registered": false`.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
@@ -147,7 +155,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6301-6320",
+  "approved_phase_range": "6321-6340",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,

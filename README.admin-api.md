@@ -587,6 +587,13 @@ contract. M57 phases 6301-6320 add disabled futures/perpetual proof
 route/writer contract registry evidence through `FUTURES_PROOF_ROUTE_CONTRACTS`
 and `FUTURES_PROOF_WRITER_CONTRACTS`; those registries do not register proof
 routes, create proof writers, accept proof records, or grant execution
+authority. M57 phases 6321-6340 add disabled futures/perpetual proof
+payload-field contract registry evidence through
+`FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_proof_payload_field_contracts`; those registry rows do not
+validate submitted proof payloads, register validators, accept proof records,
+create proof writers, create command drafts, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF
 authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is

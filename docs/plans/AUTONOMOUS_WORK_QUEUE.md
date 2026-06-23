@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6301-6320**.
+- Approved phase range: **6321-6340**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6281-6300`.
+- Previous completed range: `6301-6320`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6300`.
+- `current_phase`: `6320`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,132 +81,173 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6301-6320
+## Active Phases 6321-6340
 
-Batch label: Futures/Perpetuals Proof Route/Writer Contract Registry Evidence.
+Batch label: Futures/Perpetuals Proof Payload Field Contract Registry Evidence.
 
-These phases continue M57 after completed `6281-6300` added reconciliation
-command-service parity. The next concrete contextless gap is that
-futures/perpetual risk-proof requirement rows reference backend-owned proof
-route and proof writer contracts, but the route/writer refs need authoritative
-disabled registries. Active `6301-6320` may add metadata-only registries for
-the existing futures risk-proof route and writer contract refs, sync the
-command-suite read model, docs, examples, frontend fixtures, and validators,
-and prove every row remains blocked. It must not register futures command
-routes, register proof routes, create proof writers, accept proof records,
-create command drafts, execute live services or adapters, submit/cancel
-Coinbase orders, acknowledge exchange orders, execute reconciliation, mutate
-futures/order/exchange state, or grant browser/BFF execution authority. Spot
-wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot
-assumptions remain forbidden as futures/perpetual authority.
+These phases continue M57 after completed `6301-6320` added disabled proof
+route/writer registry evidence. The next concrete contextless gap is that
+futures/perpetual risk-proof requirement rows emit payload-field paths,
+validation rules, and required evidence refs, but those payload-field refs need
+an authoritative backend-owned disabled registry. Active `6321-6340` may add
+a metadata-only payload-field contract registry, bind command-suite
+`payload_fields` to that registry, sync frontend fixtures/docs/validators,
+and prove every row remains blocked. It must not validate submitted proof
+payloads, register validators, accept proof records, create proof writers,
+register proof routes, create command drafts, execute live services or
+adapters, submit/cancel Coinbase orders, acknowledge exchange orders, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+execution authority. Spot wallet, no-shorting, USDC, cost-basis,
+average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority.
 
-### Phase 6301 - Prior Range Closure
+### Phase 6321 - Prior Range Closure
 
-- Record completed phases `6281-6300` as historical reconciliation
-  command-service parity evidence and move active metadata to `6301-6320`.
+- Record completed phases `6301-6320` as historical proof route/writer
+  registry evidence and move active metadata to `6321-6340`.
 
-### Phase 6302 - Shared Proof Contract Key Registry
+### Phase 6322 - Payload Field Contract Registry
 
-- Add shared enum-keyed futures/perpetual risk-proof contract metadata for the
-  exact command/proof-kind pairs emitted by the command suite.
+- Add enum-keyed disabled backend-owned payload-field contract metadata for the
+  exact proof payload fields emitted by the command suite.
 
-### Phase 6303 - Disabled Proof Route Registry
+### Phase 6323 - Payload Evidence Ref Binding
 
-- Add disabled backend-owned proof route contracts for every futures/perpetual
-  risk-proof requirement while keeping `route_registered=false`.
+- Generate required/missing validation evidence refs from the payload-field
+  registry instead of inline string construction.
 
-### Phase 6304 - Disabled Proof Writer Registry
+### Phase 6324 - Payload Validation Rule Binding
 
-- Add disabled backend-owned proof writer contracts for every futures/perpetual
-  risk-proof requirement while keeping `writer_enabled=false`.
+- Generate command/proof/identity-specific validation-rule text from registry
+  templates while preserving the existing API response shape.
 
-### Phase 6305 - Command-Suite Registry Binding
+### Phase 6325 - Command-Suite Payload Binding
 
-- Build command-suite `proof_contracts` from the registries instead of
-  string-only inline refs.
+- Build command-suite `payload_fields` rows from the registry for every
+  futures/perpetual command proof requirement.
 
-### Phase 6306 - Backend No-Authority Guard
+### Phase 6326 - Backend No-Authority Guard
 
-- Prove route and writer registry rows remain metadata only with no route, no
-  draft, no proof payload acceptance, no proof record acceptance, no live
-  adapter, no Coinbase call, no reconciliation execution, no futures state
-  mutation, no browser authority, no BFF execution authority, and zero USDC
-  notional.
+- Prove payload-field registry rows remain metadata only with no validator
+  registration, no proof payload acceptance, no proof record acceptance, no
+  proof writer, no proof route registration, no command route, no draft, no
+  live adapter, no Coinbase call, no reconciliation execution, no futures
+  state mutation, no browser authority, no BFF execution authority, and zero
+  USDC notional.
 
-### Phase 6307 - Backend Focused Tests
+### Phase 6327 - Backend Focused Tests
 
-- Add focused regression coverage for registry cardinality, exact contract
-  refs, route paths, writer methods, command-suite binding, and no-authority
-  flags.
+- Add focused regression coverage for registry cardinality, exact payload
+  paths, exact validation rules, generated evidence refs, command-suite
+  binding, and no-authority flags.
 
-### Phase 6308 - Backend Docs And Examples
+### Phase 6328 - Backend Docs And Examples
 
-- Update Admin API docs, futures/perpetual examples, maintainer handoff, and
-  agent state for proof route/writer registry evidence.
+- Update Admin API docs, futures/perpetual examples, maintainer handoff,
+  contextless review log, and agent state for payload-field registry evidence.
 
-### Phase 6309 - OpenAPI And Schema Verification
+### Phase 6329 - OpenAPI And Schema Verification
 
 - Verify whether schema regeneration is required; if the shape is unchanged,
   preserve generated schema and record that only contract values/details
   changed.
 
-### Phase 6310 - Frontend Mock Contract Sync
+### Phase 6330 - Frontend Mock Payload Sync
 
-- Update frontend mock/read-model fixtures so futures/perpetual proof
-  contracts display the registry-backed route and writer refs.
+- Update frontend mock/read-model fixtures so futures/perpetual payload fields
+  display the registry-backed validation-rule and evidence-ref details.
 
-### Phase 6311 - Frontend Read-Model Display
+### Phase 6331 - Frontend Read-Model Display
 
-- Ensure the futures/perpetual read model renders proof route/writer registry
-  evidence as display-only contract rows with no command controls.
+- Ensure the futures/perpetual read model renders payload-field registry
+  evidence as display-only rows with no command controls or proof acceptance
+  controls.
 
-### Phase 6312 - Frontend Focused Tests
+### Phase 6332 - Frontend Focused Tests
 
 - Add or update focused Vitest coverage for mock backend, runtime quality
-  gates, and futures/perpetual read-model display of route/writer registry
+  gates, and futures/perpetual read-model display of payload-field registry
   evidence.
 
-### Phase 6313 - Autonomous Validators
+### Phase 6333 - Autonomous Validators
 
 - Update backend and frontend autonomous validators, release artifacts, and
-  phase metadata to require active `6301-6320` evidence.
+  phase metadata to require active `6321-6340` evidence.
 
-### Phase 6314 - Active-Range Drift Sweep
+### Phase 6334 - Active-Range Drift Sweep
 
-- Sweep both repos for stale active `6281-6300` wording outside historical
+- Sweep both repos for stale active `6301-6320` wording outside historical
   completed evidence.
 
-### Phase 6315 - Backend Focused Gates
+### Phase 6335 - Backend Focused Gates
 
 - Run focused backend py_compile, futures command-suite regression,
   Admin API contract assertions as needed,
   `python tools\run_autonomous_work_queue_check.py --summary-only`,
   ownership, and stale-process checks.
 
-### Phase 6316 - Frontend Focused Gates
+### Phase 6336 - Frontend Focused Gates
 
 - Run frontend API freshness if needed, typecheck, focused Vitest coverage,
-  autonomous queue, and stale-process checks.
+  autonomous queue, deployment checks, and stale-process checks.
 
-### Phase 6317 - Backend Contextless Review
+### Phase 6337 - Backend Contextless Review
 
-- Run fresh blind/contextless backend review for proof route/writer registry
+- Run fresh blind/contextless backend review for payload-field registry
   evidence, no proof acceptance, and no-live posture.
 
-### Phase 6318 - Frontend Contextless Review
+### Phase 6338 - Frontend Contextless Review
 
-- Run fresh blind/contextless frontend review for display-only route/writer
+- Run fresh blind/contextless frontend review for display-only payload-field
   evidence and no browser/BFF execution authority.
 
-### Phase 6319 - Subagent Sweep And No-Live Evidence
+### Phase 6339 - Subagent Sweep And No-Live Evidence
 
 - Close phase-scoped, stale, or previously unused subagents after findings are
   consumed, remediated, or explicitly deferred. Record submitted notional `0`
   USDC, executed notional `0` USDC, and no Coinbase calls.
 
-### Phase 6320 - Commit And Push
+### Phase 6340 - Commit And Push
 
 - Commit and push backend and frontend work separately with no-live evidence.
+
+## Completion Evidence - Phases 6321-6340
+
+Batch label: Futures/Perpetuals Proof Payload Field Contract Registry Evidence.
+
+Completed phases `6321-6340` added disabled backend-owned
+`FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_proof_payload_field_contracts` for the proof payload paths,
+validation-rule templates, and evidence refs emitted by futures/perpetual
+risk-proof requirements. The command suite builds `payload_fields` from that
+registry and displays refs such as `proof_payload.command`,
+`proof_payload.validation.status`, and
+`futures_place_margin_collateral_payload_command_validated` while preserving
+`payload_field_present=false`, `validation_registered=false`, no validation
+registration, no proof payload acceptance, no proof acceptance, no proof
+writer enablement, no proof route registration, no command route, no draft, no
+Coinbase activity, no reconciliation execution, no futures state mutation, no
+browser/BFF authority, no spot-rule authority, and `0` USDC submitted/executed
+notional. Focused backend/frontend gates passed, blind/contextless backend and
+frontend reviews passed, and the phase-end stale-subagent sweep completed.
+
+## Completion Evidence - Phases 6301-6320
+
+Batch label: Futures/Perpetuals Proof Route/Writer Contract Registry Evidence.
+
+Completed phases `6301-6320` added disabled backend-owned
+`FUTURES_PROOF_ROUTE_CONTRACTS` and `FUTURES_PROOF_WRITER_CONTRACTS` for
+every futures/perpetual risk-proof requirement. The command suite displays
+registry-backed proof route/writer refs such as
+`application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`
+and
+`application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`
+while preserving `registered_proof_route_count=0`,
+`enabled_proof_writer_count=0`, no proof acceptance, no proof route
+registration, no proof writer enablement, no command route, no draft, no
+Coinbase activity, no reconciliation execution, no futures state mutation, no
+browser/BFF authority, no spot-rule authority, and `0` USDC
+submitted/executed notional.
 
 ## Completion Evidence - Phases 6281-6300
 

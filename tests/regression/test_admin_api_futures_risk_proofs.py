@@ -27,6 +27,10 @@ from application.admin_api.futures_command_service import (
     FUTURES_COMMAND_SERVICE_CONTRACTS,
     FuturesCommandServiceDisabledError,
 )
+from application.admin_api.futures_proof_payload_fields import (
+    FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS,
+    iter_futures_proof_payload_field_contracts,
+)
 from application.admin_api.futures_proof_routes import FUTURES_PROOF_ROUTE_CONTRACTS
 from application.admin_api.futures_proof_writer import FUTURES_PROOF_WRITER_CONTRACTS
 from application.admin_api.futures_reconciliation import (
@@ -244,6 +248,66 @@ def test_futures_risk_proof_route_and_writer_contracts_are_disabled() -> None:
     assert emitted_writer_refs == {
         contract.contract_ref for contract in FUTURES_PROOF_WRITER_CONTRACTS.values()
     }
+
+
+def test_futures_risk_proof_payload_field_contracts_are_disabled() -> None:
+    command_suite = AdminApiReadService().build_futures_command_suite()
+
+    assert len(FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS) == 10
+    first_payload_fields = command_suite.commands[0].risk_proof_requirements[
+        0
+    ].payload_fields
+    assert [contract.sequence for contract in first_payload_fields] == list(
+        range(1, 11)
+    )
+    assert all(
+        contract.payload_field_present is False
+        and contract.validation_registered is False
+        and contract.command_route_registered is False
+        and contract.command_draft_allowed is False
+        and contract.execution_allowed is False
+        and contract.proof_route_registered is False
+        and contract.proof_writer_enabled is False
+        and contract.live_coinbase_orders_ran is False
+        for contract in FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS
+    )
+
+    for command in command_suite.commands:
+        for proof_requirement in command.risk_proof_requirements:
+            registry_rows = list(
+                iter_futures_proof_payload_field_contracts(
+                    command=command.command,
+                    proof_kind=proof_requirement.proof_kind,
+                    identity_key=command.identity_key,
+                )
+            )
+            assert proof_requirement.payload_field_count == len(registry_rows)
+            assert proof_requirement.blocking_payload_field_count == len(
+                registry_rows
+            )
+            assert proof_requirement.present_payload_field_count == 0
+            for emitted, (
+                contract,
+                validation_rule,
+                required_evidence_ref,
+            ) in zip(proof_requirement.payload_fields, registry_rows, strict=True):
+                assert emitted.field == contract.field
+                assert emitted.payload_path == contract.payload_path
+                assert emitted.validation_rule == validation_rule
+                assert emitted.required_evidence_ref == required_evidence_ref
+                assert emitted.missing_evidence_ref == required_evidence_ref
+                assert emitted.payload_field_present is False
+                assert emitted.validation_registered is False
+                assert emitted.command_route_registered is False
+                assert emitted.command_draft_allowed is False
+                assert emitted.execution_allowed is False
+                assert emitted.proof_route_registered is False
+                assert emitted.proof_writer_enabled is False
+                assert emitted.backend_owned is True
+                assert emitted.read_only is True
+                assert emitted.spot_rule_authority is False
+                assert emitted.browser_authority == "display_only"
+                assert emitted.bff_authority == "forward_only_no_execution"
 
 
 def test_futures_risk_guard_contract_is_disabled() -> None:

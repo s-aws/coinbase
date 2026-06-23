@@ -415,7 +415,7 @@ Current behavior:
   `service_method="reconcile_futures_position"` for `futures_reconcile` while
   preserving
   `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`
-  as the separate required reconciliation-plan contract. Current M57
+  as the separate required reconciliation-plan contract. Completed M57
   `6301-6320` evidence reports futures proof route/writer contract registry
   evidence through `FUTURES_PROOF_ROUTE_CONTRACTS` and
   `FUTURES_PROOF_WRITER_CONTRACTS`, including
@@ -427,7 +427,19 @@ Current behavior:
   routes, register proof routes, create proof writers, accept proof records,
   create command drafts, call Coinbase, execute reconciliation, mutate
   futures/order/exchange state, or grant browser, BFF, or spot-rule authority
-- Machine-check evidence: proof route/writer contract registry evidence.
+  Current M57 `6321-6340` evidence reports futures proof payload-field
+  contract registry evidence through `FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS`
+  and `iter_futures_proof_payload_field_contracts`, including
+  `proof_payload.command`, `proof_payload.validation.status`, and
+  `futures_place_margin_collateral_payload_command_validated`. The
+  command-suite response keeps `payload_field_present=false` and
+  `validation_registered=false`. These rows do not validate submitted proof
+  payloads, register validators, accept proof records, create proof writers,
+  create command drafts, call Coinbase, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser, BFF, or spot-rule authority
+- Machine-check evidence: proof payload-field contract registry evidence.
+- Machine-check evidence: validate submitted proof payloads is forbidden for
+  the active disabled payload-field registry.
 - `GET /api/v1/futures/account`, `GET /api/v1/futures/positions`, and
   `GET /api/v1/futures/positions/{position_key}` expose read-only
   futures/perpetual account, risk, and position evidence; `position_key` is

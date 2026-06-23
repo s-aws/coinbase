@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6301-6320",
+  "approved_phase_range": "6321-6340",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6301-6320",
+  "approved_phase_range": "6321-6340",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1892,7 +1892,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6301-6320",
+  "approved_phase_range": "6321-6340",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2351,7 +2351,7 @@ plus a separate required reconciliation-plan contract; it does not register
 routes, create drafts, call Coinbase, execute reconciliation, mutate futures
 state, or grant browser/BFF authority.
 
-Active 6301-6320 work reports futures proof route/writer contract registry
+Completed 6301-6320 work reports futures proof route/writer contract registry
 evidence in `risk_proof_requirements[*].proof_contracts`, including
 `"application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof"`
 and
@@ -2359,6 +2359,16 @@ and
 The current response keeps `"registered_proof_route_count": 0` and
 `"enabled_proof_writer_count": 0`; these rows do not register proof routes,
 create proof writers, accept proof records, satisfy risk proofs, call
+Coinbase, execute reconciliation, mutate futures state, or grant browser/BFF
+authority.
+
+Active 6321-6340 work reports futures proof payload-field contract registry
+evidence in `risk_proof_requirements[*].payload_fields`, including
+`"proof_payload.command"`, `"proof_payload.validation.status"`,
+`"futures_place_margin_collateral_payload_command_validated"`,
+`"payload_field_present": false`, and `"validation_registered": false`.
+These rows do not validate submitted proof payloads, register validators,
+accept proof records, create proof writers, create command drafts, call
 Coinbase, execute reconciliation, mutate futures state, or grant browser/BFF
 authority.
 
