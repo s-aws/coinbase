@@ -1,6 +1,7 @@
 """Regression tests for USDC spot portfolio sweep planning."""
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -67,6 +68,7 @@ from core.enums import (
     SpotPortfolioSweepSafetyDecision,
     SpotPortfolioSweepSkipReason,
     SpotPortfolioSweepItemStatus,
+    SpotOperationLockStatus,
     SpotSellAuthorityAllowlistFreshness,
     SpotSweepFillLedgerMatchStatus,
     SpotSweepRecoveryGateStatus,
@@ -2168,4 +2170,39 @@ def test_operation_lock_blocks_overlapping_scheduled_jobs():
             _OperationLock(lock_file, stale_after_seconds=3600).acquire()
     finally:
         first.release()
+        lock_file.unlink(missing_ok=True)
+
+
+def test_operation_lock_removes_dead_owner_pid(monkeypatch):
+    from tools.run_spot_portfolio_sweep_live import _OperationLock
+
+    scratch_dir = Path("genai_tools")
+    scratch_dir.mkdir(exist_ok=True)
+    lock_file = scratch_dir / f"spot_operation_{uuid4().hex}.lock"
+    lock_file.write_text(
+        json.dumps(
+            {
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "pid": 987654321,
+                "status": SpotOperationLockStatus.ACQUIRED.value,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        _OperationLock,
+        "_process_exists",
+        staticmethod(lambda pid: False),
+    )
+
+    lock = _OperationLock(lock_file, stale_after_seconds=3600).acquire()
+    try:
+        assert lock.status == SpotOperationLockStatus.ACQUIRED.value
+        assert (
+            json.loads(lock_file.read_text(encoding="utf-8"))["pid"]
+            == os.getpid()
+        )
+    finally:
+        lock.release()
         lock_file.unlink(missing_ok=True)
