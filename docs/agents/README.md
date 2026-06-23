@@ -79,6 +79,17 @@ Shared DB cursor, fixed service port, process-global state, and other
 process-shared regression tests must be marked `pytest.mark.serial`; documented
 false positives use `parallel-regression: serial-safe`.
 
+Before full closeout gates and after interrupted or timed-out backend/frontend
+test commands, run:
+
+```powershell
+python tools/check_stale_test_processes.py --include-sibling-frontend
+```
+
+Use `--kill` only for matched repo-owned test command lines that are stale and
+not part of active validation. Do not terminate generic `node.exe`,
+`python.exe`, Codex, VS Code, or browser processes by name alone.
+
 ## Subagent Hygiene
 
 Phase-end cleanup is the canonical timing: close subagents spawned for that

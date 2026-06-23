@@ -299,6 +299,10 @@ from .models import (
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .futures_command_service import FUTURES_COMMAND_SERVICE_CONTRACTS
 from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
+from .futures_route_contracts import (
+    FUTURES_ROUTE_CONTRACTS,
+    futures_live_adapter_contract_ref,
+)
 from .futures_risk_guard import FUTURES_RISK_GUARD_CONTRACT
 from .futures_risk_proof import FileFuturesRiskProofStore, FuturesRiskProofRecord
 from .stealth_cancel_replace_boundary import (
@@ -398,7 +402,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6021-6040"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6041-6060"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -494,9 +498,12 @@ FUTURES_COMMAND_SUITE_API_EXCLUDE = {
 
 
 def futures_command_suite_api_payload(
-    response: AdminFuturesCommandSuiteResponse,
+    response: AdminFuturesCommandSuiteResponse | dict[str, Any],
 ) -> dict[str, Any]:
     """Serialize futures command-suite evidence without deep proof child graphs."""
+
+    if isinstance(response, dict):
+        return dict(response)
 
     return response.model_dump(
         mode="json",
@@ -20009,7 +20016,11 @@ class AdminApiReadService:
             for command, contract in FUTURES_COMMAND_SERVICE_CONTRACTS.items()
         }
         futures_command_route_contract_refs = {
-            command: f"api/v1/routes/futures.py::{command.value}_route_contract"
+            command: contract.contract_ref
+            for command, contract in FUTURES_ROUTE_CONTRACTS.items()
+        }
+        futures_live_adapter_contract_refs = {
+            command: futures_live_adapter_contract_ref(command)
             for command in AdminFuturesCommandAction
         }
         backend_contracts = [
@@ -20024,6 +20035,10 @@ class AdminApiReadService:
             futures_command_route_contract_refs[AdminFuturesCommandAction.CLOSE_REDUCE],
             futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
             futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
+            futures_live_adapter_contract_refs[AdminFuturesCommandAction.PLACE],
+            futures_live_adapter_contract_refs[AdminFuturesCommandAction.CLOSE_REDUCE],
+            futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
+            futures_live_adapter_contract_refs[AdminFuturesCommandAction.RECONCILE],
         ]
         command_required_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
@@ -20031,6 +20046,7 @@ class AdminApiReadService:
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.PLACE],
+                futures_live_adapter_contract_refs[AdminFuturesCommandAction.PLACE],
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
                 futures_command_service_contract_refs[
@@ -20041,32 +20057,37 @@ class AdminApiReadService:
                 futures_command_route_contract_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
+                futures_live_adapter_contract_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
             ],
             AdminFuturesCommandAction.CANCEL: [
                 futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
+                futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
             ],
             AdminFuturesCommandAction.RECONCILE: [
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
+                futures_live_adapter_contract_refs[AdminFuturesCommandAction.RECONCILE],
             ],
         }
         command_missing_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
-                futures_command_route_contract_refs[AdminFuturesCommandAction.PLACE],
+                futures_live_adapter_contract_refs[AdminFuturesCommandAction.PLACE],
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
-                futures_command_route_contract_refs[
+                futures_live_adapter_contract_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
             ],
             AdminFuturesCommandAction.CANCEL: [
-                futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
+                futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
             ],
             AdminFuturesCommandAction.RECONCILE: [
-                futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
+                futures_live_adapter_contract_refs[AdminFuturesCommandAction.RECONCILE],
             ],
         }
         product_scope_evidence_routes = [
@@ -21053,7 +21074,7 @@ class AdminApiReadService:
             add_step(
                 AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE,
                 required_backend_contract=(
-                    f"api/v1/routes/futures.py::{command_id.value}_route_contract"
+                    futures_command_route_contract_refs[command_id]
                 ),
                 detail=(
                     f"{command_id.value} has no Admin API command route. A route "
@@ -21064,7 +21085,7 @@ class AdminApiReadService:
             add_step(
                 AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER,
                 required_backend_contract=(
-                    f"application/admin_api/live_execution.py::{command_id.value}_adapter_contract"
+                    futures_live_adapter_contract_refs[command_id]
                 ),
                 detail=(
                     f"{command_id.value} has no live service adapter. This row "

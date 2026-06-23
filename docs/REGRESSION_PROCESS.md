@@ -45,6 +45,31 @@ database resources that are unsafe inside one threaded interpreter. Separate
 pytest worker processes isolate that state; the serial lane keeps tests with
 shared external resources out of the parallel-safe lane.
 
+## Test Process Hygiene
+
+Interrupted or externally timed-out test commands can leave child workers
+running after the parent shell exits. Before starting a full closeout gate, and
+after any interrupted or timed-out backend/frontend test command, run the stale
+process checker:
+
+```powershell
+python tools/check_stale_test_processes.py --include-sibling-frontend
+```
+
+The checker is report-only by default and only matches pytest, Vitest,
+Playwright, npm test, release-gate, or local Next.js test-server command lines
+that include this repository or the sibling `coinbase-frontend` path. If it
+reports stale workers that are no longer part of an active validation run,
+terminate only those matched process trees explicitly:
+
+```powershell
+python tools/check_stale_test_processes.py --include-sibling-frontend --kill
+```
+
+Do not manually kill generic `node.exe`, `python.exe`, `Code.exe`, `Codex.exe`,
+Chrome, or VS Code extension processes based only on process name. Use command
+line, repository path, age, and active validation state as the evidence.
+
 ## Serial Lane Classification
 
 The process-parallel runner validates serial-lane classification before running

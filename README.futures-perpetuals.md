@@ -296,7 +296,15 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   only. The method must not reconcile positions, read or write Coinbase,
   mutate futures/order/exchange state, satisfy proof acceptance, register
   command routes, create drafts, or grant browser/BFF authority. Route
-  registration remains the next missing backend contract gap.
+  registration was the next missing backend contract gap through 6021-6040.
+- Do not treat disabled route-registration contract metadata as a registered
+  command route. M57 phases 6041-6060 define
+  `api/v1/routes/futures.py::*_route_contract` refs as required/present
+  disabled backend evidence only. Command route count, command draft count, and
+  executable command count stay zero. The next missing backend gaps are
+  `application/admin_api/live_execution.py::*_adapter_contract` refs; those
+  refs do not construct adapters, call Coinbase, execute reconciliation, mutate
+  futures state, or grant browser/BFF authority.
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.

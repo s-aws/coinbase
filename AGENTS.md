@@ -46,6 +46,7 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 - Runtime-facing behavior: run focused tests, live validation through the relevant localhost ports, AnythingLLM proof when applicable, and both frozen fixture checks when those surfaces are affected.
 - Cross-cutting, release-candidate, model-portability, skill-library-scale, or unbounded-blast-radius changes: run the focused checks that cover the changed behavior before ordinary phase completion.
 - Full `tests/regression/` is a durable milestone closeout gate, not an ordinary phase gate. The canonical policy is [docs/REGRESSION_PROCESS.md](docs/REGRESSION_PROCESS.md): run it before durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request. The canonical runner validates the regression serial-lane classification before running pytest; regression files that touch shared DB cursors, fixed service ports, process-global state, or other process-shared resources must use `pytest.mark.serial`, while false positives require a `parallel-regression: serial-safe` comment with the reason.
+- Before full closeout gates and after interrupted or timed-out backend/frontend test commands, run the stale test-process checker. It is report-only unless `--kill` is explicitly provided and must only target matched repo-owned test command lines: `python tools/check_stale_test_processes.py --include-sibling-frontend`.
 
 Canonical full regression closeout command:
 

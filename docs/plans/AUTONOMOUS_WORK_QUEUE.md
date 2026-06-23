@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6021-6040**.
+- Approved phase range: **6041-6060**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6001-6020`.
+- Previous completed range: `6021-6040`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6020`.
+- `current_phase`: `6040`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,133 +81,163 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6021-6040
+## Active Phases 6041-6060
 
-Batch label: Futures/Perpetuals Disabled Reconciliation Contract Evidence.
+Batch label: Futures/Perpetuals Disabled Route-Registration Contract Evidence.
 
-These phases continue M57 by turning the futures/perpetual reconciliation
-boundary from the remaining missing backend contract into a named disabled
-backend contract. Completed phases `6001-6020` added disabled risk-guard
-evidence. Active `6021-6040` adds
-`application/admin_api/futures_reconciliation.py` with disabled
-`record_futures_reconciliation_plan` evidence, then updates
-`GET /api/v1/futures/command-suite` so reconciliation remains required but is
-no longer reported as the unresolved missing backend contract. Command routes,
-command drafts, live adapters, Coinbase calls, reconciliation execution,
-futures/order/exchange mutation, browser authority, BFF execution authority,
-and spot-rule authority remain blocked.
+These phases continue M57 by turning the futures/perpetual command route
+registration refs into named disabled backend contract evidence without
+registering command routes. Completed phases `6021-6040` added disabled
+reconciliation evidence and shifted the remaining missing contract gap to
+`api/v1/routes/futures.py::*_route_contract`. Active `6041-6060` may add
+route-registration contract metadata only; command routes, command drafts,
+live adapters, Coinbase calls, reconciliation execution, futures/order/
+exchange mutation, browser authority, BFF execution authority, and spot-rule
+authority remain blocked.
 
-### Phase 6021 - Prior Range Closure
+### Phase 6041 - Prior Range Closure
 
-- Record completed phases `6001-6020` as historical disabled risk-guard
-  evidence and move active metadata to `6021-6040`.
+- Record completed phases `6021-6040` as historical disabled reconciliation
+  evidence and move active metadata to `6041-6060`.
 
-### Phase 6022 - Disabled Reconciliation Scope
+### Phase 6042 - Disabled Route Registration Scope
 
-- Define futures reconciliation as a backend-owned disabled service boundary,
-  not reconciliation execution, proof acceptance, command execution, route
-  registration, live adapter construction, Coinbase activity, or state
-  mutation.
+- Define futures route-registration contracts as backend-owned disabled
+  evidence, not actual route registration, command execution, command drafts,
+  live adapter construction, Coinbase activity, reconciliation execution, or
+  state mutation.
 
-### Phase 6023 - Backend Reconciliation Module
+### Phase 6043 - Backend Route Contract Metadata
 
-- Add `application/admin_api/futures_reconciliation.py` with disabled
-  `record_futures_reconciliation_plan` metadata for place, close/reduce,
-  cancel, and reconcile command families.
+- Add disabled `api/v1/routes/futures.py::*_route_contract` metadata for
+  place, close/reduce, cancel, and reconcile command families without adding
+  `POST`/mutation route decorators.
 
-### Phase 6024 - Disabled Invocation Guard
+### Phase 6044 - Route Registration Guard
 
-- Ensure direct reconciliation invocation raises a disabled-reconciliation
-  error and records no Coinbase, live reconciliation, proof-acceptance, or
-  state-mutation behavior.
+- Ensure route contract evidence cannot be mistaken for registered command
+  routes and keeps route count, draft count, and execution count at zero.
 
-### Phase 6025 - Required Versus Missing Contract Shift
+### Phase 6045 - Required Versus Missing Contract Shift
 
-- Preserve the reconciliation contract in `required_backend_contracts` while
-  removing it from `missing_backend_contracts`; leave route-registration
-  contracts as the next missing backend contract gap.
+- Preserve route-registration refs in `required_backend_contracts` while
+  removing them from `missing_backend_contracts`; leave the next backend-owned
+  live adapter/service binding contract as the missing gap.
 
-### Phase 6026 - Readiness Next Contract Shift
+### Phase 6046 - Readiness Next Contract Shift
 
-- Shift readiness `next_required_backend_contract` from reconciliation to
-  command route registration without changing prerequisites, semantic guards,
-  proof acceptance, drafts, live adapters, reconciliation execution, or
-  execution authority.
+- Shift readiness `next_required_backend_contract` from route registration to
+  the next backend live adapter/service contract without changing
+  prerequisites, semantic guards, proof acceptance, drafts, routes, Coinbase,
+  reconciliation execution, or execution authority.
 
-### Phase 6027 - Backend Contract Tests
+### Phase 6047 - Backend Contract Tests
 
-- Add focused regression coverage for disabled reconciliation behavior,
-  required but non-missing reconciliation refs, route-only missing refs, and
-  unchanged no-route/no-draft/no-live boundaries.
+- Add focused regression coverage for disabled route-registration evidence,
+  required but non-missing route refs, next missing backend refs, and unchanged
+  no-route/no-draft/no-live boundaries.
 
-### Phase 6028 - OpenAPI Regeneration
+### Phase 6048 - OpenAPI Verification
 
-- Regenerate backend OpenAPI from backend-owned models and read-service
-  behavior after the active range and reconciliation updates.
+- Regenerate or verify backend OpenAPI while proving no futures command route
+  path is added.
 
-### Phase 6029 - Frontend Schema Sync
+### Phase 6049 - Frontend Schema Sync
 
 - Regenerate or verify the frontend generated TypeScript schema from backend
-  OpenAPI.
+  OpenAPI without hand-editing generated files.
 
-### Phase 6030 - Frontend Mock Contract Alignment
+### Phase 6050 - Frontend Mock Route Contract Alignment
 
-- Update frontend mock futures command-suite fixtures so reconciliation is
-  required and present, while route-registration remains the missing backend
-  contract gap.
+- Update frontend mock futures command-suite fixtures so route-registration
+  refs are required/present disabled evidence and the next backend contract
+  gap remains missing.
 
-### Phase 6031 - Frontend Adapter And Read Model Review
+### Phase 6051 - Frontend Adapter And Read Model Review
 
-- Verify futures/perpetual read-model display renders the reconciliation
-  contract and route-registration next-contract shift without browser
-  authority.
+- Verify futures/perpetual read-model display renders route-registration
+  contract evidence as backend-owned and still shows no command routes, drafts,
+  live adapters, Coinbase, reconciliation execution, or browser authority.
 
-### Phase 6032 - Frontend Unit Coverage
+### Phase 6052 - Frontend Unit Coverage
 
 - Update focused Vitest coverage for mock backend, runtime, quality gates, and
-  futures/perpetual read-model assertions around the disabled reconciliation
+  futures/perpetual read-model assertions around the disabled route-contract
   shift.
 
-### Phase 6033 - Docs And Examples
+### Phase 6053 - Docs And Examples
 
 - Update backend/frontend docs, examples, maintainer handoff, contextless
-  review logs, and agent state for disabled reconciliation semantics.
+  review logs, and agent state for disabled route-registration semantics.
 
-### Phase 6034 - Active-Range Drift Sweep
+### Phase 6054 - Active-Range Drift Sweep
 
 - Search backend/frontend docs, tests, mocks, generated schema, and validators
-  for stale active `6001-6020` wording that should now be historical only.
+  for stale active `6021-6040` wording that should now be historical only.
 
-### Phase 6035 - Backend Focused Gates
+### Phase 6055 - Backend Focused Gates
 
 - Run backend compile, OpenAPI, focused futures command-suite regression,
   autonomous queue, and ownership checks.
 
-### Phase 6036 - Frontend Focused Gates
+### Phase 6056 - Frontend Focused Gates
 
 - Run frontend generated API, typecheck, lint/security where relevant, focused
   unit tests, and autonomous/deployment checks.
 
-### Phase 6037 - Contextless Review And Remediation
+### Phase 6057 - Contextless Review And Remediation
 
-- Run blind/contextless backend/frontend review for disabled reconciliation
+- Run blind/contextless backend/frontend review for disabled route-registration
   clarity, no spot-rule leakage, and no browser/BFF/live authority; remediate
   or explicitly defer findings.
 
-### Phase 6038 - Subagent Sweep
+### Phase 6058 - Subagent Sweep
 
 - Close phase-scoped, stale, and unused subagents after findings are consumed,
   remediated, or explicitly deferred.
 
-### Phase 6039 - No-Live Evidence
+### Phase 6059 - No-Live Evidence
 
 - Record no live Coinbase execution, submitted notional `0` USDC, executed
   notional `0` USDC, and the unchanged live-cap posture for this active range.
 
-### Phase 6040 - Phase Closeout Evidence
+### Phase 6060 - Phase Closeout Evidence
 
 - Record implementation, verification, review outcome, stale-subagent sweep
   result, commits, pushes, and the next milestone-linked work.
+
+## Completion Evidence - Phases 6021-6040
+
+- `application/admin_api/futures_reconciliation.py` defines disabled backend
+  reconciliation contract evidence for `record_futures_reconciliation_plan`.
+- `GET /api/v1/futures/command-suite` now keeps reconciliation in
+  `required_backend_contracts` while removing it from
+  `missing_backend_contracts`; the remaining backend contract gaps are
+  `api/v1/routes/futures.py::*_route_contract` route-registration refs.
+- Frontend mocks and futures/perpetual read-model rendering consume the
+  backend-owned contract split. The UI visibly renders reconciliation as
+  required/present and route-registration as missing without creating command
+  buttons, command drafts, BFF mutation authority, browser approval, Coinbase
+  execution, reconciliation execution, futures state mutation, or spot-rule
+  authority.
+- Backend focused gates passed: Python compile, generated OpenAPI, global
+  ownership check, autonomous queue check, focused futures risk-proof/Admin API
+  contract checks, OpenAPI parity checks, and
+  `tests/regression/test_spot_readiness_gate.py`.
+- Frontend focused gates passed: generated API check, autonomous queue check,
+  release readiness, deployment readiness, command-fetch guard, typecheck,
+  lint, and focused mock/runtime/admin-shell/quality/futures read-model unit
+  tests (`61` tests passed).
+- Blind/contextless backend and frontend reviews returned PASS. Reviewers
+  `019ef23f-cbee-7780-a744-5ca89ba3b911` and
+  `019ef23f-e009-7ae2-8aaa-86a0ca2f8713` were closed after findings were
+  consumed. No phase-scoped, stale, or unused subagent remains intentionally
+  open.
+- Full backend regression and frontend `release:gate` were not run because
+  this was ordinary phase work, not durable milestone closeout.
+- Live Coinbase execution was not run; submitted notional `0` USDC, executed
+  notional `0` USDC. Backend commit `c87a69e6` and frontend commit `55c79ae`
+  contain the pushed implementation.
 
 ## Completion Evidence - Phases 6001-6020
 

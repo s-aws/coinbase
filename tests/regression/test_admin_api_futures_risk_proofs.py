@@ -32,6 +32,10 @@ from application.admin_api.futures_reconciliation import (
     FUTURES_RECONCILIATION_CONTRACT,
     FuturesReconciliationDisabledError,
 )
+from application.admin_api.futures_route_contracts import (
+    FUTURES_ROUTE_CONTRACTS,
+    futures_live_adapter_contract_ref,
+)
 from application.admin_api.futures_risk_guard import (
     AdminApiFuturesRiskGuard,
     FUTURES_RISK_GUARD_CONTRACT,
@@ -146,6 +150,52 @@ def test_futures_reconciliation_contract_is_disabled() -> None:
     assert "contract-defined but not executable" in message
     assert "reconciliation execution" in message
     assert "Coinbase calls" in message
+
+
+def test_futures_route_contracts_are_disabled_metadata_only() -> None:
+    expected_refs = {
+        AdminFuturesCommandAction.PLACE: (
+            "api/v1/routes/futures.py::futures_place_route_contract"
+        ),
+        AdminFuturesCommandAction.CLOSE_REDUCE: (
+            "api/v1/routes/futures.py::futures_close_reduce_route_contract"
+        ),
+        AdminFuturesCommandAction.CANCEL: (
+            "api/v1/routes/futures.py::futures_cancel_route_contract"
+        ),
+        AdminFuturesCommandAction.RECONCILE: (
+            "api/v1/routes/futures.py::futures_reconcile_route_contract"
+        ),
+    }
+
+    assert set(FUTURES_ROUTE_CONTRACTS) == set(AdminFuturesCommandAction)
+    assert futures_routes.futures_place_route_contract is (
+        FUTURES_ROUTE_CONTRACTS[AdminFuturesCommandAction.PLACE]
+    )
+    assert futures_routes.futures_close_reduce_route_contract is (
+        FUTURES_ROUTE_CONTRACTS[AdminFuturesCommandAction.CLOSE_REDUCE]
+    )
+    assert futures_routes.futures_cancel_route_contract is (
+        FUTURES_ROUTE_CONTRACTS[AdminFuturesCommandAction.CANCEL]
+    )
+    assert futures_routes.futures_reconcile_route_contract is (
+        FUTURES_ROUTE_CONTRACTS[AdminFuturesCommandAction.RECONCILE]
+    )
+
+    for command, contract in FUTURES_ROUTE_CONTRACTS.items():
+        assert contract.contract_ref == expected_refs[command]
+        assert contract.route_registered is False
+        assert contract.command_draft_allowed is False
+        assert contract.live_adapter_bound is False
+        assert contract.execution_allowed is False
+        assert contract.reconciliation_execution_enabled is False
+        assert contract.state_mutation_allowed is False
+        assert contract.live_coinbase_orders_ran is False
+        assert contract.browser_authority == "display_only"
+        assert contract.bff_authority == "forward_only_no_execution"
+        assert futures_live_adapter_contract_ref(command) == (
+            f"application/admin_api/live_execution.py::{command.value}_adapter_contract"
+        )
 
 
 def _headers(*, roles: str = "viewer") -> dict[str, str]:

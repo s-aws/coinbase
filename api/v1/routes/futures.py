@@ -17,6 +17,12 @@ from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.futures_risk_proof import FileFuturesRiskProofStore
 from application.admin_api.idempotency import FileIdempotencyStore
 from application.admin_api.live_execution import AdminApiLiveExecutionService
+from application.admin_api.futures_route_contracts import (
+    FUTURES_CANCEL_ROUTE_CONTRACT,
+    FUTURES_CLOSE_REDUCE_ROUTE_CONTRACT,
+    FUTURES_PLACE_ROUTE_CONTRACT,
+    FUTURES_RECONCILE_ROUTE_CONTRACT,
+)
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiCommandEnvelope,
@@ -60,6 +66,11 @@ from .orders import (
 
 
 router = APIRouter()
+
+futures_place_route_contract = FUTURES_PLACE_ROUTE_CONTRACT
+futures_close_reduce_route_contract = FUTURES_CLOSE_REDUCE_ROUTE_CONTRACT
+futures_cancel_route_contract = FUTURES_CANCEL_ROUTE_CONTRACT
+futures_reconcile_route_contract = FUTURES_RECONCILE_ROUTE_CONTRACT
 
 READ_ONLY_ROUTE_RESPONSES = {
     401: {

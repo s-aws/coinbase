@@ -1,5 +1,77 @@
 # Admin API Contextless Review Log
 
+## M57 Futures/Perpetual Disabled Route-Registration Contract Evidence - Phases 6041-6060
+
+Scope: phases `6041-6060`, after completed history `6021-6040`, add disabled
+futures route-registration contract evidence to `GET /api/v1/futures/command-suite`.
+Completed disabled command-service, risk-guard, and reconciliation evidence
+remain backend-owned disabled service evidence. This range targets
+`api/v1/routes/futures.py::*_route_contract` refs as required/present disabled
+evidence while live adapter refs remain the missing backend gaps.
+
+Result: PASS.
+
+- Initial blind/contextless backend review `019ef26b-ec4d-7913-9737-a99922758fc8`
+  returned BLOCKED because this review log still led with `6021-6040` and
+  because `docs/examples/futures-perpetuals.md` still had stale
+  `define_backend_command_service` snippets pointing at reconciliation or
+  route-registration refs. Those blockers were remediated by prepending this
+  current entry, updating examples, and extending the autonomous checker to
+  reject stale define-backend closure refs.
+- Current source boundary: `GET /api/v1/futures/command-suite` reports
+  route-registration contracts as required/present disabled evidence. The
+  remaining `missing_backend_contracts` and `next_required_backend_contract`
+  refs are live adapter refs:
+  `application/admin_api/live_execution.py::futures_place_adapter_contract`,
+  `application/admin_api/live_execution.py::futures_close_reduce_adapter_contract`,
+  `application/admin_api/live_execution.py::futures_cancel_adapter_contract`,
+  and `application/admin_api/live_execution.py::futures_reconcile_adapter_contract`.
+- Completed backend boundaries remain required/present:
+  `application/admin_api/futures_command_service.py` with
+  `place_futures_order`, `close_or_reduce_futures_position`, and
+  `cancel_futures_order`; `application/admin_api/futures_risk_guard.py` with
+  `evaluate_futures_margin_collateral_liquidation`; and
+  `application/admin_api/futures_reconciliation.py` with
+  `record_futures_reconciliation_plan`.
+- Contract field boundary: `backend_command_service`,
+  `required_backend_contracts`, and `missing_backend_contracts` remain
+  backend-owned evidence fields. The exact completed risk-guard ref is
+  `application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation`;
+  the exact completed reconciliation ref is
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`;
+  route-registration contracts are required present disabled evidence.
+- `/api/v1/futures/risk-proofs` remains read-only proof-record resolver
+  evidence. `backend_futures_risk_proof_store_read_only_no_execution` and
+  `backend_futures_semantics_no_execution` remain true boundary labels.
+- Authority boundary: route-registration contract evidence must not register
+  futures command routes, create command drafts, construct live adapters, call
+  Coinbase, execute reconciliation, accept proof records, validate
+  margin/collateral/liquidation for execution, mutate futures/order/exchange
+  state, or grant browser/BFF authority. Spot wallet, no-shorting, USDC quote,
+  average-cost, cost-basis, and inventory-lot assumptions remain forbidden
+  spot assumptions.
+- No live Coinbase execution is planned for this range; submitted notional
+  remains `0` USDC and executed notional remains `0` USDC unless a later
+  explicitly approved live phase changes that posture.
+- Fresh blind/contextless backend re-review `019ef274-36d4-7ef0-b159-19eec46330bb`
+  returned PASS. It confirmed route contracts are required/present disabled
+  evidence, live adapter refs are the only missing backend gaps, futures
+  place/close/cancel/reconcile command routes remain absent, and examples plus
+  validators reject stale route/reconciliation refs as missing or
+  define-backend closure contracts.
+- Fresh blind/contextless frontend re-review `019ef27b-d72c-7153-b2c2-bef32964ad56`
+  returned PASS after the frontend split suite-level and command-row
+  required-present display from missing backend contracts.
+- Phase-end stale-subagent sweep completed after findings were consumed and
+  remediated. Reviewers `019ef26b-ec4d-7913-9737-a99922758fc8`,
+  `019ef26c-007f-7073-a0eb-4ff8879de86f`,
+  `019ef274-36d4-7ef0-b159-19eec46330bb`,
+  `019ef274-4af7-7792-93a1-63d4e7e668db`,
+  `019ef278-92f0-7b21-b4e9-81a1756d40f4`, and
+  `019ef27b-d72c-7153-b2c2-bef32964ad56` were closed. No phase-scoped, stale,
+  or unused subagent remains intentionally open.
+- Machine-check exact phrase line: futures disabled route-registration contract evidence; /api/v1/futures/command-suite; /api/v1/futures/risk-proofs; application/admin_api/futures_command_service.py; place_futures_order; close_or_reduce_futures_position; cancel_futures_order; application/admin_api/futures_risk_guard.py; evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py; record_futures_reconciliation_plan; backend_command_service; required_backend_contracts; missing_backend_contracts; application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan; route-registration contracts are required present disabled evidence; application/admin_api/live_execution.py::futures_place_adapter_contract; application/admin_api/live_execution.py::futures_close_reduce_adapter_contract; application/admin_api/live_execution.py::futures_cancel_adapter_contract; application/admin_api/live_execution.py::futures_reconcile_adapter_contract; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+
 ## M57 Futures/Perpetual Disabled Reconciliation Contract Evidence - Phases 6021-6040
 
 Scope: phases `6021-6040`, after completed history `6001-6020`, add disabled

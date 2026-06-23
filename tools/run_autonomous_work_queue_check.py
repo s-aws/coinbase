@@ -60,9 +60,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6021-6040"
-APPROVED_PHASES = tuple(range(6021, 6041))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6001-6020"
+APPROVED_PHASE_RANGE = "6041-6060"
+APPROVED_PHASES = tuple(range(6041, 6061))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6021-6040"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -479,10 +479,26 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
         "application/admin_api/futures_reconciliation.py::"
         "record_futures_reconciliation_plan"
     )
+    route_refs = (
+        "api/v1/routes/futures.py::futures_place_route_contract",
+        "api/v1/routes/futures.py::futures_close_reduce_route_contract",
+        "api/v1/routes/futures.py::futures_cancel_route_contract",
+        "api/v1/routes/futures.py::futures_reconcile_route_contract",
+    )
+    live_adapter_refs = (
+        "application/admin_api/live_execution.py::futures_place_adapter_contract",
+        "application/admin_api/live_execution.py::futures_close_reduce_adapter_contract",
+        "application/admin_api/live_execution.py::futures_cancel_adapter_contract",
+        "application/admin_api/live_execution.py::futures_reconcile_adapter_contract",
+    )
     stale_patterns: list[str] = []
     for label, contract_ref in (
         ("risk_guard", risk_guard_ref),
         ("reconciliation", reconciliation_ref),
+        *(
+            (f"route_contract_{index}", route_ref)
+            for index, route_ref in enumerate(route_refs, start=1)
+        ),
     ):
         if re.search(
             r'"missing_backend_contracts"\s*:\s*\[[^\]]*'
@@ -495,12 +511,29 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
             stale_patterns.append(
                 f"{label}_ref_as_next_required_backend_contract"
             )
+        if re.search(
+            r'"step"\s*:\s*"define_backend_command_service"'
+            r'(?:(?!"step"\s*:)[\s\S]){0,600}'
+            r'"required_backend_contract"\s*:\s*"'
+            + re.escape(contract_ref)
+            + r'"',
+            body,
+        ):
+            stale_patterns.append(
+                f"{label}_ref_as_define_backend_command_service_contract"
+            )
+    missing_live_adapter_refs = [
+        contract_ref for contract_ref in live_adapter_refs if contract_ref not in body
+    ]
     return QueueCheck(
         name="futures_resolved_contracts_not_reported_missing",
-        passed=FUTURES_PERPETUALS_EXAMPLES_DOC.exists() and not stale_patterns,
+        passed=FUTURES_PERPETUALS_EXAMPLES_DOC.exists()
+        and not stale_patterns
+        and not missing_live_adapter_refs,
         evidence={
             "path": str(FUTURES_PERPETUALS_EXAMPLES_DOC.relative_to(PROJECT_ROOT)),
             "stale_patterns": stale_patterns,
+            "missing_live_adapter_refs": missing_live_adapter_refs,
         },
     )
 
@@ -641,7 +674,7 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
-        "disabled futures reconciliation contract evidence",
+        "disabled futures route-registration contract evidence",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -779,7 +812,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
-        "futures disabled reconciliation contract evidence",
+        "futures disabled route-registration contract evidence",
         "/api/v1/futures/risk-proofs",
         "application/admin_api/futures_command_service.py",
         "place_futures_order",
@@ -789,7 +822,11 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "evaluate_futures_margin_collateral_liquidation",
         "application/admin_api/futures_reconciliation.py",
         "record_futures_reconciliation_plan",
-        "route-registration contracts remain missing until implemented",
+        "route-registration contracts are required present disabled evidence",
+        "application/admin_api/live_execution.py::futures_place_adapter_contract",
+        "application/admin_api/live_execution.py::futures_close_reduce_adapter_contract",
+        "application/admin_api/live_execution.py::futures_cancel_adapter_contract",
+        "application/admin_api/live_execution.py::futures_reconcile_adapter_contract",
         "backend_futures_risk_proof_store_read_only_no_execution",
         "backend_futures_semantics_no_execution",
         "no futures command route",
@@ -798,8 +835,8 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "no reconciliation execution",
         "no futures state mutation",
         "forbidden spot assumptions",
-        "019ef23f-cbee-7780-a744-5ca89ba3b911",
-        "019ef23f-e009-7ae2-8aaa-86a0ca2f8713",
+        "019ef274-36d4-7ef0-b159-19eec46330bb",
+        "019ef27b-d72c-7153-b2c2-bef32964ad56",
         "Phase-end stale-subagent sweep completed",
     ]
     stale = [

@@ -146,11 +146,19 @@ regression files `pytest.mark.serial` when they touch shared DB cursors, fixed
 service ports, process-global state, or other process-shared resources. If the
 static classifier reports a false positive, add a `parallel-regression:
 serial-safe` comment with the reason.
+Before full closeout gates and after any interrupted or timed-out backend or
+frontend test command, run the stale process checker:
+`python tools/check_stale_test_processes.py --include-sibling-frontend`.
+The checker is report-only by default; use `--kill` only when the matched
+repo-owned test worker is stale and not part of active validation.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell
 # Full regression closeout gate - durable milestone closeout only unless explicitly requested
 python tools/run_parallel_regression.py --workers 4
+
+# Stale test-process hygiene - before closeout gates and after interruptions
+python tools/check_stale_test_processes.py --include-sibling-frontend
 
 # Sequential fallback only when pytest-xdist is unavailable
 pytest tests/regression/ -v --tb=short
