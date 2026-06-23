@@ -554,9 +554,11 @@ or invokable. M57 phases 6081-6100 add disabled futures adapter-construction
 contract metadata only. Adapter-construction refs are required/present disabled
 evidence, but no adapter is constructed or invokable. M57 phases 6101-6120 add
 disabled futures adapter-decision contract metadata only. Adapter-decision refs
-are required/present disabled evidence; the next missing backend gaps are the
-adapter decision-record refs in
-`application/admin_api/live_execution.py::*_adapter_decision_record_contract`.
+are required/present disabled evidence. M57 phases 6121-6140 add disabled
+futures adapter-decision-record contract metadata only. Adapter decision-record
+refs are required/present disabled evidence; the next missing backend gaps are
+the adapter invocation refs in
+`application/admin_api/live_execution.py::*_adapter_invocation_contract`.
 No live reconciliation or trading authority is created.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is

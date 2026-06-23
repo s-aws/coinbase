@@ -38,6 +38,7 @@ from application.admin_api.futures_route_contracts import (
     futures_live_adapter_construction_contract_ref,
     futures_live_adapter_decision_contract_ref,
     futures_live_adapter_decision_record_contract_ref,
+    futures_live_adapter_invocation_contract_ref,
 )
 from application.admin_api.futures_risk_guard import (
     AdminApiFuturesRiskGuard,
@@ -53,7 +54,8 @@ from application.admin_api.live_execution import (
     FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_CONTRACTS,
     FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS,
-    FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON,
+    FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS,
+    FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON,
     get_disabled_live_execution_service,
 )
 from application.admin_api.models import (
@@ -248,7 +250,7 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert construction_contract.browser_authority == "display_only"
         assert construction_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in construction_contract.forbidden_methods
-        assert FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON in (
+        assert FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON in (
             construction_contract.blockers
         )
 
@@ -276,8 +278,41 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert decision_contract.browser_authority == "display_only"
         assert decision_contract.bff_authority == "forward_only_no_execution"
         assert "create_order" in decision_contract.forbidden_methods
-        assert FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON in (
+        assert FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON in (
             decision_contract.blockers
+        )
+
+        decision_record_contract = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS[
+            command
+        ]
+        assert decision_record_contract.contract_ref == (
+            futures_live_adapter_decision_record_contract_ref(command)
+        )
+        assert decision_record_contract.adapter_contract_ref == (
+            futures_live_adapter_contract_ref(command)
+        )
+        assert decision_record_contract.construction_contract_ref == (
+            futures_live_adapter_construction_contract_ref(command)
+        )
+        assert decision_record_contract.decision_contract_ref == (
+            futures_live_adapter_decision_contract_ref(command)
+        )
+        assert decision_record_contract.invocation_contract_ref == (
+            futures_live_adapter_invocation_contract_ref(command)
+        )
+        assert decision_record_contract.present is True
+        assert decision_record_contract.decision_record_writer_configured is False
+        assert decision_record_contract.decision_record_allowed is False
+        assert decision_record_contract.decision_record_available is False
+        assert decision_record_contract.adapter_constructed is False
+        assert decision_record_contract.invocation_allowed is False
+        assert decision_record_contract.execution_allowed is False
+        assert decision_record_contract.live_coinbase_orders_ran is False
+        assert decision_record_contract.browser_authority == "display_only"
+        assert decision_record_contract.bff_authority == "forward_only_no_execution"
+        assert "create_order" in decision_record_contract.forbidden_methods
+        assert FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON in (
+            decision_record_contract.blockers
         )
 
 

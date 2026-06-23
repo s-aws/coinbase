@@ -16,6 +16,7 @@ from .live_execution import (
     FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_CONTRACTS,
     FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS,
+    FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS,
 )
 
 
@@ -98,8 +99,16 @@ def futures_live_adapter_decision_contract_ref(
 def futures_live_adapter_decision_record_contract_ref(
     command: AdminFuturesCommandAction,
 ) -> str:
-    """Return the missing decision-record contract ref for a futures adapter."""
+    """Return the disabled decision-record contract ref for a futures adapter."""
 
-    return FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS[
+    return FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS[command].contract_ref
+
+
+def futures_live_adapter_invocation_contract_ref(
+    command: AdminFuturesCommandAction,
+) -> str:
+    """Return the missing invocation contract ref for a futures adapter."""
+
+    return FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS[
         command
-    ].decision_record_contract_ref
+    ].invocation_contract_ref

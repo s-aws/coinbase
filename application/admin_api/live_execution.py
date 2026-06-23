@@ -124,6 +124,12 @@ FUTURES_LIVE_ADAPTER_DECISION_CONTRACT_AUTHORITY = (
 FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON = (
     "futures_live_adapter_decision_record_contract_missing"
 )
+FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_AUTHORITY = (
+    "backend_futures_live_adapter_decision_record_contract_only_no_execution"
+)
+FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON = (
+    "futures_live_adapter_invocation_contract_missing"
+)
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY = (
     "backend_artifact_acceptance_requirements_only_no_execution"
 )
@@ -848,11 +854,11 @@ class FuturesLiveAdapterConstructionContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_construction_contract"
     authority: str = FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON,
+        FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
     forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
@@ -883,11 +889,48 @@ class FuturesLiveAdapterDecisionContract:
     live_coinbase_orders_ran: bool = False
     source: str = "disabled_futures_live_adapter_decision_contract"
     authority: str = FUTURES_LIVE_ADAPTER_DECISION_CONTRACT_AUTHORITY
-    missing_reason: str = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON
+    missing_reason: str = FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     blockers: tuple[str, ...] = (
-        FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_MISSING_REASON,
+        FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON,
+        LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
+        LIVE_EXECUTION_DISABLED_REASON,
+    )
+    forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesLiveAdapterDecisionRecordContract:
+    """Disabled futures/perpetual adapter decision-record contract metadata."""
+
+    command: AdminFuturesCommandAction
+    contract_name: str
+    contract_ref: str
+    adapter_contract_ref: str
+    construction_contract_ref: str
+    decision_contract_ref: str
+    invocation_contract_ref: str
+    required: bool = True
+    present: bool = True
+    decision_record_writer_configured: bool = False
+    decision_record_allowed: bool = False
+    decision_record_available: bool = False
+    adapter_constructed: bool = False
+    invocation_allowed: bool = False
+    execution_allowed: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    reconciliation_execution_enabled: bool = False
+    state_mutation_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    source: str = "disabled_futures_live_adapter_decision_record_contract"
+    authority: str = FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACT_AUTHORITY
+    missing_reason: str = FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    blockers: tuple[str, ...] = (
+        FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACT_MISSING_REASON,
         LIVE_ADAPTER_DECISION_NON_RESOLUTION_REASON,
         LIVE_EXECUTION_DISABLED_REASON,
     )
@@ -936,6 +979,23 @@ def _futures_live_adapter_decision_contract(
         construction_contract_ref=construction_contract.contract_ref,
         decision_record_contract_ref=(
             f"application/admin_api/live_execution.py::{decision_record_contract_name}"
+        ),
+    )
+
+
+def _futures_live_adapter_decision_record_contract(
+    decision_contract: FuturesLiveAdapterDecisionContract,
+    invocation_contract_name: str,
+) -> FuturesLiveAdapterDecisionRecordContract:
+    return FuturesLiveAdapterDecisionRecordContract(
+        command=decision_contract.command,
+        contract_name=decision_contract.decision_record_contract_ref.rsplit("::", 1)[1],
+        contract_ref=decision_contract.decision_record_contract_ref,
+        adapter_contract_ref=decision_contract.adapter_contract_ref,
+        construction_contract_ref=decision_contract.construction_contract_ref,
+        decision_contract_ref=decision_contract.contract_ref,
+        invocation_contract_ref=(
+            f"application/admin_api/live_execution.py::{invocation_contract_name}"
         ),
     )
 
@@ -1044,6 +1104,47 @@ FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS: dict[
     ),
     futures_reconcile_adapter_decision_contract.command: (
         futures_reconcile_adapter_decision_contract
+    ),
+}
+
+futures_place_adapter_decision_record_contract = (
+    _futures_live_adapter_decision_record_contract(
+        futures_place_adapter_decision_contract,
+        "futures_place_adapter_invocation_contract",
+    )
+)
+futures_close_reduce_adapter_decision_record_contract = (
+    _futures_live_adapter_decision_record_contract(
+        futures_close_reduce_adapter_decision_contract,
+        "futures_close_reduce_adapter_invocation_contract",
+    )
+)
+futures_cancel_adapter_decision_record_contract = (
+    _futures_live_adapter_decision_record_contract(
+        futures_cancel_adapter_decision_contract,
+        "futures_cancel_adapter_invocation_contract",
+    )
+)
+futures_reconcile_adapter_decision_record_contract = (
+    _futures_live_adapter_decision_record_contract(
+        futures_reconcile_adapter_decision_contract,
+        "futures_reconcile_adapter_invocation_contract",
+    )
+)
+FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS: dict[
+    AdminFuturesCommandAction, FuturesLiveAdapterDecisionRecordContract
+] = {
+    futures_place_adapter_decision_record_contract.command: (
+        futures_place_adapter_decision_record_contract
+    ),
+    futures_close_reduce_adapter_decision_record_contract.command: (
+        futures_close_reduce_adapter_decision_record_contract
+    ),
+    futures_cancel_adapter_decision_record_contract.command: (
+        futures_cancel_adapter_decision_record_contract
+    ),
+    futures_reconcile_adapter_decision_record_contract.command: (
+        futures_reconcile_adapter_decision_record_contract
     ),
 }
 
