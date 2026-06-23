@@ -107,7 +107,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_subagent_hygiene_policy(body),
         _check_required_gates(body),
         _check_example_phase_range_docs(),
-        _check_futures_risk_guard_not_reported_missing(),
+        _check_futures_resolved_contracts_not_reported_missing(),
         _check_regression_gate_policy_docs(),
         _check_frontend_release_docs(),
         _check_maintainer_handoff_docs(),
@@ -465,7 +465,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
     )
 
 
-def _check_futures_risk_guard_not_reported_missing() -> QueueCheck:
+def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
     body = (
         FUTURES_PERPETUALS_EXAMPLES_DOC.read_text(encoding="utf-8")
         if FUTURES_PERPETUALS_EXAMPLES_DOC.exists()
@@ -475,18 +475,28 @@ def _check_futures_risk_guard_not_reported_missing() -> QueueCheck:
         "application/admin_api/futures_risk_guard.py::"
         "evaluate_futures_margin_collateral_liquidation"
     )
+    reconciliation_ref = (
+        "application/admin_api/futures_reconciliation.py::"
+        "record_futures_reconciliation_plan"
+    )
     stale_patterns: list[str] = []
-    if re.search(
-        r'"missing_backend_contracts"\s*:\s*\[[^\]]*'
-        + re.escape(risk_guard_ref),
-        body,
-        flags=re.DOTALL,
+    for label, contract_ref in (
+        ("risk_guard", risk_guard_ref),
+        ("reconciliation", reconciliation_ref),
     ):
-        stale_patterns.append("risk_guard_ref_in_missing_backend_contracts")
-    if f'"next_required_backend_contract": "{risk_guard_ref}"' in body:
-        stale_patterns.append("risk_guard_ref_as_next_required_backend_contract")
+        if re.search(
+            r'"missing_backend_contracts"\s*:\s*\[[^\]]*'
+            + re.escape(contract_ref),
+            body,
+            flags=re.DOTALL,
+        ):
+            stale_patterns.append(f"{label}_ref_in_missing_backend_contracts")
+        if f'"next_required_backend_contract": "{contract_ref}"' in body:
+            stale_patterns.append(
+                f"{label}_ref_as_next_required_backend_contract"
+            )
     return QueueCheck(
-        name="futures_risk_guard_not_reported_missing",
+        name="futures_resolved_contracts_not_reported_missing",
         passed=FUTURES_PERPETUALS_EXAMPLES_DOC.exists() and not stale_patterns,
         evidence={
             "path": str(FUTURES_PERPETUALS_EXAMPLES_DOC.relative_to(PROJECT_ROOT)),
@@ -765,7 +775,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
     heading, section = _first_review_section(body)
     required = [
         APPROVED_PHASE_RANGE,
-        "Result: PENDING - active range not yet reviewed.",
+        "Result: PASS.",
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
@@ -788,6 +798,9 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "no reconciliation execution",
         "no futures state mutation",
         "forbidden spot assumptions",
+        "019ef23f-cbee-7780-a744-5ca89ba3b911",
+        "019ef23f-e009-7ae2-8aaa-86a0ca2f8713",
+        "Phase-end stale-subagent sweep completed",
     ]
     stale = [
         f"active range and `{PREVIOUS_COMPLETED_PHASE_RANGE}`",

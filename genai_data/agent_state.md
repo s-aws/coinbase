@@ -77,9 +77,8 @@ Keep it short. Keep it factual.
   browser/BFF authority. Spot wallet, no-shorting, USDC, cost-basis,
   average-cost, and inventory-lot assumptions are forbidden as
   futures/perpetual authority.
-- Current direction: complete phases `6021-6040` by adding disabled futures reconciliation contract evidence, shifting command-suite missing-contract
-  evidence to route-registration contracts only after the disabled
-  reconciliation contract exists, syncing backend/frontend schema and
+- Current direction: complete phases `6021-6040` by syncing added disabled futures reconciliation contract evidence and shifting command-suite
+  missing-contract evidence to route-registration contracts, syncing backend/frontend schema and
   read-model consumption, docs, focused gates, blind/contextless review, and
   phase-end stale-subagent sweep.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
@@ -685,12 +684,12 @@ Keep it short. Keep it factual.
 
 - Active autonomous range: `6021-6040`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6021-6040` by adding disabled
-  backend futures reconciliation contract evidence for placement,
-  close/reduce, cancel, and reconcile, then syncing backend/frontend evidence
-  so reconciliation contracts are required but no longer missing while command
-  route, command draft, live adapter, Coinbase, reconciliation execution,
-  state mutation, browser, BFF, and spot-rule authority remain blocked.
+- Current direction: complete active phases `6021-6040` by syncing the added
+  disabled backend futures reconciliation contract evidence for placement,
+  close/reduce, cancel, and reconcile across backend/frontend evidence. The
+  reconciliation contract is required but no longer missing; command route,
+  command draft, live adapter, Coinbase, reconciliation execution, state
+  mutation, browser, BFF, and spot-rule authority remain blocked.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation

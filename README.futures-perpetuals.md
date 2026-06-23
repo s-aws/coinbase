@@ -289,14 +289,14 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   backend boundary for future risk checks; it does not validate margin,
   collateral, liquidation, or funding, accept proof records, register routes,
   create drafts, call Coinbase, execute reconciliation, mutate futures state,
-  or grant browser/BFF authority. Reconciliation remains the missing backend
-  contract.
+  or grant browser/BFF authority.
 - Do not treat disabled reconciliation planning as reconciliation execution.
-  M57 phases 6021-6040 target
+  M57 phases 6021-6040 define
   `record_futures_reconciliation_plan` as disabled backend contract evidence
   only. The method must not reconcile positions, read or write Coinbase,
   mutate futures/order/exchange state, satisfy proof acceptance, register
-  command routes, create drafts, or grant browser/BFF authority.
+  command routes, create drafts, or grant browser/BFF authority. Route
+  registration remains the next missing backend contract gap.
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.

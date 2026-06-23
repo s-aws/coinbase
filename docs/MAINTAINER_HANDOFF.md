@@ -787,10 +787,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   evidence for placement, close/reduce, and reconcile. The risk-guard contract
   becomes required but no longer missing. Active 6021-6040 work targets
   disabled backend futures reconciliation contract evidence for
-  `record_futures_reconciliation_plan`; until that contract exists,
-  reconciliation, command routes, command drafts, live adapters, Coinbase
-  calls, reconciliation execution, futures state mutation, proof acceptance,
-  browser authority, BFF authority, and spot-rule authority remain blocked.
+  `record_futures_reconciliation_plan`; reconciliation is now required and
+  no longer missing, while route registration, command drafts, live adapters,
+  Coinbase calls, reconciliation execution, futures state mutation, proof
+  acceptance, browser authority, BFF authority, and spot-rule authority remain
+  blocked.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

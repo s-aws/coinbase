@@ -27,6 +27,11 @@ from application.admin_api.futures_command_service import (
     FUTURES_COMMAND_SERVICE_CONTRACTS,
     FuturesCommandServiceDisabledError,
 )
+from application.admin_api.futures_reconciliation import (
+    AdminApiFuturesReconciliation,
+    FUTURES_RECONCILIATION_CONTRACT,
+    FuturesReconciliationDisabledError,
+)
 from application.admin_api.futures_risk_guard import (
     AdminApiFuturesRiskGuard,
     FUTURES_RISK_GUARD_CONTRACT,
@@ -114,6 +119,32 @@ def test_futures_risk_guard_contract_is_disabled() -> None:
     message = str(exc_info.value)
     assert "contract-defined but not executable" in message
     assert "risk proof acceptance" in message
+    assert "Coinbase calls" in message
+
+
+def test_futures_reconciliation_contract_is_disabled() -> None:
+    reconciliation = AdminApiFuturesReconciliation()
+
+    assert FUTURES_RECONCILIATION_CONTRACT.method_name == (
+        "record_futures_reconciliation_plan"
+    )
+    assert FUTURES_RECONCILIATION_CONTRACT.contract_ref == (
+        "application/admin_api/futures_reconciliation.py::"
+        "record_futures_reconciliation_plan"
+    )
+    assert set(FUTURES_RECONCILIATION_CONTRACT.commands) == {
+        AdminFuturesCommandAction.PLACE,
+        AdminFuturesCommandAction.CLOSE_REDUCE,
+        AdminFuturesCommandAction.CANCEL,
+        AdminFuturesCommandAction.RECONCILE,
+    }
+
+    with pytest.raises(FuturesReconciliationDisabledError) as exc_info:
+        reconciliation.record_futures_reconciliation_plan()
+
+    message = str(exc_info.value)
+    assert "contract-defined but not executable" in message
+    assert "reconciliation execution" in message
     assert "Coinbase calls" in message
 
 

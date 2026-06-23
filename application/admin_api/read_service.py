@@ -298,6 +298,7 @@ from .models import (
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .futures_command_service import FUTURES_COMMAND_SERVICE_CONTRACTS
+from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
 from .futures_risk_guard import FUTURES_RISK_GUARD_CONTRACT
 from .futures_risk_proof import FileFuturesRiskProofStore, FuturesRiskProofRecord
 from .stealth_cancel_replace_boundary import (
@@ -20007,49 +20008,65 @@ class AdminApiReadService:
             command: contract.contract_ref
             for command, contract in FUTURES_COMMAND_SERVICE_CONTRACTS.items()
         }
+        futures_command_route_contract_refs = {
+            command: f"api/v1/routes/futures.py::{command.value}_route_contract"
+            for command in AdminFuturesCommandAction
+        }
         backend_contracts = [
             futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
             futures_command_service_contract_refs[
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
             futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
-            "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+            FUTURES_RECONCILIATION_CONTRACT.contract_ref,
             FUTURES_RISK_GUARD_CONTRACT.contract_ref,
+            futures_command_route_contract_refs[AdminFuturesCommandAction.PLACE],
+            futures_command_route_contract_refs[AdminFuturesCommandAction.CLOSE_REDUCE],
+            futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
+            futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
         ]
         command_required_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
                 futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                FUTURES_RECONCILIATION_CONTRACT.contract_ref,
+                futures_command_route_contract_refs[AdminFuturesCommandAction.PLACE],
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
                 futures_command_service_contract_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                FUTURES_RECONCILIATION_CONTRACT.contract_ref,
+                futures_command_route_contract_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
             ],
             AdminFuturesCommandAction.CANCEL: [
                 futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                FUTURES_RECONCILIATION_CONTRACT.contract_ref,
+                futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
             ],
             AdminFuturesCommandAction.RECONCILE: [
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
+                futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
             ],
         }
         command_missing_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                futures_command_route_contract_refs[AdminFuturesCommandAction.PLACE],
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                futures_command_route_contract_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
             ],
             AdminFuturesCommandAction.CANCEL: [
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
             ],
             AdminFuturesCommandAction.RECONCILE: [
-                "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
+                futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
             ],
         }
         product_scope_evidence_routes = [
@@ -29631,7 +29648,7 @@ class AdminApiReadService:
             command(
                 AdminFuturesCommandAction.RECONCILE,
                 action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
-                service_method="record_futures_reconciliation_contract_required",
+                service_method=FUTURES_RECONCILIATION_CONTRACT.method_name,
                 identity_key="position_key",
                 permission=AdminApiPermission.RECONCILIATION_RECORD,
                 prerequisites=reconciliation_prerequisites,

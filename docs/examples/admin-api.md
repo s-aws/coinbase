@@ -2261,10 +2261,13 @@ the command-suite no longer reports them as missing. Completed 6001-6020 rows
 add disabled futures risk-guard contract evidence:
 `evaluate_futures_margin_collateral_liquidation` is a named disabled backend
 risk-guard method. The risk-guard contract remains required, but the
-command-suite no longer reports it as missing; reconciliation remains missing.
-Active 6021-6040 work targets disabled futures reconciliation contract evidence
-for `record_futures_reconciliation_plan`; until that contract exists,
-reconciliation remains the current missing backend contract. These rows do not
+command-suite no longer reports it as missing. The active 6021-6040 slice
+adds disabled reconciliation evidence, so route registration is now the
+missing backend contract gap.
+Active 6021-6040 work adds disabled futures reconciliation contract evidence
+for `record_futures_reconciliation_plan`; reconciliation is required/present
+disabled backend evidence and route registration is the current missing backend
+contract gap. These rows do not
 register command routes, create drafts, validate payloads, write proofs, enable
 writers, resolve dependencies, create remediation or dependency work items,
 claim work items, create or resolve claim traces, create or execute clearance
