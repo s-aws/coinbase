@@ -49,7 +49,12 @@ guard by default. It samples every `5` seconds and aborts the active pytest lane
 when committed memory reaches `96 GiB`, committed memory reaches `85%`,
 physical memory use reaches `75%`, or available physical memory drops below
 `24 GiB`. The summary includes per-lane peak memory samples when the guard is
-active; preserve that JSON line as closeout evidence. Treat a
+active; preserve that JSON line as closeout evidence. When the memory guard
+aborts a lane, the summary also includes `process_memory_snapshots` with the
+largest private-memory processes captured immediately before terminating the
+pytest tree. Use that evidence to distinguish repo-owned pytest workers from
+Codex, VS Code, browsers, WSL, Docker, or unrelated host processes; do not
+guess from process names after the fact. Treat a
 `memory_guard_aborted` summary as a failed closeout gate, then run the stale
 process checker and split or reduce the offending regression surface before
 retrying. Do not disable the memory watch for normal closeout; use

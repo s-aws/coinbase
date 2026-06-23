@@ -10,6 +10,7 @@ from tools.run_parallel_regression import (
     SERIAL_SAFE_COMMENT,
     SUMMARY_PREFIX,
     MemorySnapshot,
+    ProcessMemorySnapshot,
     RegressionCommand,
     RegressionRunResult,
     build_commands,
@@ -376,6 +377,16 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
 
 def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
     terminated = []
+    process_snapshots = (
+        ProcessMemorySnapshot(
+            process_id=4321,
+            parent_process_id=1234,
+            name="python.exe",
+            private_mb=8192.0,
+            working_set_mb=4096.0,
+            command_line="python -m pytest tests/regression",
+        ),
+    )
 
     class FakeProcess:
         pid = 1234
@@ -403,6 +414,10 @@ def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
         "tools.run_parallel_regression._terminate_process_tree",
         lambda process: terminated.append(process.pid),
     )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.read_top_process_memory_snapshots",
+        lambda: process_snapshots,
+    )
     monkeypatch.setattr("tools.run_parallel_regression.time.sleep", lambda _seconds: None)
 
     result = run_regression_command(
@@ -422,6 +437,7 @@ def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
     assert "max_commit_gb=96.00" in captured.err
     assert result.peak_memory_snapshot is not None
     assert result.peak_memory_snapshot.commit_used_gb == 90.0
+    assert result.process_memory_snapshots == process_snapshots
 
 
 def test_run_regression_command_aborts_on_absolute_commit_pressure(
@@ -454,6 +470,10 @@ def test_run_regression_command_aborts_on_absolute_commit_pressure(
     monkeypatch.setattr(
         "tools.run_parallel_regression._terminate_process_tree",
         lambda process: terminated.append(process.pid),
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.read_top_process_memory_snapshots",
+        lambda: (),
     )
     monkeypatch.setattr("tools.run_parallel_regression.time.sleep", lambda _seconds: None)
 

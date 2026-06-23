@@ -151,6 +151,9 @@ It samples every 5 seconds and aborts on high absolute commit pressure, high
 commit percentage, high physical-memory pressure, or low available physical
 memory. Preserve the summary JSON because it includes per-lane peak memory
 samples when the guard is active.
+When the guard aborts, preserve `process_memory_snapshots` as host attribution
+evidence so pytest workers can be distinguished from Codex, VS Code, browsers,
+WSL, Docker, or unrelated host processes.
 If it emits `memory_guard_aborted`, treat the full regression gate as failed:
 run the stale process checker, record the memory evidence, and split or reduce
 the offending regression surface before retrying. Do not pass

@@ -64,11 +64,24 @@ class MemorySnapshot:
 
 
 @dataclass(frozen=True)
+class ProcessMemorySnapshot:
+    """Top process row captured when the memory guard aborts a lane."""
+
+    process_id: int
+    parent_process_id: int | None
+    name: str
+    private_mb: float
+    working_set_mb: float
+    command_line: str
+
+
+@dataclass(frozen=True)
 class RegressionRunResult:
     """Pytest lane result plus bounded memory telemetry."""
 
     returncode: int
     peak_memory_snapshot: MemorySnapshot | None = None
+    process_memory_snapshots: tuple[ProcessMemorySnapshot, ...] | None = None
 
 
 def _has_serial_marker(text: str) -> bool:
@@ -492,6 +505,86 @@ def read_system_memory_snapshot() -> MemorySnapshot | None:
     )
 
 
+def _coerce_process_memory_snapshot(row: object) -> ProcessMemorySnapshot | None:
+    if not isinstance(row, dict):
+        return None
+    try:
+        process_id = int(row.get("ProcessId") or 0)
+        private_mb = float(row.get("PrivateMB") or 0.0)
+        working_set_mb = float(row.get("WorkingSetMB") or 0.0)
+    except (TypeError, ValueError):
+        return None
+
+    parent_process_id = row.get("ParentProcessId")
+    try:
+        coerced_parent = (
+            int(parent_process_id) if parent_process_id is not None else None
+        )
+    except (TypeError, ValueError):
+        coerced_parent = None
+
+    return ProcessMemorySnapshot(
+        process_id=process_id,
+        parent_process_id=coerced_parent,
+        name=str(row.get("Name") or ""),
+        private_mb=round(private_mb, 1),
+        working_set_mb=round(working_set_mb, 1),
+        command_line=str(row.get("CommandLine") or ""),
+    )
+
+
+def read_top_process_memory_snapshots(
+    *,
+    limit: int = 12,
+    command_line_limit: int = 220,
+) -> tuple[ProcessMemorySnapshot, ...]:
+    """Return top Windows process private-memory rows for abort attribution."""
+
+    if not sys.platform.startswith("win"):
+        return ()
+
+    command = rf"""
+Get-CimInstance Win32_Process |
+  Select-Object Name,ProcessId,ParentProcessId,
+    @{{n='PrivateMB';e={{[math]::Round(($_.PrivatePageCount / 1MB), 1)}}}},
+    @{{n='WorkingSetMB';e={{[math]::Round(($_.WorkingSetSize / 1MB), 1)}}}},
+    @{{n='CommandLine';e={{if ($_.CommandLine -and $_.CommandLine.Length -gt {command_line_limit}) {{$_.CommandLine.Substring(0, {command_line_limit}) + '...'}} else {{$_.CommandLine}}}}}} |
+  Sort-Object -Property PrivateMB -Descending |
+  Select-Object -First {limit} |
+  ConvertTo-Json -Depth 3
+"""
+    completed = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            command,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=10,
+    )
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return ()
+
+    try:
+        parsed = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return ()
+
+    rows = parsed if isinstance(parsed, list) else [parsed]
+    snapshots = [
+        snapshot
+        for row in rows
+        if (snapshot := _coerce_process_memory_snapshot(row)) is not None
+    ]
+    return tuple(snapshots)
+
+
 def _memory_guard_triggered(
     snapshot: MemorySnapshot,
     *,
@@ -567,6 +660,7 @@ def run_regression_command(
                 max_physical_percent=max_physical_percent,
                 min_available_physical_gb=min_available_physical_gb,
             ):
+                process_snapshots = read_top_process_memory_snapshots()
                 print(
                     (
                         f"Memory guard aborting {command.name}: "
@@ -589,6 +683,7 @@ def run_regression_command(
                 return RegressionRunResult(
                     returncode=MEMORY_ABORT_EXIT_CODE,
                     peak_memory_snapshot=peak_snapshot,
+                    process_memory_snapshots=process_snapshots,
                 )
             next_sample_at = now + memory_sample_seconds
 
@@ -617,6 +712,32 @@ def _format_memory_peak_snapshots(
     return formatted or None
 
 
+def _format_process_memory_snapshots(
+    snapshots: dict[str, tuple[ProcessMemorySnapshot, ...] | None],
+) -> list[dict[str, object]] | None:
+    formatted: list[dict[str, object]] = []
+    for command_name, rows in snapshots.items():
+        if not rows:
+            continue
+        formatted.append(
+            {
+                "command": command_name,
+                "top_processes": [
+                    {
+                        "process_id": row.process_id,
+                        "parent_process_id": row.parent_process_id,
+                        "name": row.name,
+                        "private_mb": row.private_mb,
+                        "working_set_mb": row.working_set_mb,
+                        "command_line": row.command_line,
+                    }
+                    for row in rows
+                ],
+            }
+        )
+    return formatted or None
+
+
 def _emit_summary(
     *,
     status: str,
@@ -628,6 +749,8 @@ def _emit_summary(
     max_physical_percent: float,
     min_available_physical_gb: float,
     memory_peak_snapshots: dict[str, MemorySnapshot | None] | None = None,
+    process_memory_snapshots: dict[str, tuple[ProcessMemorySnapshot, ...] | None]
+    | None = None,
 ) -> None:
     print(
         SUMMARY_PREFIX
@@ -643,6 +766,9 @@ def _emit_summary(
                 "min_available_physical_gb": min_available_physical_gb,
                 "memory_peak_snapshots": _format_memory_peak_snapshots(
                     memory_peak_snapshots or {}
+                ),
+                "process_memory_snapshots": _format_process_memory_snapshots(
+                    process_memory_snapshots or {}
                 ),
                 "live_coinbase_execution": False,
                 "live_coinbase_notional_usdc": "0",
@@ -726,6 +852,9 @@ def main(argv: list[str] | None = None) -> int:
 
     _prepare_basetemp_dirs(commands)
     memory_peak_snapshots: dict[str, MemorySnapshot | None] = {}
+    process_memory_snapshots: dict[
+        str, tuple[ProcessMemorySnapshot, ...] | None
+    ] = {}
 
     for command in commands:
         print(f"==> {command.name}: {_format_command(command.command)}", flush=True)
@@ -739,6 +868,7 @@ def main(argv: list[str] | None = None) -> int:
             min_available_physical_gb=args.min_available_physical_gb,
         )
         memory_peak_snapshots[command.name] = result.peak_memory_snapshot
+        process_memory_snapshots[command.name] = result.process_memory_snapshots
         if result.returncode != 0:
             _emit_summary(
                 status=(
@@ -754,6 +884,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_physical_percent=args.max_physical_percent,
                 min_available_physical_gb=args.min_available_physical_gb,
                 memory_peak_snapshots=memory_peak_snapshots,
+                process_memory_snapshots=process_memory_snapshots,
             )
             return result.returncode
 
@@ -767,6 +898,7 @@ def main(argv: list[str] | None = None) -> int:
         max_physical_percent=args.max_physical_percent,
         min_available_physical_gb=args.min_available_physical_gb,
         memory_peak_snapshots=memory_peak_snapshots,
+        process_memory_snapshots=process_memory_snapshots,
     )
     return 0
 
