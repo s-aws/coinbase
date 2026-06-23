@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6261-6280",
+  "approved_phase_range": "6281-6300",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6261-6280",
+  "approved_phase_range": "6281-6300",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1892,7 +1892,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6261-6280",
+  "approved_phase_range": "6281-6300",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2330,7 +2330,7 @@ grant browser/BFF authority.
 Current sequence field examples: `"command_enablement_sequence_steps"`,
 `"command_enablement_sequence_step_count"`, and
 `"command_enablement_sequence_step_blocking_count"`.
-Active 6261-6280 work adds backend-owned
+Completed 6261-6280 work added backend-owned
 `"command_enablement_sequence_command_traces"`,
 `"command_enablement_sequence_command_trace_count"`, and
 `"command_enablement_sequence_command_trace_blocking_count"` so each aggregate
@@ -2340,6 +2340,16 @@ sequence step traces to exact per-command closure evidence. Trace rows include
 `"futures_state_mutation_allowed": false`; they do not register routes, create
 drafts, call Coinbase, execute reconciliation, mutate futures state, or grant
 browser/BFF authority.
+
+Active 6281-6300 work reports `"service_method": "reconcile_futures_position"`
+for the `futures_reconcile` row and includes
+`"application/admin_api/futures_command_service.py::reconcile_futures_position"`
+alongside
+`"application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"`
+in `required_backend_contracts`. This is a disabled command-service bridge
+plus a separate required reconciliation-plan contract; it does not register
+routes, create drafts, call Coinbase, execute reconciliation, mutate futures
+state, or grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account

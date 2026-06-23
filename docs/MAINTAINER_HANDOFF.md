@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6241-6260` under M57.
-- Active autonomous range: `6261-6280` under M57.
+- Latest completed autonomous range: `6261-6280` under M57.
+- Active autonomous range: `6281-6300` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -822,10 +822,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   adapters, and contextless review still block command authority. Completed
   6241-6260 work adds backend-owned futures command enablement sequence steps
   derived from `readiness_closure_steps` so the ordered path to future command
-  eligibility is visible without adding authority. Active 6261-6280 work adds
+  eligibility is visible without adding authority. Completed 6261-6280 work adds
   backend-owned futures command enablement sequence command traces derived from
   the same closure steps so every aggregate step traces to exact per-command
-  evidence without adding authority. Coinbase order submission, exchange acknowledgement,
+  evidence without adding authority. Active 6281-6300 work adds the disabled
+  `reconcile_futures_position` shared command-service bridge for
+  `futures_reconcile` while keeping `record_futures_reconciliation_plan` as a
+  separate required reconciliation-plan contract. Coinbase order submission, exchange acknowledgement,
   post-exchange reconciliation execution,
   futures state mutation, proof acceptance, browser authority, BFF authority,
   and spot-rule authority remain blocked.

@@ -411,16 +411,17 @@ Current behavior:
   cooldowns or invoke the live dashboard repricer
 - `GET /api/v1/futures/command-suite` exposes read-only futures/perpetual
   command readiness evidence for placement, close/reduce, cancel, and
-  reconciliation. Current M57 `6261-6280` evidence includes
-  `command_enablement_sequence_command_traces`,
-  `command_enablement_sequence_command_trace_count`,
-  `command_enablement_sequence_command_trace_blocking_count`, `trace_id`,
-  `command_step_sequence`, `reconciliation_execution_allowed`, and
-  `futures_state_mutation_allowed`. Trace rows are derived from existing
-  per-command readiness closure steps and aggregate
-  `command_enablement_sequence_steps`; they do not register futures command
-  routes, create command drafts, call Coinbase, execute reconciliation, mutate
-  futures/order/exchange state, or grant browser, BFF, or spot-rule authority
+  reconciliation. Current M57 `6281-6300` evidence reports
+  `service_method="reconcile_futures_position"` for `futures_reconcile` as a
+  disabled shared command-service bridge. The exact method token is
+  `reconcile_futures_position`, and the reconciliation contract token is
+  `record_futures_reconciliation_plan`. The row preserves
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`
+  as the separate required reconciliation-plan contract. The bridge does not
+  register futures command routes; do not register futures command routes,
+  create command drafts, call Coinbase,
+  execute reconciliation, mutate futures/order/exchange state, or grant
+  browser, BFF, or spot-rule authority
 - `GET /api/v1/futures/account`, `GET /api/v1/futures/positions`, and
   `GET /api/v1/futures/positions/{position_key}` expose read-only
   futures/perpetual account, risk, and position evidence; `position_key` is

@@ -413,7 +413,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6261-6280"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6281-6300"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20070,6 +20070,7 @@ class AdminApiReadService:
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
             futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
+            futures_command_service_contract_refs[AdminFuturesCommandAction.RECONCILE],
             FUTURES_RECONCILIATION_CONTRACT.contract_ref,
             FUTURES_RISK_GUARD_CONTRACT.contract_ref,
             futures_command_route_contract_refs[AdminFuturesCommandAction.PLACE],
@@ -20248,6 +20249,9 @@ class AdminApiReadService:
                 ],
             ],
             AdminFuturesCommandAction.RECONCILE: [
+                futures_command_service_contract_refs[
+                    AdminFuturesCommandAction.RECONCILE
+                ],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
@@ -29860,7 +29864,9 @@ class AdminApiReadService:
             command(
                 AdminFuturesCommandAction.RECONCILE,
                 action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
-                service_method=FUTURES_RECONCILIATION_CONTRACT.method_name,
+                service_method=FUTURES_COMMAND_SERVICE_CONTRACTS[
+                    AdminFuturesCommandAction.RECONCILE
+                ].method_name,
                 identity_key="position_key",
                 permission=AdminApiPermission.RECONCILIATION_RECORD,
                 prerequisites=reconciliation_prerequisites,

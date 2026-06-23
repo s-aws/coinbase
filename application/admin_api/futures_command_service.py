@@ -52,6 +52,14 @@ FUTURES_COMMAND_SERVICE_CONTRACTS: dict[
         method_name="cancel_futures_order",
         contract_ref="application/admin_api/futures_command_service.py::cancel_futures_order",
     ),
+    AdminFuturesCommandAction.RECONCILE: FuturesCommandServiceContract(
+        command=AdminFuturesCommandAction.RECONCILE,
+        method_name="reconcile_futures_position",
+        contract_ref=(
+            "application/admin_api/futures_command_service.py::"
+            "reconcile_futures_position"
+        ),
+    ),
 }
 
 
@@ -76,6 +84,11 @@ class AdminApiFuturesCommandService:
         """Disabled futures cancel boundary."""
 
         self._raise_disabled(AdminFuturesCommandAction.CANCEL)
+
+    def reconcile_futures_position(self, *_args: object, **_kwargs: object) -> None:
+        """Disabled futures reconciliation command-service bridge boundary."""
+
+        self._raise_disabled(AdminFuturesCommandAction.RECONCILE)
 
     def _raise_disabled(self, command: AdminFuturesCommandAction) -> None:
         contract = FUTURES_COMMAND_SERVICE_CONTRACTS[command]

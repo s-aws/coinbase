@@ -85,6 +85,15 @@ browser, BFF, and notional evidence fields.
   backend-owned read-only evidence and do not register futures command routes,
   create command drafts, call Coinbase, execute reconciliation, mutate
   futures/order/exchange state, or grant browser, BFF, or spot-rule authority.
+- The `futures_reconcile` command-suite row reports
+  `service_method="reconcile_futures_position"` as a disabled shared
+  command-service bridge. The row still keeps
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`
+  in `required_backend_contracts` as the separate reconciliation-plan
+  contract. The bridge is backend-owned read-only evidence and does not
+  execute reconciliation, register command routes, create drafts, call
+  Coinbase, mutate futures/order/exchange state, or grant browser/BFF
+  authority.
 - Each command row also exposes backend-owned risk proof requirements for
   product scope, position scope, margin, collateral, liquidation buffer,
   funding fee, reduce-only, close-only, cap guard, and reconciliation-plan
@@ -297,6 +306,14 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   backend service-contract evidence only. These methods prove there is a
   shared backend boundary for future work; they do not register routes, create
   drafts, call Coinbase, execute reconciliation, mutate futures state, or grant
+  browser/BFF authority.
+- Do not treat the disabled reconciliation command-service bridge as
+  reconciliation execution. M57 phases 6281-6300 define
+  `reconcile_futures_position` as disabled shared command-service evidence for
+  `futures_reconcile` while `record_futures_reconciliation_plan` remains the
+  separate required reconciliation-plan contract. The bridge must not reconcile
+  positions, read or write Coinbase, mutate futures/order/exchange state,
+  satisfy proof acceptance, register command routes, create drafts, or grant
   browser/BFF authority.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define

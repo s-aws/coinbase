@@ -110,6 +110,7 @@ def test_futures_command_service_contracts_are_disabled() -> None:
         AdminFuturesCommandAction.PLACE,
         AdminFuturesCommandAction.CLOSE_REDUCE,
         AdminFuturesCommandAction.CANCEL,
+        AdminFuturesCommandAction.RECONCILE,
     }
     assert (
         FUTURES_COMMAND_SERVICE_CONTRACTS[
@@ -117,12 +118,29 @@ def test_futures_command_service_contracts_are_disabled() -> None:
         ].contract_ref
         == "application/admin_api/futures_command_service.py::place_futures_order"
     )
+    assert (
+        FUTURES_COMMAND_SERVICE_CONTRACTS[
+            AdminFuturesCommandAction.RECONCILE
+        ].contract_ref
+        == (
+            "application/admin_api/futures_command_service.py::"
+            "reconcile_futures_position"
+        )
+    )
 
     with pytest.raises(FuturesCommandServiceDisabledError) as exc_info:
         service.place_futures_order()
 
     message = str(exc_info.value)
     assert "contract-defined but not executable" in message
+    assert "Coinbase calls" in message
+
+    with pytest.raises(FuturesCommandServiceDisabledError) as exc_info:
+        service.reconcile_futures_position()
+
+    message = str(exc_info.value)
+    assert "reconcile_futures_position" in message
+    assert "reconciliation execution" in message
     assert "Coinbase calls" in message
 
 

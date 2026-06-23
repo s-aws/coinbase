@@ -11,19 +11,23 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6261-6280 range targets explicit M57 futures/perpetual command
-enablement sequence command-trace evidence for
+The active 6281-6300 range targets explicit M57 futures/perpetual
+reconciliation command-service parity evidence for
 `GET /api/v1/futures/command-suite`. Completed 6221-6240 work added aggregate
 blocked summaries for unresolved prerequisites, request payload contracts,
 semantic guard evidence, risk proof acceptance, admin command routes, live
 service adapters, and contextless review. Completed 6241-6260 work added
 ordered `command_enablement_sequence_steps` derived from backend
-`readiness_closure_steps`. Active 6261-6280 work adds
+`readiness_closure_steps`. Completed 6261-6280 work added
 `command_enablement_sequence_command_traces` so contextless maintainers can see
 which per-command closure rows back the sequence:
 `resolve_prerequisite_contracts`, `define_request_payload_contract`,
 `bind_semantic_guard_evidence`, `register_admin_command_route`,
-`bind_live_service_adapter`, and `run_contextless_review_gate`.
+`bind_live_service_adapter`, and `run_contextless_review_gate`. Active
+6281-6300 work reports `service_method="reconcile_futures_position"` for the
+`futures_reconcile` row as a disabled shared command-service bridge while
+keeping `record_futures_reconciliation_plan` as the separate required
+reconciliation-plan contract.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
@@ -38,14 +42,15 @@ requirements, register futures command routes, create command drafts, call
 Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant
 browser/BFF authority.
 
-`place_futures_order`, `close_or_reduce_futures_position`, and
-`cancel_futures_order` are named disabled backend command-service methods from
-the completed 5981-6000 range. The completed 6001-6020 range adds
+`place_futures_order`, `close_or_reduce_futures_position`,
+`cancel_futures_order`, and `reconcile_futures_position` are named disabled
+backend command-service methods. The completed 6001-6020 range adds
 `evaluate_futures_margin_collateral_liquidation` as a named disabled backend
 risk-guard method. These are service boundary evidence only: the command-suite
 keeps command-service and risk-guard contracts in `required_backend_contracts`
 but removes them from `missing_backend_contracts`. The active range keeps
-`record_futures_reconciliation_plan` as disabled backend evidence in
+`record_futures_reconciliation_plan` as the separate required reconciliation-plan contract
+and as disabled reconciliation-plan evidence in
 `required_backend_contracts`. Route-registration contracts are required present
 disabled evidence. Adapter contract refs are required/present disabled evidence.
 Adapter construction refs are required/present disabled evidence. Adapter
@@ -134,7 +139,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6261-6280",
+  "approved_phase_range": "6281-6300",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1962,9 +1967,10 @@ Expected response posture:
       "status": "blocked",
       "action_class": "local_state_mutation",
       "route": null,
-      "service_method": "record_futures_reconciliation_plan",
+      "service_method": "reconcile_futures_position",
       "identity_key": "position_key",
       "required_backend_contracts": [
+        "application/admin_api/futures_command_service.py::reconcile_futures_position",
         "application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan",
         "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
         "api/v1/routes/futures.py::futures_reconcile_route_contract",

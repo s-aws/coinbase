@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6261-6280**.
+- Approved phase range: **6281-6300**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6241-6260`.
+- Previous completed range: `6261-6280`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6260`.
+- `current_phase`: `6280`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,148 +81,146 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6261-6280
+## Active Phases 6281-6300
 
-Batch label: Futures/Perpetuals Command Enablement Sequence Command-Trace Evidence.
+Batch label: Futures/Perpetuals Reconciliation Command-Service Parity Evidence.
 
-These phases continue M57 after completed `6241-6260` added aggregate
-futures/perpetual command enablement sequence rows. The next gap is
-traceability: a contextless maintainer, reviewer, or smaller agent must be able
-to see exactly which per-command `readiness_closure_steps` rows back each
-aggregate sequence step. Active `6261-6280` may add read-only
-`command_enablement_sequence_command_traces` to
-`GET /api/v1/futures/command-suite`, generated API schemas, frontend
-mock/read-model display, docs, examples, and validators. Trace rows must be
-derived from existing command readiness closure steps and the existing sequence
-step taxonomy. They must not create a second command path. They must not
-register futures command routes, create command drafts, accept payloads,
+These phases continue M57 after completed `6261-6280` added command-trace
+evidence. The next concrete gap is command-service parity: placement,
+close/reduce, and cancel have disabled shared command-service methods, while
+reconciliation had route, adapter, and reconciliation-plan contracts but no
+shared command-service bridge method. Active `6281-6300` may add disabled
+`reconcile_futures_position` command-service evidence, keep
+`record_futures_reconciliation_plan` as the separate required reconciliation
+contract, sync backend/frontend read models and docs, and prove no execution
+authority. It must not register futures command routes, create command drafts,
 execute live services or adapters, submit/cancel Coinbase orders, acknowledge
 exchange orders, execute reconciliation, mutate futures/order/exchange state,
 accept proof records as execution authority, or grant browser/BFF execution
 authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
 inventory-lot assumptions remain forbidden as futures/perpetual authority.
 
-### Phase 6261 - Prior Range Closure
+### Phase 6281 - Prior Range Closure
 
-- Record completed phases `6241-6260` as historical aggregate sequence
-  evidence and move active metadata to `6261-6280`.
+- Record completed phases `6261-6280` as historical command-trace evidence and
+  move active metadata to `6281-6300`.
 
-### Phase 6262 - Backend Trace Row Model
+### Phase 6282 - Disabled Reconcile Command-Service Bridge
 
-- Add `AdminFuturesCommandEnablementSequenceCommandTraceItem` to the futures
-  command-suite response with backend-owned, read-only, no-live,
-  no-reconciliation-execution, no-state-mutation, no-spot-rule,
-  browser-display-only, and BFF-forward-only fields.
+- Add `reconcile_futures_position` as disabled shared command-service evidence
+  for `futures_reconcile`.
 
-### Phase 6263 - Backend Trace Derivation
+### Phase 6283 - Reconciliation Contract Separation
 
-- Derive command trace rows from existing per-command `readiness_closure_steps`
-  and existing aggregate sequence steps without recalculating a second
-  readiness path.
+- Keep `record_futures_reconciliation_plan` as a separate required
+  reconciliation-plan contract and do not replace it with the command-service
+  bridge.
 
-### Phase 6264 - Trace Source Blockers
+### Phase 6284 - Command-Suite Service Method Sync
 
-- Carry each trace row's source blockers from the aggregate sequence taxonomy,
-  including unresolved prerequisites, request payload contracts, semantic guard
-  evidence, risk proof acceptance, admin command route, live service adapter,
-  and contextless review gate.
+- Report `service_method="reconcile_futures_position"` for the
+  `futures_reconcile` command-suite row while preserving the reconciliation
+  plan contract in `required_backend_contracts`.
 
-### Phase 6265 - Backend No-Authority Trace Guard
+### Phase 6285 - Backend No-Authority Guard
 
-- Prove every trace row remains `blocked`, `read_only`, `backend_owned`,
-  `command_route_registered=false`, `command_draft_allowed=false`,
-  `execution_allowed=false`, `reconciliation_execution_allowed=false`,
-  `futures_state_mutation_allowed=false`, `live_coinbase_orders_ran=false`,
-  and `spot_rule_authority=false`.
+- Prove bridge evidence remains disabled with no route, no draft, no live
+  adapter, no Coinbase call, no reconciliation execution, no futures state
+  mutation, no browser authority, no BFF execution authority, and zero USDC
+  notional.
 
-### Phase 6266 - Backend Focused Tests
+### Phase 6286 - Backend Focused Tests
 
-- Add focused regression coverage for trace count, step order, command order,
-  evidence refs, backend contract refs, no-route/no-draft/no-live flags, no
-  reconciliation/state mutation, and zero USDC notional.
+- Add focused regression coverage for the disabled bridge, contract refs,
+  command-suite service method, required reconciliation contract separation,
+  and no-authority flags.
 
-### Phase 6267 - OpenAPI Regeneration
-
-- Regenerate backend OpenAPI so the generated schema exposes
-  `AdminFuturesCommandEnablementSequenceCommandTraceItem`,
-  `command_enablement_sequence_command_traces`,
-  `command_enablement_sequence_command_trace_count`, and
-  `command_enablement_sequence_command_trace_blocking_count`.
-
-### Phase 6268 - Frontend Schema Sync
-
-- Regenerate or verify the frontend TypeScript schema from backend OpenAPI
-  without hand-editing generated files.
-
-### Phase 6269 - Frontend Mock Trace Rows
-
-- Update frontend mock futures command-suite fixtures to include backend-owned
-  trace rows derived from command readiness closure steps and zero command
-  authority.
-
-### Phase 6270 - Frontend Adapter Mapping
-
-- Map trace rows through the existing futures backend adapter as read-only
-  view-model evidence, not draft, validation, approval, reconciliation, state
-  mutation, or execution authority.
-
-### Phase 6271 - Frontend Read-Model Display
-
-- Render the futures/perpetual command enablement sequence command traces as
-  display-only evidence with no command controls, no spot-rule authority, and
-  no BFF execution authority.
-
-### Phase 6272 - Frontend Unit Coverage
-
-- Add focused Vitest coverage for mock backend, runtime, quality gates, and
-  futures/perpetual read-model display of trace rows.
-
-### Phase 6273 - Backend Docs And Examples
+### Phase 6287 - Backend Docs And Examples
 
 - Update Admin API docs, futures/perpetual examples, capability matrix,
-  maintainer handoff, and agent state so contextless readers can identify the
-  active trace evidence and completed sequence range.
+  maintainer handoff, and agent state for command-service parity.
 
-### Phase 6274 - Frontend Docs And Examples
+### Phase 6288 - OpenAPI And Schema Verification
 
-- Update frontend API/read-model docs, examples, autonomous queue, release
-  artifacts, maintainer handoff, and contextless review log expectations for
-  trace display.
+- Verify whether schema regeneration is required; if the shape is unchanged,
+  preserve generated schema and record that only contract values changed.
 
-### Phase 6275 - Active-Range Drift Sweep
+### Phase 6289 - Frontend Mock Service Method Sync
 
-- Sweep both repos for stale `6241-6260` active-state wording outside
-  historical completed evidence and update validators to require `6261-6280`.
+- Update frontend mock/read-model fixtures so `futures_reconcile` displays
+  `reconcile_futures_position` while still showing the reconciliation-plan
+  contract as required evidence.
 
-### Phase 6276 - Backend Focused Gates
+### Phase 6290 - Frontend Read-Model Display
+
+- Ensure the futures/perpetual read model renders the command-service bridge
+  and reconciliation-plan contract as display-only evidence with no command
+  controls.
+
+### Phase 6291 - Frontend Focused Tests
+
+- Add or update focused Vitest coverage for mock backend, runtime quality
+  gates, and futures/perpetual read-model display of the reconcile bridge.
+
+### Phase 6292 - Autonomous Validators
+
+- Update backend and frontend autonomous validators, release artifacts, and
+  phase metadata to require active `6281-6300` evidence.
+
+### Phase 6293 - Active-Range Drift Sweep
+
+- Sweep both repos for stale active `6261-6280` wording outside historical
+  completed evidence.
+
+### Phase 6294 - Backend Focused Gates
 
 - Run focused backend py_compile, futures command-suite regression,
-  Admin API contract phase assertions as needed,
+  Admin API contract assertions as needed,
   `python tools\run_autonomous_work_queue_check.py --summary-only`,
   ownership, and stale-process checks.
 
-### Phase 6277 - Frontend Focused Gates
+### Phase 6295 - Frontend Focused Gates
 
-- Run frontend API check, typecheck, focused Vitest coverage, autonomous queue,
-  and stale-process checks.
+- Run frontend API freshness if needed, typecheck, focused Vitest coverage,
+  autonomous queue, and stale-process checks.
 
-### Phase 6278 - Contextless Review And Remediation
+### Phase 6296 - Backend Contextless Review
 
-- Run fresh blind/contextless backend and frontend reviews. Fix any ambiguity
-  around command authority, spot-rule leakage, trace ordering, or missing
-  frontend/backend contract sync before advancing.
+- Run fresh blind/contextless backend review for command-service parity,
+  separation from reconciliation execution, and no-live posture.
 
-### Phase 6279 - Subagent Sweep And No-Live Evidence
+### Phase 6297 - Frontend Contextless Review
+
+- Run fresh blind/contextless frontend review for display-only bridge evidence
+  and no browser/BFF execution authority.
+
+### Phase 6298 - Subagent Sweep And No-Live Evidence
 
 - Close phase-scoped, stale, or previously unused subagents after findings are
   consumed, remediated, or explicitly deferred. Record submitted notional `0`
   USDC, executed notional `0` USDC, and no Coinbase calls.
 
-### Phase 6280 - Phase Closeout Evidence
+### Phase 6299 - Phase Closeout Evidence
 
-- Record focused gate results, contextless review results, phase-end subagent
-  sweep, commits, and pushed branches while leaving M57 active until the next
-  approved gap is completed.
+- Record focused gate results, contextless review results, and phase-end
+  subagent sweep while leaving M57 active until the next approved gap is
+  completed.
+
+### Phase 6300 - Commit And Push
+
+- Commit and push backend and frontend work separately with no-live evidence.
+
+## Completion Evidence - Phases 6261-6280
+
+Batch label: Futures/Perpetuals Command Enablement Sequence Command-Trace Evidence.
+
+Completed phases `6261-6280` added backend-owned
+`command_enablement_sequence_command_traces` to the read-only futures/perpetual
+command suite. Trace rows map aggregate command enablement sequence steps back
+to exact per-command `readiness_closure_steps` while preserving no-route,
+no-draft, no-Coinbase, no-reconciliation-execution, no-state-mutation,
+no-browser, no-BFF, and no-spot-rule authority. Phase-end stale-subagent sweep
+completed and the range completed with `0` USDC submitted/executed notional.
 
 ## Completion Evidence - Phases 6241-6260
 
