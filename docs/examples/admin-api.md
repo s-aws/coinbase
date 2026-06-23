@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6061-6080",
+  "approved_phase_range": "6081-6100",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6061-6080",
+  "approved_phase_range": "6081-6100",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6061-6080",
+  "approved_phase_range": "6081-6100",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2267,11 +2267,14 @@ disabled futures reconciliation evidence:
 evidence and is no longer missing. Completed 6041-6060 rows add disabled
 futures route-registration contract metadata only:
 `api/v1/routes/futures.py::*_route_contract` refs are required/present disabled
-evidence and are no longer missing. Active 6061-6080 work adds disabled
+evidence and are no longer missing. Completed 6061-6080 rows add disabled
 futures live-adapter contract metadata only:
 `application/admin_api/live_execution.py::*_adapter_contract` refs are
-required/present disabled evidence, while
-`application/admin_api/live_execution.py::*_adapter_construction_contract` refs
+required/present disabled evidence and are no longer missing. Active
+6081-6100 work adds disabled adapter-construction metadata only:
+`application/admin_api/live_execution.py::*_adapter_construction_contract`
+refs are required/present disabled evidence, while
+`application/admin_api/live_execution.py::*_adapter_decision_contract` refs
 are the current missing backend contract gaps. These rows do not register
 command routes, create drafts, configure or construct adapters, validate
 payloads, write proofs, enable writers, resolve dependencies, create

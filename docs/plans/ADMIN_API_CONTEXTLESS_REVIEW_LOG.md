@@ -1,78 +1,67 @@
 # Admin API Contextless Review Log
 
-## M57 Futures/Perpetual Disabled Live-Adapter Contract Evidence - Phases 6061-6080
+## M57 Futures/Perpetual Disabled Adapter-Construction Contract Evidence - Phases 6081-6100
 
 Result: PASS.
 
-- Fresh blind/contextless backend re-review completed for this range after
-  remediation, with no remaining substantive backend blocker.
-- Fresh blind/contextless frontend re-review completed for this range after
-  remediation, with no remaining substantive frontend blocker.
-- Fresh blind/contextless backend review initially blocked on wording that
-  described `/api/v1/futures/risk-proofs` too broadly as read-only while the
-  current route surface includes read-only GET readbacks and append-only local
-  POST proof recording. Remediation corrected this entry, the README, examples,
-  durable state, and autonomous validators to state the exact GET/POST
-  boundary.
-- Fresh blind/contextless frontend review
-  `019ef2ba-7b82-7553-8801-0f217e421c5a` returned PASS for the display path.
-- Fresh blind/contextless backend review
-  `019ef2c5-2f67-7063-9d52-228d75d10d65` then blocked on an untracked root
-  live-order script. Remediation quarantined it outside the repo at
-  `C:\coinbase-quarantine\unsafe-live-order-scripts\place_paxg_market_order.py`.
-- Fresh blind/contextless backend review
-  `019ef2d2-1369-7742-bca1-27c70159d687` then blocked on tracked
-  `tools/diagnostics/main_place_order.py` because it set up a derivative-looking
-  live placement diagnostic. Remediation converted that diagnostic to a
-  fail-closed no-live stub and added
-  `tests/regression/test_diagnostics_safety.py`.
-- Fresh blind/contextless backend review
-  `019ef2db-4843-7cd1-af5f-cc9e47fc28d0` verified the substantive contract:
-  adapter refs are required/present disabled evidence, construction refs remain
-  missing, risk-proof GET readbacks and POST append-only local proof recording
-  do not grant execution authority, the diagnostic is fail-closed, and no
-  untracked root live-order scripts remain. Its only remaining blocker was this
-  log still being pending, which this closeout resolves.
-- Phase-end stale-subagent sweep completed after findings were consumed and
-  remediated: attempted reviewers `019ef2a5-aa9a-7340-b86c-4768508b8113` and
-  `019ef2a5-d267-7343-849d-b2d7c9adb498`, frontend reviewer
-  `019ef2ba-7b82-7553-8801-0f217e421c5a`, and backend reviewers
-  `019ef2c5-2f67-7063-9d52-228d75d10d65`,
-  `019ef2d2-1369-7742-bca1-27c70159d687`, and
-  `019ef2db-4843-7cd1-af5f-cc9e47fc28d0` were closed or queued for closeout
-  after this evidence was recorded. No phase-scoped, stale, or unused subagent
-  remains intentionally open.
-- No live Coinbase execution was run for this range; submitted notional `0`
+- Fresh blind/contextless backend re-review
+  `019ef31e-b1d4-71b3-9c7e-00b6eecaa78e` completed for this range. It found
+  the backend contract aligned: adapter-construction refs are required/present
+  disabled evidence, adapter-decision refs remain the only missing backend
+  contracts, no futures command route/draft/execution is enabled, and the only
+  futures POST surface remains append-only local proof recording rather than
+  command execution.
+- Fresh blind/contextless frontend re-review
+  `019ef31e-deba-7482-aabe-bff0915adffb` completed for this range. It found
+  the frontend display path aligned: mocks and tests show adapter and
+  adapter-construction refs as required/present disabled evidence, adapter-
+  decision refs as missing, display-only browser authority, forward-only BFF
+  authority, no proof acceptance, and submitted/executed notional `$0`.
+- Both reviews initially reported BLOCKED only because this review log and the
+  frontend review log were still pending and phase-end sweep evidence had not
+  yet been recorded. That closeout-only blocker is resolved by this entry.
+- Phase-end stale-subagent sweep completed after findings were consumed:
+  backend reviewer `019ef31e-b1d4-71b3-9c7e-00b6eecaa78e` and frontend
+  reviewer `019ef31e-deba-7482-aabe-bff0915adffb` were closed. No
+  phase-scoped, stale, or unused subagent remains intentionally open.
+- No live Coinbase execution is planned for this range; submitted notional `0`
   USDC and executed notional `0` USDC.
 
-Scope: phases `6061-6080`, after completed history `6041-6060`, add disabled
-futures live-adapter contract evidence to `GET /api/v1/futures/command-suite`.
-Completed disabled command-service, risk-guard, reconciliation, and route-
-registration evidence remain backend-owned disabled refs. Active
-`application/admin_api/live_execution.py::*_adapter_contract` refs are
-required/present disabled evidence. The remaining `missing_backend_contracts`
-and `next_required_backend_contract` refs are
-`application/admin_api/live_execution.py::*_adapter_construction_contract`.
+Scope: phases `6081-6100`, after completed history `6061-6080`, add disabled
+futures adapter-construction contract evidence to
+`GET /api/v1/futures/command-suite`. Completed disabled command-service,
+risk-guard, reconciliation, route-registration, and live-adapter refs remain
+backend-owned disabled evidence. Active
+`application/admin_api/live_execution.py::*_adapter_construction_contract`
+refs are required/present disabled evidence. The remaining
+`missing_backend_contracts` and `next_required_backend_contract` refs are
+`application/admin_api/live_execution.py::*_adapter_decision_contract`.
 
 - Current source boundary: `GET /api/v1/futures/command-suite` reports
-  adapter contracts as required/present disabled evidence while adapter
-  construction contracts remain missing. `GET /api/v1/futures/risk-proofs`
-  readbacks use read-only resolver evidence; `POST /api/v1/futures/risk-proofs`
-  records append-only local proof evidence only and does not accept proofs,
-  satisfy readiness, create command drafts, call Coinbase, execute
-  reconciliation, mutate futures/order/exchange state, or grant browser/BFF
-  authority.
+  adapter contracts and adapter construction contracts as required/present
+  disabled evidence while adapter decision contracts remain missing.
+  `GET /api/v1/futures/risk-proofs` readbacks use read-only resolver evidence;
+  `POST /api/v1/futures/risk-proofs` records append-only local proof evidence
+  only and does not accept proofs, satisfy readiness, create command drafts,
+  call Coinbase, execute reconciliation, mutate futures/order/exchange state,
+  or grant browser/BFF authority.
 - Required/present adapter refs are
   `application/admin_api/live_execution.py::futures_place_adapter_contract`,
   `application/admin_api/live_execution.py::futures_close_reduce_adapter_contract`,
   `application/admin_api/live_execution.py::futures_cancel_adapter_contract`,
   and `application/admin_api/live_execution.py::futures_reconcile_adapter_contract`.
-- Missing adapter construction refs are
+- Required/present adapter construction refs are
   `application/admin_api/live_execution.py::futures_place_adapter_construction_contract`,
   `application/admin_api/live_execution.py::futures_close_reduce_adapter_construction_contract`,
   `application/admin_api/live_execution.py::futures_cancel_adapter_construction_contract`,
   and
   `application/admin_api/live_execution.py::futures_reconcile_adapter_construction_contract`.
+- Missing adapter decision refs are
+  `application/admin_api/live_execution.py::futures_place_adapter_decision_contract`,
+  `application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract`,
+  `application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract`,
+  and
+  `application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract`.
 - Completed backend boundaries remain required/present:
   `application/admin_api/futures_command_service.py` with
   `place_futures_order`, `close_or_reduce_futures_position`, and
@@ -84,17 +73,17 @@ and `next_required_backend_contract` refs are
   `required_backend_contracts`, and `missing_backend_contracts` remain
   backend-owned evidence fields. `backend_futures_risk_proof_store_read_only_no_execution`
   and `backend_futures_semantics_no_execution` remain true boundary labels.
-- Authority boundary: live-adapter contract evidence must not register futures
-  command routes, create command drafts, construct live adapters, invoke live
-  adapters, call Coinbase, execute reconciliation, accept proof records,
-  validate margin/collateral/liquidation for execution, mutate
+- Authority boundary: adapter-construction contract evidence must not register
+  futures command routes, create command drafts, construct live adapters,
+  invoke live adapters, call Coinbase, execute reconciliation, accept proof
+  records, validate margin/collateral/liquidation for execution, mutate
   futures/order/exchange state, or grant browser/BFF authority. Spot wallet,
   no-shorting, USDC quote, average-cost, cost-basis, and inventory-lot
   assumptions remain forbidden spot assumptions.
 - No live Coinbase execution is planned for this range; submitted notional
   remains `0` USDC and executed notional remains `0` USDC unless a later
   explicitly approved live phase changes that posture.
-- Machine-check exact phrase line: futures disabled live-adapter contract evidence; /api/v1/futures/command-suite; /api/v1/futures/risk-proofs; GET /api/v1/futures/risk-proofs readbacks use read-only resolver evidence; POST /api/v1/futures/risk-proofs records append-only local proof evidence only; no proof acceptance; application/admin_api/futures_command_service.py; place_futures_order; close_or_reduce_futures_position; cancel_futures_order; application/admin_api/futures_risk_guard.py; evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py; record_futures_reconciliation_plan; backend_command_service; required_backend_contracts; missing_backend_contracts; application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan; route-registration contracts are required present disabled evidence; adapter contract refs are required/present disabled evidence; application/admin_api/live_execution.py::futures_place_adapter_contract; application/admin_api/live_execution.py::futures_close_reduce_adapter_contract; application/admin_api/live_execution.py::futures_cancel_adapter_contract; application/admin_api/live_execution.py::futures_reconcile_adapter_contract; adapter construction refs remain missing; application/admin_api/live_execution.py::futures_place_adapter_construction_contract; application/admin_api/live_execution.py::futures_close_reduce_adapter_construction_contract; application/admin_api/live_execution.py::futures_cancel_adapter_construction_contract; application/admin_api/live_execution.py::futures_reconcile_adapter_construction_contract; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
+- Machine-check exact phrase line: futures disabled adapter-construction contract evidence; /api/v1/futures/command-suite; /api/v1/futures/risk-proofs; GET /api/v1/futures/risk-proofs readbacks use read-only resolver evidence; POST /api/v1/futures/risk-proofs records append-only local proof evidence only; no proof acceptance; application/admin_api/futures_command_service.py; place_futures_order; close_or_reduce_futures_position; cancel_futures_order; application/admin_api/futures_risk_guard.py; evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py; record_futures_reconciliation_plan; backend_command_service; required_backend_contracts; missing_backend_contracts; application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation; application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan; route-registration contracts are required present disabled evidence; adapter contract refs are required/present disabled evidence; application/admin_api/live_execution.py::futures_place_adapter_contract; application/admin_api/live_execution.py::futures_close_reduce_adapter_contract; application/admin_api/live_execution.py::futures_cancel_adapter_contract; application/admin_api/live_execution.py::futures_reconcile_adapter_contract; adapter construction refs are required/present disabled evidence; application/admin_api/live_execution.py::futures_place_adapter_construction_contract; application/admin_api/live_execution.py::futures_close_reduce_adapter_construction_contract; application/admin_api/live_execution.py::futures_cancel_adapter_construction_contract; application/admin_api/live_execution.py::futures_reconcile_adapter_construction_contract; adapter decision refs remain missing; application/admin_api/live_execution.py::futures_place_adapter_decision_contract; application/admin_api/live_execution.py::futures_close_reduce_adapter_decision_contract; application/admin_api/live_execution.py::futures_cancel_adapter_decision_contract; application/admin_api/live_execution.py::futures_reconcile_adapter_decision_contract; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no futures command route; no command draft; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
 
 ## M57 Futures/Perpetual Disabled Route-Registration Contract Evidence - Phases 6041-6060
 

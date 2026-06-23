@@ -36,6 +36,7 @@ from application.admin_api.futures_route_contracts import (
     FUTURES_ROUTE_CONTRACTS,
     futures_live_adapter_contract_ref,
     futures_live_adapter_construction_contract_ref,
+    futures_live_adapter_decision_contract_ref,
 )
 from application.admin_api.futures_risk_guard import (
     AdminApiFuturesRiskGuard,
@@ -48,6 +49,7 @@ from application.admin_api.futures_risk_proof_service import (
 )
 from application.admin_api.idempotency import FileIdempotencyStore
 from application.admin_api.live_execution import (
+    FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_CONTRACTS,
     get_disabled_live_execution_service,
 )
@@ -216,6 +218,31 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert "create_order" in adapter_contract.forbidden_methods
         assert "futures_live_adapter_construction_missing" in (
             adapter_contract.blockers
+        )
+
+        construction_contract = FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS[
+            command
+        ]
+        assert construction_contract.contract_ref == (
+            futures_live_adapter_construction_contract_ref(command)
+        )
+        assert construction_contract.adapter_contract_ref == (
+            futures_live_adapter_contract_ref(command)
+        )
+        assert construction_contract.decision_contract_ref == (
+            futures_live_adapter_decision_contract_ref(command)
+        )
+        assert construction_contract.present is True
+        assert construction_contract.construction_allowed is False
+        assert construction_contract.adapter_constructed is False
+        assert construction_contract.invocation_allowed is False
+        assert construction_contract.execution_allowed is False
+        assert construction_contract.live_coinbase_orders_ran is False
+        assert construction_contract.browser_authority == "display_only"
+        assert construction_contract.bff_authority == "forward_only_no_execution"
+        assert "create_order" in construction_contract.forbidden_methods
+        assert "futures_live_adapter_decision_contract_missing" in (
+            construction_contract.blockers
         )
 
 
