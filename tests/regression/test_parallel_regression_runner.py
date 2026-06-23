@@ -1,15 +1,19 @@
 import re
 import pytest
 from pathlib import Path
-from types import SimpleNamespace
 
 from tools.run_parallel_regression import (
+    MEMORY_ABORT_EXIT_CODE,
+    PYTEST_TRACEBACK_STYLE,
     SERIAL_SAFE_COMMENT,
     SUMMARY_PREFIX,
+    MemorySnapshot,
+    RegressionCommand,
     build_commands,
     build_parser,
     find_serial_classification_findings,
     main,
+    run_regression_command,
 )
 
 
@@ -122,6 +126,7 @@ def test_parallel_regression_runner_defaults_to_split_lanes():
         "--dist",
         "loadfile",
         "--max-worker-restart=0",
+        f"--tb={PYTEST_TRACEBACK_STYLE}",
     )
     assert commands[1].command == (
         "python",
@@ -130,6 +135,7 @@ def test_parallel_regression_runner_defaults_to_split_lanes():
         "tests/regression",
         "-m",
         "serial",
+        f"--tb={PYTEST_TRACEBACK_STYLE}",
     )
 
 
@@ -140,10 +146,9 @@ def test_parallel_regression_runner_lane_switches():
     assert [command.name for command in build_commands(parallel_args, python="py")] == [
         "parallel_safe_regression",
     ]
-    assert build_commands(parallel_args, python="py")[0].command[-3:] == (
-        "--dist",
-        "loadfile",
+    assert build_commands(parallel_args, python="py")[0].command[-2:] == (
         "--max-worker-restart=0",
+        f"--tb={PYTEST_TRACEBACK_STYLE}",
     )
     assert [command.name for command in build_commands(serial_args, python="py")] == [
         "serial_regression",
@@ -158,6 +163,24 @@ def test_parallel_regression_runner_rejects_unbounded_worker_counts():
 
     with pytest.raises(SystemExit):
         parser.parse_args(["--workers", "5"])
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--max-commit-percent", "101"])
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--min-available-physical-gb", "0"])
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--memory-sample-seconds", "0"])
+
+
+def test_parallel_regression_runner_defaults_to_bounded_memory_watch():
+    args = build_parser().parse_args([])
+
+    assert args.disable_memory_watch is False
+    assert args.max_commit_percent == 85.0
+    assert args.min_available_physical_gb == 12.0
+    assert args.memory_sample_seconds == 15
 
 
 def test_parallel_regression_runner_accepts_per_run_basetemp():
@@ -249,16 +272,20 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
 ):
     seen_basetemps = []
 
-    def fake_run(command, check):
-        basetemp = Path(command[command.index("--basetemp") + 1])
+    def fake_run_regression_command(command, **kwargs):
+        basetemp = Path(command.command[command.command.index("--basetemp") + 1])
         assert basetemp.exists()
         seen_basetemps.append(basetemp)
-        return SimpleNamespace(returncode=0)
+        assert kwargs["memory_sample_seconds"] == 15
+        return 0
 
     monkeypatch.setattr(
         "tools.run_parallel_regression.is_xdist_available", lambda: True
     )
-    monkeypatch.setattr("tools.run_parallel_regression.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.run_regression_command",
+        fake_run_regression_command,
+    )
 
     exit_code = main(
         [
@@ -274,3 +301,45 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
     assert len(seen_basetemps) == 2
     assert {path.name for path in seen_basetemps} == {"parallel", "serial"}
     assert SUMMARY_PREFIX in captured.out
+
+
+def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
+    terminated = []
+
+    class FakeProcess:
+        pid = 1234
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.subprocess.Popen",
+        lambda _command: FakeProcess(),
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.read_system_memory_snapshot",
+        lambda: MemorySnapshot(
+            commit_used_gb=90.0,
+            commit_limit_gb=100.0,
+            commit_percent=90.0,
+            available_physical_gb=8.0,
+        ),
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression._terminate_process_tree",
+        lambda process: terminated.append(process.pid),
+    )
+    monkeypatch.setattr("tools.run_parallel_regression.time.sleep", lambda _seconds: None)
+
+    exit_code = run_regression_command(
+        RegressionCommand("probe", ("python", "-m", "pytest")),
+        memory_watch_enabled=True,
+        memory_sample_seconds=15,
+        max_commit_percent=85.0,
+        min_available_physical_gb=12.0,
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == MEMORY_ABORT_EXIT_CODE
+    assert terminated == [1234]
+    assert "Memory guard aborting probe" in captured.err

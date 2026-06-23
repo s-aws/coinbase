@@ -44,6 +44,21 @@ policy and the runner tests. The regression suite is process-parallel, so each
 worker imports project and test state independently; unbounded worker fan-out
 can multiply memory use even when individual tests are not leaking.
 
+The runner also uses short pytest tracebacks and a Windows memory-pressure
+guard by default. It aborts the active pytest lane when committed memory reaches
+`85%` or available physical memory drops below `12 GiB`. Treat a
+`memory_guard_aborted` summary as a failed closeout gate, then run the stale
+process checker and split or reduce the offending regression surface before
+retrying. Do not disable the memory watch for normal closeout; use
+`--disable-memory-watch` only for a scoped diagnostic run where external
+process monitoring is already active.
+
+Known memory-sensitive surface: `tests/regression/test_admin_api_contract.py`
+is intentionally broad, and `--dist loadfile` keeps that file in one xdist
+worker. If that file grows or starts retaining large failure payloads, split
+domain-specific assertions into smaller `test_admin_api_*.py` files instead of
+raising worker or memory limits.
+
 This runner is process-parallel. It must not be replaced with thread-based
 parallelism. Many regression files touch Python process globals, monkeypatch
 environment variables, bind local services, use shared temp paths, or exercise

@@ -8,11 +8,13 @@ the remaining regression files with pytest-xdist process workers.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import importlib.util
 import json
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -22,6 +24,11 @@ from uuid import uuid4
 SUMMARY_PREFIX = "PARALLEL_REGRESSION_RUNNER_SUMMARY "
 SERIAL_SAFE_COMMENT = "parallel-regression: serial-safe"
 MAX_PARALLEL_WORKERS = 4
+PYTEST_TRACEBACK_STYLE = "short"
+DEFAULT_MEMORY_SAMPLE_SECONDS = 15
+DEFAULT_MAX_COMMIT_PERCENT = 85.0
+DEFAULT_MIN_AVAILABLE_PHYSICAL_GB = 12.0
+MEMORY_ABORT_EXIT_CODE = 87
 
 
 @dataclass(frozen=True)
@@ -39,6 +46,16 @@ class SerialClassificationFinding:
     path: Path
     reason: str
     evidence: str
+
+
+@dataclass(frozen=True)
+class MemorySnapshot:
+    """Bounded system-memory sample used to stop unsafe regression runs."""
+
+    commit_used_gb: float
+    commit_limit_gb: float
+    commit_percent: float
+    available_physical_gb: float
 
 
 def _has_serial_marker(text: str) -> bool:
@@ -172,6 +189,33 @@ def _validate_workers(value: str) -> str:
     return value
 
 
+def _validate_positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("value must be a positive integer") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("value must be a positive integer")
+    return parsed
+
+
+def _validate_positive_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("value must be a positive number") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("value must be a positive number")
+    return parsed
+
+
+def _validate_percent(value: str) -> float:
+    parsed = _validate_positive_float(value)
+    if parsed > 100:
+        raise argparse.ArgumentTypeError("percent must be between 0 and 100")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -207,6 +251,41 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Validate regression files that need the serial lane without "
             "running pytest."
+        ),
+    )
+    parser.add_argument(
+        "--memory-sample-seconds",
+        default=DEFAULT_MEMORY_SAMPLE_SECONDS,
+        type=_validate_positive_int,
+        help=(
+            "Seconds between Windows memory guard samples. Defaults to "
+            f"{DEFAULT_MEMORY_SAMPLE_SECONDS}."
+        ),
+    )
+    parser.add_argument(
+        "--max-commit-percent",
+        default=DEFAULT_MAX_COMMIT_PERCENT,
+        type=_validate_percent,
+        help=(
+            "Abort the active pytest lane when Windows committed memory reaches "
+            f"this percent. Defaults to {DEFAULT_MAX_COMMIT_PERCENT}."
+        ),
+    )
+    parser.add_argument(
+        "--min-available-physical-gb",
+        default=DEFAULT_MIN_AVAILABLE_PHYSICAL_GB,
+        type=_validate_positive_float,
+        help=(
+            "Abort the active pytest lane when available physical memory drops "
+            f"below this many GiB. Defaults to {DEFAULT_MIN_AVAILABLE_PHYSICAL_GB}."
+        ),
+    )
+    parser.add_argument(
+        "--disable-memory-watch",
+        action="store_true",
+        help=(
+            "Disable the Windows memory pressure guard. Use only for a scoped "
+            "diagnostic run."
         ),
     )
     lane_group = parser.add_mutually_exclusive_group()
@@ -254,6 +333,7 @@ def build_parallel_command(
                 "--dist",
                 "loadfile",
                 "--max-worker-restart=0",
+                f"--tb={PYTEST_TRACEBACK_STYLE}",
             ),
             basetemp=basetemp,
         ),
@@ -275,6 +355,7 @@ def build_serial_command(
                 "tests/regression",
                 "-m",
                 "serial",
+                f"--tb={PYTEST_TRACEBACK_STYLE}",
             ),
             basetemp=basetemp,
         ),
@@ -326,7 +407,124 @@ def _prepare_basetemp_dirs(commands: Iterable[RegressionCommand]) -> None:
                 Path(args[index + 1]).mkdir(parents=True, exist_ok=True)
 
 
-def _emit_summary(*, status: str, commands: list[RegressionCommand], failed: str | None) -> None:
+class _MemoryStatusEx(ctypes.Structure):
+    _fields_ = [
+        ("dwLength", ctypes.c_ulong),
+        ("dwMemoryLoad", ctypes.c_ulong),
+        ("ullTotalPhys", ctypes.c_ulonglong),
+        ("ullAvailPhys", ctypes.c_ulonglong),
+        ("ullTotalPageFile", ctypes.c_ulonglong),
+        ("ullAvailPageFile", ctypes.c_ulonglong),
+        ("ullTotalVirtual", ctypes.c_ulonglong),
+        ("ullAvailVirtual", ctypes.c_ulonglong),
+        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+    ]
+
+
+def read_system_memory_snapshot() -> MemorySnapshot | None:
+    """Return a Windows memory-pressure sample, or None when unavailable."""
+
+    if not sys.platform.startswith("win"):
+        return None
+
+    status = _MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(status)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        return None
+
+    commit_limit = status.ullTotalPageFile
+    commit_used = max(0, status.ullTotalPageFile - status.ullAvailPageFile)
+    commit_percent = (commit_used / commit_limit * 100) if commit_limit else 0.0
+    return MemorySnapshot(
+        commit_used_gb=round(commit_used / (1024**3), 2),
+        commit_limit_gb=round(commit_limit / (1024**3), 2),
+        commit_percent=round(commit_percent, 2),
+        available_physical_gb=round(status.ullAvailPhys / (1024**3), 2),
+    )
+
+
+def _memory_guard_triggered(
+    snapshot: MemorySnapshot,
+    *,
+    max_commit_percent: float,
+    min_available_physical_gb: float,
+) -> bool:
+    return (
+        snapshot.commit_percent >= max_commit_percent
+        or snapshot.available_physical_gb <= min_available_physical_gb
+    )
+
+
+def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+    if sys.platform.startswith("win"):
+        subprocess.run(
+            ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return
+
+    process.terminate()
+
+
+def run_regression_command(
+    command: RegressionCommand,
+    *,
+    memory_watch_enabled: bool,
+    memory_sample_seconds: int,
+    max_commit_percent: float,
+    min_available_physical_gb: float,
+) -> int:
+    """Run one pytest lane and abort if system memory pressure is unsafe."""
+
+    if not memory_watch_enabled:
+        return subprocess.run(command.command, check=False).returncode
+
+    process = subprocess.Popen(command.command)
+    next_sample_at = time.monotonic()
+    while True:
+        returncode = process.poll()
+        if returncode is not None:
+            return returncode
+
+        now = time.monotonic()
+        if now >= next_sample_at:
+            snapshot = read_system_memory_snapshot()
+            if snapshot is not None and _memory_guard_triggered(
+                snapshot,
+                max_commit_percent=max_commit_percent,
+                min_available_physical_gb=min_available_physical_gb,
+            ):
+                print(
+                    (
+                        f"Memory guard aborting {command.name}: "
+                        f"commit={snapshot.commit_used_gb:.2f}GiB/"
+                        f"{snapshot.commit_limit_gb:.2f}GiB "
+                        f"({snapshot.commit_percent:.2f}%), "
+                        f"available_physical={snapshot.available_physical_gb:.2f}GiB, "
+                        f"limits=max_commit_percent={max_commit_percent:.2f}, "
+                        f"min_available_physical_gb={min_available_physical_gb:.2f}"
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+                _terminate_process_tree(process)
+                return MEMORY_ABORT_EXIT_CODE
+            next_sample_at = now + memory_sample_seconds
+
+        time.sleep(min(1.0, max(0.1, next_sample_at - time.monotonic())))
+
+
+def _emit_summary(
+    *,
+    status: str,
+    commands: list[RegressionCommand],
+    failed: str | None,
+    memory_watch_enabled: bool,
+    max_commit_percent: float,
+    min_available_physical_gb: float,
+) -> None:
     print(
         SUMMARY_PREFIX
         + json.dumps(
@@ -334,6 +532,9 @@ def _emit_summary(*, status: str, commands: list[RegressionCommand], failed: str
                 "status": status,
                 "commands": [command.name for command in commands],
                 "failed_command": failed,
+                "memory_watch_enabled": memory_watch_enabled,
+                "max_commit_percent": max_commit_percent,
+                "min_available_physical_gb": min_available_physical_gb,
                 "live_coinbase_execution": False,
                 "live_coinbase_notional_usdc": "0",
             },
@@ -346,6 +547,12 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     run_basetemp = Path(args.basetemp_root) / uuid4().hex
     commands = build_commands(args, run_basetemp=run_basetemp)
+    memory_watch_enabled = (
+        not args.disable_memory_watch
+        and not args.dry_run
+        and not args.check_serial_classification_only
+        and sys.platform.startswith("win")
+    )
 
     serial_findings = find_serial_classification_findings()
     if serial_findings:
@@ -354,6 +561,9 @@ def main(argv: list[str] | None = None) -> int:
             status="serial_classification_failed",
             commands=commands,
             failed="serial_classification",
+            memory_watch_enabled=memory_watch_enabled,
+            max_commit_percent=args.max_commit_percent,
+            min_available_physical_gb=args.min_available_physical_gb,
         )
         return 2
 
@@ -362,13 +572,23 @@ def main(argv: list[str] | None = None) -> int:
             status="serial_classification_passed",
             commands=commands,
             failed=None,
+            memory_watch_enabled=memory_watch_enabled,
+            max_commit_percent=args.max_commit_percent,
+            min_available_physical_gb=args.min_available_physical_gb,
         )
         return 0
 
     if args.dry_run:
         for command in commands:
             print(f"{command.name}: {_format_command(command.command)}")
-        _emit_summary(status="dry_run", commands=commands, failed=None)
+        _emit_summary(
+            status="dry_run",
+            commands=commands,
+            failed=None,
+            memory_watch_enabled=memory_watch_enabled,
+            max_commit_percent=args.max_commit_percent,
+            min_available_physical_gb=args.min_available_physical_gb,
+        )
         return 0
 
     if not args.serial_only and not is_xdist_available():
@@ -377,23 +597,50 @@ def main(argv: list[str] | None = None) -> int:
             "Install it with: python -m pip install -e \".[test]\"",
             file=sys.stderr,
         )
-        _emit_summary(status="missing_xdist", commands=commands, failed="xdist")
+        _emit_summary(
+            status="missing_xdist",
+            commands=commands,
+            failed="xdist",
+            memory_watch_enabled=memory_watch_enabled,
+            max_commit_percent=args.max_commit_percent,
+            min_available_physical_gb=args.min_available_physical_gb,
+        )
         return 2
 
     _prepare_basetemp_dirs(commands)
 
     for command in commands:
         print(f"==> {command.name}: {_format_command(command.command)}", flush=True)
-        completed = subprocess.run(command.command, check=False)
-        if completed.returncode != 0:
+        returncode = run_regression_command(
+            command,
+            memory_watch_enabled=memory_watch_enabled,
+            memory_sample_seconds=args.memory_sample_seconds,
+            max_commit_percent=args.max_commit_percent,
+            min_available_physical_gb=args.min_available_physical_gb,
+        )
+        if returncode != 0:
             _emit_summary(
-                status="failed",
+                status=(
+                    "memory_guard_aborted"
+                    if returncode == MEMORY_ABORT_EXIT_CODE
+                    else "failed"
+                ),
                 commands=commands,
                 failed=command.name,
+                memory_watch_enabled=memory_watch_enabled,
+                max_commit_percent=args.max_commit_percent,
+                min_available_physical_gb=args.min_available_physical_gb,
             )
-            return completed.returncode
+            return returncode
 
-    _emit_summary(status="passed", commands=commands, failed=None)
+    _emit_summary(
+        status="passed",
+        commands=commands,
+        failed=None,
+        memory_watch_enabled=memory_watch_enabled,
+        max_commit_percent=args.max_commit_percent,
+        min_available_physical_gb=args.min_available_physical_gb,
+    )
     return 0
 
 

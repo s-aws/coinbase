@@ -146,6 +146,11 @@ regression files `pytest.mark.serial` when they touch shared DB cursors, fixed
 service ports, process-global state, or other process-shared resources. If the
 static classifier reports a false positive, add a `parallel-regression:
 serial-safe` comment with the reason.
+The helper uses short tracebacks and a Windows memory-pressure guard by default.
+If it emits `memory_guard_aborted`, treat the full regression gate as failed:
+run the stale process checker, record the memory evidence, and split or reduce
+the offending regression surface before retrying. Do not pass
+`--disable-memory-watch` for normal milestone closeout.
 Before full closeout gates and after any interrupted or timed-out backend or
 frontend test command, run the stale process checker:
 `python tools/check_stale_test_processes.py --include-sibling-frontend`.

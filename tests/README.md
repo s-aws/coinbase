@@ -39,6 +39,12 @@ The helper runs tests marked `serial` in a separate sequential lane and runs
 the remaining regression tests with pytest-xdist process workers. Do not use
 Python threads to parallelize this suite.
 
+The helper uses short pytest tracebacks and a Windows memory-pressure guard by
+default. A `memory_guard_aborted` summary means the closeout gate failed; run
+the stale process checker, preserve the evidence, and split or reduce the
+offending regression file before retrying. Do not disable the guard for normal
+milestone closeout.
+
 The helper first validates serial-lane classification. Regression files that
 touch shared DB cursors, fixed service ports, process-global state, or other
 process-shared resources must use `pytest.mark.serial`. When the static
