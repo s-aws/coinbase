@@ -26,6 +26,7 @@ SERIAL_SAFE_COMMENT = "parallel-regression: serial-safe"
 MAX_PARALLEL_WORKERS = 4
 PYTEST_TRACEBACK_STYLE = "short"
 DEFAULT_MEMORY_SAMPLE_SECONDS = 5
+DEFAULT_MAX_COMMIT_GB = 96.0
 DEFAULT_MAX_COMMIT_PERCENT = 85.0
 DEFAULT_MAX_PHYSICAL_PERCENT = 75.0
 DEFAULT_MIN_AVAILABLE_PHYSICAL_GB = 24.0
@@ -60,6 +61,14 @@ class MemorySnapshot:
     used_physical_gb: float
     physical_percent: float
     available_physical_gb: float
+
+
+@dataclass(frozen=True)
+class RegressionRunResult:
+    """Pytest lane result plus bounded memory telemetry."""
+
+    returncode: int
+    peak_memory_snapshot: MemorySnapshot | None = None
 
 
 def _has_serial_marker(text: str) -> bool:
@@ -285,6 +294,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--max-commit-gb",
+        default=DEFAULT_MAX_COMMIT_GB,
+        type=_validate_positive_float,
+        help=(
+            "Abort the active pytest lane when Windows committed memory reaches "
+            f"this absolute GiB value. Defaults to {DEFAULT_MAX_COMMIT_GB}."
+        ),
+    )
+    parser.add_argument(
         "--max-physical-percent",
         default=DEFAULT_MAX_PHYSICAL_PERCENT,
         type=_validate_percent,
@@ -477,12 +495,14 @@ def read_system_memory_snapshot() -> MemorySnapshot | None:
 def _memory_guard_triggered(
     snapshot: MemorySnapshot,
     *,
+    max_commit_gb: float,
     max_commit_percent: float,
     max_physical_percent: float,
     min_available_physical_gb: float,
 ) -> bool:
     return (
-        snapshot.commit_percent >= max_commit_percent
+        snapshot.commit_used_gb >= max_commit_gb
+        or snapshot.commit_percent >= max_commit_percent
         or snapshot.physical_percent >= max_physical_percent
         or snapshot.available_physical_gb <= min_available_physical_gb
     )
@@ -506,27 +526,43 @@ def run_regression_command(
     *,
     memory_watch_enabled: bool,
     memory_sample_seconds: int,
+    max_commit_gb: float,
     max_commit_percent: float,
     max_physical_percent: float,
     min_available_physical_gb: float,
-) -> int:
+) -> RegressionRunResult:
     """Run one pytest lane and abort if system memory pressure is unsafe."""
 
     if not memory_watch_enabled:
-        return subprocess.run(command.command, check=False).returncode
+        return RegressionRunResult(
+            returncode=subprocess.run(command.command, check=False).returncode,
+        )
 
     process = subprocess.Popen(command.command)
     next_sample_at = time.monotonic()
+    peak_snapshot: MemorySnapshot | None = None
     while True:
         returncode = process.poll()
         if returncode is not None:
-            return returncode
+            return RegressionRunResult(
+                returncode=returncode,
+                peak_memory_snapshot=peak_snapshot,
+            )
 
         now = time.monotonic()
         if now >= next_sample_at:
             snapshot = read_system_memory_snapshot()
+            if (
+                snapshot is not None
+                and (
+                    peak_snapshot is None
+                    or snapshot.commit_used_gb > peak_snapshot.commit_used_gb
+                )
+            ):
+                peak_snapshot = snapshot
             if snapshot is not None and _memory_guard_triggered(
                 snapshot,
+                max_commit_gb=max_commit_gb,
                 max_commit_percent=max_commit_percent,
                 max_physical_percent=max_physical_percent,
                 min_available_physical_gb=min_available_physical_gb,
@@ -541,7 +577,8 @@ def run_regression_command(
                         f"{snapshot.total_physical_gb:.2f}GiB "
                         f"({snapshot.physical_percent:.2f}%), "
                         f"available_physical={snapshot.available_physical_gb:.2f}GiB, "
-                        f"limits=max_commit_percent={max_commit_percent:.2f}, "
+                        f"limits=max_commit_gb={max_commit_gb:.2f}, "
+                        f"max_commit_percent={max_commit_percent:.2f}, "
                         f"max_physical_percent={max_physical_percent:.2f}, "
                         f"min_available_physical_gb={min_available_physical_gb:.2f}"
                     ),
@@ -549,10 +586,35 @@ def run_regression_command(
                     flush=True,
                 )
                 _terminate_process_tree(process)
-                return MEMORY_ABORT_EXIT_CODE
+                return RegressionRunResult(
+                    returncode=MEMORY_ABORT_EXIT_CODE,
+                    peak_memory_snapshot=peak_snapshot,
+                )
             next_sample_at = now + memory_sample_seconds
 
         time.sleep(min(1.0, max(0.1, next_sample_at - time.monotonic())))
+
+
+def _format_memory_peak_snapshots(
+    peaks: dict[str, MemorySnapshot | None],
+) -> list[dict[str, float | str]] | None:
+    formatted: list[dict[str, float | str]] = []
+    for command_name, snapshot in peaks.items():
+        if snapshot is None:
+            continue
+        formatted.append(
+            {
+                "command": command_name,
+                "commit_used_gb": snapshot.commit_used_gb,
+                "commit_limit_gb": snapshot.commit_limit_gb,
+                "commit_percent": snapshot.commit_percent,
+                "used_physical_gb": snapshot.used_physical_gb,
+                "total_physical_gb": snapshot.total_physical_gb,
+                "physical_percent": snapshot.physical_percent,
+                "available_physical_gb": snapshot.available_physical_gb,
+            }
+        )
+    return formatted or None
 
 
 def _emit_summary(
@@ -561,9 +623,11 @@ def _emit_summary(
     commands: list[RegressionCommand],
     failed: str | None,
     memory_watch_enabled: bool,
+    max_commit_gb: float,
     max_commit_percent: float,
     max_physical_percent: float,
     min_available_physical_gb: float,
+    memory_peak_snapshots: dict[str, MemorySnapshot | None] | None = None,
 ) -> None:
     print(
         SUMMARY_PREFIX
@@ -573,9 +637,13 @@ def _emit_summary(
                 "commands": [command.name for command in commands],
                 "failed_command": failed,
                 "memory_watch_enabled": memory_watch_enabled,
+                "max_commit_gb": max_commit_gb,
                 "max_commit_percent": max_commit_percent,
                 "max_physical_percent": max_physical_percent,
                 "min_available_physical_gb": min_available_physical_gb,
+                "memory_peak_snapshots": _format_memory_peak_snapshots(
+                    memory_peak_snapshots or {}
+                ),
                 "live_coinbase_execution": False,
                 "live_coinbase_notional_usdc": "0",
             },
@@ -603,6 +671,7 @@ def main(argv: list[str] | None = None) -> int:
             commands=commands,
             failed="serial_classification",
             memory_watch_enabled=memory_watch_enabled,
+            max_commit_gb=args.max_commit_gb,
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
@@ -615,6 +684,7 @@ def main(argv: list[str] | None = None) -> int:
             commands=commands,
             failed=None,
             memory_watch_enabled=memory_watch_enabled,
+            max_commit_gb=args.max_commit_gb,
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
@@ -629,6 +699,7 @@ def main(argv: list[str] | None = None) -> int:
             commands=commands,
             failed=None,
             memory_watch_enabled=memory_watch_enabled,
+            max_commit_gb=args.max_commit_gb,
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
@@ -646,6 +717,7 @@ def main(argv: list[str] | None = None) -> int:
             commands=commands,
             failed="xdist",
             memory_watch_enabled=memory_watch_enabled,
+            max_commit_gb=args.max_commit_gb,
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
@@ -653,41 +725,48 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     _prepare_basetemp_dirs(commands)
+    memory_peak_snapshots: dict[str, MemorySnapshot | None] = {}
 
     for command in commands:
         print(f"==> {command.name}: {_format_command(command.command)}", flush=True)
-        returncode = run_regression_command(
+        result = run_regression_command(
             command,
             memory_watch_enabled=memory_watch_enabled,
             memory_sample_seconds=args.memory_sample_seconds,
+            max_commit_gb=args.max_commit_gb,
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
         )
-        if returncode != 0:
+        memory_peak_snapshots[command.name] = result.peak_memory_snapshot
+        if result.returncode != 0:
             _emit_summary(
                 status=(
                     "memory_guard_aborted"
-                    if returncode == MEMORY_ABORT_EXIT_CODE
+                    if result.returncode == MEMORY_ABORT_EXIT_CODE
                     else "failed"
                 ),
                 commands=commands,
                 failed=command.name,
                 memory_watch_enabled=memory_watch_enabled,
+                max_commit_gb=args.max_commit_gb,
                 max_commit_percent=args.max_commit_percent,
                 max_physical_percent=args.max_physical_percent,
                 min_available_physical_gb=args.min_available_physical_gb,
+                memory_peak_snapshots=memory_peak_snapshots,
             )
-            return returncode
+            return result.returncode
 
     _emit_summary(
         status="passed",
         commands=commands,
         failed=None,
         memory_watch_enabled=memory_watch_enabled,
+        max_commit_gb=args.max_commit_gb,
         max_commit_percent=args.max_commit_percent,
         max_physical_percent=args.max_physical_percent,
         min_available_physical_gb=args.min_available_physical_gb,
+        memory_peak_snapshots=memory_peak_snapshots,
     )
     return 0
 

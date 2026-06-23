@@ -1,14 +1,17 @@
 import re
+import json
 import pytest
 from pathlib import Path
 
 from tools.run_parallel_regression import (
+    DEFAULT_MAX_COMMIT_GB,
     MEMORY_ABORT_EXIT_CODE,
     PYTEST_TRACEBACK_STYLE,
     SERIAL_SAFE_COMMENT,
     SUMMARY_PREFIX,
     MemorySnapshot,
     RegressionCommand,
+    RegressionRunResult,
     build_commands,
     build_parser,
     find_serial_classification_findings,
@@ -168,6 +171,9 @@ def test_parallel_regression_runner_rejects_unbounded_worker_counts():
         parser.parse_args(["--max-commit-percent", "101"])
 
     with pytest.raises(SystemExit):
+        parser.parse_args(["--max-commit-gb", "0"])
+
+    with pytest.raises(SystemExit):
         parser.parse_args(["--max-physical-percent", "101"])
 
     with pytest.raises(SystemExit):
@@ -181,6 +187,7 @@ def test_parallel_regression_runner_defaults_to_bounded_memory_watch():
     args = build_parser().parse_args([])
 
     assert args.disable_memory_watch is False
+    assert args.max_commit_gb == DEFAULT_MAX_COMMIT_GB
     assert args.max_commit_percent == 85.0
     assert args.max_physical_percent == 75.0
     assert args.min_available_physical_gb == 24.0
@@ -298,13 +305,23 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
     monkeypatch, tmp_path, capsys
 ):
     seen_basetemps = []
+    peak = MemorySnapshot(
+        commit_used_gb=47.0,
+        commit_limit_gb=128.0,
+        commit_percent=36.72,
+        total_physical_gb=128.0,
+        used_physical_gb=39.0,
+        physical_percent=30.47,
+        available_physical_gb=89.0,
+    )
 
     def fake_run_regression_command(command, **kwargs):
         basetemp = Path(command.command[command.command.index("--basetemp") + 1])
         assert basetemp.exists()
         seen_basetemps.append(basetemp)
         assert kwargs["memory_sample_seconds"] == 5
-        return 0
+        assert kwargs["max_commit_gb"] == DEFAULT_MAX_COMMIT_GB
+        return RegressionRunResult(returncode=0, peak_memory_snapshot=peak)
 
     monkeypatch.setattr(
         "tools.run_parallel_regression.is_xdist_available", lambda: True
@@ -328,6 +345,33 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
     assert len(seen_basetemps) == 2
     assert {path.name for path in seen_basetemps} == {"parallel", "serial"}
     assert SUMMARY_PREFIX in captured.out
+    summary_line = next(
+        line for line in captured.out.splitlines() if line.startswith(SUMMARY_PREFIX)
+    )
+    summary = json.loads(summary_line.removeprefix(SUMMARY_PREFIX))
+    assert summary["max_commit_gb"] == DEFAULT_MAX_COMMIT_GB
+    assert summary["memory_peak_snapshots"] == [
+        {
+            "available_physical_gb": 89.0,
+            "command": "parallel_safe_regression",
+            "commit_limit_gb": 128.0,
+            "commit_percent": 36.72,
+            "commit_used_gb": 47.0,
+            "physical_percent": 30.47,
+            "total_physical_gb": 128.0,
+            "used_physical_gb": 39.0,
+        },
+        {
+            "available_physical_gb": 89.0,
+            "command": "serial_regression",
+            "commit_limit_gb": 128.0,
+            "commit_percent": 36.72,
+            "commit_used_gb": 47.0,
+            "physical_percent": 30.47,
+            "total_physical_gb": 128.0,
+            "used_physical_gb": 39.0,
+        },
+    ]
 
 
 def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
@@ -361,16 +405,130 @@ def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
     )
     monkeypatch.setattr("tools.run_parallel_regression.time.sleep", lambda _seconds: None)
 
-    exit_code = run_regression_command(
+    result = run_regression_command(
         RegressionCommand("probe", ("python", "-m", "pytest")),
         memory_watch_enabled=True,
         memory_sample_seconds=5,
+        max_commit_gb=96.0,
         max_commit_percent=85.0,
         max_physical_percent=75.0,
         min_available_physical_gb=24.0,
     )
 
     captured = capsys.readouterr()
-    assert exit_code == MEMORY_ABORT_EXIT_CODE
+    assert result.returncode == MEMORY_ABORT_EXIT_CODE
     assert terminated == [1234]
     assert "Memory guard aborting probe" in captured.err
+    assert "max_commit_gb=96.00" in captured.err
+    assert result.peak_memory_snapshot is not None
+    assert result.peak_memory_snapshot.commit_used_gb == 90.0
+
+
+def test_run_regression_command_aborts_on_absolute_commit_pressure(
+    monkeypatch, capsys
+):
+    terminated = []
+
+    class FakeProcess:
+        pid = 1234
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.subprocess.Popen",
+        lambda _command: FakeProcess(),
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.read_system_memory_snapshot",
+        lambda: MemorySnapshot(
+            commit_used_gb=97.0,
+            commit_limit_gb=180.0,
+            commit_percent=53.89,
+            total_physical_gb=128.0,
+            used_physical_gb=60.0,
+            physical_percent=46.88,
+            available_physical_gb=68.0,
+        ),
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression._terminate_process_tree",
+        lambda process: terminated.append(process.pid),
+    )
+    monkeypatch.setattr("tools.run_parallel_regression.time.sleep", lambda _seconds: None)
+
+    result = run_regression_command(
+        RegressionCommand("probe", ("python", "-m", "pytest")),
+        memory_watch_enabled=True,
+        memory_sample_seconds=5,
+        max_commit_gb=96.0,
+        max_commit_percent=85.0,
+        max_physical_percent=75.0,
+        min_available_physical_gb=24.0,
+    )
+
+    captured = capsys.readouterr()
+    assert result.returncode == MEMORY_ABORT_EXIT_CODE
+    assert terminated == [1234]
+    assert "commit=97.00GiB/180.00GiB (53.89%)" in captured.err
+
+
+def test_run_regression_command_reports_peak_memory_without_abort(monkeypatch):
+    poll_results = iter([None, None, 0])
+    monotonic_values = [0.0, 0.0, 0.0, 6.0, 6.0]
+    samples = iter(
+        [
+            MemorySnapshot(
+                commit_used_gb=45.0,
+                commit_limit_gb=180.0,
+                commit_percent=25.0,
+                total_physical_gb=128.0,
+                used_physical_gb=36.0,
+                physical_percent=28.13,
+                available_physical_gb=92.0,
+            ),
+            MemorySnapshot(
+                commit_used_gb=48.5,
+                commit_limit_gb=180.0,
+                commit_percent=26.94,
+                total_physical_gb=128.0,
+                used_physical_gb=39.0,
+                physical_percent=30.47,
+                available_physical_gb=89.0,
+            ),
+        ]
+    )
+
+    class FakeProcess:
+        pid = 1234
+
+        def poll(self):
+            return next(poll_results)
+
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.subprocess.Popen",
+        lambda _command: FakeProcess(),
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.read_system_memory_snapshot",
+        lambda: next(samples),
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.time.monotonic",
+        lambda: monotonic_values.pop(0) if monotonic_values else 6.0,
+    )
+    monkeypatch.setattr("tools.run_parallel_regression.time.sleep", lambda _seconds: None)
+
+    result = run_regression_command(
+        RegressionCommand("probe", ("python", "-m", "pytest")),
+        memory_watch_enabled=True,
+        memory_sample_seconds=5,
+        max_commit_gb=96.0,
+        max_commit_percent=85.0,
+        max_physical_percent=75.0,
+        min_available_physical_gb=24.0,
+    )
+
+    assert result.returncode == 0
+    assert result.peak_memory_snapshot is not None
+    assert result.peak_memory_snapshot.commit_used_gb == 48.5

@@ -147,8 +147,10 @@ service ports, process-global state, full FastAPI app imports, or other
 process-shared/memory-heavy resources. If the static classifier reports a false
 positive, add a `parallel-regression: serial-safe` comment with the reason.
 The helper uses short tracebacks and a Windows memory-pressure guard by default.
-It samples every 5 seconds and aborts on high commit pressure, high
-physical-memory pressure, or low available physical memory.
+It samples every 5 seconds and aborts on high absolute commit pressure, high
+commit percentage, high physical-memory pressure, or low available physical
+memory. Preserve the summary JSON because it includes per-lane peak memory
+samples when the guard is active.
 If it emits `memory_guard_aborted`, treat the full regression gate as failed:
 run the stale process checker, record the memory evidence, and split or reduce
 the offending regression surface before retrying. Do not pass

@@ -81,6 +81,11 @@ files importing the full FastAPI app factory are also serial-lane-only to avoid
 multiplying the route-model memory footprint across workers. Documented false
 positives use `parallel-regression: serial-safe`.
 
+The runner also records per-lane peak memory samples in its summary JSON when
+the Windows memory guard is active. Preserve that line for closeout evidence;
+`memory_guard_aborted` means the gate failed and the offending regression
+surface must be split or reduced before retrying.
+
 Before full closeout gates and after interrupted or timed-out backend/frontend
 test commands, run:
 
