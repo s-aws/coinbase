@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6121-6140` under M57.
-- Active autonomous range: `6141-6160` under M57.
+- Latest completed autonomous range: `6141-6160` under M57.
+- Active autonomous range: `6161-6180` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -802,12 +802,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   into required/present disabled adapter-decision evidence. Completed
   6121-6140 work turns
   `application/admin_api/live_execution.py::*_adapter_decision_record_contract`
-  refs into required/present disabled adapter-decision-record evidence. Active
+  refs into required/present disabled adapter-decision-record evidence. Completed
   6141-6160 work turns
   `application/admin_api/live_execution.py::*_adapter_invocation_contract`
   refs into required/present disabled adapter-invocation evidence while
-  adapter execution refs remain missing. Adapter invocation authority,
-  adapter construction/invocation execution, Coinbase calls, reconciliation execution,
+  adapter execution refs remained missing. Active 6161-6180 work turns
+  `application/admin_api/live_execution.py::*_adapter_execution_contract`
+  refs into required/present disabled adapter-execution evidence while
+  Coinbase exchange-submission refs remain missing. Adapter execution
+  authority, Coinbase calls, reconciliation execution,
   futures state mutation, proof acceptance, browser authority, BFF authority,
   and spot-rule authority remain blocked.
 - The long claim-trace clearance-step review-input, review-input

@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6141-6160**.
+- Approved phase range: **6161-6180**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6121-6140`.
+- Previous completed range: `6141-6160`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6140`.
+- `current_phase`: `6160`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,134 +81,134 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6141-6160
+## Active Phases 6161-6180
 
-Batch label: Futures/Perpetuals Disabled Adapter-Invocation Contract Evidence.
+Batch label: Futures/Perpetuals Disabled Adapter-Execution Contract Evidence.
 
-These phases continue M57 by turning futures/perpetual adapter invocation refs
-into named disabled backend contract evidence without invoking adapters,
-executing adapters, adding command routes, creating command drafts, calling
-Coinbase, executing reconciliation, or mutating state. Completed phases
-`6121-6140` added disabled adapter-decision-record contract evidence and
-shifted the remaining missing backend contract gap to
-`application/admin_api/live_execution.py::*_adapter_invocation_contract`.
-Active `6141-6160` may add adapter-invocation contract metadata only;
-per-command `application/admin_api/live_execution.py::*_adapter_execution_contract`
-refs remain missing. Command routes, command drafts, executable decision
-records, adapter construction, adapter invocation authority, executable
-adapters, Coinbase calls, reconciliation execution, futures/order/exchange
-mutation, browser authority, BFF execution authority, and spot-rule authority
-remain blocked.
+These phases continue M57 by turning futures/perpetual adapter execution refs
+into named disabled backend contract evidence without executing adapters,
+submitting Coinbase orders, adding command routes, creating command drafts,
+executing reconciliation, or mutating state. Completed phases `6141-6160`
+added disabled adapter-invocation contract evidence and shifted the remaining
+missing backend contract gap to
+`application/admin_api/live_execution.py::*_adapter_execution_contract`.
+Active `6161-6180` may add adapter-execution contract metadata only;
+per-command
+`application/admin_api/live_execution.py::*_coinbase_exchange_submission_contract`
+refs remain missing. Command routes, command drafts, executable decisions,
+adapter invocation authority, executable adapters, Coinbase calls,
+reconciliation execution, futures/order/exchange mutation, browser authority,
+BFF execution authority, and spot-rule authority remain blocked.
 
-### Phase 6141 - Prior Range Closure
+### Phase 6161 - Prior Range Closure
 
-- Record completed phases `6121-6140` as historical disabled
-  adapter-decision-record evidence and move active metadata to `6141-6160`.
+- Record completed phases `6141-6160` as historical disabled
+  adapter-invocation evidence and move active metadata to `6161-6180`.
 
-### Phase 6142 - Disabled Invocation Scope
+### Phase 6162 - Disabled Execution Scope
 
-- Define futures adapter invocation contracts as backend-owned disabled
-  evidence, not adapter invocation authority, executable adapters, command
-  execution, Coinbase activity, reconciliation execution, or state mutation.
+- Define futures adapter execution contracts as backend-owned disabled
+  evidence, not adapter execution authority, Coinbase submission, command
+  execution, reconciliation execution, or state mutation.
 
-### Phase 6143 - Backend Invocation Contract Metadata
+### Phase 6163 - Backend Execution Contract Metadata
 
-- Add disabled `application/admin_api/live_execution.py::*_adapter_invocation_contract`
+- Add disabled `application/admin_api/live_execution.py::*_adapter_execution_contract`
   metadata for place, close/reduce, cancel, and reconcile command families
-  without adding adapter call sites, invocation services, or Coinbase calls.
+  without adding adapter execution services, Coinbase clients, or call sites.
 
-### Phase 6144 - Invocation Presence Guard
+### Phase 6164 - Execution Presence Guard
 
-- Ensure invocation contract evidence cannot be mistaken for configured,
-  accepted, performed, invokable, or executable live adapters.
+- Ensure execution contract evidence cannot be mistaken for configured,
+  accepted, performed, executable, or Coinbase-submitting live adapters.
 
-### Phase 6145 - Required Versus Missing Contract Shift
+### Phase 6165 - Required Versus Missing Contract Shift
 
-- Preserve adapter invocation refs in `required_backend_contracts` while
+- Preserve adapter execution refs in `required_backend_contracts` while
   removing them from `missing_backend_contracts`; leave
-  `application/admin_api/live_execution.py::*_adapter_execution_contract`
+  `application/admin_api/live_execution.py::*_coinbase_exchange_submission_contract`
   refs as the missing backend gaps.
 
-### Phase 6146 - Readiness Next Contract Shift
+### Phase 6166 - Readiness Next Contract Shift
 
-- Shift readiness `next_required_backend_contract` from adapter invocation refs
-  to adapter execution refs without changing prerequisites, semantic guards,
-  proof acceptance, drafts, routes, Coinbase, reconciliation execution, or
-  execution authority.
+- Shift readiness `next_required_backend_contract` from adapter execution refs
+  to Coinbase exchange-submission refs without changing prerequisites,
+  semantic guards, proof acceptance, drafts, routes, Coinbase, reconciliation
+  execution, or execution authority.
 
-### Phase 6147 - Backend Contract Tests
+### Phase 6167 - Backend Contract Tests
 
-- Add focused regression coverage for disabled invocation contract evidence,
-  required but non-missing invocation refs, next missing execution refs, and
-  unchanged no-route/no-draft/no-live boundaries.
+- Add focused regression coverage for disabled execution contract evidence,
+  required but non-missing execution refs, next missing Coinbase submission
+  refs, and unchanged no-route/no-draft/no-live boundaries.
 
-### Phase 6148 - OpenAPI Verification
+### Phase 6168 - OpenAPI Verification
 
 - Regenerate or verify backend OpenAPI while proving no futures command route,
-  executable adapter route, adapter call site, or Coinbase execution surface is
-  added.
+  executable adapter route, Coinbase submission surface, or exchange execution
+  surface is added.
 
-### Phase 6149 - Frontend Schema Sync
+### Phase 6169 - Frontend Schema Sync
 
 - Regenerate or verify the frontend generated TypeScript schema from backend
   OpenAPI without hand-editing generated files.
 
-### Phase 6150 - Frontend Mock Invocation Alignment
+### Phase 6170 - Frontend Mock Execution Alignment
 
-- Update frontend mock futures command-suite fixtures so adapter invocation
-  refs are required/present disabled evidence and adapter execution refs remain
-  missing.
+- Update frontend mock futures command-suite fixtures so adapter execution
+  refs are required/present disabled evidence and Coinbase exchange-submission
+  refs remain missing.
 
-### Phase 6151 - Frontend Read Model Review
+### Phase 6171 - Frontend Read Model Review
 
-- Verify futures/perpetual read-model display renders invocation contract
+- Verify futures/perpetual read-model display renders execution contract
   evidence as backend-owned and still shows no command routes, drafts,
-  invocation authority, executable adapters, Coinbase, reconciliation
-  execution, or browser authority.
+  execution authority, Coinbase, reconciliation execution, or browser
+  authority.
 
-### Phase 6152 - Frontend Unit Coverage
+### Phase 6172 - Frontend Unit Coverage
 
 - Update focused Vitest coverage for mock backend, runtime, quality gates, and
-  futures/perpetual read-model assertions around the disabled invocation
+  futures/perpetual read-model assertions around the disabled execution
   contract shift.
 
-### Phase 6153 - Docs And Examples
+### Phase 6173 - Docs And Examples
 
 - Update backend/frontend docs, examples, maintainer handoff, contextless review
-  logs, and agent state for disabled adapter-invocation semantics.
+  logs, and agent state for disabled adapter-execution semantics.
 
-### Phase 6154 - Active-Range Drift Sweep
+### Phase 6174 - Active-Range Drift Sweep
 
 - Sweep backend/frontend active-range metadata, generated fixtures, release
-  artifacts, and autonomous validators for stale `6121-6140` active-state
+  artifacts, and autonomous validators for stale `6141-6160` active-state
   wording.
 
-### Phase 6155 - Backend Focused Gates
+### Phase 6175 - Backend Focused Gates
 
 - Run focused backend tests and validators covering the futures command-suite,
   risk-proof contract surface, autonomous queue, ownership, and no-live proof.
 
-### Phase 6156 - Frontend Focused Gates
+### Phase 6176 - Frontend Focused Gates
 
 - Run focused frontend tests and validators covering mocks, runtime, futures
   read model, quality artifacts, autonomous queue, and no-live release checks.
 
-### Phase 6157 - Contextless Review And Remediation
+### Phase 6177 - Contextless Review And Remediation
 
 - Run fresh blind/contextless backend and frontend reviews. Fix any ambiguity
   before advancing.
 
-### Phase 6158 - Subagent Sweep
+### Phase 6178 - Subagent Sweep
 
 - Close phase-scoped, stale, or previously unused subagents after their
   findings are consumed, remediated, or explicitly deferred.
 
-### Phase 6159 - No-Live Evidence
+### Phase 6179 - No-Live Evidence
 
 - Record submitted notional `0` USDC, executed notional `0` USDC, and no
   Coinbase calls for the range.
 
-### Phase 6160 - Phase Closeout Evidence
+### Phase 6180 - Phase Closeout Evidence
 
 - Record focused gate results, contextless review results, phase-end subagent
   sweep, commits, and pushed branches while leaving the durable milestone

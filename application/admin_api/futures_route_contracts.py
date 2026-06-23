@@ -17,6 +17,7 @@ from .live_execution import (
     FUTURES_LIVE_ADAPTER_CONTRACTS,
     FUTURES_LIVE_ADAPTER_DECISION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_DECISION_RECORD_CONTRACTS,
+    FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACTS,
 )
 
@@ -116,6 +117,18 @@ def futures_live_adapter_invocation_contract_ref(
 def futures_live_adapter_execution_contract_ref(
     command: AdminFuturesCommandAction,
 ) -> str:
-    """Return the missing execution contract ref for a futures adapter."""
+    """Return the disabled execution contract ref for a futures adapter."""
 
-    return FUTURES_LIVE_ADAPTER_INVOCATION_CONTRACTS[command].execution_contract_ref
+    return FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS[command].contract_ref
+
+
+def futures_coinbase_exchange_submission_contract_ref(
+    command: AdminFuturesCommandAction,
+) -> str:
+    """Return the missing Coinbase submission contract ref for a futures command."""
+
+    return (
+        FUTURES_LIVE_ADAPTER_EXECUTION_CONTRACTS[
+            command
+        ].coinbase_exchange_submission_contract_ref
+    )

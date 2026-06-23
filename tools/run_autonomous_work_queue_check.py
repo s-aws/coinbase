@@ -60,9 +60,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6141-6160"
-APPROVED_PHASES = tuple(range(6141, 6161))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6121-6140"
+APPROVED_PHASE_RANGE = "6161-6180"
+APPROVED_PHASES = tuple(range(6161, 6181))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6141-6160"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -273,7 +273,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "adapter decision refs are required/present disabled evidence",
             "adapter decision-record refs are required/present disabled evidence",
             "adapter invocation refs are required/present disabled evidence",
-            "adapter execution refs remain missing",
+            "adapter execution refs are required/present disabled evidence",
+            "Coinbase exchange-submission refs remain missing",
             "application/admin_api/live_execution.py::futures_place_adapter_construction_contract",
             "application/admin_api/live_execution.py::futures_close_reduce_adapter_construction_contract",
             "application/admin_api/live_execution.py::futures_cancel_adapter_construction_contract",
@@ -294,6 +295,10 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "application/admin_api/live_execution.py::futures_close_reduce_adapter_execution_contract",
             "application/admin_api/live_execution.py::futures_cancel_adapter_execution_contract",
             "application/admin_api/live_execution.py::futures_reconcile_adapter_execution_contract",
+            "application/admin_api/live_execution.py::futures_place_coinbase_exchange_submission_contract",
+            "application/admin_api/live_execution.py::futures_close_reduce_coinbase_exchange_submission_contract",
+            "application/admin_api/live_execution.py::futures_cancel_coinbase_exchange_submission_contract",
+            "application/admin_api/live_execution.py::futures_reconcile_coinbase_exchange_submission_contract",
             "GET /api/v1/futures/command-suite",
             '"semantic_guards"',
             '"evidence_routes"',
@@ -547,6 +552,12 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
         "application/admin_api/live_execution.py::futures_cancel_adapter_execution_contract",
         "application/admin_api/live_execution.py::futures_reconcile_adapter_execution_contract",
     )
+    coinbase_exchange_submission_refs = (
+        "application/admin_api/live_execution.py::futures_place_coinbase_exchange_submission_contract",
+        "application/admin_api/live_execution.py::futures_close_reduce_coinbase_exchange_submission_contract",
+        "application/admin_api/live_execution.py::futures_cancel_coinbase_exchange_submission_contract",
+        "application/admin_api/live_execution.py::futures_reconcile_coinbase_exchange_submission_contract",
+    )
     stale_patterns: list[str] = []
     for label, contract_ref in (
         ("risk_guard", risk_guard_ref),
@@ -581,6 +592,13 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
             (f"live_adapter_invocation_contract_{index}", invocation_ref)
             for index, invocation_ref in enumerate(
                 live_adapter_invocation_refs,
+                start=1,
+            )
+        ),
+        *(
+            (f"live_adapter_execution_contract_{index}", execution_ref)
+            for index, execution_ref in enumerate(
+                live_adapter_execution_refs,
                 start=1,
             )
         ),
@@ -635,9 +653,14 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
         for contract_ref in live_adapter_execution_refs
         if contract_ref not in body
     ]
-    missing_execution_ref_patterns = [
+    missing_coinbase_exchange_submission_refs = [
         contract_ref
-        for contract_ref in live_adapter_execution_refs
+        for contract_ref in coinbase_exchange_submission_refs
+        if contract_ref not in body
+    ]
+    missing_coinbase_ref_patterns = [
+        contract_ref
+        for contract_ref in coinbase_exchange_submission_refs
         if not re.search(
             r'"missing_backend_contracts"\s*:\s*\[[^\]]*'
             + re.escape(contract_ref),
@@ -655,7 +678,8 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
         and not missing_live_adapter_decision_record_refs
         and not missing_live_adapter_invocation_refs
         and not missing_live_adapter_execution_refs
-        and not missing_execution_ref_patterns,
+        and not missing_coinbase_exchange_submission_refs
+        and not missing_coinbase_ref_patterns,
         evidence={
             "path": str(FUTURES_PERPETUALS_EXAMPLES_DOC.relative_to(PROJECT_ROOT)),
             "stale_patterns": stale_patterns,
@@ -673,8 +697,11 @@ def _check_futures_resolved_contracts_not_reported_missing() -> QueueCheck:
             "missing_live_adapter_execution_refs": (
                 missing_live_adapter_execution_refs
             ),
-            "missing_execution_ref_patterns": (
-                missing_execution_ref_patterns
+            "missing_coinbase_exchange_submission_refs": (
+                missing_coinbase_exchange_submission_refs
+            ),
+            "missing_coinbase_ref_patterns": (
+                missing_coinbase_ref_patterns
             ),
         },
     )
@@ -816,13 +843,14 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
-        "disabled futures adapter-invocation contract evidence",
+        "disabled futures adapter-execution contract evidence",
         "adapter contract refs are required/present disabled evidence",
         "adapter construction refs are required/present disabled evidence",
         "adapter decision refs are required/present disabled evidence",
         "adapter decision-record refs are required/present disabled evidence",
         "adapter invocation refs are required/present disabled evidence",
-        "adapter execution refs remain missing",
+        "adapter execution refs are required/present disabled evidence",
+        "Coinbase exchange-submission refs remain missing",
         "/api/v1/futures/risk-proofs",
     ]
     stale = [
@@ -960,7 +988,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
-        "futures disabled adapter-invocation contract evidence",
+        "futures disabled adapter-execution contract evidence",
         "/api/v1/futures/risk-proofs",
         "GET /api/v1/futures/risk-proofs readbacks use read-only resolver evidence",
         "POST /api/v1/futures/risk-proofs records append-only local proof evidence only",
@@ -979,7 +1007,8 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "adapter decision refs are required/present disabled evidence",
         "adapter decision-record refs are required/present disabled evidence",
         "adapter invocation refs are required/present disabled evidence",
-        "adapter execution refs remain missing",
+        "adapter execution refs are required/present disabled evidence",
+        "Coinbase exchange-submission refs remain missing",
         "application/admin_api/live_execution.py::futures_place_adapter_contract",
         "application/admin_api/live_execution.py::futures_close_reduce_adapter_contract",
         "application/admin_api/live_execution.py::futures_cancel_adapter_contract",
@@ -1004,6 +1033,10 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "application/admin_api/live_execution.py::futures_close_reduce_adapter_execution_contract",
         "application/admin_api/live_execution.py::futures_cancel_adapter_execution_contract",
         "application/admin_api/live_execution.py::futures_reconcile_adapter_execution_contract",
+        "application/admin_api/live_execution.py::futures_place_coinbase_exchange_submission_contract",
+        "application/admin_api/live_execution.py::futures_close_reduce_coinbase_exchange_submission_contract",
+        "application/admin_api/live_execution.py::futures_cancel_coinbase_exchange_submission_contract",
+        "application/admin_api/live_execution.py::futures_reconcile_coinbase_exchange_submission_contract",
         "backend_futures_risk_proof_store_read_only_no_execution",
         "backend_futures_semantics_no_execution",
         "no futures command route",

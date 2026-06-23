@@ -558,9 +558,11 @@ are required/present disabled evidence. M57 phases 6121-6140 add disabled
 futures adapter-decision-record contract metadata only. Adapter decision-record
 refs are required/present disabled evidence. M57 phases 6141-6160 add disabled
 futures adapter-invocation contract metadata only. Adapter invocation refs are
+required/present disabled evidence. M57 phases 6161-6180 add disabled futures
+adapter-execution contract metadata only. Adapter execution refs are
 required/present disabled evidence; the next missing backend gaps are the
-adapter execution refs in
-`application/admin_api/live_execution.py::*_adapter_execution_contract`.
+Coinbase exchange-submission refs in
+`application/admin_api/live_execution.py::*_coinbase_exchange_submission_contract`.
 No live reconciliation or trading authority is created.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
