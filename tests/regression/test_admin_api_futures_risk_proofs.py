@@ -88,6 +88,7 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRole,
     AdminFuturesCommandAction,
+    AdminFuturesCommandEnablementBlocker,
     AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesRiskProofEvidenceSource,
@@ -1015,6 +1016,74 @@ def test_futures_risk_proof_routes_are_inventory_and_openapi_bound(
         "/api/v1/futures/risk-proofs/{futures_risk_proof_id}"
         in schema["paths"]
     )
+
+
+def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None:
+    command_suite = AdminApiReadService().build_futures_command_suite()
+    summaries_by_blocker = {
+        item.blocker: item for item in command_suite.command_enablement_blocker_summaries
+    }
+
+    assert command_suite.missing_backend_contracts == []
+    assert all(not item.missing_backend_contracts for item in command_suite.commands)
+    assert command_suite.command_enablement_blocker_summary_count == 7
+    assert command_suite.command_enablement_blocker_summary_blocking_count == 7
+    assert set(summaries_by_blocker) == {
+        AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
+        AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
+        AdminFuturesCommandEnablementBlocker.SEMANTIC_GUARD_EVIDENCE,
+        AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE,
+        AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE,
+        AdminFuturesCommandEnablementBlocker.LIVE_SERVICE_ADAPTER,
+        AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE,
+    }
+
+    for summary in summaries_by_blocker.values():
+        assert summary.status == AdminApiGateStatus.BLOCKED
+        assert summary.blocking is True
+        assert summary.command_count == 4
+        assert summary.affected_commands == [
+            AdminFuturesCommandAction.PLACE,
+            AdminFuturesCommandAction.CLOSE_REDUCE,
+            AdminFuturesCommandAction.CANCEL,
+            AdminFuturesCommandAction.RECONCILE,
+        ]
+        assert summary.evidence_ref_count == len(summary.required_evidence_refs)
+        assert summary.required_evidence_refs
+        assert summary.required_backend_contracts
+        assert summary.command_route_registered is False
+        assert summary.command_draft_allowed is False
+        assert summary.execution_allowed is False
+        assert summary.live_coinbase_orders_ran is False
+        assert summary.backend_owned is True
+        assert summary.read_only is True
+        assert summary.spot_rule_authority is False
+        assert summary.browser_authority == "display_only"
+        assert summary.bff_authority == "forward_only_no_execution"
+
+    risk_summary = summaries_by_blocker[
+        AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE
+    ]
+    assert "futures_place_product_scope_proof_record_acceptance" in (
+        risk_summary.required_evidence_refs
+    )
+    assert "grant command authority" in risk_summary.detail
+
+    route_summary = summaries_by_blocker[
+        AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE
+    ]
+    assert "futures_place_admin_command_route" in route_summary.required_evidence_refs
+    assert "No futures/perpetual Admin API command route" in route_summary.detail
+
+    contextless_summary = summaries_by_blocker[
+        AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE
+    ]
+    assert "blind_contextless_agent_review" in (
+        contextless_summary.required_evidence_refs
+    )
+    assert command_suite.live_coinbase_orders_ran is False
+    assert command_suite.submitted_notional_usdc == "0"
+    assert command_suite.executed_notional_usdc == "0"
 
 
 def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority(

@@ -562,10 +562,15 @@ required/present disabled evidence. M57 phases 6161-6180 add disabled futures
 adapter-execution contract metadata only. Adapter execution refs are
 required/present disabled evidence. M57 phases 6181-6200 add disabled futures
 Coinbase exchange-submission contract metadata only. Coinbase
-exchange-submission refs are required/present disabled evidence; the next
-missing backend gaps are post-exchange-submission reconciliation refs in
-`application/admin_api/live_execution.py::*_post_exchange_submission_reconciliation_contract`.
-No live reconciliation or trading authority is created.
+exchange-submission refs are required/present disabled evidence. M57 phases
+6201-6220 add disabled futures post-exchange-submission reconciliation contract
+metadata only. Post-exchange-submission reconciliation refs are
+required/present disabled evidence and no live reconciliation or trading
+authority is created. M57 phases 6221-6240 add aggregate command enablement
+blocker summaries to the read-only futures command suite so operators can see
+why unresolved prerequisites, request payload contracts, semantic guard
+evidence, risk proof acceptance, admin command routes, live service adapters,
+and contextless review still block command authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

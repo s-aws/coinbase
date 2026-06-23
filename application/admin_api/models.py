@@ -23,6 +23,7 @@ from core.enums import (
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
     AdminFuturesCommandAction,
+    AdminFuturesCommandEnablementBlocker,
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
@@ -4162,6 +4163,31 @@ class AdminFuturesCommandReadinessClosureStepItem(BaseModel):
     command_draft_allowed: bool = False
     execution_allowed: bool = False
     proof_writer_enabled: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminFuturesCommandEnablementBlockerSummaryItem(BaseModel):
+    """Backend-owned aggregate blocker summary for futures command enablement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    blocker: AdminFuturesCommandEnablementBlocker
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    command_count: int = Field(default=0, ge=0)
+    affected_commands: list[AdminFuturesCommandAction] = Field(default_factory=list)
+    evidence_ref_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_backend_contracts: list[str] = Field(default_factory=list)
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
     backend_owned: bool = True
     read_only: bool = True
     spot_rule_authority: bool = False
@@ -9318,6 +9344,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     blocking_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
     accepted_risk_proof_acceptance_criterion_count: int = Field(default=0, ge=0)
+    command_enablement_blocker_summary_count: int = Field(default=0, ge=0)
+    command_enablement_blocker_summary_blocking_count: int = Field(default=0, ge=0)
+    command_enablement_blocker_summaries: list[
+        AdminFuturesCommandEnablementBlockerSummaryItem
+    ] = Field(default_factory=list)
     commands: list[AdminFuturesCommandContractItem] = Field(default_factory=list)
     account_evidence_routes: list[str] = Field(default_factory=list)
     position_evidence_routes: list[str] = Field(default_factory=list)

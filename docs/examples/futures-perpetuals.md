@@ -11,9 +11,13 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6201-6220 range targets explicit M57 futures/perpetual disabled
-post-exchange-submission reconciliation contract evidence for
-`GET /api/v1/futures/command-suite`.
+The active 6221-6240 range targets explicit M57 futures/perpetual command
+enablement blocker summary evidence for `GET /api/v1/futures/command-suite`.
+Completed 6201-6220 work made post-exchange-submission reconciliation refs
+required/present disabled evidence. The active range adds aggregate blocked
+summaries for unresolved prerequisites, request payload contracts, semantic
+guard evidence, risk proof acceptance, admin command routes, live service
+adapters, and contextless review.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
@@ -124,13 +128,24 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6201-6220",
+  "approved_phase_range": "6221-6240",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
   "executable_command_count": 0,
   "command_route_count": 0,
   "command_draft_allowed_count": 0,
+  "command_enablement_blocker_summary_count": 7,
+  "command_enablement_blocker_summary_blocking_count": 7,
+  "command_enablement_blocker_summaries": [
+    {"blocker": "unresolved_prerequisites", "status": "blocked"},
+    {"blocker": "request_payload_contracts", "status": "blocked"},
+    {"blocker": "semantic_guard_evidence", "status": "blocked"},
+    {"blocker": "risk_proof_acceptance", "status": "blocked"},
+    {"blocker": "admin_command_route", "status": "blocked"},
+    {"blocker": "live_service_adapter", "status": "blocked"},
+    {"blocker": "contextless_review_gate", "status": "blocked"}
+  ],
   "request_field_count": 22,
   "required_request_field_count": 22,
   "blocking_request_field_count": 22,

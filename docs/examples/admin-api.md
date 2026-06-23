@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6201-6220",
+  "approved_phase_range": "6221-6240",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6201-6220",
+  "approved_phase_range": "6221-6240",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1892,13 +1892,24 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6201-6220",
+  "approved_phase_range": "6221-6240",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
   "executable_command_count": 0,
   "command_route_count": 0,
   "command_draft_allowed_count": 0,
+  "command_enablement_blocker_summary_count": 7,
+  "command_enablement_blocker_summary_blocking_count": 7,
+  "command_enablement_blocker_summaries": [
+    {"blocker": "unresolved_prerequisites", "status": "blocked"},
+    {"blocker": "request_payload_contracts", "status": "blocked"},
+    {"blocker": "semantic_guard_evidence", "status": "blocked"},
+    {"blocker": "risk_proof_acceptance", "status": "blocked"},
+    {"blocker": "admin_command_route", "status": "blocked"},
+    {"blocker": "live_service_adapter", "status": "blocked"},
+    {"blocker": "contextless_review_gate", "status": "blocked"}
+  ],
   "request_field_count": 22,
   "required_request_field_count": 22,
   "blocking_request_field_count": 22,
@@ -2292,11 +2303,14 @@ refs are required/present disabled evidence and are no longer missing. Completed
 `application/admin_api/live_execution.py::*_coinbase_exchange_submission_contract`
 refs are required/present disabled evidence, while
 `application/admin_api/live_execution.py::*_post_exchange_submission_reconciliation_contract`
-refs remained missing backend contract gaps. Active 6201-6220 work adds
+refs remained missing backend contract gaps. Completed 6201-6220 work adds
 disabled post-exchange-submission reconciliation metadata only:
 `application/admin_api/live_execution.py::*_post_exchange_submission_reconciliation_contract`
 refs are required/present disabled evidence and are no longer listed in
-`missing_backend_contracts`. These rows do not register
+`missing_backend_contracts`. Active 6221-6240 work adds aggregate command
+enablement blocker summaries for unresolved prerequisites, request payload
+contracts, semantic guard evidence, risk proof acceptance, admin command routes,
+live service adapters, and contextless review. These rows do not register
 command routes, create drafts, configure or construct adapters, invoke adapters,
 execute adapters, submit Coinbase orders, validate
 payloads, write proofs, enable writers, resolve dependencies, create

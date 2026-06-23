@@ -1164,6 +1164,18 @@ class AdminFuturesCommandReadinessClosureStep(str, Enum):
     RUN_CONTEXTLESS_REVIEW_GATE = "run_contextless_review_gate"
 
 
+class AdminFuturesCommandEnablementBlocker(str, Enum):
+    """Aggregate blockers that keep futures/perpetual commands read-only."""
+
+    UNRESOLVED_PREREQUISITES = "unresolved_prerequisites"
+    REQUEST_PAYLOAD_CONTRACTS = "request_payload_contracts"
+    SEMANTIC_GUARD_EVIDENCE = "semantic_guard_evidence"
+    RISK_PROOF_ACCEPTANCE = "risk_proof_acceptance"
+    ADMIN_COMMAND_ROUTE = "admin_command_route"
+    LIVE_SERVICE_ADAPTER = "live_service_adapter"
+    CONTEXTLESS_REVIEW_GATE = "contextless_review_gate"
+
+
 class AdminFuturesCommandRiskProofKind(str, Enum):
     """Futures/perpetual proof requirement categories before command enablement."""
 

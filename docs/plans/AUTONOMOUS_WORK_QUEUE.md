@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6201-6220**.
+- Approved phase range: **6221-6240**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6181-6200`.
+- Previous completed range: `6201-6220`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6200`.
+- `current_phase`: `6220`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,143 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6201-6220
+## Active Phases 6221-6240
+
+Batch label: Futures/Perpetuals Command Enablement Blocker Summary Evidence.
+
+These phases continue M57 after completed `6201-6220` removed the disabled
+post-exchange-submission reconciliation refs from missing backend contracts.
+The next gap is not another live adapter layer. The gap is that a contextless
+operator, reviewer, or smaller agent still needs one backend-owned summary that
+explains why futures/perpetual placement, close/reduce, cancel, and
+reconciliation commands remain blocked even though required disabled evidence
+refs are present. Active `6221-6240` may add read-only aggregate blocker
+summaries to `/api/v1/futures/command-suite`, generated API schemas, frontend
+mock/read-model display, docs, examples, and validators. It must not register
+futures command routes, create command drafts, accept payloads, execute live
+services or adapters, submit/cancel Coinbase orders, acknowledge exchange
+orders, execute reconciliation, mutate futures/order/exchange state, accept
+proof records as execution authority, or grant browser/BFF execution authority.
+Spot wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot
+assumptions remain forbidden as futures/perpetual authority.
+
+### Phase 6221 - Prior Range Closure
+
+- Record completed phases `6201-6220` as historical disabled
+  post-exchange-submission reconciliation evidence and move active metadata to
+  `6221-6240`.
+
+### Phase 6222 - Blocker Taxonomy
+
+- Add a backend enum for aggregate futures/perpetual command enablement
+  blockers: unresolved prerequisites, request payload contracts, semantic guard
+  evidence, risk proof acceptance, admin command route, live service adapter,
+  and contextless review gate.
+
+### Phase 6223 - Backend Response Model
+
+- Add read-only command enablement blocker summary rows to the futures
+  command-suite response model with backend-owned, no-live, no-spot-rule,
+  browser-display-only, and BFF-forward-only fields.
+
+### Phase 6224 - Backend Read Service Aggregation
+
+- Aggregate existing command rows into blocker summaries without introducing a
+  second command behavior path, command route, draft builder, adapter call,
+  Coinbase call, or state mutation.
+
+### Phase 6225 - Backend Safety Guard
+
+- Prove every blocker summary remains `blocked`, `read_only`,
+  `backend_owned`, `live_coinbase_orders_ran=false`,
+  `command_route_registered=false`, `command_draft_allowed=false`,
+  `execution_allowed=false`, and `spot_rule_authority=false`.
+
+### Phase 6226 - Backend Focused Tests
+
+- Add focused regression coverage for the summary taxonomy, affected commands,
+  evidence refs, backend contract refs, no-route/no-draft/no-live flags, and
+  zero USDC notional.
+
+### Phase 6227 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI so the generated schema exposes
+  `AdminFuturesCommandEnablementBlocker`,
+  `AdminFuturesCommandEnablementBlockerSummaryItem`, and
+  `command_enablement_blocker_summaries`.
+
+### Phase 6228 - Frontend Schema Sync
+
+- Regenerate the frontend TypeScript schema from backend OpenAPI without
+  hand-editing generated files.
+
+### Phase 6229 - Frontend Mock Contract
+
+- Update frontend mock futures command-suite fixtures to include the seven
+  backend-owned blocker summaries and zero command authority.
+
+### Phase 6230 - Frontend Runtime Readback
+
+- Ensure backend runtime/client tests preserve the new fields without
+  transforming them into draft, validation, approval, or execution authority.
+
+### Phase 6231 - Frontend Read Model Display
+
+- Render aggregate blocker summaries in the futures/perpetual read model as
+  backend evidence only, with no command controls and no spot-rule authority.
+
+### Phase 6232 - Frontend Unit Coverage
+
+- Add focused Vitest coverage for mock backend, runtime, quality gates, and
+  futures/perpetual read-model display of the blocker summaries.
+
+### Phase 6233 - Backend Docs And Examples
+
+- Update Admin API docs, futures/perpetual examples, capability matrix,
+  maintainer handoff, and agent state so contextless readers can identify the
+  active blocker-summary evidence and the previous completed range.
+
+### Phase 6234 - Frontend Docs And Examples
+
+- Update frontend API/read-model docs, examples, autonomous queue, release
+  artifacts, maintainer handoff, and contextless review log expectations for
+  the new summaries.
+
+### Phase 6235 - Active-Range Drift Sweep
+
+- Sweep both repos for stale `6201-6220` active-state wording outside
+  historical completed evidence and update validators to require `6221-6240`.
+
+### Phase 6236 - Backend Focused Gates
+
+- Run focused backend py_compile, futures command-suite regression,
+  Admin API contract phase assertions as needed, autonomous queue validation,
+  ownership, and stale-process checks.
+
+### Phase 6237 - Frontend Focused Gates
+
+- Run frontend API check, typecheck, focused Vitest coverage, autonomous queue,
+  and stale-process checks.
+
+### Phase 6238 - Contextless Review And Remediation
+
+- Run fresh blind/contextless backend and frontend reviews. Fix any ambiguity
+  around command authority, spot-rule leakage, or missing frontend/backend
+  contract sync before advancing.
+
+### Phase 6239 - Subagent Sweep And No-Live Evidence
+
+- Close phase-scoped, stale, or previously unused subagents after findings are
+  consumed, remediated, or explicitly deferred. Record submitted notional `0`
+  USDC, executed notional `0` USDC, and no Coinbase calls.
+
+### Phase 6240 - Phase Closeout Evidence
+
+- Record focused gate results, contextless review results, phase-end subagent
+  sweep, commits, and pushed branches while leaving M57 active until the next
+  approved gap is completed.
+
+## Completion Evidence - Phases 6201-6220
 
 Batch label: Futures/Perpetuals Disabled Post-Exchange-Submission Reconciliation Contract Evidence.
 
@@ -93,7 +229,7 @@ reconciliation, mutating futures/order/exchange state, accepting proof records
 as execution authority, or granting browser/BFF execution authority. Completed
 phases `6181-6200` added disabled Coinbase exchange-submission evidence and
 left post-exchange-submission reconciliation refs as the remaining backend
-contract gap. Active `6201-6220` may add post-exchange-submission
+contract gap. The completed `6201-6220` range added post-exchange-submission
 reconciliation contract metadata only. Command routes, command drafts,
 executable decisions, adapter invocation/execution authority, Coinbase REST
 calls, exchange-order acknowledgement, reconciliation execution,
@@ -103,7 +239,7 @@ and spot-rule authority remain blocked.
 ### Phase 6201 - Prior Range Closure
 
 - Record completed phases `6181-6200` as historical disabled Coinbase
-  exchange-submission evidence and move active metadata to `6201-6220`.
+  exchange-submission evidence and moved active metadata to `6201-6220`.
 
 ### Phase 6202 - Disabled Reconciliation Scope
 

@@ -20,6 +20,7 @@ from core.enums import (
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
     AdminFuturesCommandAction,
+    AdminFuturesCommandEnablementBlocker,
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
@@ -125,6 +126,7 @@ from .models import (
     AdminFrontendFixturesResponse,
     AdminFuturesAccountReadResponse,
     AdminFuturesCommandContractItem,
+    AdminFuturesCommandEnablementBlockerSummaryItem,
     AdminFuturesCommandPrerequisiteItem,
     AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
@@ -409,7 +411,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6201-6220"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6221-6240"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -29873,6 +29875,202 @@ class AdminApiReadService:
             }
         )
 
+        def unique_strings(values: list[str | None]) -> list[str]:
+            return list(dict.fromkeys(value for value in values if value))
+
+        def command_contract_refs(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[str]:
+            return unique_strings(
+                [
+                    contract_ref
+                    for command_item in command_items
+                    for contract_ref in command_item.required_backend_contracts
+                ]
+            )
+
+        def blocker_summary(
+            blocker: AdminFuturesCommandEnablementBlocker,
+            *,
+            affected: list[AdminFuturesCommandContractItem],
+            required_evidence_refs: list[str | None],
+            detail: str,
+            required_backend_contracts: list[str] | None = None,
+        ) -> AdminFuturesCommandEnablementBlockerSummaryItem:
+            evidence_refs = unique_strings(required_evidence_refs)
+            return AdminFuturesCommandEnablementBlockerSummaryItem(
+                blocker=blocker,
+                command_count=len(affected),
+                affected_commands=[item.command for item in affected],
+                evidence_ref_count=len(evidence_refs),
+                required_evidence_refs=evidence_refs,
+                required_backend_contracts=(
+                    required_backend_contracts
+                    if required_backend_contracts is not None
+                    else command_contract_refs(affected)
+                ),
+                detail=detail,
+            )
+
+        unresolved_prerequisite_commands = [
+            command_item
+            for command_item in commands
+            if command_item.blocking_prerequisite_count
+        ]
+        request_payload_commands = [
+            command_item
+            for command_item in commands
+            if command_item.blocking_request_field_count
+        ]
+        semantic_guard_commands = [
+            command_item
+            for command_item in commands
+            if command_item.blocking_semantic_guard_count
+        ]
+        risk_proof_acceptance_commands = [
+            command_item
+            for command_item in commands
+            if command_item.risk_proof_acceptance_blocker_count
+            or command_item.blocking_risk_proof_acceptance_criterion_count
+        ]
+        route_blocked_commands = [
+            command_item
+            for command_item in commands
+            if not command_item.command_route_registered
+        ]
+        adapter_blocked_commands = [
+            command_item
+            for command_item in commands
+            if not command_item.execution_allowed
+        ]
+        contextless_review_commands = list(commands)
+        command_enablement_blocker_summaries = [
+            blocker_summary(
+                AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
+                affected=unresolved_prerequisite_commands,
+                required_evidence_refs=[
+                    item.evidence_route or item.prerequisite.value
+                    for command_item in unresolved_prerequisite_commands
+                    for item in command_item.prerequisites
+                    if item.blocking
+                ],
+                detail=(
+                    "Futures/perpetual commands remain blocked by unresolved "
+                    "backend prerequisites such as futures position scope, "
+                    "margin, collateral, liquidation, funding, approval, "
+                    "cap/guard, audit, reconciliation, live service, and "
+                    "adapter evidence. Spot wallet or inventory rules cannot "
+                    "resolve these prerequisites."
+                ),
+            ),
+            blocker_summary(
+                AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
+                affected=request_payload_commands,
+                required_evidence_refs=[
+                    item.field.value
+                    for command_item in request_payload_commands
+                    for item in command_item.request_fields
+                    if item.status != AdminApiGateStatus.PASSED
+                ],
+                detail=(
+                    "Futures/perpetual request payload contracts are defined "
+                    "as blocked fields only. No browser or BFF command draft "
+                    "may accept product, position, side, size, price, "
+                    "reduce-only, close-only, or client_order_id payloads "
+                    "until backend contracts validate those semantics."
+                ),
+            ),
+            blocker_summary(
+                AdminFuturesCommandEnablementBlocker.SEMANTIC_GUARD_EVIDENCE,
+                affected=semantic_guard_commands,
+                required_evidence_refs=[
+                    ref
+                    for command_item in semantic_guard_commands
+                    for guard in command_item.semantic_guards
+                    if guard.status != AdminApiGateStatus.PASSED
+                    for ref in (
+                        guard.missing_evidence_refs or guard.required_evidence_refs
+                    )
+                ],
+                detail=(
+                    "Futures/perpetual semantic guards still require "
+                    "backend-owned product, position, margin, liquidation, "
+                    "funding, reduce-only, close-only, idempotency, approval, "
+                    "cap/guard, audit, reconciliation, and live-boundary "
+                    "evidence before command enablement."
+                ),
+            ),
+            blocker_summary(
+                AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE,
+                affected=risk_proof_acceptance_commands,
+                required_evidence_refs=[
+                    ref
+                    for command_item in risk_proof_acceptance_commands
+                    for requirement in command_item.risk_proof_requirements
+                    for ref in (
+                        requirement.proof_acceptance_blocker_refs
+                        + [
+                            criterion.missing_evidence_ref
+                            for criterion in requirement.acceptance_criteria
+                            if criterion.blocking
+                        ]
+                    )
+                ],
+                detail=(
+                    "Futures risk-proof readbacks are evidence only. Proof "
+                    "records, validation rows, remediation rows, claim traces, "
+                    "and acceptance criteria remain blocked and do not satisfy "
+                    "risk proofs or grant command authority."
+                ),
+            ),
+            blocker_summary(
+                AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE,
+                affected=route_blocked_commands,
+                required_evidence_refs=[
+                    f"{command_item.command.value}_admin_command_route"
+                    for command_item in route_blocked_commands
+                ],
+                detail=(
+                    "No futures/perpetual Admin API command route is "
+                    "registered. The current surface is read-only command-suite "
+                    "evidence and cannot create drafts, accept payloads, or "
+                    "call command services."
+                ),
+            ),
+            blocker_summary(
+                AdminFuturesCommandEnablementBlocker.LIVE_SERVICE_ADAPTER,
+                affected=adapter_blocked_commands,
+                required_evidence_refs=[
+                    f"{command_item.command.value}_live_service_adapter"
+                    for command_item in adapter_blocked_commands
+                ],
+                detail=(
+                    "No futures/perpetual live execution service or adapter is "
+                    "bound for execution. Adapter, construction, decision, "
+                    "invocation, execution, Coinbase submission, and "
+                    "post-submission reconciliation contract refs are display "
+                    "evidence only."
+                ),
+            ),
+            blocker_summary(
+                AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE,
+                affected=contextless_review_commands,
+                required_evidence_refs=[
+                    "blind_contextless_agent_review",
+                    "backend_focused_tests",
+                    "frontend_contract_sync",
+                    "phase_end_subagent_sweep",
+                ],
+                required_backend_contracts=backend_contracts,
+                detail=(
+                    "Future enablement still requires focused tests, frontend "
+                    "contract sync, and blind/contextless review proving that "
+                    "humans and smaller agents can identify the no-live "
+                    "boundary without chat history."
+                ),
+            ),
+        ]
+
         return AdminFuturesCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             command_count=len(commands),
@@ -30427,6 +30625,15 @@ class AdminApiReadService:
             accepted_risk_proof_acceptance_criterion_count=sum(
                 command.accepted_risk_proof_acceptance_criterion_count
                 for command in commands
+            ),
+            command_enablement_blocker_summary_count=len(
+                command_enablement_blocker_summaries
+            ),
+            command_enablement_blocker_summary_blocking_count=sum(
+                1 for item in command_enablement_blocker_summaries if item.blocking
+            ),
+            command_enablement_blocker_summaries=(
+                command_enablement_blocker_summaries
             ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],
