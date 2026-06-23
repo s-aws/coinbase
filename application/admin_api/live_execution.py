@@ -26,6 +26,7 @@ from core.enums import (
     AdminApiLiveAdapterDecisionResolutionStatus,
     AdminApiLiveExecutionStatus,
     AdminApiPermission,
+    AdminFuturesCommandAction,
 )
 
 
@@ -107,6 +108,10 @@ LIVE_ADAPTER_CONSTRUCTION_CONTRACT_SOURCE = (
     "backend_live_adapter_construction_contract"
 )
 LIVE_ADAPTER_CONSTRUCTION_CONTRACT_AUTHORITY = "backend_contract_only_no_execution"
+FUTURES_LIVE_ADAPTER_CONTRACT_AUTHORITY = (
+    "backend_futures_live_adapter_contract_only_no_execution"
+)
+FUTURES_LIVE_ADAPTER_MISSING_REASON = "futures_live_adapter_construction_missing"
 LIVE_ADAPTER_CONSTRUCTION_ARTIFACT_ACCEPTANCE_AUTHORITY = (
     "backend_artifact_acceptance_requirements_only_no_execution"
 )
@@ -776,6 +781,84 @@ M55_STEALTH_REVEAL_DRY_RUN_SERVICE_SOURCE = "m55_stealth_reveal_service_dry_run"
 M55_STEALTH_REVEAL_DRY_RUN_SERVICE_MISSING_REASON = (
     "stealth_reveal_service_dry_run_only"
 )
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesLiveAdapterContract:
+    """Disabled futures/perpetual live-adapter contract metadata."""
+
+    command: AdminFuturesCommandAction
+    contract_name: str
+    contract_ref: str
+    construction_contract_ref: str
+    required: bool = True
+    present: bool = True
+    adapter_configured: bool = False
+    adapter_constructed: bool = False
+    invocation_allowed: bool = False
+    execution_allowed: bool = False
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    reconciliation_execution_enabled: bool = False
+    state_mutation_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    source: str = "disabled_futures_live_adapter_contract"
+    authority: str = FUTURES_LIVE_ADAPTER_CONTRACT_AUTHORITY
+    missing_reason: str = FUTURES_LIVE_ADAPTER_MISSING_REASON
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    blockers: tuple[str, ...] = (
+        FUTURES_LIVE_ADAPTER_MISSING_REASON,
+        LIVE_EXECUTION_DISABLED_REASON,
+    )
+    forbidden_methods: tuple[str, ...] = DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS
+
+
+def _futures_live_adapter_contract(
+    command: AdminFuturesCommandAction,
+    contract_name: str,
+    construction_contract_name: str,
+) -> FuturesLiveAdapterContract:
+    return FuturesLiveAdapterContract(
+        command=command,
+        contract_name=contract_name,
+        contract_ref=f"application/admin_api/live_execution.py::{contract_name}",
+        construction_contract_ref=(
+            f"application/admin_api/live_execution.py::{construction_contract_name}"
+        ),
+    )
+
+
+futures_place_adapter_contract = _futures_live_adapter_contract(
+    AdminFuturesCommandAction.PLACE,
+    "futures_place_adapter_contract",
+    "futures_place_adapter_construction_contract",
+)
+futures_close_reduce_adapter_contract = _futures_live_adapter_contract(
+    AdminFuturesCommandAction.CLOSE_REDUCE,
+    "futures_close_reduce_adapter_contract",
+    "futures_close_reduce_adapter_construction_contract",
+)
+futures_cancel_adapter_contract = _futures_live_adapter_contract(
+    AdminFuturesCommandAction.CANCEL,
+    "futures_cancel_adapter_contract",
+    "futures_cancel_adapter_construction_contract",
+)
+futures_reconcile_adapter_contract = _futures_live_adapter_contract(
+    AdminFuturesCommandAction.RECONCILE,
+    "futures_reconcile_adapter_contract",
+    "futures_reconcile_adapter_construction_contract",
+)
+FUTURES_LIVE_ADAPTER_CONTRACTS: dict[
+    AdminFuturesCommandAction, FuturesLiveAdapterContract
+] = {
+    futures_place_adapter_contract.command: futures_place_adapter_contract,
+    futures_close_reduce_adapter_contract.command: (
+        futures_close_reduce_adapter_contract
+    ),
+    futures_cancel_adapter_contract.command: futures_cancel_adapter_contract,
+    futures_reconcile_adapter_contract.command: futures_reconcile_adapter_contract,
+}
 
 
 @contextmanager

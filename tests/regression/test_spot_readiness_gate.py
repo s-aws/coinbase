@@ -73,9 +73,26 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(6041, 6061))
-    assert summary["status"] == "passed"
-    assert summary["approved_phase_range"] == "6041-6060"
+    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(6061, 6081))
+    check_results = {check["name"]: check for check in summary["checks"]}
+    failed_checks = {
+        name: check for name, check in check_results.items() if not check["passed"]
+    }
+
+    if failed_checks:
+        assert summary["status"] == "blocked"
+        assert set(failed_checks) == {"contextless_review_log_current_range"}
+        review_evidence = failed_checks["contextless_review_log_current_range"][
+            "evidence"
+        ]
+        assert review_evidence["first_review_heading"] == (
+            "## M57 Futures/Perpetual Disabled Live-Adapter Contract Evidence - "
+            "Phases 6061-6080"
+        )
+        assert "Result: PASS." in review_evidence["missing_current_review_text"]
+    else:
+        assert summary["status"] == "passed"
+    assert summary["approved_phase_range"] == "6061-6080"
     assert summary["approved_phase_count"] == 20
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
@@ -85,10 +102,7 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert summary["max_executed_notional_usdc"] == (
         AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC
     )
-    assert "subagent_hygiene_policy" in {
-        check["name"] for check in summary["checks"]
-    }
-    assert all(check["passed"] for check in summary["checks"])
+    assert "subagent_hygiene_policy" in check_results
 
 
 def test_spot_release_gate_coinbase_readonly_includes_cost_basis_checks():

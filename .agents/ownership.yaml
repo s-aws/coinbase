@@ -428,6 +428,8 @@ owners:
       - DEADLOCK_EXECUTIVE_SUMMARY.md
       - RACE_CONDITIONS_ANALYSIS_COMPLETE.md
       - COMPREHENSIVE_TEST_SUITE_CREATED.md
+    test_owns:
+      - tests/regression/test_diagnostics_safety.py
     tests:
       - python tools/check_ownership.py --owner ops_diagnostics
     requires_regression: false

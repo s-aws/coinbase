@@ -12,6 +12,8 @@ from dataclasses import dataclass
 
 from core.enums import AdminFuturesCommandAction
 
+from .live_execution import FUTURES_LIVE_ADAPTER_CONTRACTS
+
 
 @dataclass(frozen=True)
 class FuturesRouteContract:
@@ -70,4 +72,12 @@ FUTURES_ROUTE_CONTRACTS: dict[AdminFuturesCommandAction, FuturesRouteContract] =
 def futures_live_adapter_contract_ref(command: AdminFuturesCommandAction) -> str:
     """Return the next missing live-adapter contract ref for a command."""
 
-    return f"application/admin_api/live_execution.py::{command.value}_adapter_contract"
+    return FUTURES_LIVE_ADAPTER_CONTRACTS[command].contract_ref
+
+
+def futures_live_adapter_construction_contract_ref(
+    command: AdminFuturesCommandAction,
+) -> str:
+    """Return the missing construction contract ref for a futures adapter."""
+
+    return FUTURES_LIVE_ADAPTER_CONTRACTS[command].construction_contract_ref

@@ -302,6 +302,7 @@ from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
 from .futures_route_contracts import (
     FUTURES_ROUTE_CONTRACTS,
     futures_live_adapter_contract_ref,
+    futures_live_adapter_construction_contract_ref,
 )
 from .futures_risk_guard import FUTURES_RISK_GUARD_CONTRACT
 from .futures_risk_proof import FileFuturesRiskProofStore, FuturesRiskProofRecord
@@ -402,7 +403,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6041-6060"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6061-6080"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20023,6 +20024,10 @@ class AdminApiReadService:
             command: futures_live_adapter_contract_ref(command)
             for command in AdminFuturesCommandAction
         }
+        futures_live_adapter_construction_contract_refs = {
+            command: futures_live_adapter_construction_contract_ref(command)
+            for command in AdminFuturesCommandAction
+        }
         backend_contracts = [
             futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
             futures_command_service_contract_refs[
@@ -20039,6 +20044,18 @@ class AdminApiReadService:
             futures_live_adapter_contract_refs[AdminFuturesCommandAction.CLOSE_REDUCE],
             futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
             futures_live_adapter_contract_refs[AdminFuturesCommandAction.RECONCILE],
+            futures_live_adapter_construction_contract_refs[
+                AdminFuturesCommandAction.PLACE
+            ],
+            futures_live_adapter_construction_contract_refs[
+                AdminFuturesCommandAction.CLOSE_REDUCE
+            ],
+            futures_live_adapter_construction_contract_refs[
+                AdminFuturesCommandAction.CANCEL
+            ],
+            futures_live_adapter_construction_contract_refs[
+                AdminFuturesCommandAction.RECONCILE
+            ],
         ]
         command_required_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
@@ -20047,6 +20064,9 @@ class AdminApiReadService:
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.PLACE],
                 futures_live_adapter_contract_refs[AdminFuturesCommandAction.PLACE],
+                futures_live_adapter_construction_contract_refs[
+                    AdminFuturesCommandAction.PLACE
+                ],
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
                 futures_command_service_contract_refs[
@@ -20060,34 +20080,49 @@ class AdminApiReadService:
                 futures_live_adapter_contract_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
+                futures_live_adapter_construction_contract_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
             ],
             AdminFuturesCommandAction.CANCEL: [
                 futures_command_service_contract_refs[AdminFuturesCommandAction.CANCEL],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
                 futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
+                futures_live_adapter_construction_contract_refs[
+                    AdminFuturesCommandAction.CANCEL
+                ],
             ],
             AdminFuturesCommandAction.RECONCILE: [
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.RECONCILE],
                 futures_live_adapter_contract_refs[AdminFuturesCommandAction.RECONCILE],
+                futures_live_adapter_construction_contract_refs[
+                    AdminFuturesCommandAction.RECONCILE
+                ],
             ],
         }
         command_missing_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
-                futures_live_adapter_contract_refs[AdminFuturesCommandAction.PLACE],
+                futures_live_adapter_construction_contract_refs[
+                    AdminFuturesCommandAction.PLACE
+                ],
             ],
             AdminFuturesCommandAction.CLOSE_REDUCE: [
-                futures_live_adapter_contract_refs[
+                futures_live_adapter_construction_contract_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
             ],
             AdminFuturesCommandAction.CANCEL: [
-                futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
+                futures_live_adapter_construction_contract_refs[
+                    AdminFuturesCommandAction.CANCEL
+                ],
             ],
             AdminFuturesCommandAction.RECONCILE: [
-                futures_live_adapter_contract_refs[AdminFuturesCommandAction.RECONCILE],
+                futures_live_adapter_construction_contract_refs[
+                    AdminFuturesCommandAction.RECONCILE
+                ],
             ],
         }
         product_scope_evidence_routes = [

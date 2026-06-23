@@ -35,6 +35,7 @@ from application.admin_api.futures_reconciliation import (
 from application.admin_api.futures_route_contracts import (
     FUTURES_ROUTE_CONTRACTS,
     futures_live_adapter_contract_ref,
+    futures_live_adapter_construction_contract_ref,
 )
 from application.admin_api.futures_risk_guard import (
     AdminApiFuturesRiskGuard,
@@ -46,7 +47,10 @@ from application.admin_api.futures_risk_proof_service import (
     FuturesRiskProofError,
 )
 from application.admin_api.idempotency import FileIdempotencyStore
-from application.admin_api.live_execution import get_disabled_live_execution_service
+from application.admin_api.live_execution import (
+    FUTURES_LIVE_ADAPTER_CONTRACTS,
+    get_disabled_live_execution_service,
+)
 from application.admin_api.models import (
     AdminApiActor,
     AdminLiveAdmissionDecisionEvidence,
@@ -195,6 +199,23 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         assert contract.bff_authority == "forward_only_no_execution"
         assert futures_live_adapter_contract_ref(command) == (
             f"application/admin_api/live_execution.py::{command.value}_adapter_contract"
+        )
+        adapter_contract = FUTURES_LIVE_ADAPTER_CONTRACTS[command]
+        assert adapter_contract.contract_ref == futures_live_adapter_contract_ref(command)
+        assert adapter_contract.construction_contract_ref == (
+            futures_live_adapter_construction_contract_ref(command)
+        )
+        assert adapter_contract.present is True
+        assert adapter_contract.adapter_configured is False
+        assert adapter_contract.adapter_constructed is False
+        assert adapter_contract.invocation_allowed is False
+        assert adapter_contract.execution_allowed is False
+        assert adapter_contract.live_coinbase_orders_ran is False
+        assert adapter_contract.browser_authority == "display_only"
+        assert adapter_contract.bff_authority == "forward_only_no_execution"
+        assert "create_order" in adapter_contract.forbidden_methods
+        assert "futures_live_adapter_construction_missing" in (
+            adapter_contract.blockers
         )
 
 

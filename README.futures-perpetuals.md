@@ -301,10 +301,16 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   command route. M57 phases 6041-6060 define
   `api/v1/routes/futures.py::*_route_contract` refs as required/present
   disabled backend evidence only. Command route count, command draft count, and
-  executable command count stay zero. The next missing backend gaps are
-  `application/admin_api/live_execution.py::*_adapter_contract` refs; those
-  refs do not construct adapters, call Coinbase, execute reconciliation, mutate
-  futures state, or grant browser/BFF authority.
+  executable command count stay zero.
+- Do not treat disabled live-adapter contract metadata as adapter construction
+  or invocation. M57 phases 6061-6080 define
+  `application/admin_api/live_execution.py::*_adapter_contract` refs as
+  required/present disabled backend evidence only. The next missing backend
+  gaps are
+  `application/admin_api/live_execution.py::*_adapter_construction_contract`
+  refs. Adapter contract refs do not configure or construct adapters, call
+  Coinbase, execute reconciliation, mutate futures state, or grant browser/BFF
+  authority.
 - Do not treat command readiness closure steps as completed implementation.
   They are an ordered backend-owned plan for future enablement slices and
   remain blocked until implemented and reviewed through backend contracts.

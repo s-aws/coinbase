@@ -5,10 +5,10 @@ Keep it short. Keep it factual.
 
 ## Metadata
 
-- Last updated (ET): 2026-06-22
+- Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): backend `c87a69e6` completed range `6021-6040`; current active range is `6041-6060`.
+- Commit (optional): backend `4288e746` completed range `6041-6060`; current active range is `6061-6080`.
 
 ## Current Objective
 
@@ -56,33 +56,38 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6021-6040`.
-- Active autonomous range: `6041-6060`.
-- Completed `6021-6040` added disabled futures reconciliation contract
-  evidence to the M57 futures/perpetual command suite. Reconciliation remains
-  required/present disabled backend evidence in
-  `application/admin_api/futures_reconciliation.py`, while command route,
-  command draft, live adapter, Coinbase, reconciliation execution, futures
-  state mutation, browser, BFF, and spot-rule authority remain blocked.
-  `/api/v1/futures/risk-proofs` remains evidence-only and cannot satisfy proof
-  acceptance or command execution. Backend commit `c87a69e6` and frontend
-  commit `55c79ae` completed the range with `0` USDC submitted/executed
-  notional.
-- Phase-end subagent sweep for the completed `6021-6040` work was performed:
+- Latest completed autonomous range before current work: `6041-6060`.
+- Active autonomous range: `6061-6080`.
+- Completed `6041-6060` added disabled futures route-registration contract
+  evidence to the M57 futures/perpetual command suite. Route-registration refs
+  remain required/present disabled backend evidence in
+  `api/v1/routes/futures.py`, while command route, command draft, executable
+  live adapter, Coinbase, reconciliation execution, futures state mutation,
+  browser, BFF, and spot-rule authority remain blocked. Backend commit
+  `4288e746` and frontend commit `b6cbfe9` completed the range with `0` USDC
+  submitted/executed notional.
+- Phase-end subagent sweep for the completed `6041-6060` work was performed:
   all phase-scoped blind/contextless reviewers were closed after findings were
   consumed and remediated. No phase-scoped subagent remains intentionally open.
-  Active `6041-6060` must not register futures command routes, create command
-  drafts, enable live adapters, call Coinbase, execute reconciliation, mutate
-  futures state, accept proof records as sufficient for execution, or grant
-  browser/BFF authority. Spot wallet, no-shorting, USDC, cost-basis,
-  average-cost, and inventory-lot assumptions are forbidden as
+  Active `6061-6080` must not register futures command routes, create command
+  drafts, construct or invoke live adapters, call Coinbase, execute
+  reconciliation, mutate futures state, accept proof records as sufficient for
+  execution, or grant browser/BFF authority. Spot wallet, no-shorting, USDC,
+  cost-basis, average-cost, and inventory-lot assumptions are forbidden as
   futures/perpetual authority.
-- Current direction: complete phases `6041-6060` by syncing disabled futures
-  route-registration contract evidence, shifting command-suite missing-contract
-  evidence to live adapter refs, syncing backend/frontend schema and read-model
-  consumption, docs, focused gates, blind/contextless review, and phase-end
-  stale-subagent sweep.
-- Current boundary label: disabled futures route-registration contract evidence.
+- Current direction: complete phases `6061-6080` by syncing disabled futures
+  live-adapter contract evidence, shifting command-suite missing-contract
+  evidence to adapter construction refs, syncing backend/frontend schema and
+  read-model consumption, docs, focused gates, blind/contextless review, and
+  phase-end stale-subagent sweep.
+- Current boundary label: disabled futures live-adapter contract evidence.
+- Current contract split: adapter contract refs are required/present disabled
+  evidence; adapter construction refs remain missing. `/api/v1/futures/risk-proofs`
+  GET readbacks use read-only resolver evidence. `POST /api/v1/futures/risk-proofs`
+  records append-only local proof evidence only and does not accept proof
+  records as sufficient for execution.
+- Exact current boundary phrase: adapter contract refs are required/present disabled evidence.
+- Exact current boundary phrase: adapter construction refs remain missing.
 - Latest completed milestone slice: M55 - Stealth Full Admin Command Suite
   evidence binding; M55 still has live stealth blockers before full command
   suite completion can be claimed.
@@ -684,15 +689,15 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6041-6060`.
+- Active autonomous range: `6061-6080`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6041-6060` by syncing disabled
-  backend futures route-registration contract evidence for placement,
-  close/reduce, cancel, and reconcile across backend/frontend evidence. Route
-  contracts are required/present disabled evidence; the remaining missing
-  backend gaps are live adapter refs. Command route, command draft, live
-  adapter, Coinbase, reconciliation execution, state mutation, browser, BFF,
-  and spot-rule authority remain blocked.
+- Current direction: complete active phases `6061-6080` by syncing disabled
+  backend futures live-adapter contract evidence for placement, close/reduce,
+  cancel, and reconcile across backend/frontend evidence. Adapter contract refs
+  are required/present disabled evidence; adapter construction refs remain
+  missing. Command route, command draft, executable adapter, Coinbase,
+  reconciliation execution, state mutation, browser, BFF, and spot-rule
+  authority remain blocked.
   Completed `4341-4360` added blocked producer-route contract clearance-step
   review-input store record-validation remediation dependency work-item
   claim-trace clearance-step review-input store record-validation remediation
@@ -1540,15 +1545,15 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known.
-- Exact next command: complete active phases `6041-6060` by adding disabled
-  futures route-registration contract evidence, shifting missing backend
-  contracts to live adapter refs after route contracts become required/present,
-  syncing OpenAPI and frontend generated schema, mapping runtime/mock/read-model
+- Exact next command: complete active phases `6061-6080` by adding disabled
+  futures live-adapter contract evidence, shifting missing backend contracts to
+  adapter construction refs after adapter refs become required/present, syncing
+  OpenAPI and frontend generated schema, mapping runtime/mock/read-model
   display, updating docs and validators, then running focused gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live proof.
-  The active gap is disabled route-registration evidence only; no futures
+  The active gap is disabled live-adapter contract evidence only; no futures
   command route, command draft, exchange order placement/cancellation,
   reconciliation execution, Coinbase read/write, futures/order/exchange-state
   mutation, accepted proof requirement, accepted proof payload, accepted proof
-  record as command readiness, live adapter, or browser/BFF authority is
-  allowed in this range.
+  record as command readiness, adapter construction/invocation, or browser/BFF
+  authority is allowed in this range.

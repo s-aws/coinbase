@@ -545,10 +545,13 @@ blocked. The next missing backend contract is
 M57 phases 6021-6040 completed that reconciliation gap by adding disabled
 backend-owned `record_futures_reconciliation_plan` contract evidence only.
 Reconciliation remains required and is no longer the missing backend contract.
-M57 phases 6041-6060 add disabled futures route-registration contract metadata
-only. Route refs are required/present disabled evidence, but no futures command
-route is registered; the next missing backend gaps are the disabled live adapter
-contract refs in `application/admin_api/live_execution.py::*_adapter_contract`.
+M57 phases 6041-6060 completed disabled futures route-registration contract
+metadata only. Route refs are required/present disabled evidence, but no futures
+command route is registered. M57 phases 6061-6080 add disabled futures
+live-adapter contract metadata only. Adapter contract refs are
+required/present disabled evidence, but no adapter is configured, constructed,
+or invokable; the next missing backend gaps are the adapter construction refs in
+`application/admin_api/live_execution.py::*_adapter_construction_contract`.
 No live reconciliation or trading authority is created.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is

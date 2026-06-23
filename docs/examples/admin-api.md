@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6041-6060",
+  "approved_phase_range": "6061-6080",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6041-6060",
+  "approved_phase_range": "6061-6080",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1890,7 +1890,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6041-6060",
+  "approved_phase_range": "6061-6080",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2264,17 +2264,22 @@ risk-guard method. The risk-guard contract remains required, but the
 command-suite no longer reports it as missing. Completed 6021-6040 rows add
 disabled futures reconciliation evidence:
 `record_futures_reconciliation_plan` is required/present disabled backend
-evidence and is no longer missing. Active 6041-6060 work adds disabled
+evidence and is no longer missing. Completed 6041-6060 rows add disabled
 futures route-registration contract metadata only:
 `api/v1/routes/futures.py::*_route_contract` refs are required/present disabled
-evidence, while `application/admin_api/live_execution.py::*_adapter_contract`
-refs are the current missing backend contract gaps. These rows do not
-register command routes, create drafts, validate payloads, write proofs, enable
-writers, resolve dependencies, create remediation or dependency work items,
-claim work items, create or resolve claim traces, create or execute clearance
-plans, execute clearance steps, complete clearance-step reviews, clear claim
-traces, accept review inputs, register claim ledgers, perform remediation, call
-Coinbase, execute reconciliation, or grant browser/BFF authority.
+evidence and are no longer missing. Active 6061-6080 work adds disabled
+futures live-adapter contract metadata only:
+`application/admin_api/live_execution.py::*_adapter_contract` refs are
+required/present disabled evidence, while
+`application/admin_api/live_execution.py::*_adapter_construction_contract` refs
+are the current missing backend contract gaps. These rows do not register
+command routes, create drafts, configure or construct adapters, validate
+payloads, write proofs, enable writers, resolve dependencies, create
+remediation or dependency work items, claim work items, create or resolve claim
+traces, create or execute clearance plans, execute clearance steps, complete
+clearance-step reviews, clear claim traces, accept review inputs, register
+claim ledgers, perform remediation, call Coinbase, execute reconciliation, or
+grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account

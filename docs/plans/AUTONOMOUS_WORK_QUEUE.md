@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6041-6060**.
+- Approved phase range: **6061-6080**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6021-6040`.
+- Previous completed range: `6041-6060`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6040`.
+- `current_phase`: `6060`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,19 +81,145 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6041-6060
+## Active Phases 6061-6080
+
+Batch label: Futures/Perpetuals Disabled Live-Adapter Contract Evidence.
+
+These phases continue M57 by turning the futures/perpetual live-adapter refs
+into named disabled backend contract evidence without constructing adapters or
+enabling execution. Completed phases `6041-6060` added disabled route-
+registration evidence and shifted the remaining missing backend contract gap to
+`application/admin_api/live_execution.py::*_adapter_contract`. Active
+`6061-6080` may add adapter contract metadata only; adapter construction
+contracts remain missing. Command routes, command drafts, executable adapters,
+Coinbase calls, reconciliation execution, futures/order/exchange mutation,
+browser authority, BFF execution authority, and spot-rule authority remain
+blocked.
+
+### Phase 6061 - Prior Range Closure
+
+- Record completed phases `6041-6060` as historical disabled route-registration
+  evidence and move active metadata to `6061-6080`.
+
+### Phase 6062 - Disabled Futures Live-Adapter Scope
+
+- Define futures live-adapter contracts as backend-owned disabled evidence, not
+  executable adapter construction, command execution, Coinbase activity,
+  reconciliation execution, or state mutation.
+
+### Phase 6063 - Backend Live-Adapter Contract Metadata
+
+- Add disabled `application/admin_api/live_execution.py::*_adapter_contract`
+  metadata for place, close/reduce, cancel, and reconcile command families
+  without adding adapter constructors or Coinbase calls.
+
+### Phase 6064 - Adapter Presence Guard
+
+- Ensure adapter contract evidence cannot be mistaken for configured,
+  constructed, invokable, or executable live adapters.
+
+### Phase 6065 - Required Versus Missing Contract Shift
+
+- Preserve adapter refs in `required_backend_contracts` while removing them
+  from `missing_backend_contracts`; leave
+  `application/admin_api/live_execution.py::*_adapter_construction_contract`
+  refs as the missing backend gaps.
+
+### Phase 6066 - Readiness Next Contract Shift
+
+- Shift readiness `next_required_backend_contract` from adapter refs to adapter
+  construction refs without changing prerequisites, semantic guards, proof
+  acceptance, drafts, routes, Coinbase, reconciliation execution, or execution
+  authority.
+
+### Phase 6067 - Backend Contract Tests
+
+- Add focused regression coverage for disabled adapter contract evidence,
+  required but non-missing adapter refs, next missing construction refs, and
+  unchanged no-route/no-draft/no-live boundaries.
+
+### Phase 6068 - OpenAPI Verification
+
+- Regenerate or verify backend OpenAPI while proving no futures command route
+  path, executable adapter route, or Coinbase execution surface is added.
+
+### Phase 6069 - Frontend Schema Sync
+
+- Regenerate or verify the frontend generated TypeScript schema from backend
+  OpenAPI without hand-editing generated files.
+
+### Phase 6070 - Frontend Mock Adapter Contract Alignment
+
+- Update frontend mock futures command-suite fixtures so adapter refs are
+  required/present disabled evidence and adapter construction refs remain
+  missing.
+
+### Phase 6071 - Frontend Read Model Review
+
+- Verify futures/perpetual read-model display renders adapter contract evidence
+  as backend-owned and still shows no command routes, drafts, executable
+  adapters, Coinbase, reconciliation execution, or browser authority.
+
+### Phase 6072 - Frontend Unit Coverage
+
+- Update focused Vitest coverage for mock backend, runtime, quality gates, and
+  futures/perpetual read-model assertions around the disabled adapter-contract
+  shift.
+
+### Phase 6073 - Docs And Examples
+
+- Update backend/frontend docs, examples, maintainer handoff, contextless review
+  logs, and agent state for disabled adapter-contract semantics.
+
+### Phase 6074 - Active-Range Drift Sweep
+
+- Search backend/frontend docs, tests, mocks, generated schema, and validators
+  for stale active `6041-6060` wording that should now be historical only.
+
+### Phase 6075 - Backend Focused Gates
+
+- Run backend compile, OpenAPI, focused futures command-suite regression,
+  autonomous queue, and ownership checks.
+
+### Phase 6076 - Frontend Focused Gates
+
+- Run frontend generated API, typecheck, lint/security where relevant, focused
+  unit tests, and autonomous/deployment checks.
+
+### Phase 6077 - Contextless Review And Remediation
+
+- Run blind/contextless backend/frontend review for disabled adapter-contract
+  clarity, no spot-rule leakage, and no browser/BFF/live authority; remediate
+  or explicitly defer findings.
+
+### Phase 6078 - Subagent Sweep
+
+- Close phase-scoped, stale, and unused subagents after findings are consumed,
+  remediated, or explicitly deferred.
+
+### Phase 6079 - No-Live Evidence
+
+- Record no live Coinbase execution, submitted notional `0` USDC, executed
+  notional `0` USDC, and the unchanged live-cap posture for this active range.
+
+### Phase 6080 - Phase Closeout Evidence
+
+- Record implementation, verification, review outcome, stale-subagent sweep
+  result, commits, pushes, and the next milestone-linked work.
+
+## Completed Phases 6041-6060
 
 Batch label: Futures/Perpetuals Disabled Route-Registration Contract Evidence.
 
-These phases continue M57 by turning the futures/perpetual command route
+These phases continued M57 by turning the futures/perpetual command route
 registration refs into named disabled backend contract evidence without
 registering command routes. Completed phases `6021-6040` added disabled
 reconciliation evidence and shifted the remaining missing contract gap to
-`api/v1/routes/futures.py::*_route_contract`. Active `6041-6060` may add
+`api/v1/routes/futures.py::*_route_contract`. The `6041-6060` range added
 route-registration contract metadata only; command routes, command drafts,
 live adapters, Coinbase calls, reconciliation execution, futures/order/
 exchange mutation, browser authority, BFF execution authority, and spot-rule
-authority remain blocked.
+authority remained blocked.
 
 ### Phase 6041 - Prior Range Closure
 
@@ -205,6 +331,39 @@ authority remain blocked.
 
 - Record implementation, verification, review outcome, stale-subagent sweep
   result, commits, pushes, and the next milestone-linked work.
+
+## Completion Evidence - Phases 6041-6060
+
+- `application/admin_api/futures_route_contracts.py` defines disabled backend
+  route-registration contract evidence for futures place, close/reduce, cancel,
+  and reconcile command families.
+- `GET /api/v1/futures/command-suite` now keeps route-registration refs in
+  `required_backend_contracts` while removing them from
+  `missing_backend_contracts`; the remaining backend contract gaps are
+  `application/admin_api/live_execution.py::*_adapter_contract` refs.
+- Frontend generated schema, mocks, and futures/perpetual read-model rendering
+  consume the backend-owned contract split. The UI visibly renders
+  route-registration as required/present and live-adapter refs as missing
+  without creating command buttons, command drafts, BFF mutation authority,
+  browser approval, Coinbase execution, reconciliation execution, futures state
+  mutation, or spot-rule authority.
+- Backend focused gates passed: Python compile, generated OpenAPI, global
+  ownership check, autonomous queue check, stale test-process check, focused
+  futures risk-proof/Admin API contract checks, OpenAPI parity checks, and
+  `tests/regression/test_spot_readiness_gate.py`.
+- Frontend focused gates passed: generated API check, autonomous queue check,
+  release readiness, deployment readiness, command-fetch guard, typecheck,
+  lint, stale test-process check, and focused mock/runtime/admin-shell/quality/
+  futures read-model unit tests.
+- Blind/contextless backend and frontend reviews returned PASS after stale docs
+  and mock display findings were remediated. Phase-end stale-subagent sweep
+  closed phase-scoped reviewers after findings were consumed. No phase-scoped,
+  stale, or unused subagent remains intentionally open from that range.
+- Full backend regression and frontend `release:gate` were not run because
+  this was ordinary phase work, not durable milestone closeout.
+- Live Coinbase execution was not run; submitted notional `0` USDC, executed
+  notional `0` USDC. Backend commit `4288e746` and frontend commit `b6cbfe9`
+  contain the pushed route-registration implementation.
 
 ## Completion Evidence - Phases 6021-6040
 
