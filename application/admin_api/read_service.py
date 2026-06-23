@@ -302,6 +302,8 @@ from .models import (
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .futures_command_service import FUTURES_COMMAND_SERVICE_CONTRACTS
+from .futures_proof_routes import get_futures_proof_route_contract
+from .futures_proof_writer import get_futures_proof_writer_contract
 from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
 from .futures_route_contracts import (
     FUTURES_ROUTE_CONTRACTS,
@@ -413,7 +415,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6281-6300"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6301-6320"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -21364,49 +21366,49 @@ class AdminApiReadService:
                 *,
                 proof_kind: AdminFuturesCommandRiskProofKind,
             ) -> list[AdminFuturesCommandRiskProofContractItem]:
+                route_contract = get_futures_proof_route_contract(
+                    command_id,
+                    proof_kind,
+                )
+                writer_contract = get_futures_proof_writer_contract(
+                    command_id,
+                    proof_kind,
+                )
                 route_ref = (
                     f"{command_id.value}_{proof_kind.value}_proof_route_registered"
                 )
                 writer_ref = (
                     f"{command_id.value}_{proof_kind.value}_proof_writer_reviewed"
                 )
-                route_path = (
-                    f"/api/v1/futures/proofs/{command_id.value}/"
-                    f"{proof_kind.value}"
-                )
                 specs = [
                     (
                         AdminFuturesCommandRiskProofContractKind.PROOF_ROUTE,
-                        (
-                            "application/admin_api/futures_proof_routes.py::"
-                            f"post_{command_id.value}_{proof_kind.value}_proof"
-                        ),
-                        route_path,
-                        "POST",
+                        route_contract.contract_ref,
+                        route_contract.route_path,
+                        route_contract.method,
                         route_ref,
                         (
                             f"{command_id.value} {proof_kind.value} requires a "
-                            "backend-owned proof route contract before proof "
-                            "evidence can be accepted. This row does not "
-                            "register a route, accept command payloads, or "
-                            "enable execution."
+                            "backend-owned disabled proof route contract before "
+                            "proof evidence can be accepted. This row is backed "
+                            f"by {route_contract.contract_ref}, but it does not "
+                            "register a route, accept command payloads, or enable "
+                            "execution."
                         ),
                     ),
                     (
                         AdminFuturesCommandRiskProofContractKind.PROOF_WRITER,
-                        (
-                            "application/admin_api/futures_proof_writer.py::"
-                            f"write_{command_id.value}_{proof_kind.value}_proof"
-                        ),
+                        writer_contract.contract_ref,
                         None,
-                        "LOCAL",
+                        writer_contract.method,
                         writer_ref,
                         (
                             f"{command_id.value} {proof_kind.value} requires a "
-                            "reviewed backend proof writer before proof "
-                            "evidence can be accepted. This row keeps the "
-                            "writer disabled and cannot mutate exchange or "
-                            "local trading state."
+                            "reviewed backend disabled proof writer before proof "
+                            "evidence can be accepted. This row is backed by "
+                            f"{writer_contract.contract_ref}, but it keeps the "
+                            "writer disabled and cannot mutate exchange or local "
+                            "trading state."
                         ),
                     ),
                 ]

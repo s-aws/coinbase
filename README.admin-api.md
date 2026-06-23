@@ -579,7 +579,15 @@ or BFF authority. M57 phases 6261-6280 add backend-owned
 `command_enablement_sequence_command_traces` derived from the same readiness
 closure steps so each aggregate sequence step can be traced to exact
 per-command evidence without creating route, draft, Coinbase, reconciliation,
-state-mutation, browser, BFF, or spot-rule authority.
+state-mutation, browser, BFF, or spot-rule authority. M57 phases 6281-6300 add
+disabled reconciliation command-service parity evidence through
+`reconcile_futures_position` while preserving
+`record_futures_reconciliation_plan` as the separate required reconciliation
+contract. M57 phases 6301-6320 add disabled futures/perpetual proof
+route/writer contract registry evidence through `FUTURES_PROOF_ROUTE_CONTRACTS`
+and `FUTURES_PROOF_WRITER_CONTRACTS`; those registries do not register proof
+routes, create proof writers, accept proof records, or grant execution
+authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

@@ -62,9 +62,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6281-6300"
-APPROVED_PHASES = tuple(range(6281, 6301))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6261-6280"
+APPROVED_PHASE_RANGE = "6301-6320"
+APPROVED_PHASES = tuple(range(6301, 6321))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6281-6300"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -271,17 +271,21 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"command_enablement_sequence_steps"',
             '"command_enablement_sequence_step_count"',
             '"command_enablement_sequence_step_blocking_count"',
-            '"service_method": "reconcile_futures_position"',
-            '"application/admin_api/futures_command_service.py::reconcile_futures_position"',
-            '"application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"',
+            '"application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof"',
+            '"application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof"',
+            '"registered_proof_route_count": 0',
+            '"enabled_proof_writer_count": 0',
         ],
         FUTURES_PERPETUALS_README: [
-            "`reconcile_futures_position`",
-            "`record_futures_reconciliation_plan`",
-            "command-service bridge",
-            "separate required reconciliation-plan contract",
+            "`FUTURES_PROOF_ROUTE_CONTRACTS`",
+            "`FUTURES_PROOF_WRITER_CONTRACTS`",
+            "`application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`",
+            "`application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`",
+            "proof route/writer contract registry evidence",
             "backend-owned read-only evidence",
             "do not register futures command routes",
+            "register proof routes",
+            "create proof writers",
             "create command drafts",
             "call Coinbase",
             "execute reconciliation",
@@ -290,11 +294,14 @@ def _check_example_phase_range_docs() -> QueueCheck:
         ],
         API_REFERENCE_DOC: [
             "`GET /api/v1/futures/command-suite`",
-            "`reconcile_futures_position`",
-            "`record_futures_reconciliation_plan`",
-            "command-service bridge",
-            "separate required reconciliation-plan contract",
+            "`FUTURES_PROOF_ROUTE_CONTRACTS`",
+            "`FUTURES_PROOF_WRITER_CONTRACTS`",
+            "`application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`",
+            "`application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`",
+            "proof route/writer contract registry evidence",
             "do not register futures command",
+            "register proof routes",
+            "create proof writers",
             "create command drafts",
             "call Coinbase",
             "execute reconciliation",
@@ -304,10 +311,11 @@ def _check_example_phase_range_docs() -> QueueCheck:
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
             f"active {APPROVED_PHASE_RANGE} range",
-            '"service_method": "reconcile_futures_position"',
-            '"application/admin_api/futures_command_service.py::reconcile_futures_position"',
-            '"application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"',
-            "separate required reconciliation-plan contract",
+            '"application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof"',
+            '"application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof"',
+            '"registered_proof_route_count": 0',
+            '"enabled_proof_writer_count": 0',
+            "proof route/writer contract registry evidence",
             "semantic_guard_evidence",
             "risk_proof_acceptance",
             "admin_command_route",
@@ -918,10 +926,11 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
-        "futures reconciliation command-service parity evidence",
-        "backend-owned futures reconciliation command-service bridge",
-        "reconcile_futures_position",
-        "record_futures_reconciliation_plan",
+        "futures proof route/writer contract registry evidence",
+        "FUTURES_PROOF_ROUTE_CONTRACTS",
+        "FUTURES_PROOF_WRITER_CONTRACTS",
+        "application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof",
+        "application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof",
         "disabled futures adapter-execution contract evidence",
         "adapter contract refs are required/present disabled evidence",
         "adapter construction refs are required/present disabled evidence",
@@ -1048,6 +1057,10 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `6261-6280`",
         "complete active phases `6261-6280`",
         "Active `6261-6280`",
+        "current active range is `6281-6300`",
+        "Active autonomous range: `6281-6300`",
+        "complete active phases `6281-6300`",
+        "Active `6281-6300`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -1076,11 +1089,13 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
-        "futures reconciliation command-service parity evidence",
-        "reconcile_futures_position",
-        "record_futures_reconciliation_plan",
-        "separate required reconciliation-plan contract",
-        "service_method",
+        "futures proof route/writer contract registry evidence",
+        "FUTURES_PROOF_ROUTE_CONTRACTS",
+        "FUTURES_PROOF_WRITER_CONTRACTS",
+        "application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof",
+        "application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof",
+        "registered_proof_route_count",
+        "enabled_proof_writer_count",
         "required_backend_contracts",
         "/api/v1/futures/risk-proofs",
         "GET /api/v1/futures/risk-proofs readbacks use read-only resolver evidence",

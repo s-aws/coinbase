@@ -27,6 +27,8 @@ from application.admin_api.futures_command_service import (
     FUTURES_COMMAND_SERVICE_CONTRACTS,
     FuturesCommandServiceDisabledError,
 )
+from application.admin_api.futures_proof_routes import FUTURES_PROOF_ROUTE_CONTRACTS
+from application.admin_api.futures_proof_writer import FUTURES_PROOF_WRITER_CONTRACTS
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -142,6 +144,106 @@ def test_futures_command_service_contracts_are_disabled() -> None:
     assert "reconcile_futures_position" in message
     assert "reconciliation execution" in message
     assert "Coinbase calls" in message
+
+
+def test_futures_risk_proof_route_and_writer_contracts_are_disabled() -> None:
+    command_suite = AdminApiReadService().build_futures_command_suite()
+    emitted_route_refs: set[str] = set()
+    emitted_writer_refs: set[str] = set()
+
+    assert len(FUTURES_PROOF_ROUTE_CONTRACTS) == 20
+    assert len(FUTURES_PROOF_WRITER_CONTRACTS) == 20
+    assert set(FUTURES_PROOF_ROUTE_CONTRACTS) == set(FUTURES_PROOF_WRITER_CONTRACTS)
+
+    for (command, proof_kind), route_contract in FUTURES_PROOF_ROUTE_CONTRACTS.items():
+        writer_contract = FUTURES_PROOF_WRITER_CONTRACTS[(command, proof_kind)]
+        assert route_contract.command == command
+        assert route_contract.proof_kind == proof_kind
+        assert route_contract.method_name == (
+            f"post_{command.value}_{proof_kind.value}_proof"
+        )
+        assert route_contract.contract_ref == (
+            "application/admin_api/futures_proof_routes.py::"
+            f"post_{command.value}_{proof_kind.value}_proof"
+        )
+        assert route_contract.route_path == (
+            f"/api/v1/futures/proofs/{command.value}/{proof_kind.value}"
+        )
+        assert route_contract.method == "POST"
+        assert route_contract.route_registered is False
+        assert route_contract.proof_payloads_accepted is False
+        assert route_contract.command_route_registered is False
+        assert route_contract.command_draft_allowed is False
+        assert route_contract.execution_allowed is False
+        assert route_contract.live_coinbase_orders_ran is False
+
+        assert writer_contract.command == command
+        assert writer_contract.proof_kind == proof_kind
+        assert writer_contract.method_name == (
+            f"write_{command.value}_{proof_kind.value}_proof"
+        )
+        assert writer_contract.contract_ref == (
+            "application/admin_api/futures_proof_writer.py::"
+            f"write_{command.value}_{proof_kind.value}_proof"
+        )
+        assert writer_contract.method == "LOCAL"
+        assert writer_contract.writer_enabled is False
+        assert writer_contract.proof_records_accepted is False
+        assert writer_contract.proof_records_write_allowed is False
+        assert writer_contract.command_route_registered is False
+        assert writer_contract.command_draft_allowed is False
+        assert writer_contract.execution_allowed is False
+        assert writer_contract.live_coinbase_orders_ran is False
+
+    for command in command_suite.commands:
+        for proof_requirement in command.risk_proof_requirements:
+            route_contract = FUTURES_PROOF_ROUTE_CONTRACTS[
+                (command.command, proof_requirement.proof_kind)
+            ]
+            writer_contract = FUTURES_PROOF_WRITER_CONTRACTS[
+                (command.command, proof_requirement.proof_kind)
+            ]
+            assert proof_requirement.proof_contract_count == 2
+            assert proof_requirement.blocking_proof_contract_count == 2
+            assert proof_requirement.registered_proof_route_count == 0
+            assert proof_requirement.enabled_proof_writer_count == 0
+            assert proof_requirement.proof_contracts[0].required_backend_contract == (
+                route_contract.contract_ref
+            )
+            assert proof_requirement.proof_contracts[0].required_route_path == (
+                route_contract.route_path
+            )
+            assert proof_requirement.proof_contracts[0].required_method == (
+                route_contract.method
+            )
+            assert proof_requirement.proof_contracts[0].route_registered is False
+            assert proof_requirement.proof_contracts[0].proof_route_registered is False
+            assert proof_requirement.proof_contracts[1].required_backend_contract == (
+                writer_contract.contract_ref
+            )
+            assert proof_requirement.proof_contracts[1].required_method == (
+                writer_contract.method
+            )
+            assert proof_requirement.proof_contracts[1].writer_enabled is False
+            assert proof_requirement.proof_contracts[1].proof_writer_enabled is False
+            assert all(
+                contract.execution_allowed is False
+                and contract.command_route_registered is False
+                and contract.command_draft_allowed is False
+                and contract.backend_owned is True
+                and contract.browser_authority == "display_only"
+                and contract.bff_authority == "forward_only_no_execution"
+                for contract in proof_requirement.proof_contracts
+            )
+            emitted_route_refs.add(route_contract.contract_ref)
+            emitted_writer_refs.add(writer_contract.contract_ref)
+
+    assert emitted_route_refs == {
+        contract.contract_ref for contract in FUTURES_PROOF_ROUTE_CONTRACTS.values()
+    }
+    assert emitted_writer_refs == {
+        contract.contract_ref for contract in FUTURES_PROOF_WRITER_CONTRACTS.values()
+    }
 
 
 def test_futures_risk_guard_contract_is_disabled() -> None:

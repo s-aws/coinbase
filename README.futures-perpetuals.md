@@ -315,6 +315,17 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   positions, read or write Coinbase, mutate futures/order/exchange state,
   satisfy proof acceptance, register command routes, create drafts, or grant
   browser/BFF authority.
+- Do not treat futures proof route/writer contract registry evidence as proof
+  acceptance. M57 phases 6301-6320 define
+  `FUTURES_PROOF_ROUTE_CONTRACTS` and `FUTURES_PROOF_WRITER_CONTRACTS` as
+  disabled backend-owned registries for risk-proof contract refs such as
+  `application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`
+  and
+  `application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`.
+  These registries must not register proof routes, create proof writers,
+  accept proof records, satisfy risk proof requirements, register command
+  routes, create drafts, call Coinbase, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser/BFF authority.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define
   `evaluate_futures_margin_collateral_liquidation` as disabled backend

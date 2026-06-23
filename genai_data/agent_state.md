@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6281-6300`.
+- Commit (optional): current active range is `6301-6320`.
 
 ## Current Objective
 
@@ -56,40 +56,50 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6261-6280`.
-- Active autonomous range: `6281-6300`.
+- Latest completed autonomous range before current work: `6281-6300`.
+- Active autonomous range: `6301-6320`.
+- Completed `6281-6300` added disabled futures reconciliation command-service
+  parity evidence to the M57 futures/perpetual command suite. The
+  `futures_reconcile` row reports
+  `service_method="reconcile_futures_position"` while preserving
+  `record_futures_reconciliation_plan` as the separate required
+  reconciliation-plan contract. The range completed with `0` USDC
+  submitted/executed notional and no route, draft, Coinbase, reconciliation
+  execution, state mutation, browser, BFF, or spot-rule authority.
 - Completed `6261-6280` added backend-owned futures command enablement
   sequence command-trace evidence to the M57 futures/perpetual command suite.
   Trace rows map aggregate command enablement sequence steps back to exact
   per-command readiness closure rows while preserving no-route, no-draft,
   no-Coinbase, no-reconciliation-execution, no-state-mutation, no-browser,
-  no-BFF, and no-spot-rule authority. The range completed with `0` USDC
-  submitted/executed notional.
+  no-BFF, and no-spot-rule authority.
 - Completed `6241-6260` added backend-owned futures command enablement
   sequence steps to the M57 futures/perpetual command suite. Those sequence
   steps explain the ordered backend-owned closure path before placement,
   close/reduce, cancel, or reconciliation commands can ever become eligible.
   The range completed with `0` USDC submitted/executed notional.
-- Phase-end subagent sweep for the completed `6261-6280` work was performed:
+- Phase-end subagent sweep for the completed `6281-6300` work was performed:
   all phase-scoped blind/contextless reviewers were closed after findings were
   consumed and remediated. No phase-scoped subagent remains intentionally open.
-  Active `6281-6300` must not register futures command routes, create command
-  drafts, record executable adapter decisions, construct, invoke, or execute
-  live adapters, submit Coinbase orders, acknowledge exchange orders, execute
-  post-exchange reconciliation, mutate futures state, accept proof records as
-  sufficient for execution, or grant browser/BFF authority. Spot wallet,
-  no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
-  are forbidden as futures/perpetual authority.
-- Current direction: complete phases `6281-6300` by adding disabled shared
-  futures reconciliation command-service bridge evidence, preserving the
-  separate reconciliation-plan contract, syncing backend/frontend read-model
-  consumption, docs, focused gates, blind/contextless review, and phase-end
-  stale-subagent sweep. The exact bridge method is
-  `reconcile_futures_position`, and the separate reconciliation-plan method is
-  `record_futures_reconciliation_plan`.
-- Current boundary label: futures reconciliation command-service parity evidence.
-- Previous completed boundary label: futures command enablement sequence command-trace evidence.
-- Current trace evidence label: backend-owned futures reconciliation command-service bridge.
+  Active `6301-6320` must not register futures command routes, register proof
+  routes, create proof writers, create command drafts, record executable
+  adapter decisions, construct, invoke, or execute live adapters, submit
+  Coinbase orders, acknowledge exchange orders, execute post-exchange
+  reconciliation, mutate futures state, accept proof records as sufficient for
+  execution, or grant browser/BFF authority. Spot wallet, no-shorting, USDC,
+  cost-basis, average-cost, and inventory-lot assumptions are forbidden as
+  futures/perpetual authority.
+- Current direction: complete phases `6301-6320` by adding backend-owned
+  futures proof route/writer contract registry evidence, syncing
+  backend/frontend read-model consumption, docs, focused gates,
+  blind/contextless review, and phase-end stale-subagent sweep. The exact
+  registry names are `FUTURES_PROOF_ROUTE_CONTRACTS` and
+  `FUTURES_PROOF_WRITER_CONTRACTS`; representative refs are
+  `application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`
+  and
+  `application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`.
+- Current boundary label: futures proof route/writer contract registry evidence.
+- Previous completed boundary label: futures reconciliation command-service parity evidence.
+- Current trace evidence label: backend-owned futures proof route/writer registry.
 - Completed sequence evidence label: backend-owned futures command enablement sequence steps.
 - Historical boundary label retained for validators: disabled futures adapter-execution contract evidence.
 - Current contract split: adapter contract refs are required/present disabled
@@ -712,12 +722,17 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6281-6300`.
+- Active autonomous range: `6301-6320`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6281-6300` by syncing
-  backend-owned futures reconciliation command-service bridge evidence for
-  `futures_reconcile` while preserving the separate reconciliation-plan
-  contract across backend/frontend evidence.
+- Current direction: complete active phases `6301-6320` by syncing
+  backend-owned futures proof route/writer registry evidence for the exact
+  command/proof-kind pairs emitted by `GET /api/v1/futures/command-suite`.
+  The active backend refs include
+  `FUTURES_PROOF_ROUTE_CONTRACTS`,
+  `FUTURES_PROOF_WRITER_CONTRACTS`,
+  `application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`,
+  and
+  `application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`.
   Adapter contract refs, adapter construction refs, adapter decision refs,
   adapter decision-record refs, adapter invocation refs, and adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
@@ -1572,16 +1587,16 @@ Keep it short. Keep it factual.
   blocked, no-validation-readiness, no-record-contract, no-schema, no-log,
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
-- What is blocked: Nothing currently known after active `6281-6300`
-  command-service bridge docs and validators were updated; focused
+- What is blocked: Nothing currently known after active `6301-6320`
+  proof route/writer registry docs and validators were updated; focused
   backend/frontend gates and fresh blind/contextless reviews are pending.
-- Exact next command: complete active phases `6281-6300` by adding
-  backend-owned futures reconciliation command-service bridge evidence,
-  preserving the separate reconciliation-plan contract, syncing frontend
+- Exact next command: complete active phases `6301-6320` by adding
+  backend-owned futures proof route/writer registry evidence, syncing frontend
   mock/read-model display, updating docs and validators, then running focused
   gates, blind/contextless review, phase-end stale-subagent sweep, and no-live
-  proof. The active gap is command-service parity only; no futures command
-  route, command draft, exchange order placement/cancellation, exchange
+  proof. The active gap is registry-backed proof contract evidence only; no
+  futures command route, proof route registration, proof writer enablement,
+  command draft, exchange order placement/cancellation, exchange
   acknowledgement, reconciliation execution, Coinbase read/write,
   futures/order/exchange-state mutation, accepted proof record as command
   readiness, adapter invocation authority, adapter construction/invocation
