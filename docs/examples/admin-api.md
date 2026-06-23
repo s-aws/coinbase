@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6241-6260",
+  "approved_phase_range": "6261-6280",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6241-6260",
+  "approved_phase_range": "6261-6280",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1892,7 +1892,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6241-6260",
+  "approved_phase_range": "6261-6280",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2310,7 +2310,7 @@ refs are required/present disabled evidence and are no longer listed in
 `missing_backend_contracts`. Completed 6221-6240 work adds aggregate command
 enablement blocker summaries for unresolved prerequisites, request payload
 contracts, semantic guard evidence, risk proof acceptance, admin command routes,
-live service adapters, and contextless review. Active 6241-6260 work adds
+live service adapters, and contextless review. Completed 6241-6260 work adds
 backend-owned `command_enablement_sequence_steps`,
 `command_enablement_sequence_step_count`, and
 `command_enablement_sequence_step_blocking_count` derived from
@@ -2330,6 +2330,16 @@ grant browser/BFF authority.
 Current sequence field examples: `"command_enablement_sequence_steps"`,
 `"command_enablement_sequence_step_count"`, and
 `"command_enablement_sequence_step_blocking_count"`.
+Active 6261-6280 work adds backend-owned
+`"command_enablement_sequence_command_traces"`,
+`"command_enablement_sequence_command_trace_count"`, and
+`"command_enablement_sequence_command_trace_blocking_count"` so each aggregate
+sequence step traces to exact per-command closure evidence. Trace rows include
+`"trace_id"`, `"command_step_sequence"`,
+`"reconciliation_execution_allowed": false`, and
+`"futures_state_mutation_allowed": false`; they do not register routes, create
+drafts, call Coinbase, execute reconciliation, mutate futures state, or grant
+browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account

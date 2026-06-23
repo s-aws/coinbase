@@ -4225,6 +4225,39 @@ class AdminFuturesCommandEnablementSequenceStepItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandEnablementSequenceCommandTraceItem(BaseModel):
+    """Per-command trace row behind one aggregate futures enablement step."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    trace_id: str
+    step: AdminFuturesCommandReadinessClosureStep
+    sequence: int = Field(ge=1)
+    command: AdminFuturesCommandAction
+    command_sequence: int = Field(ge=1)
+    command_step_sequence: int = Field(ge=1)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    source_blockers: list[AdminFuturesCommandEnablementBlocker] = Field(
+        default_factory=list
+    )
+    required_backend_contract: str | None = None
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_ref_count: int = Field(default=0, ge=0)
+    command_route_registered: bool = False
+    command_draft_allowed: bool = False
+    execution_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    futures_state_mutation_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRiskProofAcceptanceCriterionItem(BaseModel):
     """One blocked acceptance check for a futures risk proof requirement."""
 
@@ -9382,6 +9415,14 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     command_enablement_sequence_step_blocking_count: int = Field(default=0, ge=0)
     command_enablement_sequence_steps: list[
         AdminFuturesCommandEnablementSequenceStepItem
+    ] = Field(default_factory=list)
+    command_enablement_sequence_command_trace_count: int = Field(default=0, ge=0)
+    command_enablement_sequence_command_trace_blocking_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    command_enablement_sequence_command_traces: list[
+        AdminFuturesCommandEnablementSequenceCommandTraceItem
     ] = Field(default_factory=list)
     commands: list[AdminFuturesCommandContractItem] = Field(default_factory=list)
     account_evidence_routes: list[str] = Field(default_factory=list)

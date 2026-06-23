@@ -127,6 +127,7 @@ from .models import (
     AdminFuturesAccountReadResponse,
     AdminFuturesCommandContractItem,
     AdminFuturesCommandEnablementBlockerSummaryItem,
+    AdminFuturesCommandEnablementSequenceCommandTraceItem,
     AdminFuturesCommandEnablementSequenceStepItem,
     AdminFuturesCommandPrerequisiteItem,
     AdminFuturesCommandReadinessClosureStepItem,
@@ -412,7 +413,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6241-6260"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6261-6280"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -30196,7 +30197,76 @@ class AdminApiReadService:
                 )
             return rows
 
+        def enablement_sequence_command_traces(
+            command_items: list[AdminFuturesCommandContractItem],
+            sequence_steps: list[AdminFuturesCommandEnablementSequenceStepItem],
+        ) -> list[AdminFuturesCommandEnablementSequenceCommandTraceItem]:
+            rows: list[AdminFuturesCommandEnablementSequenceCommandTraceItem] = []
+            for sequence_step in sequence_steps:
+                for command_sequence, command_item in enumerate(command_items, start=1):
+                    closure_step = next(
+                        (
+                            item
+                            for item in command_item.readiness_closure_steps
+                            if item.step == sequence_step.step
+                        ),
+                        None,
+                    )
+                    if closure_step is None:
+                        continue
+                    source_blockers = source_blockers_for_step(sequence_step.step)
+                    rows.append(
+                        AdminFuturesCommandEnablementSequenceCommandTraceItem(
+                            trace_id=(
+                                f"{closure_step.step.value}::"
+                                f"{command_item.command.value}"
+                            ),
+                            step=closure_step.step,
+                            sequence=sequence_step.sequence,
+                            command=command_item.command,
+                            command_sequence=command_sequence,
+                            command_step_sequence=closure_step.sequence,
+                            status=closure_step.status,
+                            blocking=closure_step.blocking,
+                            source_blockers=source_blockers,
+                            required_backend_contract=(
+                                closure_step.required_backend_contract
+                            ),
+                            required_evidence_refs=list(
+                                closure_step.required_evidence_refs
+                            ),
+                            required_evidence_ref_count=len(
+                                closure_step.required_evidence_refs
+                            ),
+                            command_route_registered=(
+                                closure_step.command_route_registered
+                            ),
+                            command_draft_allowed=(
+                                closure_step.command_draft_allowed
+                            ),
+                            execution_allowed=closure_step.execution_allowed,
+                            detail=(
+                                f"{command_item.command.value} traces to "
+                                f"{closure_step.step.value} in the aggregate "
+                                "futures/perpetual command enablement sequence. "
+                                f"{closure_step.detail} This trace row is "
+                                "read-only evidence and does not create a "
+                                "route, command draft, Coinbase call, "
+                                "reconciliation execution, futures state "
+                                "mutation, browser authority, BFF execution "
+                                "authority, or spot-rule authority."
+                            ),
+                        )
+                    )
+            return rows
+
         command_enablement_sequence_steps = enablement_sequence_steps(commands)
+        command_enablement_sequence_command_traces = (
+            enablement_sequence_command_traces(
+                commands,
+                command_enablement_sequence_steps,
+            )
+        )
 
         return AdminFuturesCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
@@ -30769,6 +30839,17 @@ class AdminApiReadService:
                 1 for item in command_enablement_sequence_steps if item.blocking
             ),
             command_enablement_sequence_steps=command_enablement_sequence_steps,
+            command_enablement_sequence_command_trace_count=len(
+                command_enablement_sequence_command_traces
+            ),
+            command_enablement_sequence_command_trace_blocking_count=sum(
+                1
+                for item in command_enablement_sequence_command_traces
+                if item.blocking
+            ),
+            command_enablement_sequence_command_traces=(
+                command_enablement_sequence_command_traces
+            ),
             commands=commands,
             account_evidence_routes=["/api/v1/futures/account"],
             position_evidence_routes=[

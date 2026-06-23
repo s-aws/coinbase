@@ -409,12 +409,24 @@ Current behavior:
   live-disabled command draft keyed by `stealth_order_id`; it returns `501`,
   writes command audit evidence, never calls Coinbase, and does not clear
   cooldowns or invoke the live dashboard repricer
+- `GET /api/v1/futures/command-suite` exposes read-only futures/perpetual
+  command readiness evidence for placement, close/reduce, cancel, and
+  reconciliation. Current M57 `6261-6280` evidence includes
+  `command_enablement_sequence_command_traces`,
+  `command_enablement_sequence_command_trace_count`,
+  `command_enablement_sequence_command_trace_blocking_count`, `trace_id`,
+  `command_step_sequence`, `reconciliation_execution_allowed`, and
+  `futures_state_mutation_allowed`. Trace rows are derived from existing
+  per-command readiness closure steps and aggregate
+  `command_enablement_sequence_steps`; they do not register futures command
+  routes, create command drafts, call Coinbase, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser, BFF, or spot-rule authority
 - `GET /api/v1/futures/account`, `GET /api/v1/futures/positions`, and
   `GET /api/v1/futures/positions/{position_key}` expose read-only
   futures/perpetual account, risk, and position evidence; `position_key` is
   the read identity, configured product scope is separate from observed
   position scope, close/reduce sides are backend-derived from observed
-  position side, and no futures/perpetual command route is modeled yet
+  position side, and no futures/perpetual live command route is modeled yet
 - `GET /api/v1/admin/guard-risk-policy` exposes backend-owned guard/risk
   policy evidence: action-condition policy, configured cap rules, live gate
   posture, product capability policy, profitability-validator posture,

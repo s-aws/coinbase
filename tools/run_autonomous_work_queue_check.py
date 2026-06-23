@@ -15,7 +15,9 @@ QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 PUBLIC_RELEASE_DOC = PROJECT_ROOT / "docs" / "PUBLIC_RELEASE_READINESS.md"
 FRONTEND_ASSOCIATION_DOC = PROJECT_ROOT / "docs" / "FRONTEND_ASSOCIATION.md"
 ADMIN_API_README = PROJECT_ROOT / "README.admin-api.md"
+FUTURES_PERPETUALS_README = PROJECT_ROOT / "README.futures-perpetuals.md"
 ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
+API_REFERENCE_DOC = PROJECT_ROOT / "genai_data" / "API_REFERENCE.md"
 STEALTH_COMMAND_SUITE_EXAMPLES_DOC = (
     PROJECT_ROOT / "docs" / "examples" / "stealth-command-suite.md"
 )
@@ -60,9 +62,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6241-6260"
-APPROVED_PHASES = tuple(range(6241, 6261))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6221-6240"
+APPROVED_PHASE_RANGE = "6261-6280"
+APPROVED_PHASES = tuple(range(6261, 6281))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6241-6260"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -269,6 +271,40 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"command_enablement_sequence_steps"',
             '"command_enablement_sequence_step_count"',
             '"command_enablement_sequence_step_blocking_count"',
+            '"command_enablement_sequence_command_traces"',
+            '"command_enablement_sequence_command_trace_count"',
+            '"command_enablement_sequence_command_trace_blocking_count"',
+        ],
+        FUTURES_PERPETUALS_README: [
+            "`command_enablement_sequence_command_traces`",
+            "`trace_id`",
+            "`command_step_sequence`",
+            "`reconciliation_execution_allowed`",
+            "`futures_state_mutation_allowed`",
+            "backend-owned read-only evidence",
+            "do not register futures command routes",
+            "create command drafts",
+            "call Coinbase",
+            "execute reconciliation",
+            "mutate futures/order/exchange state",
+            "browser, BFF, or spot-rule authority",
+        ],
+        API_REFERENCE_DOC: [
+            "`GET /api/v1/futures/command-suite`",
+            "`command_enablement_sequence_command_traces`",
+            "`command_enablement_sequence_command_trace_count`",
+            "`command_enablement_sequence_command_trace_blocking_count`",
+            "`trace_id`",
+            "`command_step_sequence`",
+            "`reconciliation_execution_allowed`",
+            "`futures_state_mutation_allowed`",
+            "derived from existing",
+            "do not register futures command",
+            "create command drafts",
+            "call Coinbase",
+            "execute reconciliation",
+            "mutate",
+            "browser, BFF, or spot-rule authority",
         ],
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
@@ -278,6 +314,13 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"command_enablement_sequence_steps"',
             '"command_enablement_sequence_step_count"',
             '"command_enablement_sequence_step_blocking_count"',
+            '"command_enablement_sequence_command_traces"',
+            '"command_enablement_sequence_command_trace_count"',
+            '"command_enablement_sequence_command_trace_blocking_count"',
+            '"trace_id"',
+            '"command_step_sequence"',
+            '"reconciliation_execution_allowed": false',
+            '"futures_state_mutation_allowed": false',
             "resolve_prerequisite_contracts",
             "define_request_payload_contract",
             "bind_semantic_guard_evidence",
@@ -896,8 +939,9 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
-        "futures command enablement sequence evidence",
+        "futures command enablement sequence command-trace evidence",
         "backend-owned futures command enablement sequence steps",
+        "backend-owned futures command enablement sequence command traces",
         "disabled futures adapter-execution contract evidence",
         "adapter contract refs are required/present disabled evidence",
         "adapter construction refs are required/present disabled evidence",
@@ -1016,6 +1060,10 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `5541-5560`",
         "Active autonomous range: `5561-5580`",
         "Active autonomous range: `5581-5600`",
+        "current active range is `6241-6260`",
+        "Active autonomous range: `6241-6260`",
+        "complete active phases `6241-6260`",
+        "Active `6241-6260`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -1044,14 +1092,22 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
-        "futures command enablement sequence evidence",
+        "futures command enablement sequence command-trace evidence",
         "command_enablement_blocker_summaries",
         "command_enablement_blocker_summary_count",
         "command_enablement_blocker_summary_blocking_count",
         "command_enablement_sequence_steps",
         "command_enablement_sequence_step_count",
         "command_enablement_sequence_step_blocking_count",
+        "command_enablement_sequence_command_traces",
+        "command_enablement_sequence_command_trace_count",
+        "command_enablement_sequence_command_trace_blocking_count",
         "AdminFuturesCommandEnablementSequenceStepItem",
+        "AdminFuturesCommandEnablementSequenceCommandTraceItem",
+        "trace_id",
+        "command_step_sequence",
+        "reconciliation_execution_allowed",
+        "futures_state_mutation_allowed",
         "resolve_prerequisite_contracts",
         "define_request_payload_contract",
         "bind_semantic_guard_evidence",

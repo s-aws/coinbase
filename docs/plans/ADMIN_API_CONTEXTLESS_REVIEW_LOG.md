@@ -1,3 +1,20 @@
+## M57 Futures/Perpetual Command Enablement Sequence Command-Trace Evidence - Phases 6261-6280
+
+Result: PASS. Scope: phases `6261-6280`, after completed history `6241-6260`, adds backend-owned futures command enablement sequence command-trace evidence to the read-only futures/perpetual command suite. No live Coinbase execution is planned, no live Coinbase execution was run, and actual submitted/executed notional remains `0` USDC.
+
+Contract evidence: carried-forward `command_enablement_blocker_summaries`, `command_enablement_blocker_summary_count`, and `command_enablement_blocker_summary_blocking_count` remain read-only blocker taxonomy evidence. `AdminFuturesCommandEnablementSequenceCommandTraceItem`, `command_enablement_sequence_command_traces`, `command_enablement_sequence_command_trace_count`, and `command_enablement_sequence_command_trace_blocking_count` trace aggregate `command_enablement_sequence_steps`, `command_enablement_sequence_step_count`, and `command_enablement_sequence_step_blocking_count` back to exact per-command readiness closure rows. Trace rows include `trace_id`, `command_step_sequence`, `reconciliation_execution_allowed=false`, and `futures_state_mutation_allowed=false`. Existing `AdminFuturesCommandEnablementSequenceStepItem` and `AdminFuturesCommandEnablementBlocker` taxonomy still cover `resolve_prerequisite_contracts`, `define_request_payload_contract`, `bind_semantic_guard_evidence`, `register_admin_command_route`, `bind_live_service_adapter`, and `run_contextless_review_gate`; blockers include `unresolved_prerequisites`, `request_payload_contracts`, `semantic_guard_evidence`, `risk_proof_acceptance`, `admin_command_route`, `live_service_adapter`, and `contextless_review_gate`.
+
+Boundary evidence: `/api/v1/futures/risk-proofs` remains read-only resolver evidence. GET /api/v1/futures/risk-proofs readbacks use read-only resolver evidence. POST /api/v1/futures/risk-proofs records append-only local proof evidence only, with no proof acceptance, no futures command route, no command draft, no Coinbase activity, no reconciliation execution, no futures state mutation, no browser/BFF authority, and forbidden spot assumptions. `backend_futures_risk_proof_store_read_only_no_execution`, `backend_futures_semantics_no_execution`, and post-exchange-submission reconciliation refs are required/present disabled evidence.
+
+Frontend association evidence: `/api/v1/futures/command-suite` is the source route. The generated frontend adapter maps backend `trace_id`, `reconciliation_execution_allowed=false`, and `futures_state_mutation_allowed=false` to display-only `traceId`, `reconciliationExecutionAllowed=false`, and `futuresStateMutationAllowed=false`.
+
+Fresh blind/contextless backend review initially found stale `6241-6260`
+contract-test assertions plus missing `README.futures-perpetuals.md` and
+`genai_data/API_REFERENCE.md` command-trace documentation. Remediation updated
+the active assertions to `6261-6280`, added the required feature/API reference
+trace field documentation, and extended
+`tools/run_autonomous_work_queue_check.py` to validate those docs. Fresh blind/contextless backend re-review after remediation: PASS. Fresh blind/contextless frontend re-review: PASS. Phase-end stale-subagent sweep completed after closing all review agents; no phase-scoped subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Command Enablement Sequence Evidence - Phases 6241-6260
 
 Result: PASS. Scope: phases `6241-6260`, after completed history `6221-6240`, adds backend-owned futures command enablement sequence evidence to the read-only futures/perpetual command suite. No live Coinbase execution is planned, no live Coinbase execution was run, and actual submitted/executed notional remains `0` USDC.

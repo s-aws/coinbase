@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6241-6260`.
+- Commit (optional): current active range is `6261-6280`.
 
 ## Current Objective
 
@@ -56,30 +56,31 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6221-6240`.
-- Active autonomous range: `6241-6260`.
-- Completed `6221-6240` added backend-owned futures command enablement
-  blocker summaries to the M57 futures/perpetual command suite. Those
-  summaries explain why placement, close/reduce, cancel, and reconciliation
-  commands remain blocked after disabled adapter, Coinbase exchange-submission,
-  and post-exchange-submission reconciliation refs became required/present
-  evidence. The range completed with `0` USDC submitted/executed notional.
-- Phase-end subagent sweep for the completed `6221-6240` work was performed:
+- Latest completed autonomous range before current work: `6241-6260`.
+- Active autonomous range: `6261-6280`.
+- Completed `6241-6260` added backend-owned futures command enablement
+  sequence steps to the M57 futures/perpetual command suite. Those sequence
+  steps explain the ordered backend-owned closure path before placement,
+  close/reduce, cancel, or reconciliation commands can ever become eligible.
+  The range completed with `0` USDC submitted/executed notional.
+- Phase-end subagent sweep for the completed `6241-6260` work was performed:
   all phase-scoped blind/contextless reviewers were closed after findings were
   consumed and remediated. No phase-scoped subagent remains intentionally open.
-  Active `6241-6260` must not register futures command routes, create command
+  Active `6261-6280` must not register futures command routes, create command
   drafts, record executable adapter decisions, construct, invoke, or execute
   live adapters, submit Coinbase orders, acknowledge exchange orders, execute
   post-exchange reconciliation, mutate futures state, accept proof records as
   sufficient for execution, or grant browser/BFF authority. Spot wallet,
   no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
   are forbidden as futures/perpetual authority.
-- Current direction: complete phases `6241-6260` by adding backend-owned
-  futures command enablement sequence evidence, syncing backend/frontend schema
+- Current direction: complete phases `6261-6280` by adding backend-owned
+  futures command enablement sequence command-trace evidence, syncing backend/frontend schema
   and read-model consumption, docs, focused gates, blind/contextless review,
   and phase-end stale-subagent sweep.
-- Current boundary label: futures command enablement sequence evidence.
-- Previous completed boundary label: futures command enablement blocker summary evidence.
+- Current boundary label: futures command enablement sequence command-trace evidence.
+- Previous completed boundary label: futures command enablement sequence evidence.
+- Current trace evidence label: backend-owned futures command enablement sequence command traces.
+- Completed sequence evidence label: backend-owned futures command enablement sequence steps.
 - Historical boundary label retained for validators: disabled futures adapter-execution contract evidence.
 - Current contract split: adapter contract refs are required/present disabled
   evidence; adapter construction refs are required/present disabled evidence;
@@ -701,11 +702,12 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6241-6260`.
+- Active autonomous range: `6261-6280`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6241-6260` by syncing
-  backend-owned futures command enablement sequence steps for placement,
-  close/reduce, cancel, and reconcile across backend/frontend evidence.
+- Current direction: complete active phases `6261-6280` by syncing
+  backend-owned futures command enablement sequence command traces for
+  placement, close/reduce, cancel, and reconcile across backend/frontend
+  evidence.
   Adapter contract refs, adapter construction refs, adapter decision refs,
   adapter decision-record refs, adapter invocation refs, and adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
@@ -1560,15 +1562,15 @@ Keep it short. Keep it factual.
   blocked, no-validation-readiness, no-record-contract, no-schema, no-log,
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
-- What is blocked: Nothing currently known after active `6241-6260`
-  command enablement sequence docs and validators were updated; focused
+- What is blocked: Nothing currently known after active `6261-6280`
+  command enablement sequence command-trace docs and validators were updated; focused
   backend/frontend gates and fresh blind/contextless reviews are pending.
-- Exact next command: complete active phases `6241-6260` by adding
-  backend-owned futures command enablement sequence evidence, syncing OpenAPI
+- Exact next command: complete active phases `6261-6280` by adding
+  backend-owned futures command enablement sequence command-trace evidence, syncing OpenAPI
   and frontend generated schema, mapping runtime/mock/read-model display,
   updating docs and validators, then running focused gates, blind/contextless
   review, phase-end stale-subagent sweep, and no-live proof. The active gap is
-  aggregate sequence evidence only; no futures command route, command
+  per-command sequence trace evidence only; no futures command route, command
   draft, exchange order placement/cancellation, exchange acknowledgement,
   reconciliation execution, Coinbase read/write, futures/order/exchange-state
   mutation, accepted proof requirement, accepted proof payload, accepted proof

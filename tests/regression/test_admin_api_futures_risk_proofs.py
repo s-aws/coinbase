@@ -1031,6 +1031,8 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert command_suite.command_enablement_blocker_summary_blocking_count == 7
     assert command_suite.command_enablement_sequence_step_count == 6
     assert command_suite.command_enablement_sequence_step_blocking_count == 6
+    assert command_suite.command_enablement_sequence_command_trace_count == 24
+    assert command_suite.command_enablement_sequence_command_trace_blocking_count == 24
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
@@ -1139,6 +1141,59 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert (
         "application/admin_api/live_execution.py::futures_place_adapter_contract"
         in adapter_step.required_backend_contracts
+    )
+
+    traces_by_step = {}
+    for trace in command_suite.command_enablement_sequence_command_traces:
+        traces_by_step.setdefault(trace.step, []).append(trace)
+        assert trace.trace_id == f"{trace.step.value}::{trace.command.value}"
+        assert trace.sequence == sequence_steps_by_step[trace.step].sequence
+        assert trace.status == AdminApiGateStatus.BLOCKED
+        assert trace.blocking is True
+        assert trace.source_blockers == sequence_steps_by_step[trace.step].source_blockers
+        assert trace.required_evidence_ref_count == len(trace.required_evidence_refs)
+        assert trace.command_route_registered is False
+        assert trace.command_draft_allowed is False
+        assert trace.execution_allowed is False
+        assert trace.reconciliation_execution_allowed is False
+        assert trace.futures_state_mutation_allowed is False
+        assert trace.live_coinbase_orders_ran is False
+        assert trace.backend_owned is True
+        assert trace.read_only is True
+        assert trace.spot_rule_authority is False
+        assert trace.browser_authority == "display_only"
+        assert trace.bff_authority == "forward_only_no_execution"
+        assert "This trace row is read-only evidence" in trace.detail
+
+    assert list(traces_by_step) == list(sequence_steps_by_step)
+    for step, traces in traces_by_step.items():
+        assert [trace.command for trace in traces] == [
+            AdminFuturesCommandAction.PLACE,
+            AdminFuturesCommandAction.CLOSE_REDUCE,
+            AdminFuturesCommandAction.CANCEL,
+            AdminFuturesCommandAction.RECONCILE,
+        ]
+        assert all(trace.sequence == sequence_steps_by_step[step].sequence for trace in traces)
+
+    first_trace = command_suite.command_enablement_sequence_command_traces[0]
+    assert first_trace.step == (
+        AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS
+    )
+    assert first_trace.command == AdminFuturesCommandAction.PLACE
+    assert first_trace.command_sequence == 1
+    assert first_trace.command_step_sequence == 1
+    assert first_trace.required_evidence_refs
+
+    route_trace = next(
+        trace
+        for trace in command_suite.command_enablement_sequence_command_traces
+        if trace.step
+        == AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE
+        and trace.command == AdminFuturesCommandAction.PLACE
+    )
+    assert (
+        route_trace.required_backend_contract
+        == "api/v1/routes/futures.py::futures_place_route_contract"
     )
 
     assert command_suite.live_coinbase_orders_ran is False

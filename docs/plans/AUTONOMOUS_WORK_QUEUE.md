@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6241-6260**.
+- Approved phase range: **6261-6280**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6221-6240`.
+- Previous completed range: `6241-6260`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6240`.
+- `current_phase`: `6260`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,145 +81,165 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6241-6260
+## Active Phases 6261-6280
 
-Batch label: Futures/Perpetuals Command Enablement Sequence Evidence.
+Batch label: Futures/Perpetuals Command Enablement Sequence Command-Trace Evidence.
 
-These phases continue M57 after completed `6221-6240` added aggregate
-futures/perpetual command enablement blocker summaries. The next gap is ordered
-orientation: a contextless maintainer, reviewer, or smaller agent must be able
-to see the backend-owned sequence that would have to close before futures
-placement, close/reduce, cancel, or reconciliation commands can ever become
-eligible. Active `6241-6260` may add read-only aggregate
-`command_enablement_sequence_steps` to `GET /api/v1/futures/command-suite`,
-generated API schemas, frontend mock/read-model display, docs, examples, and
-validators. The sequence must be derived from existing per-command
-`readiness_closure_steps` and must not create a second command path. It must
-not register futures command routes, create command drafts, accept payloads,
+These phases continue M57 after completed `6241-6260` added aggregate
+futures/perpetual command enablement sequence rows. The next gap is
+traceability: a contextless maintainer, reviewer, or smaller agent must be able
+to see exactly which per-command `readiness_closure_steps` rows back each
+aggregate sequence step. Active `6261-6280` may add read-only
+`command_enablement_sequence_command_traces` to
+`GET /api/v1/futures/command-suite`, generated API schemas, frontend
+mock/read-model display, docs, examples, and validators. Trace rows must be
+derived from existing command readiness closure steps and the existing sequence
+step taxonomy. They must not create a second command path. They must not
+register futures command routes, create command drafts, accept payloads,
 execute live services or adapters, submit/cancel Coinbase orders, acknowledge
 exchange orders, execute reconciliation, mutate futures/order/exchange state,
 accept proof records as execution authority, or grant browser/BFF execution
 authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
 inventory-lot assumptions remain forbidden as futures/perpetual authority.
 
-### Phase 6241 - Prior Range Closure
+### Phase 6261 - Prior Range Closure
 
-- Record completed phases `6221-6240` as historical aggregate blocker-summary
-  evidence and move active metadata to `6241-6260`.
+- Record completed phases `6241-6260` as historical aggregate sequence
+  evidence and move active metadata to `6261-6280`.
 
-### Phase 6242 - Backend Sequence Row Model
+### Phase 6262 - Backend Trace Row Model
 
-- Add `AdminFuturesCommandEnablementSequenceStepItem` to the futures
-  command-suite response model with backend-owned, read-only, no-live,
-  no-spot-rule, browser-display-only, and BFF-forward-only fields.
+- Add `AdminFuturesCommandEnablementSequenceCommandTraceItem` to the futures
+  command-suite response with backend-owned, read-only, no-live,
+  no-reconciliation-execution, no-state-mutation, no-spot-rule,
+  browser-display-only, and BFF-forward-only fields.
 
-### Phase 6243 - Backend Sequence Aggregation
+### Phase 6263 - Backend Trace Derivation
 
-- Aggregate existing per-command `readiness_closure_steps` into ordered
-  sequence rows without creating command routes, command drafts, adapter calls,
-  Coinbase calls, reconciliation execution, or state mutation.
+- Derive command trace rows from existing per-command `readiness_closure_steps`
+  and existing aggregate sequence steps without recalculating a second
+  readiness path.
 
-### Phase 6244 - Sequence Source Blockers
+### Phase 6264 - Trace Source Blockers
 
-- Map each sequence step to the blocker taxonomy from completed `6221-6240`,
+- Carry each trace row's source blockers from the aggregate sequence taxonomy,
   including unresolved prerequisites, request payload contracts, semantic guard
   evidence, risk proof acceptance, admin command route, live service adapter,
   and contextless review gate.
 
-### Phase 6245 - Backend No-Authority Guard
+### Phase 6265 - Backend No-Authority Trace Guard
 
-- Prove every sequence row remains `blocked`, `read_only`, `backend_owned`,
+- Prove every trace row remains `blocked`, `read_only`, `backend_owned`,
   `command_route_registered=false`, `command_draft_allowed=false`,
-  `execution_allowed=false`, `live_coinbase_orders_ran=false`, and
-  `spot_rule_authority=false`.
+  `execution_allowed=false`, `reconciliation_execution_allowed=false`,
+  `futures_state_mutation_allowed=false`, `live_coinbase_orders_ran=false`,
+  and `spot_rule_authority=false`.
 
-### Phase 6246 - Backend Focused Tests
+### Phase 6266 - Backend Focused Tests
 
-- Add focused regression coverage for sequence order, affected commands,
-  source blockers, evidence refs, backend contract refs, no-route/no-draft/
-  no-live flags, and zero USDC notional.
+- Add focused regression coverage for trace count, step order, command order,
+  evidence refs, backend contract refs, no-route/no-draft/no-live flags, no
+  reconciliation/state mutation, and zero USDC notional.
 
-### Phase 6247 - OpenAPI Regeneration
+### Phase 6267 - OpenAPI Regeneration
 
 - Regenerate backend OpenAPI so the generated schema exposes
-  `AdminFuturesCommandEnablementSequenceStepItem`,
-  `command_enablement_sequence_steps`,
-  `command_enablement_sequence_step_count`, and
-  `command_enablement_sequence_step_blocking_count`.
+  `AdminFuturesCommandEnablementSequenceCommandTraceItem`,
+  `command_enablement_sequence_command_traces`,
+  `command_enablement_sequence_command_trace_count`, and
+  `command_enablement_sequence_command_trace_blocking_count`.
 
-### Phase 6248 - Frontend Schema Sync
+### Phase 6268 - Frontend Schema Sync
 
 - Regenerate or verify the frontend TypeScript schema from backend OpenAPI
   without hand-editing generated files.
 
-### Phase 6249 - Frontend Mock Sequence Rows
+### Phase 6269 - Frontend Mock Trace Rows
 
 - Update frontend mock futures command-suite fixtures to include backend-owned
-  sequence rows derived from command readiness closure steps and zero command
+  trace rows derived from command readiness closure steps and zero command
   authority.
 
-### Phase 6250 - Frontend Adapter Mapping
+### Phase 6270 - Frontend Adapter Mapping
 
-- Map sequence rows through the existing futures backend adapter as read-only
-  view-model evidence, not draft, validation, approval, or execution authority.
+- Map trace rows through the existing futures backend adapter as read-only
+  view-model evidence, not draft, validation, approval, reconciliation, state
+  mutation, or execution authority.
 
-### Phase 6251 - Frontend Read-Model Display
+### Phase 6271 - Frontend Read-Model Display
 
-- Render the futures/perpetual command enablement sequence as display-only
-  evidence with no command controls, no spot-rule authority, and no BFF
-  execution authority.
+- Render the futures/perpetual command enablement sequence command traces as
+  display-only evidence with no command controls, no spot-rule authority, and
+  no BFF execution authority.
 
-### Phase 6252 - Frontend Unit Coverage
+### Phase 6272 - Frontend Unit Coverage
 
 - Add focused Vitest coverage for mock backend, runtime, quality gates, and
-  futures/perpetual read-model display of the sequence rows.
+  futures/perpetual read-model display of trace rows.
 
-### Phase 6253 - Backend Docs And Examples
+### Phase 6273 - Backend Docs And Examples
 
 - Update Admin API docs, futures/perpetual examples, capability matrix,
   maintainer handoff, and agent state so contextless readers can identify the
-  active sequence evidence and completed blocker-summary range.
+  active trace evidence and completed sequence range.
 
-### Phase 6254 - Frontend Docs And Examples
+### Phase 6274 - Frontend Docs And Examples
 
 - Update frontend API/read-model docs, examples, autonomous queue, release
   artifacts, maintainer handoff, and contextless review log expectations for
-  the sequence display.
+  trace display.
 
-### Phase 6255 - Active-Range Drift Sweep
+### Phase 6275 - Active-Range Drift Sweep
 
-- Sweep both repos for stale `6221-6240` active-state wording outside
-  historical completed evidence and update validators to require `6241-6260`.
+- Sweep both repos for stale `6241-6260` active-state wording outside
+  historical completed evidence and update validators to require `6261-6280`.
 
-### Phase 6256 - Backend Focused Gates
+### Phase 6276 - Backend Focused Gates
 
 - Run focused backend py_compile, futures command-suite regression,
   Admin API contract phase assertions as needed,
   `python tools\run_autonomous_work_queue_check.py --summary-only`,
   ownership, and stale-process checks.
 
-### Phase 6257 - Frontend Focused Gates
+### Phase 6277 - Frontend Focused Gates
 
 - Run frontend API check, typecheck, focused Vitest coverage, autonomous queue,
   and stale-process checks.
 
-### Phase 6258 - Contextless Review And Remediation
+### Phase 6278 - Contextless Review And Remediation
 
 - Run fresh blind/contextless backend and frontend reviews. Fix any ambiguity
-  around command authority, spot-rule leakage, sequence ordering, or missing
+  around command authority, spot-rule leakage, trace ordering, or missing
   frontend/backend contract sync before advancing.
 
-### Phase 6259 - Subagent Sweep And No-Live Evidence
+### Phase 6279 - Subagent Sweep And No-Live Evidence
 
 - Close phase-scoped, stale, or previously unused subagents after findings are
   consumed, remediated, or explicitly deferred. Record submitted notional `0`
   USDC, executed notional `0` USDC, and no Coinbase calls.
 
-### Phase 6260 - Phase Closeout Evidence
+### Phase 6280 - Phase Closeout Evidence
 
 - Record focused gate results, contextless review results, phase-end subagent
   sweep, commits, and pushed branches while leaving M57 active until the next
   approved gap is completed.
+
+## Completion Evidence - Phases 6241-6260
+
+Batch label: Futures/Perpetuals Command Enablement Sequence Evidence.
+
+Completed phases `6241-6260` added backend-owned aggregate
+`command_enablement_sequence_steps` to the read-only futures/perpetual command
+suite. The sequence explains the ordered backend-owned closure path before
+placement, close/reduce, cancel, or reconciliation commands can ever become
+eligible. The completed range did not register futures command routes, create
+command drafts, accept command payloads, execute adapters, call Coinbase,
+acknowledge exchange orders, execute reconciliation, mutate futures/order/
+exchange state, accept proof records as execution authority, or grant
+browser/BFF authority. Spot wallet, no-shorting, USDC, cost-basis,
+average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority. Phase-end stale-subagent sweep completed and the
+range completed with `0` USDC submitted/executed notional.
 
 ## Completion Evidence - Phases 6221-6240
 

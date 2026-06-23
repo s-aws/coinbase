@@ -13753,6 +13753,113 @@ components:
       - detail
       title: AdminFuturesCommandEnablementBlockerSummaryItem
       description: Backend-owned aggregate blocker summary for futures command enablement.
+    AdminFuturesCommandEnablementSequenceCommandTraceItem:
+      properties:
+        trace_id:
+          type: string
+          title: Trace Id
+        step:
+          $ref: '#/components/schemas/AdminFuturesCommandReadinessClosureStep'
+        sequence:
+          type: integer
+          minimum: 1.0
+          title: Sequence
+        command:
+          $ref: '#/components/schemas/AdminFuturesCommandAction'
+        command_sequence:
+          type: integer
+          minimum: 1.0
+          title: Command Sequence
+        command_step_sequence:
+          type: integer
+          minimum: 1.0
+          title: Command Step Sequence
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        source_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEnablementBlocker'
+          type: array
+          title: Source Blockers
+        required_backend_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Backend Contract
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Ref Count
+          default: 0
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: false
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        futures_state_mutation_allowed:
+          type: boolean
+          title: Futures State Mutation Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - trace_id
+      - step
+      - sequence
+      - command
+      - command_sequence
+      - command_step_sequence
+      - detail
+      title: AdminFuturesCommandEnablementSequenceCommandTraceItem
+      description: Per-command trace row behind one aggregate futures enablement step.
     AdminFuturesCommandEnablementSequenceStepItem:
       properties:
         step:
@@ -28971,6 +29078,21 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandEnablementSequenceStepItem'
           type: array
           title: Command Enablement Sequence Steps
+        command_enablement_sequence_command_trace_count:
+          type: integer
+          minimum: 0.0
+          title: Command Enablement Sequence Command Trace Count
+          default: 0
+        command_enablement_sequence_command_trace_blocking_count:
+          type: integer
+          minimum: 0.0
+          title: Command Enablement Sequence Command Trace Blocking Count
+          default: 0
+        command_enablement_sequence_command_traces:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEnablementSequenceCommandTraceItem'
+          type: array
+          title: Command Enablement Sequence Command Traces
         commands:
           items:
             $ref: '#/components/schemas/AdminFuturesCommandContractItem'

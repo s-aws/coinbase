@@ -11,14 +11,16 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6241-6260 range targets explicit M57 futures/perpetual command
-enablement sequence evidence for `GET /api/v1/futures/command-suite`.
-Completed 6221-6240 work added aggregate blocked summaries for unresolved
-prerequisites, request payload contracts, semantic guard evidence, risk proof
-acceptance, admin command routes, live service adapters, and contextless
-review. Active 6241-6260 work adds ordered
-`command_enablement_sequence_steps` derived from backend
-`readiness_closure_steps` so contextless maintainers can see the sequence:
+The active 6261-6280 range targets explicit M57 futures/perpetual command
+enablement sequence command-trace evidence for
+`GET /api/v1/futures/command-suite`. Completed 6221-6240 work added aggregate
+blocked summaries for unresolved prerequisites, request payload contracts,
+semantic guard evidence, risk proof acceptance, admin command routes, live
+service adapters, and contextless review. Completed 6241-6260 work added
+ordered `command_enablement_sequence_steps` derived from backend
+`readiness_closure_steps`. Active 6261-6280 work adds
+`command_enablement_sequence_command_traces` so contextless maintainers can see
+which per-command closure rows back the sequence:
 `resolve_prerequisite_contracts`, `define_request_payload_contract`,
 `bind_semantic_guard_evidence`, `register_admin_command_route`,
 `bind_live_service_adapter`, and `run_contextless_review_gate`.
@@ -132,7 +134,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6241-6260",
+  "approved_phase_range": "6261-6280",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -159,6 +161,21 @@ Expected response posture:
     {"step": "register_admin_command_route", "status": "blocked"},
     {"step": "bind_live_service_adapter", "status": "blocked"},
     {"step": "run_contextless_review_gate", "status": "blocked"}
+  ],
+  "command_enablement_sequence_command_trace_count": 24,
+  "command_enablement_sequence_command_trace_blocking_count": 24,
+  "command_enablement_sequence_command_traces": [
+    {
+      "trace_id": "register_admin_command_route::futures_place",
+      "step": "register_admin_command_route",
+      "sequence": 4,
+      "command": "futures_place",
+      "command_step_sequence": 4,
+      "status": "blocked",
+      "source_blockers": ["admin_command_route"],
+      "reconciliation_execution_allowed": false,
+      "futures_state_mutation_allowed": false
+    }
   ],
   "request_field_count": 22,
   "required_request_field_count": 22,

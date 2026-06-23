@@ -76,6 +76,15 @@ browser, BFF, and notional evidence fields.
   do not create routes, drafts, adapters, Coinbase calls, reconciliation
   execution, futures state mutation, browser authority, BFF authority, or
   spot-rule authority.
+- The command-suite route also exposes
+  `command_enablement_sequence_command_traces` with
+  `trace_id`, `command_step_sequence`,
+  `reconciliation_execution_allowed`, and
+  `futures_state_mutation_allowed` fields. Trace rows map each aggregate
+  sequence step back to exact per-command readiness closure evidence. They are
+  backend-owned read-only evidence and do not register futures command routes,
+  create command drafts, call Coinbase, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser, BFF, or spot-rule authority.
 - Each command row also exposes backend-owned risk proof requirements for
   product scope, position scope, margin, collateral, liquidation buffer,
   funding fee, reduce-only, close-only, cap guard, and reconciliation-plan
