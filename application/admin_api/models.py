@@ -4193,6 +4193,17 @@ class AdminFuturesCommandRequestFieldItem(BaseModel):
     identity_field: bool = False
     risk_field: bool = False
     payload_field: bool = True
+    request_payload_contract_ref: str | None = None
+    validation_evidence_ref: str | None = None
+    validation_gate_ref: str | None = None
+    validator_contract_ref: str | None = None
+    validator_registration_ref: str | None = None
+    validation_gate_ready: bool = False
+    validation_gate_passed: bool = False
+    validator_contract_registered: bool = False
+    validator_registered: bool = False
+    validation_registered: bool = False
+    request_payload_validated: bool = False
     backend_owned: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"

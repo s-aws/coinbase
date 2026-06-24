@@ -594,22 +594,23 @@ payload-field contract registry evidence through
 validate submitted proof payloads, register validators, accept proof records,
 create proof writers, create command drafts, call Coinbase, execute
 reconciliation, mutate futures/order/exchange state, or grant browser/BFF
-authority. M57 phases 6341-6360 add route-bound no-live futures/perpetual
+authority. M57 phases 6341-6360 added route-bound no-live futures/perpetual
 command drafts for placement, close/reduce, cancel by `client_order_id`, and
 reconciliation through the shared Admin API command service. These routes
 return disabled command responses and do not bind live adapters, submit or
 cancel Coinbase orders, acknowledge exchange orders, execute reconciliation,
 mutate futures/order/exchange state, accept proof records as command
-readiness, or grant browser/BFF authority. Current M57 phases 6361-6380 add
+readiness, or grant browser/BFF authority. Completed M57 phases 6361-6380 added
 disabled futures/perpetual request payload contract registry evidence through
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
 `iter_futures_request_payload_contracts`; command-suite `request_field_count`,
 `blocking_request_field_count`, and request-field `required_backend_contracts`
 derive from that backend-owned registry. Route/draft flags remain true while
-execution remains false. The registry must not validate command request
-payloads, register payload validators, bind live adapters, call Coinbase,
-execute reconciliation, mutate futures/order/exchange state, or grant
-browser/BFF or spot-rule authority.
+execution remains false. Current M57 phases 6381-6400 add explicit disabled
+validation gate refs, validator refs, and false readiness flags to those
+request fields while preserving no validation, no validator registration, no
+Coinbase calls, no reconciliation execution, no futures/order/exchange state
+mutation, and no browser/BFF or spot-rule authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

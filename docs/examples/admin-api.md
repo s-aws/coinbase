@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6361-6380",
+  "approved_phase_range": "6381-6400",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6361-6380",
+  "approved_phase_range": "6381-6400",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1887,7 +1887,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6361-6380",
+  "approved_phase_range": "6381-6400",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1907,6 +1907,21 @@ Expected command-suite posture:
   "request_field_count": 22,
   "required_request_field_count": 22,
   "blocking_request_field_count": 22,
+  "request_fields": [
+    {
+      "field": "client_order_id",
+      "request_payload_contract_ref": "application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract",
+      "validation_gate_ref": "application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_validation_gate",
+      "validation_evidence_ref": "futures_cancel_client_order_id_request_payload_validated",
+      "validator_contract_ref": "application/admin_api/futures_request_payload_validators.py::futures_cancel_client_order_id_request_payload_validator_contract",
+      "validator_registration_ref": "application/admin_api/futures_request_payload_validators.py::futures_cancel_client_order_id_request_payload_validator_registration",
+      "validation_gate_ready": false,
+      "validation_gate_passed": false,
+      "validator_contract_registered": false,
+      "validator_registered": false,
+      "request_payload_validated": false
+    }
+  ],
   "semantic_guard_count": 33,
   "blocking_semantic_guard_count": 33,
   "risk_semantic_guard_count": 12,
@@ -2374,16 +2389,22 @@ Machine-check evidence: route/draft flags remain true while execution remains
 false; cancel uses
 `client_order_id`.
 
-Active 6361-6380 work reports futures request payload contract registry
+Completed 6361-6380 work reports futures request payload contract registry
 evidence through `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
 `iter_futures_request_payload_contracts`. The command-suite response exposes
 `"request_field_count"`, `"blocking_request_field_count"`, and request-field
 `required_backend_contracts`, including
 `"application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract"`.
-The registry does not validate command request payloads, register payload
+Active 6381-6400 work reports futures request payload validation gate evidence
+on those same request-field rows: `"validation_gate_ref"`,
+`"validation_evidence_ref"`, `"validator_contract_ref"`,
+`"validator_registration_ref"`, `"validation_gate_ready": false`,
+`"validation_gate_passed": false`, and `"request_payload_validated": false`.
+The registry and disabled gate evidence do not validate command request payloads, register payload
 validators, bind live adapters, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF authority.
 Machine-check evidence: futures request payload contract registry evidence.
+Machine-check evidence: futures request payload validation gate evidence.
 Machine-check evidence: route/draft flags remain true while execution remains false.
 
 ```http

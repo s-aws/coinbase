@@ -333,6 +333,13 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         and contract.execution_allowed is False
         and contract.validation_registered is False
         and contract.live_coinbase_orders_ran is False
+        and contract.validation_gate_ref.endswith("_request_payload_validation_gate")
+        and contract.validator_contract_ref.endswith(
+            "_request_payload_validator_contract"
+        )
+        and contract.validator_registration_ref.endswith(
+            "_request_payload_validator_registration"
+        )
         and contract.browser_authority == "display_only"
         and contract.bff_authority == "forward_only_no_execution"
         for contract in FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
@@ -361,6 +368,20 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert emitted.identity_field == contract.identity_field
             assert emitted.risk_field == contract.risk_field
             assert emitted.payload_field == contract.payload_field
+            assert emitted.request_payload_contract_ref == contract.contract_ref
+            assert emitted.validation_evidence_ref == contract.validation_evidence_ref
+            assert emitted.validation_gate_ref == contract.validation_gate_ref
+            assert emitted.validator_contract_ref == contract.validator_contract_ref
+            assert (
+                emitted.validator_registration_ref
+                == contract.validator_registration_ref
+            )
+            assert emitted.validation_gate_ready is False
+            assert emitted.validation_gate_passed is False
+            assert emitted.validator_contract_registered is False
+            assert emitted.validator_registered is False
+            assert emitted.validation_registered is False
+            assert emitted.request_payload_validated is False
             assert emitted.backend_owned == contract.backend_owned
             assert emitted.spot_rule_authority == contract.spot_rule_authority
             assert emitted.browser_authority == contract.browser_authority

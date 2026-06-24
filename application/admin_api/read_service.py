@@ -421,7 +421,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6361-6380"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6381-6400"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20563,6 +20563,17 @@ class AdminApiReadService:
                     identity_field=contract.identity_field,
                     risk_field=contract.risk_field,
                     payload_field=contract.payload_field,
+                    request_payload_contract_ref=contract.contract_ref,
+                    validation_evidence_ref=contract.validation_evidence_ref,
+                    validation_gate_ref=contract.validation_gate_ref,
+                    validator_contract_ref=contract.validator_contract_ref,
+                    validator_registration_ref=contract.validator_registration_ref,
+                    validation_gate_ready=False,
+                    validation_gate_passed=False,
+                    validator_contract_registered=False,
+                    validator_registered=False,
+                    validation_registered=contract.validation_registered,
+                    request_payload_validated=False,
                     backend_owned=contract.backend_owned,
                     spot_rule_authority=contract.spot_rule_authority,
                     browser_authority=contract.browser_authority,

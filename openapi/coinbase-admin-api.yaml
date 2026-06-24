@@ -14736,6 +14736,55 @@ components:
           type: boolean
           title: Payload Field
           default: true
+        request_payload_contract_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Request Payload Contract Ref
+        validation_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validation Evidence Ref
+        validation_gate_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validation Gate Ref
+        validator_contract_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validator Contract Ref
+        validator_registration_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validator Registration Ref
+        validation_gate_ready:
+          type: boolean
+          title: Validation Gate Ready
+          default: false
+        validation_gate_passed:
+          type: boolean
+          title: Validation Gate Passed
+          default: false
+        validator_contract_registered:
+          type: boolean
+          title: Validator Contract Registered
+          default: false
+        validator_registered:
+          type: boolean
+          title: Validator Registered
+          default: false
+        validation_registered:
+          type: boolean
+          title: Validation Registered
+          default: false
+        request_payload_validated:
+          type: boolean
+          title: Request Payload Validated
+          default: false
         backend_owned:
           type: boolean
           title: Backend Owned

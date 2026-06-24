@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6361-6380**.
+- Approved phase range: **6381-6400**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6341-6360`.
+- Previous completed range: `6361-6380`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6360`.
+- `current_phase`: `6380`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,19 +81,26 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6361-6380
+## Active Phases 6381-6400
 
-Batch label: Futures/Perpetuals Request Payload Contract Registry Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Gate Evidence.
 
-These phases continue M57 after completed `6341-6360` added route-bound
-no-live futures/perpetual command drafts for placement, close/reduce, cancel
-by `client_order_id`, and reconciliation. The next concrete gap is that the
-command-suite `request_fields` rows are still inline metadata. Active
-`6361-6380` may add a backend-owned disabled request payload contract registry
-for the exact futures command request fields and bind command-suite
-`request_field_count`, `blocking_request_field_count`, and
-`required_backend_contracts` to that registry. Route/draft flags remain true
-while execution remains false. It must not validate command request payloads,
+These phases continue M57 after completed `6361-6380` added the disabled
+request payload contract registry for futures/perpetual command request
+fields. The next concrete gap is that contextless agents can see a field is
+blocked, but cannot see the exact missing validation gate, validator contract,
+validator registration, or false readiness flags that keep payload validation
+disabled. `application/admin_api/futures_request_payload_contracts.py` remains
+the registry source, and `request_field_count` plus
+`blocking_request_field_count` remain the aggregate count evidence. Active
+`6381-6400` may expose backend-owned disabled gate evidence on
+each command-suite request field: `request_payload_contract_ref`,
+`validation_evidence_ref`, `validation_gate_ref`, `validator_contract_ref`,
+`validator_registration_ref`, `validation_gate_ready=false`,
+`validation_gate_passed=false`, `validator_contract_registered=false`,
+`validator_registered=false`, `validation_registered=false`, and
+`request_payload_validated=false`. Route/draft flags remain true while
+execution remains false. It must not validate command request payloads,
 register payload validators, bind live adapters, submit or cancel Coinbase
 orders, acknowledge exchange orders, execute reconciliation, mutate
 futures/order/exchange state, accept risk proofs as command readiness, or
@@ -101,119 +108,127 @@ grant browser/BFF execution authority. Spot wallet, no-shorting, USDC,
 cost-basis, average-cost, and inventory-lot assumptions remain forbidden as
 futures/perpetual authority.
 
-### Phase 6361 - Prior Range Closure
+### Phase 6381 - Prior Range Closure
 
-- Record completed phases `6341-6360` as historical route-bound command draft
-  evidence and move active metadata to `6361-6380`.
+- Record completed phases `6361-6380` as historical request payload contract
+  registry evidence and move active metadata to `6381-6400`.
 
-### Phase 6362 - Request Payload Contract Registry
+### Phase 6382 - Request Field Gate Refs
 
-- Add enum-backed disabled backend-owned request payload field contracts in
-  `application/admin_api/futures_request_payload_contracts.py` through
-  `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
-  `iter_futures_request_payload_contracts`.
+- Add deterministic disabled `validation_gate_ref` values for every
+  `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` row.
 
-### Phase 6363 - Placement Field Binding
+### Phase 6383 - Validation Evidence Refs
 
-- Bind futures placement `product_id`, side, order type, size, limit price,
-  time-in-force, and `client_order_id` request fields to registry contract
-  refs while preserving blocked/no-live posture.
+- Surface the existing request-payload validation evidence ref on emitted
+  command-suite request fields without marking validation passed.
 
-### Phase 6364 - Close/Reduce Field Binding
+### Phase 6384 - Validator Contract Refs
 
-- Bind close/reduce `position_key`, product, side, size, reduce-only,
-  close-only, and `client_order_id` fields to registry contract refs without
-  importing spot wallet or average-cost rules.
+- Add missing future validator contract refs for every futures/perpetual
+  request field without creating validator implementations.
 
-### Phase 6365 - Cancel Field Binding
+### Phase 6385 - Validator Registration Refs
 
-- Bind futures cancel `client_order_id`, optional product context, and operator
-  notes to registry contract refs. Cancellation remains by `client_order_id`
-  through the project wrapper contract, with exchange `order_id` as exchange
-  evidence only.
+- Add missing future validator registration refs while keeping validator
+  registration disabled.
 
-### Phase 6366 - Reconciliation Field Binding
+### Phase 6386 - False-State Gate Flags
 
-- Bind reconciliation `position_key`, product, expected position state,
-  reconciliation reason, and operator notes to registry contract refs while
-  keeping reconciliation execution disabled.
+- Emit false readiness and registration flags for validation gates, validator
+  contracts, validator registration, validation registration, and payload
+  validation.
 
-### Phase 6367 - Command-Suite Request Counts
+### Phase 6387 - Placement Gate Evidence
 
-- Prove command-suite request field totals, required counts, blocking counts,
-  and per-command required backend contract refs derive from the registry.
+- Prove placement request fields expose gate refs and false validation flags
+  for product, side, type, size, limit price, time-in-force, and
+  `client_order_id`.
 
-### Phase 6368 - No-Authority Guard Assertions
+### Phase 6388 - Close/Reduce Gate Evidence
 
-- Prove registry rows remain blocked, backend-owned, display-only,
-  BFF-forward-only, validation-unregistered, no-live, no-state-mutation, and
-  no spot-rule authority.
+- Prove close/reduce request fields expose gate refs and false validation flags
+  for position identity, product, side, size, reduce-only, close-only, and
+  `client_order_id`.
 
-### Phase 6369 - Backend Focused Tests
+### Phase 6389 - Cancel Gate Evidence
 
-- Add focused backend coverage for the request payload registry, command-suite
-  emitted request fields, required backend contracts, and no-authority guards.
+- Prove cancel request fields expose gate refs and false validation flags for
+  `client_order_id`, product context, and operator notes while preserving
+  cancel-by-`client_order_id` discipline.
 
-### Phase 6370 - Backend Docs And Examples
+### Phase 6390 - Reconciliation Gate Evidence
+
+- Prove reconciliation request fields expose gate refs and false validation
+  flags without enabling reconciliation execution.
+
+### Phase 6391 - OpenAPI Schema Sync
+
+- Regenerate backend-owned OpenAPI so `AdminFuturesCommandRequestFieldItem`
+  exposes the new gate refs and false validation flags.
+
+### Phase 6392 - Frontend Contract Association
+
+- Sync generated frontend API schema, mocks, adapters, and read-model display
+  with backend-owned request-field gate evidence.
+
+### Phase 6393 - Backend Focused Tests
+
+- Add focused backend coverage proving request-field gate evidence is disabled,
+  backend-owned, no-live, and not validation authority.
+
+### Phase 6394 - Backend Docs And Examples
 
 - Update Admin API, futures/perpetual feature docs, examples, maintainer
-  handoff, capability matrix references, and agent state for request payload
-  contract registry evidence.
+  handoff, capability matrix references, and agent state for validation gate
+  evidence.
 
-### Phase 6371 - Autonomous Validators
+### Phase 6395 - Autonomous Validators
 
 - Update autonomous queue validators and context artifacts to require
-  `6361-6380` request payload contract registry evidence and to treat
-  `6341-6360` as completed history.
+  `6381-6400` validation gate evidence and to treat `6361-6380` as completed
+  history.
 
-### Phase 6372 - Frontend Contract Fixture Sync
+### Phase 6396 - Deployment/Release Validator Sync
 
-- Sync frontend mocks, backend contracts, fixture metadata, and generated API
-  expectations so request fields and `requiredBackendContracts` reflect the
-  backend registry without creating frontend trading authority.
+- Update frontend release, deployment, artifact, and runtime-evidence
+  validators so current approved range and no-live posture match backend and
+  frontend state.
 
-### Phase 6373 - Frontend Display Boundary Copy
+### Phase 6397 - Backend Contextless Review
 
-- Ensure frontend futures/admin surfaces describe request fields as
-  display-only backend contract evidence and do not expose execution,
-  validation, Coinbase, reconciliation, or spot-rule authority.
+- Run fresh blind/contextless backend review for request-field gate evidence,
+  no-live posture, `client_order_id` cancel discipline, and no spot-rule
+  leakage.
 
-### Phase 6374 - Frontend Focused Tests
+### Phase 6398 - Frontend Contextless Review
 
-- Run focused frontend typecheck, mock/contract tests, autonomous queue, API,
-  and deployment checks that cover the updated futures request payload
-  contract metadata.
+- Run fresh blind/contextless frontend review for display-only gate refs,
+  validator refs, false readiness flags, and no browser/BFF execution
+  authority.
 
-### Phase 6375 - Deployment/Release Validator Sync
-
-- Update deployment, release, artifact, and runtime-evidence validators so the
-  current approved range and no-live posture match backend and frontend state.
-
-### Phase 6376 - Backend Association Check
-
-- Verify backend-owned contracts, route identities, command-suite fixtures, and
-  frontend association docs agree on request payload registry evidence.
-
-### Phase 6377 - Backend Contextless Review
-
-- Run fresh blind/contextless backend review for request payload registry
-  discoverability, no-live posture, `client_order_id` cancel discipline, and
-  no spot-rule leakage.
-
-### Phase 6378 - Frontend Contextless Review
-
-- Run fresh blind/contextless frontend review for display-only request payload
-  metadata, `requiredBackendContracts`, and no browser/BFF execution authority.
-
-### Phase 6379 - Subagent Sweep And No-Live Evidence
+### Phase 6399 - Subagent Sweep And No-Live Evidence
 
 - Close phase-scoped, stale, or previously unused subagents after findings are
   consumed, remediated, or explicitly deferred. Record submitted notional `0`
   USDC, executed notional `0` USDC, and no Coinbase calls.
 
-### Phase 6380 - Commit And Push
+### Phase 6400 - Commit And Push
 
 - Commit and push backend and frontend work separately with no-live evidence.
+
+## Historical Plan - Phases 6361-6380
+
+Batch label: Futures/Perpetuals Request Payload Contract Registry Evidence.
+
+These phases completed the disabled request payload contract registry for
+futures/perpetual command-suite request fields through
+`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_request_payload_contracts`. They bound placement, close/reduce,
+cancel by `client_order_id`, and reconciliation request fields to backend
+contract refs and request-field counts while preserving no-live execution,
+validation-unregistered, browser-display-only, BFF-forward-only, and no
+spot-rule authority.
 
 ## Historical Plan - Phases 6341-6360
 

@@ -847,7 +847,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   Coinbase order submission, exchange acknowledgement, proof acceptance,
   post-exchange reconciliation execution, futures state mutation, browser
   authority, BFF authority, and spot-rule authority remain blocked.
-  Active 6361-6380 work adds disabled futures request payload contract
+  Completed 6361-6380 work adds disabled futures request payload contract
   registry evidence through
   `application/admin_api/futures_request_payload_contracts.py`,
   `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, and
@@ -858,6 +858,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   not validate command request payloads, register payload validators, call
   Coinbase, execute reconciliation, mutate futures/order/exchange state, or
   grant browser/BFF or spot-rule authority.
+  Latest completed autonomous range: `6361-6380`.
+  Active autonomous range: `6381-6400`.
+  Active 6381-6400 work adds disabled request payload validation gate evidence
+  to those request fields through `validation_gate_ref`,
+  `validation_evidence_ref`, `validator_contract_ref`,
+  `validator_registration_ref`, validation_gate_ready=false,
+  validation_gate_passed=false, and request_payload_validated=false. These
+  fields are evidence only and must not validate command request payloads,
+  register payload validators, make validation gates ready, call Coinbase,
+  execute reconciliation, mutate futures/order/exchange state, or grant
+  browser/BFF or spot-rule authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6361-6380`.
+- Commit (optional): current active range is `6381-6400`.
 
 ## Current Objective
 
@@ -56,8 +56,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6341-6360`.
-- Active autonomous range: `6361-6380`.
+- Latest completed autonomous range before current work: `6361-6380`.
+- Active autonomous range: `6381-6400`.
 - Completed `6281-6300` added disabled futures reconciliation command-service
   parity evidence to the M57 futures/perpetual command suite. The
   `futures_reconcile` row reports
@@ -106,7 +106,7 @@ Keep it short. Keep it factual.
   submit/cancel Coinbase orders, acknowledge exchange orders, execute
   reconciliation, mutate futures/order/exchange state, accept proof records as
   sufficient for execution, or grant browser/BFF authority.
-  Active `6361-6380` may add disabled futures request payload contract
+  Completed `6361-6380` added disabled futures request payload contract
   registry evidence through
   `application/admin_api/futures_request_payload_contracts.py`,
   `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, and
@@ -117,8 +117,16 @@ Keep it short. Keep it factual.
   request payloads, register payload validators, submit/cancel Coinbase
   orders, execute reconciliation, mutate futures/order/exchange state, or
   grant browser/BFF or spot-rule authority.
-- Current direction: complete phases `6361-6380` by adding no-live futures
-  request payload contract registry evidence, syncing backend/frontend
+  Active `6381-6400` may add disabled request payload validation gate evidence
+  on those request fields: `validation_gate_ref`, `validation_evidence_ref`,
+  `validator_contract_ref`, `validator_registration_ref`,
+  validation_gate_ready=false, validation_gate_passed=false, and
+  request_payload_validated=false. It must not
+  validate command request payloads, register validators, submit/cancel
+  Coinbase orders, execute reconciliation, mutate futures/order/exchange
+  state, or grant browser/BFF or spot-rule authority.
+- Current direction: complete phases `6381-6400` by adding no-live futures
+  request payload validation gate evidence, syncing backend/frontend
   contracts/mocks/docs, focused gates, blind/contextless review, and
   phase-end stale-subagent sweep. Registered routes from completed
   `6341-6360` remain
@@ -131,9 +139,9 @@ Keep it short. Keep it factual.
   live-enablement blockers include `live_execution_disabled`,
   `futures live adapter contract missing`, and
   `futures reconciliation execution missing`.
-- Current boundary label: futures request payload contract registry evidence.
-- Previous completed boundary label: futures proof payload-field contract registry evidence.
-- Current trace evidence label: backend-owned futures request payload contract registry evidence.
+- Current boundary label: futures request payload validation gate evidence.
+- Previous completed boundary label: futures request payload contract registry evidence.
+- Current trace evidence label: backend-owned futures request payload validation gate evidence.
 - Completed sequence evidence label: backend-owned futures command enablement sequence steps.
 - Historical boundary label retained for validators: disabled futures adapter-execution contract evidence.
 - Current contract split: adapter contract refs are required/present disabled
@@ -756,10 +764,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6361-6380`.
+- Active autonomous range: `6381-6400`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6361-6380` by syncing
-  no-live futures/perpetual request payload contract registry evidence for
+- Current direction: complete active phases `6381-6400` by syncing
+  no-live futures/perpetual request payload validation gate evidence for
   the route-bound command drafts at
   `POST /api/v1/futures/orders`,
   `POST /api/v1/futures/positions/{position_key}/close-reduce`,
@@ -767,12 +775,16 @@ Keep it short. Keep it factual.
   `POST /api/v1/futures/positions/{position_key}/reconciliation`.
   Place identity is `product_id`, close/reduce and reconciliation identity are
   `position_key`, and cancel identity is `client_order_id`.
+  Completed `6361-6380` established
   `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
-  `iter_futures_request_payload_contracts` are the backend-owned registry for
-  command-suite request fields. `request_field_count`,
+  `iter_futures_request_payload_contracts` as the backend-owned registry for
+  command-suite request fields. Active `6381-6400` exposes disabled
+  `validation_gate_ref`, `validation_evidence_ref`,
+  `validator_contract_ref`, `validator_registration_ref`, and false
+  validation readiness flags on those fields while `request_field_count`,
   `blocking_request_field_count`, and request-field
-  `required_backend_contracts` must derive from that registry while
-  route/draft flags are true and execution remains false.
+  `required_backend_contracts` stay registry-derived. The route/draft flags
+  are true while execution remains false.
   Adapter contract refs, adapter construction refs, adapter decision refs,
   adapter decision-record refs, adapter invocation refs, and adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
@@ -1631,15 +1643,15 @@ Keep it short. Keep it factual.
   contract registry work began; frontend contract sync, focused
   backend/frontend gates, fresh blind/contextless reviews, and phase-end
   stale-subagent sweep are pending.
-- Exact next command: complete active phases `6361-6380` by syncing backend and
-  frontend contracts/mocks/docs for no-live futures request payload contract
-  registry evidence, running focused backend/frontend gates,
+- Exact next command: complete active phases `6381-6400` by syncing backend and
+  frontend contracts/mocks/docs for no-live futures request payload validation
+  gate evidence, running focused backend/frontend gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live proof.
-  The active gap is request payload contract registry evidence only; no
-  command request payload validation, payload validator registration, live
-  adapter binding, Coinbase placement/cancellation, exchange acknowledgement,
-  reconciliation execution, Coinbase read/write authority,
-  futures/order/exchange-state mutation, accepted proof record as command
-  readiness, adapter invocation authority, adapter construction/invocation
-  execution, adapter execution, or browser/BFF authority is allowed in this
-  range.
+  The active gap is disabled validation gate and validator reference evidence
+  only; no command request payload validation, payload validator registration,
+  ready validation gate, live adapter binding, Coinbase
+  placement/cancellation, exchange acknowledgement, reconciliation execution,
+  Coinbase read/write authority, futures/order/exchange-state mutation,
+  accepted proof record as command readiness, adapter invocation authority,
+  adapter construction/invocation execution, adapter execution, or browser/BFF
+  authority is allowed in this range.

@@ -57,6 +57,33 @@ class FuturesRequestPayloadFieldContract:
 
         return f"{self.command.value}_{self.field.value}_request_payload_validated"
 
+    @property
+    def validation_gate_ref(self) -> str:
+        """Return the disabled validation gate ref for this field."""
+
+        return (
+            "application/admin_api/futures_request_payload_contracts.py::"
+            f"{self.command.value}_{self.field.value}_request_payload_validation_gate"
+        )
+
+    @property
+    def validator_contract_ref(self) -> str:
+        """Return the missing future validator contract ref for this field."""
+
+        return (
+            "application/admin_api/futures_request_payload_validators.py::"
+            f"{self.command.value}_{self.field.value}_request_payload_validator_contract"
+        )
+
+    @property
+    def validator_registration_ref(self) -> str:
+        """Return the missing future validator registration ref for this field."""
+
+        return (
+            "application/admin_api/futures_request_payload_validators.py::"
+            f"{self.command.value}_{self.field.value}_request_payload_validator_registration"
+        )
+
 
 def _contract(
     command: AdminFuturesCommandAction,
