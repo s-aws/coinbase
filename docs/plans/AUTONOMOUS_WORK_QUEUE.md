@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6741-6760**.
+- Approved phase range: **6761-6780**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6721-6740`.
+- Previous completed range: `6741-6760`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6740`.
+- `current_phase`: `6760`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,178 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6741-6760
+## Active Phases 6761-6780
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Semantic Artifact Runtime Evidence Binding.
+
+These phases continue M57 after completed `6741-6760` exposed disabled futures
+request payload validation record semantic artifact definition review output
+acceptance evidence. The next concrete gap is that contextless agents can now
+see output-acceptance rows, but still need backend-owned runtime-evidence
+binding rows that keep runtime evidence unavailable, unbound, and unaccepted
+until a future validator/evidence path exists. Active M57 `6761-6780` evidence
+adds disabled futures request payload validation record semantic artifact
+runtime evidence binding through
+`application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
+It emits:
+`request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+and `request_payload_validation_record_semantic_artifact_runtime_evidences`.
+Rows expose `semantic_artifact_runtime_evidence_ref`,
+`semantic_artifact_runtime_evidence_contract_ref`, carry forward the
+definition/review/input/output/output-acceptance refs, and keep
+`semantic_artifact_runtime_evidence_available=false`,
+`semantic_artifact_runtime_evidence_bound=false`,
+`semantic_artifact_runtime_evidence_accepted=false`,
+`semantic_artifact_definition_review_output_acceptance_available=false`,
+`semantic_artifact_definition_review_output_acceptance_accepted=false`,
+`execution_allowed=false`, `live_coinbase_orders_ran=false`,
+`spot_rule_authority=false`, browser authority display-only, and BFF authority
+forward-only/no-execution.
+
+Carried-forward semantic artifact machine-check fields:
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+`semantic_artifact_definition_review_output_acceptance_ref`,
+`semantic_artifact_definition_review_output_acceptance_contract_ref`,
+`semantic_artifact_definition_review_output_ref`,
+`semantic_artifact_definition_review_output_contract_ref`,
+`semantic_artifact_definition_review_input_ref`,
+`semantic_artifact_definition_review_input_contract_ref`,
+`semantic_artifact_definition_review_ref`,
+`semantic_artifact_definition_review_contract_ref`,
+`contextless_review_required=true`,
+`semantic_artifact_definition_available=false`,
+`semantic_artifact_definition_review_available=false`,
+`semantic_artifact_definition_reviewed=false`,
+`semantic_artifact_definition_review_passed=false`,
+`semantic_artifact_definition_review_input_available=false`,
+`semantic_artifact_definition_review_input_accepted=false`,
+`semantic_artifact_definition_review_output_available=false`,
+`semantic_artifact_definition_review_output_accepted=false`,
+`runtime_evidence_satisfies_semantic_artifact_definition=false`,
+`semantic_artifact_defined=false`,
+`semantic_artifact_reviewed=false`, and
+`execution_eligibility_blocker_resolved=false`.
+
+This range must not implement semantic validators, validate submitted command
+payloads, pass contextless reviews, admit commands, accept review inputs,
+accept review outputs, accept review-output acceptances, accept runtime
+evidence, bind runtime evidence, submit or cancel Coinbase orders, execute
+reconciliation, mutate futures/order/exchange state, accept risk proofs as
+command readiness, or grant browser/BFF execution authority. Spot wallet,
+no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
+remain forbidden as futures/perpetual authority.
+
+Exact autonomous phrase: Active M57 `6761-6780` evidence adds disabled futures request payload validation record semantic artifact runtime evidence binding while completed M57 `6741-6760` carries forward disabled futures request payload validation record semantic artifact definition review output acceptance evidence.
+
+### Phase 6761 - Prior Range Closure
+
+- Record completed phases `6741-6760` as historical semantic-definition-review
+  output-acceptance evidence and move active metadata to `6761-6780`.
+
+### Phase 6762 - Runtime Evidence Registry
+
+- Add a backend-owned disabled semantic artifact runtime-evidence registry
+  derived from semantic artifact definition review-output-acceptance contracts.
+
+### Phase 6763 - Runtime Evidence References
+
+- Expose runtime-evidence and runtime-evidence-contract refs for every futures
+  validation-record semantic artifact output-acceptance row.
+
+### Phase 6764 - Runtime Evidence False Flags
+
+- Keep runtime-evidence-available, runtime-evidence-bound,
+  runtime-evidence-accepted, blocker-resolved, execution, live Coinbase,
+  browser, BFF, and spot-rule authority false or display-only for every row.
+
+### Phase 6765 - Command Suite Counts
+
+- Add command-level semantic artifact runtime-evidence counts, blocking counts,
+  ready counts, runtime-observed counts, and rows.
+
+### Phase 6766 - Suite Aggregate Counts
+
+- Add suite-level aggregate counts for runtime-evidence rows without changing
+  command execution readiness.
+
+### Phase 6767 - Backend Contract References
+
+- Add semantic artifact runtime-evidence contract refs to required backend
+  contracts for every disabled futures command.
+
+### Phase 6768 - Compact Serializer
+
+- Keep public command-suite payload bounded while preserving runtime-evidence
+  summary counts and omitting full evidence-ref arrays.
+
+### Phase 6769 - OpenAPI Contract
+
+- Regenerate and validate OpenAPI so generated clients expose runtime-evidence
+  fields from backend-owned models.
+
+### Phase 6770 - Frontend Generated Client Sync
+
+- Sync the frontend generated schema from OpenAPI without introducing browser
+  trading authority.
+
+### Phase 6771 - Frontend Mock Contract
+
+- Extend frontend mock backend data with runtime-evidence counts, refs, false
+  flags, and display-only authority.
+
+### Phase 6772 - Frontend Adapter Mapping
+
+- Map backend runtime-evidence rows into the futures/perpetual read model.
+
+### Phase 6773 - Frontend Display
+
+- Display runtime-evidence blockers and false readiness fields as read-only
+  evidence.
+
+### Phase 6774 - Frontend Tests
+
+- Cover runtime-evidence counts, row mapping, display, and no-execution
+  semantics with focused frontend unit tests.
+
+### Phase 6775 - Backend Focused Tests
+
+- Cover runtime-evidence registry, read-service counts, required contract refs,
+  compact payload bounds, and autonomous phase metadata.
+
+### Phase 6776 - Documentation Index
+
+- Update admin API, futures/perpetuals, examples, API reference, capability
+  matrix, maintainer handoff, and state docs.
+
+### Phase 6777 - Autonomous Checker
+
+- Update autonomous checker metadata and machine-check phrases for `6761-6780`.
+
+### Phase 6778 - Contextless Review
+
+- Run fresh blind/contextless backend and frontend reviews for runtime-evidence
+  binding clarity.
+
+### Phase 6779 - Hygiene Sweep
+
+- Record phase-end stale-subagent cleanup and no-live Coinbase evidence.
+
+### Phase 6780 - Commit And Push
+
+- Commit and push coherent backend/frontend runtime-evidence binding work after
+  focused validation passes.
+
+## Historical Phases 6741-6760
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Semantic Artifact Definition Review Output Acceptance Evidence.
 

@@ -735,20 +735,41 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6741-6760 add disabled futures request payload validation
-record semantic artifact definition review output acceptance evidence through
-`application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
+Current M57 phases 6761-6780 add disabled futures request payload validation
+record semantic artifact runtime evidence binding through
+`application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
 and
-`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`;
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`;
 command-suite
+`request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+and
+`request_payload_validation_record_semantic_artifact_runtime_evidences`
+remain backend-owned display evidence. Rows expose
+`semantic_artifact_runtime_evidence_ref`,
+`semantic_artifact_runtime_evidence_contract_ref`,
+`semantic_artifact_runtime_evidence_available=false`,
+`semantic_artifact_runtime_evidence_bound=false`, and
+`semantic_artifact_runtime_evidence_accepted=false` while preserving no
+payload validation, no review input/output acceptance, no runtime evidence
+binding or acceptance, no contextless review pass, no command admission, no
+Coinbase calls, no reconciliation execution, no futures/order/exchange state
+mutation, and no browser/BFF or spot-rule authority. Completed 6741-6760
+output-acceptance evidence remains available through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
+Completed output-acceptance command-suite fields include
 `request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
 `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
 `ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
 `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
 and
 `request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`
-remain backend-owned display evidence. Rows expose
+as backend-owned display evidence. Rows expose
 `semantic_artifact_definition_review_output_acceptance_ref`,
 `semantic_artifact_definition_review_output_acceptance_contract_ref`,
 `semantic_artifact_definition_review_output_ref`,
@@ -759,12 +780,8 @@ remain backend-owned display evidence. Rows expose
 `semantic_artifact_definition_contract_ref`,
 `contextless_review_required=true`,
 `semantic_artifact_definition_review_output_acceptance_available=false`,
-and `semantic_artifact_definition_review_output_acceptance_accepted=false`
-while preserving no payload validation, no review input/output acceptance, no
-contextless review pass, no command admission, no Coinbase calls, no
-reconciliation execution, no futures/order/exchange state mutation, and no
-browser/BFF or spot-rule authority. Completed 6721-6740 review-output
-evidence remains available through
+and `semantic_artifact_definition_review_output_acceptance_accepted=false`.
+Completed 6721-6740 review-output evidence remains available through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`
 and
 `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`.

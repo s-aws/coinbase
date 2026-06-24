@@ -149,9 +149,23 @@ and notional evidence fields.
   Rows expose `semantic_artifact_definition_review_output_contract_ref`,
   `semantic_artifact_definition_review_output_available=false`, and
   `semantic_artifact_definition_review_output_accepted=false`. Active M57
-  `6741-6760` evidence adds disabled futures request payload validation record
-  semantic artifact definition review output acceptance evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`,
+  `6761-6780` evidence adds disabled futures request payload validation record
+  semantic artifact runtime evidence binding through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`,
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  and `request_payload_validation_record_semantic_artifact_runtime_evidences`.
+  Rows expose `semantic_artifact_runtime_evidence_ref`,
+  `semantic_artifact_runtime_evidence_contract_ref`,
+  `semantic_artifact_runtime_evidence_available=false`,
+  `semantic_artifact_runtime_evidence_bound=false`, and
+  `semantic_artifact_runtime_evidence_accepted=false`. Completed M57
+  `6741-6760` carries forward disabled futures request payload validation
+  record semantic artifact definition review output acceptance evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
   `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
   `request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
@@ -174,12 +188,12 @@ and notional evidence fields.
   `runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
   and `request_payload_validation_record_semantic_artifact_definitions`.
   This evidence does not accept review inputs, accept review outputs, accept
-  review-output acceptances, define futures semantics, pass contextless
-  reviews, validate payloads, resolve blockers, admit commands, call Coinbase,
-  execute reconciliation, mutate futures/order/exchange state, or grant
-  browser/BFF or spot-rule authority.
-  Exact autonomous phrase: Active M57 `6741-6760` evidence adds disabled futures request payload validation record semantic artifact definition review output acceptance evidence while completed M57 `6721-6740` carries forward disabled futures request payload validation record semantic artifact definition review output evidence.
-  Literal machine-check phrase: futures request payload validation record semantic artifact definition review output acceptance evidence.
+  review-output acceptances, accept or bind runtime evidence, define futures
+  semantics, pass contextless reviews, validate payloads, resolve blockers,
+  admit commands, call Coinbase, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+  Exact autonomous phrase: Active M57 `6761-6780` evidence adds disabled futures request payload validation record semantic artifact runtime evidence binding while completed M57 `6741-6760` carries forward disabled futures request payload validation record semantic artifact definition review output acceptance evidence.
+  Literal machine-check phrase: futures request payload validation record semantic artifact runtime evidence binding.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,

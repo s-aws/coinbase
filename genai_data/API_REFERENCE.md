@@ -16,8 +16,8 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 futures/perpetual semantic artifact definition review output
-acceptance evidence for `GET /api/v1/futures/command-suite`: futures request
+Current M57 futures/perpetual semantic artifact runtime evidence binding for
+`GET /api/v1/futures/command-suite`: futures request
 payload contract registry evidence; futures request payload validator contract
 registry evidence; futures request payload validator input-schema evidence;
 futures request payload validator output-schema evidence; futures request
@@ -31,7 +31,9 @@ semantic artifact definition review evidence; futures request payload
 validation record semantic artifact definition review input evidence; futures
 request payload validation record semantic artifact definition review output
 evidence; futures request payload validation record semantic artifact
-definition review output acceptance evidence. Source registries include
+definition review output acceptance evidence; futures request payload
+validation record semantic artifact runtime evidence binding. Source registries
+include
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -61,8 +63,10 @@ definition review output acceptance evidence. Source registries include
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
 `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
 and
-`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
 
 Representative command-suite keys: `request_payload_validator_contract_count`,
 `blocking_request_payload_validator_contract_count`,
@@ -80,6 +84,11 @@ Representative command-suite keys: `request_payload_validator_contract_count`,
 `blocking_request_payload_validation_record_schema_count`,
 `request_payload_validation_record_replay_guard_count`,
 `blocking_request_payload_validation_record_replay_guard_count`,
+`request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`request_payload_validation_record_semantic_artifact_runtime_evidences`,
 `request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
 `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
 `ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
@@ -103,8 +112,10 @@ Representative command-suite keys: `request_payload_validator_contract_count`,
 `validation_record_schema_field_count`,
 `validation_record_replay_guard_field_refs`,
 `validation_record_replay_guard_field_count`,
-`semantic_artifact_definition_review_output_acceptance_ref`, and
-`semantic_artifact_definition_review_output_acceptance_contract_ref`.
+`semantic_artifact_definition_review_output_acceptance_ref`,
+`semantic_artifact_definition_review_output_acceptance_contract_ref`,
+`semantic_artifact_runtime_evidence_ref`, and
+`semantic_artifact_runtime_evidence_contract_ref`.
 
 Carried-forward execution-eligibility refs remain visible:
 `validation_record_execution_eligibility_contract_ref`,
@@ -709,14 +720,31 @@ Current behavior:
   validation_record_replay_guard_contract_ready=false,
   validation_record_idempotency_contract_ready=false, and
   validation_record_replay_protected=false.
-- Active M57 `6741-6760` evidence adds disabled futures request payload
-  validation record semantic artifact definition review output acceptance
-  evidence through
+- Active M57 `6761-6780` evidence adds disabled futures request payload
+  validation record semantic artifact runtime evidence binding through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
+  The command-suite response exposes
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `request_payload_validation_record_semantic_artifact_runtime_evidences`,
+  `semantic_artifact_runtime_evidence_ref`,
+  `semantic_artifact_runtime_evidence_contract_ref`,
+  semantic_artifact_runtime_evidence_available=false,
+  semantic_artifact_runtime_evidence_bound=false, and
+  semantic_artifact_runtime_evidence_accepted=false.
+  Completed `6741-6760` evidence carries forward disabled futures request
+  payload validation record semantic artifact definition review output
+  acceptance evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
   and
   `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
-  The command-suite response exposes
+  The carried-forward response exposes
   `request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
   `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
   `ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,

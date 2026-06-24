@@ -110,6 +110,10 @@ from application.admin_api.futures_request_payload_validation_record_semantic_ar
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances,
 )
+from application.admin_api.futures_request_payload_validation_record_semantic_artifact_runtime_evidences import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS,
+    iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences,
+)
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -1417,6 +1421,68 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS
     )
 
+    assert len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS
+    ) == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS
+    )
+    semantic_artifact_definition_review_output_acceptance_contract_refs = {
+        contract.semantic_artifact_definition_review_output_acceptance_contract_ref
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS
+    }
+    assert all(
+        contract.semantic_artifact_definition_review_output_acceptance_contract_ref
+        in semantic_artifact_definition_review_output_acceptance_contract_refs
+        and contract.status == AdminApiGateStatus.BLOCKED
+        and contract.source == AdminFuturesEvidenceSource.BACKEND_CONTRACT
+        and contract.required is True
+        and contract.blocking is True
+        and contract.backend_owned is True
+        and contract.read_only is True
+        and contract.contextless_review_required is True
+        and contract.spot_rule_authority is False
+        and contract.semantic_artifact_definition_available is False
+        and contract.semantic_artifact_definition_review_available is False
+        and contract.semantic_artifact_definition_review_input_available is False
+        and contract.semantic_artifact_definition_review_input_accepted is False
+        and contract.semantic_artifact_definition_review_output_available is False
+        and contract.semantic_artifact_definition_review_output_accepted is False
+        and contract.semantic_artifact_definition_review_output_acceptance_available is False
+        and contract.semantic_artifact_definition_review_output_acceptance_accepted is False
+        and contract.semantic_artifact_runtime_evidence_available is False
+        and contract.semantic_artifact_runtime_evidence_bound is False
+        and contract.semantic_artifact_runtime_evidence_accepted is False
+        and contract.runtime_evidence_observed is False
+        and contract.runtime_evidence_satisfies_semantic_artifact_definition is False
+        and contract.semantic_artifact_defined is False
+        and contract.semantic_artifact_reviewed is False
+        and contract.execution_eligibility_blocker_resolved is False
+        and contract.validation_record_execution_eligible is False
+        and contract.execution_allowed is False
+        and contract.live_coinbase_orders_ran is False
+        and contract.semantic_artifact_runtime_evidence_contract_ref.startswith(
+            "application/admin_api/"
+            "futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py::"
+        )
+        and contract.semantic_artifact_definition_review_output_acceptance_ref.endswith(
+            "_output_acceptance"
+        )
+        and contract.semantic_artifact_runtime_evidence_ref.endswith(
+            "_runtime_evidence"
+        )
+        and contract.required_backend_contract
+        == contract.semantic_artifact_runtime_evidence_contract_ref
+        and contract.missing_backend_contract
+        == contract.semantic_artifact_runtime_evidence_ref
+        and len(contract.forbidden_execution_claims) == 23
+        and "spot_rule_authority" in contract.forbidden_execution_claims
+        and len(contract.required_evidence_refs) == 18
+        and contract.missing_evidence_refs == contract.required_evidence_refs
+        and contract.browser_authority == "display_only"
+        and contract.bff_authority == "forward_only_no_execution"
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS
+    )
+
     emitted_count = 0
     validator_emitted_count = 0
     input_schema_emitted_count = 0
@@ -1436,6 +1502,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     validation_record_semantic_artifact_definition_review_input_emitted_count = 0
     validation_record_semantic_artifact_definition_review_output_emitted_count = 0
     validation_record_semantic_artifact_definition_review_output_acceptance_emitted_count = 0
+    validation_record_semantic_artifact_runtime_evidence_emitted_count = 0
     for command in command_suite.commands:
         registry_rows = list(iter_futures_request_payload_contracts(command.command))
         validator_registry_rows = list(
@@ -1514,6 +1581,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 command.command
             )
         )
+        validation_record_semantic_artifact_runtime_evidence_registry_rows = list(
+            iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences(
+                command.command
+            )
+        )
         emitted_count += len(command.request_fields)
         validator_emitted_count += len(command.request_payload_validator_contracts)
         input_schema_emitted_count += len(
@@ -1566,6 +1638,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         validation_record_semantic_artifact_definition_review_output_acceptance_emitted_count += len(
             command.request_payload_validation_record_semantic_artifact_definition_review_output_acceptances
+        )
+        validation_record_semantic_artifact_runtime_evidence_emitted_count += len(
+            command.request_payload_validation_record_semantic_artifact_runtime_evidences
         )
         assert command.request_field_count == len(registry_rows)
         assert command.required_request_field_count == len(registry_rows)
@@ -1822,6 +1897,22 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count
             == 0
         )
+        assert (
+            command.request_payload_validation_record_semantic_artifact_runtime_evidence_count
+            == len(validation_record_semantic_artifact_runtime_evidence_registry_rows)
+        )
+        assert (
+            command.blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count
+            == len(validation_record_semantic_artifact_runtime_evidence_registry_rows)
+        )
+        assert (
+            command.ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count
+            == 0
+        )
+        assert (
+            command.runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count
+            == 0
+        )
         assert all(
             contract.contract_ref in command.required_backend_contracts
             for contract in registry_rows
@@ -1908,6 +1999,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             contract.semantic_artifact_definition_review_output_acceptance_contract_ref
             in command.required_backend_contracts
             for contract in validation_record_semantic_artifact_definition_review_output_acceptance_registry_rows
+        )
+        assert all(
+            contract.semantic_artifact_runtime_evidence_contract_ref
+            in command.required_backend_contracts
+            for contract in validation_record_semantic_artifact_runtime_evidence_registry_rows
         )
         for emitted, contract in zip(
             command.request_fields,
@@ -3254,6 +3350,12 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS
         )
     )
+    assert (
+        validation_record_semantic_artifact_runtime_evidence_emitted_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS
+        )
+    )
     assert command_suite.request_field_count == len(
         FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
     )
@@ -3522,6 +3624,26 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert (
         command_suite.runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count
+        == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_semantic_artifact_runtime_evidence_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count
         == 0
     )
 
@@ -5418,6 +5540,21 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert "required_evidence_refs" not in review_output_acceptance
     assert "missing_evidence_refs" not in review_output_acceptance
     assert "forbidden_execution_claims" not in review_output_acceptance
+    runtime_evidence = next(
+        item
+        for item in place[
+            "request_payload_validation_record_semantic_artifact_runtime_evidences"
+        ]
+        if item["field"] == AdminFuturesCommandRequestField.PRODUCT_ID.value
+        and item["semantic_artifact"]
+        == AdminFuturesCommandSemanticArtifact.POSITION_SEMANTICS.value
+    )
+    assert runtime_evidence["required_evidence_count"] == 18
+    assert runtime_evidence["missing_evidence_count"] == 18
+    assert runtime_evidence["forbidden_execution_claim_count"] == 23
+    assert "required_evidence_refs" not in runtime_evidence
+    assert "missing_evidence_refs" not in runtime_evidence
+    assert "forbidden_execution_claims" not in runtime_evidence
     margin_collateral = next(
         item
         for item in place["risk_proof_requirements"]

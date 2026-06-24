@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6741-6760`.
+- Commit (optional): current active range is `6761-6780`.
 
 ## Current Objective
 
@@ -56,26 +56,34 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6721-6740`.
-- Active autonomous range: `6741-6760`.
-- Active `6741-6760` adds disabled futures request payload validation record
-  semantic artifact definition review output acceptance evidence through
+- Latest completed autonomous range before current work: `6741-6760`.
+- Active autonomous range: `6761-6780`.
+- Active `6761-6780` adds disabled futures request payload validation record
+  semantic artifact runtime evidence binding through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
+  Each row exposes `semantic_artifact_runtime_evidence_ref`,
+  `semantic_artifact_runtime_evidence_contract_ref`,
+  `contextless_review_required=true`,
+  `semantic_artifact_runtime_evidence_available=false`,
+  `semantic_artifact_runtime_evidence_bound=false`,
+  `semantic_artifact_runtime_evidence_accepted=false`,
+  `semantic_artifact_definition_review_output_acceptance_available=false`,
+  `semantic_artifact_definition_review_output_acceptance_accepted=false`,
+  `semantic_artifact_definition_review_output_available=false`,
+  `semantic_artifact_definition_review_output_accepted=false`,
+  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`, and
+  `execution_eligibility_blocker_resolved=false`. Completed `6741-6760`
+  carries forward disabled futures request payload validation record semantic
+  artifact definition review output acceptance evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
   and
   `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
-  Each row exposes `semantic_artifact_definition_review_output_acceptance_ref`,
-  `semantic_artifact_definition_review_output_acceptance_contract_ref`,
-  `contextless_review_required=true`,
-  `semantic_artifact_definition_review_output_available=false`,
-  `semantic_artifact_definition_review_output_accepted=false`,
-  `semantic_artifact_definition_review_output_acceptance_available=false`,
-  `semantic_artifact_definition_review_output_acceptance_accepted=false`,
-  `semantic_artifact_runtime_evidence_bound=false`,
-  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`, and
-  `execution_eligibility_blocker_resolved=false`. Completed `6721-6740`
-  carries forward disabled futures request payload validation record semantic
-  artifact definition review output evidence through
+  Completed `6721-6740` carries forward disabled futures request payload
+  validation record semantic artifact definition review output evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_outputs.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
   and
@@ -100,23 +108,25 @@ Keep it short. Keep it factual.
   and `iter_futures_request_payload_validation_record_semantic_artifact_definitions`.
 ## Active Scope
 
-- Active autonomous range: `6741-6760`.
+- Active autonomous range: `6761-6780`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `6741-6760` with backend-owned futures
-  request payload validation record semantic artifact definition review output acceptance evidence
+- Current direction: complete phases `6761-6780` with backend-owned futures
+  request payload validation record semantic artifact runtime evidence binding
   and matching frontend display.
 - Backend active source:
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`.
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`.
 - Backend active registry:
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`
   and
-  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
 - Active command-suite evidence fields:
-  `request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
-  `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
-  `ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
-  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
-  and `request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  and `request_payload_validation_record_semantic_artifact_runtime_evidences`.
+- Active evidence phrase: futures request payload validation record semantic artifact runtime evidence binding.
+- Active display phrase: futures request payload validation record semantic artifact runtime evidence binding.
 - Active row evidence fields:
   `semantic_artifact_definition_review_ref`,
   `semantic_artifact_definition_review_contract_ref`,
@@ -127,6 +137,7 @@ Keep it short. Keep it factual.
   `semantic_artifact_definition_review_output_acceptance_ref`,
   `semantic_artifact_definition_review_output_acceptance_contract_ref`,
   `semantic_artifact_runtime_evidence_ref`,
+  `semantic_artifact_runtime_evidence_contract_ref`,
   `contextless_review_required=true`,
   `semantic_artifact_definition_available=false`,
   `semantic_artifact_definition_review_available=false`,
@@ -138,15 +149,17 @@ Keep it short. Keep it factual.
   `semantic_artifact_definition_review_output_accepted=false`,
   `semantic_artifact_definition_review_output_acceptance_available=false`,
   `semantic_artifact_definition_review_output_acceptance_accepted=false`,
+  `semantic_artifact_runtime_evidence_available=false`,
   `semantic_artifact_runtime_evidence_bound=false`,
+  `semantic_artifact_runtime_evidence_accepted=false`,
   `runtime_evidence_satisfies_semantic_artifact_definition=false`,
   `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
   `execution_eligibility_blocker_resolved=false`,
   `validation_record_execution_eligible=false`, `execution_allowed=false`,
   and `live_coinbase_orders_ran=false`.
 - Boundary: this active range does not validate command payloads, pass
-  contextless reviews, accept review inputs, accept review outputs, accept review-output acceptances, admit
-  commands, accept risk proofs as command readiness, call Coinbase, execute reconciliation, mutate
+  contextless reviews, accept review inputs, accept review outputs, accept review-output acceptances,
+  accept or bind runtime evidence, admit commands, accept risk proofs as command readiness, call Coinbase, execute reconciliation, mutate
   futures/order/exchange state, grant browser/BFF authority, or import spot-only rules into
   futures/perpetuals.
 - Cancel command identity remains `client_order_id`.
@@ -445,15 +458,15 @@ Keep it short. Keep it factual.
 
 ## Active M57 Machine-Check Evidence Terms
 
-Current direction: complete phases `6741-6760` with futures request payload semantic artifact definition review output acceptance evidence.
+Current direction: complete phases `6761-6780` with futures request payload validation record semantic artifact runtime evidence binding.
 
-Active evidence phrases: futures request payload validation record semantic artifact definition review output acceptance evidence; futures request payload validation record semantic artifact definition review output acceptance display.
+Active evidence phrases: futures request payload validation record semantic artifact runtime evidence binding; futures request payload validation record semantic artifact runtime evidence display.
 
-Active backend files and constants: application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS; iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.
+Active backend files and constants: application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS; iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences.
 
-Active command-suite fields: request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count; blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count; ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count; runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count; request_payload_validation_record_semantic_artifact_definition_review_output_acceptances; semantic_artifact_definition_review_ref; semantic_artifact_definition_review_contract_ref; semantic_artifact_definition_review_input_ref; semantic_artifact_definition_review_input_contract_ref; semantic_artifact_definition_review_output_ref; semantic_artifact_definition_review_output_contract_ref; semantic_artifact_definition_review_output_acceptance_ref; semantic_artifact_definition_review_output_acceptance_contract_ref; semantic_artifact_runtime_evidence_ref.
+Active command-suite fields: request_payload_validation_record_semantic_artifact_runtime_evidence_count; blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count; ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count; runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count; request_payload_validation_record_semantic_artifact_runtime_evidences; semantic_artifact_definition_review_ref; semantic_artifact_definition_review_contract_ref; semantic_artifact_definition_review_input_ref; semantic_artifact_definition_review_input_contract_ref; semantic_artifact_definition_review_output_ref; semantic_artifact_definition_review_output_contract_ref; semantic_artifact_definition_review_output_acceptance_ref; semantic_artifact_definition_review_output_acceptance_contract_ref; semantic_artifact_runtime_evidence_ref; semantic_artifact_runtime_evidence_contract_ref.
 
-Active false flags: contextless_review_required=true; semantic_artifact_definition_available=false; semantic_artifact_definition_review_available=false; semantic_artifact_definition_reviewed=false; semantic_artifact_definition_review_passed=false; semantic_artifact_definition_review_input_available=false; semantic_artifact_definition_review_input_accepted=false; semantic_artifact_definition_review_output_available=false; semantic_artifact_definition_review_output_accepted=false; semantic_artifact_definition_review_output_acceptance_available=false; semantic_artifact_definition_review_output_acceptance_accepted=false; semantic_artifact_runtime_evidence_bound=false; runtime_evidence_satisfies_semantic_artifact_definition=false; semantic_artifact_defined=false; semantic_artifact_reviewed=false; execution_eligibility_blocker_resolved=false; validation_record_execution_eligible=false; execution_allowed=false; live_coinbase_orders_ran=false.
+Active false flags: contextless_review_required=true; semantic_artifact_definition_available=false; semantic_artifact_definition_review_available=false; semantic_artifact_definition_reviewed=false; semantic_artifact_definition_review_passed=false; semantic_artifact_definition_review_input_available=false; semantic_artifact_definition_review_input_accepted=false; semantic_artifact_definition_review_output_available=false; semantic_artifact_definition_review_output_accepted=false; semantic_artifact_definition_review_output_acceptance_available=false; semantic_artifact_definition_review_output_acceptance_accepted=false; semantic_artifact_runtime_evidence_available=false; semantic_artifact_runtime_evidence_bound=false; semantic_artifact_runtime_evidence_accepted=false; runtime_evidence_satisfies_semantic_artifact_definition=false; semantic_artifact_defined=false; semantic_artifact_reviewed=false; execution_eligibility_blocker_resolved=false; validation_record_execution_eligible=false; execution_allowed=false; live_coinbase_orders_ran=false.
 
 Carried-forward evidence phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition review evidence.
 
@@ -471,51 +484,59 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
 
 ## Validation Status
 
-- Last completed backend focused validation: 2026-06-24 for phases `6721-6740`.
+- Last completed backend focused validation: 2026-06-24 for phases `6741-6760`.
   Result: Passed. Commands run:
   `python -m py_compile application\admin_api\read_service.py application\admin_api\models.py application\admin_api\futures_request_payload_validation_record_semantic_artifact_definition_review_outputs.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_spot_readiness_gate.py tools\run_autonomous_work_queue_check.py`;
   `pytest tests\regression\test_admin_api_futures_risk_proofs.py -q --tb=short` (17 passed);
   `pytest tests\regression\test_spot_readiness_gate.py -q --tb=short` (8 passed);
   `pytest tests\regression\test_admin_api_contract.py -q --tb=short` (135 passed);
   `python tools\run_autonomous_work_queue_check.py --summary-only` (passed).
-- Current `6721-6740` backend serializer remediation: Passed. The public
+- Completed `6721-6740` backend serializer remediation: Passed. The public
   futures command-suite API payload remains bounded while keeping semantic
   guard blocker refs visible; the offline frontend fixture preserves root
   `required_backend_contracts` / `missing_backend_contracts` summary evidence.
   Measured payloads: public command-suite `8,791,189` bytes and full frontend
   fixtures `18,493,240` bytes, both under the existing regression caps.
 - Last completed frontend focused validation: 2026-06-24 for phases
-  `6721-6740`. Result: Passed. Commands run:
-  `npm run typecheck`; `npm run api:check`;
-  `npx vitest run tests/unit/qualityGates.test.tsx tests/unit/AdminShell.test.tsx tests/unit/backendRuntime.test.ts tests/unit/mockBackend.test.ts tests/unit/FuturesPerpetualsReadModel.test.tsx` (71 passed);
+  `6761-6780`. Result: Passed. Commands run:
+  `npm run api:check`; `npm run typecheck`;
+  `npx vitest run tests/unit/qualityGates.test.tsx tests/unit/AdminShell.test.tsx tests/unit/backendRuntime.test.ts tests/unit/mockBackend.test.ts tests/unit/FuturesPerpetualsReadModel.test.tsx` (73 passed);
   `npm run autonomous:check` (passed). Live Coinbase execution not run;
   notional `0` USDC.
-- Last completed blind/contextless review: 2026-06-24 for phases `6721-6740`.
-  Result: initial frontend review failed on stale docs/logs and missing
-  review-output feature/example docs; initial backend review failed on compact
-  serializer evidence loss. Both blockers were remediated. Fresh frontend
-  review PASS; fresh backend review PASS.
-- Phase-end stale-subagent sweep for `6721-6740`: completed. Closed Helmholtz
-  (`019efb49-8099-7251-a1c6-dbd423fd3c87`), Boyle
-  (`019efb49-b3ad-79a1-94d5-856fd123b1fb`), Franklin
-  (`019efb53-924e-7740-95fd-3bffe6acc8c6`), and Pauli
-  (`019efb53-a65a-7b92-9eba-af75a44da09f`) after consuming and remediating
-  their findings.
-- Last stale process checks: 2026-06-24. Backend and frontend stale test-process checks passed.
+- Last completed backend focused validation: 2026-06-24 for phases
+  `6761-6780`. Result: Passed. Commands run:
+  `python -m py_compile application\admin_api\futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_spot_readiness_gate.py tools\run_autonomous_work_queue_check.py`;
+  `python -m pytest tests\regression\test_admin_api_futures_risk_proofs.py -q --tb=short` (17 passed);
+  `python -m pytest tests\regression\test_spot_readiness_gate.py -q --tb=short` (8 passed);
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract -q --tb=short` (1 passed);
+  `python tools\run_autonomous_work_queue_check.py --summary-only` (passed).
+- Last completed blind/contextless review: 2026-06-24 for phases `6761-6780`.
+  Result: backend review PASS; frontend review initially failed because backend
+  and frontend contextless review logs still led with `6741-6760`. Remediation
+  updated both review logs, frontend testing docs, futures/perpetual read docs,
+  and this state file. Fresh backend/frontend remediation re-review confirmed
+  the runtime evidence source, fields, active range, and no-live/no-authority
+  boundary are understandable without chat history.
+- Phase-end stale-subagent sweep for `6761-6780`: completed. Consumed and
+  remediated findings from Parfit (`019efbf8-694a-7510-94b7-de78e37958f2`),
+  Gauss (`019efbf8-a80b-7f93-898c-5dd43f801cc9`), and Tesla
+  (`019efc03-f938-7bc0-bfb2-d8c9c092725f`).
+- Last stale process checks: 2026-06-24. Backend and frontend stale
+  test-process checks passed.
 - Last full backend regression: 2026-06-16 historical pass. Full regression was not rerun for this ordinary phase. Current full regression closeout remains blocked until oversized `runtime_state/test_admin_api_contract` artifacts are cleaned or archived with explicit operator approval.
-- Current `6741-6760` validation: in progress. Focused backend, frontend,
-  autonomous, and contextless review gates must pass before closeout.
+- Current `6761-6780` validation: passed focused backend, frontend,
+  autonomous, and contextless review gates for ordinary phase closeout.
 - Live Coinbase execution for current M57 phase work: not run. Submitted notional `0` USDC. Executed notional `0` USDC.
 
 ## Next 3 Actions
 
 1. Run final stale-process hygiene after this phase's validation commands.
-2. Commit and push the backend and frontend phase `6741-6760` work after final diff review.
+2. Commit and push the backend and frontend phase `6761-6780` work after final diff review.
 3. Continue the next approved M57 phase range only after this phase is committed.
 
 ## Handoff Notes
 
-- Phase `6741-6760` adds backend-owned semantic artifact definition review output acceptance evidence and frontend display only.
+- Phase `6761-6780` adds backend-owned semantic artifact runtime evidence binding and frontend display only.
 - The backend remains authoritative for trading behavior, guard checks, live execution, reconciliation, and Coinbase calls.
 - The frontend consumes generated OpenAPI/backend contracts and remains display-only for this evidence surface.
 - No spot-only wallet/no-shorting/cost-basis rules are imported into futures/perpetual command readiness.
