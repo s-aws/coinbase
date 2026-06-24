@@ -13567,6 +13567,34 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem'
           type: array
           title: Request Payload Validation Record Execution Eligibilities
+        request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Blocker Count
+          default: 0
+        blocking_request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Execution Eligibility
+            Blocker Count
+          default: 0
+        resolved_request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Request Payload Validation Record Execution Eligibility
+            Blocker Count
+          default: 0
+        runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Execution Eligibility
+            Blocker Count
+          default: 0
+        request_payload_validation_record_execution_eligibility_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem'
+          type: array
+          title: Request Payload Validation Record Execution Eligibility Blockers
         semantic_guard_count:
           type: integer
           minimum: 0.0
@@ -14742,6 +14770,21 @@ components:
       title: AdminFuturesCommandEvidenceRoute
       description: Backend evidence routes that support futures/perpetual command
         guards.
+    AdminFuturesCommandExecutionEligibilityBlocker:
+      type: string
+      enum:
+      - position_semantics_missing
+      - margin_semantics_missing
+      - collateral_semantics_missing
+      - liquidation_semantics_missing
+      - reduce_only_semantics_missing
+      - close_only_semantics_missing
+      - funding_semantics_missing
+      - order_semantics_missing
+      - cancel_semantics_missing
+      - reconciliation_semantics_missing
+      title: AdminFuturesCommandExecutionEligibilityBlocker
+      description: Missing futures semantics that block validation-record execution.
     AdminFuturesCommandPrerequisite:
       type: string
       enum:
@@ -16162,6 +16205,143 @@ components:
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem
       description: One disabled validation-record audit/correlation binding row.
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        blocker:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityBlocker'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        validation_record_execution_eligibility_contract_ref:
+          type: string
+          title: Validation Record Execution Eligibility Contract Ref
+        validation_record_execution_eligibility_blocker_ref:
+          type: string
+          title: Validation Record Execution Eligibility Blocker Ref
+        semantic_ref:
+          type: string
+          title: Semantic Ref
+        required_backend_artifact_ref:
+          type: string
+          title: Required Backend Artifact Ref
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        missing_backend_contract:
+          type: string
+          title: Missing Backend Contract
+        missing_reason:
+          type: string
+          title: Missing Reason
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        forbidden_execution_claims:
+          items:
+            type: string
+          type: array
+          title: Forbidden Execution Claims
+        forbidden_execution_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Forbidden Execution Claim Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        semantic_ready:
+          type: boolean
+          title: Semantic Ready
+          default: false
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        runtime_evidence_satisfies_execution_eligibility_blocker:
+          type: boolean
+          title: Runtime Evidence Satisfies Execution Eligibility Blocker
+          default: false
+        blocker_resolved:
+          type: boolean
+          title: Blocker Resolved
+          default: false
+        validation_record_execution_eligible:
+          type: boolean
+          title: Validation Record Execution Eligible
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - blocker
+      - validation_record_execution_eligibility_contract_ref
+      - validation_record_execution_eligibility_blocker_ref
+      - semantic_ref
+      - required_backend_artifact_ref
+      - required_backend_contract
+      - missing_backend_contract
+      - missing_reason
+      - detail
+      title: AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem
+      description: One disabled blocker row for validation-record execution eligibility.
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem:
       properties:
         field:
@@ -31826,6 +32006,29 @@ components:
           minimum: 0.0
           title: Runtime Observed Request Payload Validation Record Execution Eligibility
             Count
+          default: 0
+        request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Blocker Count
+          default: 0
+        blocking_request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Execution Eligibility
+            Blocker Count
+          default: 0
+        resolved_request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Request Payload Validation Record Execution Eligibility
+            Blocker Count
+          default: 0
+        runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Execution Eligibility
+            Blocker Count
           default: 0
         semantic_guard_count:
           type: integer

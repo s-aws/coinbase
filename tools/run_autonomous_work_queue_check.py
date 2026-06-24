@@ -62,9 +62,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6601-6620"
-APPROVED_PHASES = tuple(range(6601, 6621))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6581-6600"
+APPROVED_PHASE_RANGE = "6621-6640"
+APPROVED_PHASES = tuple(range(6621, 6641))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6601-6620"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -467,6 +467,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "`iter_futures_request_payload_validation_record_admission_links`",
             "`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`",
             "`iter_futures_request_payload_validation_record_execution_eligibilities`",
+            "`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`",
+            "`iter_futures_request_payload_validation_record_execution_eligibility_blockers`",
             "futures request payload contract registry evidence",
             "futures request payload validator contract registry evidence",
             "futures request payload validator input-schema evidence",
@@ -478,7 +480,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `6601-6620` evidence adds disabled futures request payload",
+            "Active M57 `6621-6640` evidence adds disabled futures request payload",
+            "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
             "futures request payload validation record audit-link evidence",
@@ -505,6 +508,9 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "`request_payload_validation_record_execution_eligibility_count`",
             "`blocking_request_payload_validation_record_execution_eligibility_count`",
             "`request_payload_validation_record_execution_eligibilities`",
+            "`request_payload_validation_record_execution_eligibility_blocker_count`",
+            "`blocking_request_payload_validation_record_execution_eligibility_blocker_count`",
+            "`request_payload_validation_record_execution_eligibility_blockers`",
             "`validation_gate_ref`",
             "`validation_evidence_ref`",
             "`validator_contract_ref`",

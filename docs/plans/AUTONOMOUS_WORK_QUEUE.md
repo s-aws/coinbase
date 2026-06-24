@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6601-6620**.
+- Approved phase range: **6621-6640**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6581-6600`.
+- Previous completed range: `6601-6620`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6600`.
+- `current_phase`: `6620`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,140 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6601-6620
+## Active Phases 6621-6640
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution Eligibility Blocker Evidence.
+
+These phases continue M57 after completed `6601-6620` exposed disabled futures
+request payload validation record execution-eligibility evidence. The next
+concrete gap is that contextless agents can see `validation_record_execution_eligible=false`,
+but cannot inspect the typed blocker rows for each missing futures/perpetual
+semantic artifact that keeps the validation record non-executable. Active M57
+`6621-6640` evidence adds disabled futures request payload validation record
+execution-eligibility blocker evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_execution_eligibility_blockers`.
+The command suite carries forward all execution-eligibility counts and emits
+`request_payload_validation_record_execution_eligibility_blocker_count`,
+`blocking_request_payload_validation_record_execution_eligibility_blocker_count`,
+`resolved_request_payload_validation_record_execution_eligibility_blocker_count`,
+`runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count`,
+and `request_payload_validation_record_execution_eligibility_blockers`. Each
+row exposes `validation_record_execution_eligibility_blocker_ref`,
+`semantic_ref`, `required_backend_artifact_ref`, `missing_reason`, and
+`forbidden_execution_claims` while `semantic_ready=false`,
+`blocker_resolved=false`, `validation_record_execution_eligible=false`,
+`execution_allowed=false`, and `live_coinbase_orders_ran=false`. This range
+must not implement semantic validators, validate submitted command payloads,
+admit commands, submit or cancel Coinbase orders, execute reconciliation,
+mutate futures/order/exchange state, accept risk proofs as command readiness,
+or grant browser/BFF execution authority. Spot wallet, no-shorting, USDC,
+cost-basis, average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority.
+
+### Phase 6621 - Prior Range Closure
+
+- Record completed phases `6601-6620` as historical execution-eligibility
+  evidence and move active metadata to `6621-6640`.
+
+### Phase 6622 - Execution Eligibility Blocker Registry
+
+- Add a backend-owned disabled validation-record execution-eligibility blocker
+  registry derived from execution-eligibility contracts.
+
+### Phase 6623 - Blocker Enum Evidence
+
+- Add typed blocker reasons for missing position, margin, collateral,
+  liquidation, reduce-only, close-only, funding, order, cancel, and
+  reconciliation semantics.
+
+### Phase 6624 - Blocker False Flags
+
+- Keep semantic readiness, blocker resolution, validation-record execution
+  eligibility, execution, live Coinbase, browser, BFF, and spot-rule flags
+  false for every row.
+
+### Phase 6625 - Command Suite Counts
+
+- Add command-level blocker counts and resolved/runtime false counts to
+  `/api/v1/futures/command-suite`.
+
+### Phase 6626 - Suite Aggregate Counts
+
+- Add suite-level aggregate blocker counts while preserving blocked,
+  read-only, no-live command status.
+
+### Phase 6627 - Required Backend Contract Binding
+
+- Add execution-eligibility blocker refs to `required_backend_contracts` after
+  execution-eligibility refs.
+
+### Phase 6628 - OpenAPI Contract Regeneration
+
+- Regenerate the Admin API OpenAPI schema and prove blocker fields are present
+  in generated contracts.
+
+### Phase 6629 - Backend Regression Coverage
+
+- Extend focused futures/perpetual contract regressions for blocker rows,
+  emitted rows, counts, false flags, required refs, and forbidden authority.
+
+### Phase 6630 - Backend Response Contract Coverage
+
+- Extend Admin API contract tests for representative blocker response rows
+  and no-spot-rule futures semantics.
+
+### Phase 6631 - Frontend Generated Client Sync
+
+- Regenerate frontend API types after backend OpenAPI changes.
+
+### Phase 6632 - Frontend Mock Backend Sync
+
+- Map blocker rows through the mock backend without creating trading behavior
+  or BFF execution authority.
+
+### Phase 6633 - Frontend Adapter Mapping
+
+- Map generated blocker rows into futures/perpetual read-model data.
+
+### Phase 6634 - Frontend Display
+
+- Display blocker aggregate counts and a dedicated read-only table in the
+  futures/perpetual admin view.
+
+### Phase 6635 - Frontend Tests
+
+- Extend frontend read-model, mock-backend, backend-runtime, and quality tests
+  for blocker display and false flags.
+
+### Phase 6636 - Docs And Examples
+
+- Update backend/frontend docs and examples for the active blocker evidence
+  range.
+
+### Phase 6637 - Contextless Review
+
+- Record a contextless review note proving no live, no mutation, no browser/BFF
+  authority, and no spot-rule import.
+
+### Phase 6638 - Focused Validation
+
+- Run focused backend tests, frontend typecheck, API check, autonomous checks,
+  and focused frontend tests that cover this range.
+
+### Phase 6639 - Phase-End Hygiene
+
+- Run stale test-process checks and record that no phase-scoped subagents were
+  left open.
+
+### Phase 6640 - Commit And Push
+
+- Commit and push backend/frontend changes after focused gates pass. No live
+  Coinbase execution is planned; submitted and executed notional remain `0`
+  USDC.
+
+## Historical Phases 6601-6620
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution Eligibility Evidence.
 

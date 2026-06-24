@@ -11,12 +11,19 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6601-6620 range targets explicit M57 futures/perpetual request
-payload validation record execution-eligibility evidence for
+The active 6621-6640 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility blocker evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6601-6620"` and no-live execution-eligibility counts
-such as `"request_payload_validation_record_execution_eligibility_count"`,
+`"approved_phase_range": "6621-6640"` and no-live execution-eligibility
+blocker counts such as
+`"request_payload_validation_record_execution_eligibility_blocker_count"`,
+`"blocking_request_payload_validation_record_execution_eligibility_blocker_count"`,
+`"resolved_request_payload_validation_record_execution_eligibility_blocker_count"`,
+`"runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count"`,
+and `"request_payload_validation_record_execution_eligibility_blockers"`.
+Completed 6601-6620 execution-eligibility evidence remains visible through
+`"request_payload_validation_record_execution_eligibility_count"`,
 `"blocking_request_payload_validation_record_execution_eligibility_count"`,
 `"ready_request_payload_validation_record_execution_eligibility_count"`,
 `"execution_eligible_request_payload_validation_record_count"`,

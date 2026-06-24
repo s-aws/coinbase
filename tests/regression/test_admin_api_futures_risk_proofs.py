@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -81,6 +82,10 @@ from application.admin_api.futures_request_payload_validation_record_execution_e
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS,
     iter_futures_request_payload_validation_record_execution_eligibilities,
 )
+from application.admin_api.futures_request_payload_validation_record_execution_eligibility_blockers import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS,
+    iter_futures_request_payload_validation_record_execution_eligibility_blockers,
+)
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -143,6 +148,7 @@ from core.enums import (
     AdminApiRole,
     AdminFuturesCommandAction,
     AdminFuturesCommandEnablementBlocker,
+    AdminFuturesCommandExecutionEligibilityBlocker,
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofKind,
@@ -997,6 +1003,56 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS
     )
 
+    assert len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS
+    ) == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS
+    ) * len(
+        AdminFuturesCommandExecutionEligibilityBlocker
+    )
+    eligibility_refs = {
+        contract.validation_record_execution_eligibility_contract_ref
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS
+    }
+    assert all(
+        contract.validation_record_execution_eligibility_contract_ref
+        in eligibility_refs
+        and contract.status == AdminApiGateStatus.BLOCKED
+        and contract.source == AdminFuturesEvidenceSource.BACKEND_CONTRACT
+        and contract.required is True
+        and contract.blocking is True
+        and contract.backend_owned is True
+        and contract.read_only is True
+        and contract.spot_rule_authority is False
+        and contract.semantic_ready is False
+        and contract.runtime_evidence_observed is False
+        and contract.runtime_evidence_satisfies_execution_eligibility_blocker
+        is False
+        and contract.blocker_resolved is False
+        and contract.validation_record_execution_eligible is False
+        and contract.execution_allowed is False
+        and contract.live_coinbase_orders_ran is False
+        and contract.validation_record_execution_eligibility_blocker_ref.startswith(
+            "application/admin_api/"
+            "futures_request_payload_validation_record_execution_eligibility_blockers.py::"
+        )
+        and contract.semantic_ref.startswith(
+            contract.validation_record_execution_eligibility_contract_ref
+        )
+        and contract.required_backend_artifact_ref.endswith("_backend_contract")
+        and contract.required_backend_contract
+        == contract.validation_record_execution_eligibility_blocker_ref
+        and contract.missing_backend_contract
+        == contract.required_backend_artifact_ref
+        and len(contract.forbidden_execution_claims) == 7
+        and "spot_rule_authority" in contract.forbidden_execution_claims
+        and len(contract.required_evidence_refs) == 5
+        and contract.missing_evidence_refs == contract.required_evidence_refs
+        and contract.browser_authority == "display_only"
+        and contract.bff_authority == "forward_only_no_execution"
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS
+    )
+
     emitted_count = 0
     validator_emitted_count = 0
     input_schema_emitted_count = 0
@@ -1009,6 +1065,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     validation_record_audit_link_emitted_count = 0
     validation_record_admission_link_emitted_count = 0
     validation_record_execution_eligibility_emitted_count = 0
+    validation_record_execution_eligibility_blocker_emitted_count = 0
     for command in command_suite.commands:
         registry_rows = list(iter_futures_request_payload_contracts(command.command))
         validator_registry_rows = list(
@@ -1052,6 +1109,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 command.command
             )
         )
+        validation_record_execution_eligibility_blocker_registry_rows = list(
+            iter_futures_request_payload_validation_record_execution_eligibility_blockers(
+                command.command
+            )
+        )
         emitted_count += len(command.request_fields)
         validator_emitted_count += len(command.request_payload_validator_contracts)
         input_schema_emitted_count += len(
@@ -1083,6 +1145,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         validation_record_execution_eligibility_emitted_count += len(
             command.request_payload_validation_record_execution_eligibilities
+        )
+        validation_record_execution_eligibility_blocker_emitted_count += len(
+            command.request_payload_validation_record_execution_eligibility_blockers
         )
         assert command.request_field_count == len(registry_rows)
         assert command.required_request_field_count == len(registry_rows)
@@ -1219,6 +1284,22 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.runtime_observed_request_payload_validation_record_execution_eligibility_count
             == 0
         )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_blocker_count
+            == len(validation_record_execution_eligibility_blocker_registry_rows)
+        )
+        assert (
+            command.blocking_request_payload_validation_record_execution_eligibility_blocker_count
+            == len(validation_record_execution_eligibility_blocker_registry_rows)
+        )
+        assert (
+            command.resolved_request_payload_validation_record_execution_eligibility_blocker_count
+            == 0
+        )
+        assert (
+            command.runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count
+            == 0
+        )
         assert all(
             contract.contract_ref in command.required_backend_contracts
             for contract in registry_rows
@@ -1271,6 +1352,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             contract.validation_record_execution_eligibility_contract_ref
             in command.required_backend_contracts
             for contract in validation_record_execution_eligibility_registry_rows
+        )
+        assert all(
+            contract.validation_record_execution_eligibility_blocker_ref
+            in command.required_backend_contracts
+            for contract in validation_record_execution_eligibility_blocker_registry_rows
         )
         for emitted, contract in zip(
             command.request_fields,
@@ -2495,6 +2581,66 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert emitted.bff_authority == contract.bff_authority
             assert emitted.detail == contract.detail
 
+        for emitted, contract in zip(
+            command.request_payload_validation_record_execution_eligibility_blockers,
+            validation_record_execution_eligibility_blocker_registry_rows,
+            strict=True,
+        ):
+            assert emitted.field == contract.field
+            assert emitted.blocker == contract.blocker
+            assert emitted.status == contract.status
+            assert emitted.source == contract.source
+            assert emitted.required == contract.required
+            assert emitted.blocking == contract.blocking
+            assert (
+                emitted.validation_record_execution_eligibility_contract_ref
+                == contract.validation_record_execution_eligibility_contract_ref
+            )
+            assert (
+                emitted.validation_record_execution_eligibility_blocker_ref
+                == contract.validation_record_execution_eligibility_blocker_ref
+            )
+            assert emitted.semantic_ref == contract.semantic_ref
+            assert (
+                emitted.required_backend_artifact_ref
+                == contract.required_backend_artifact_ref
+            )
+            assert emitted.required_backend_contract == contract.required_backend_contract
+            assert emitted.missing_backend_contract == contract.missing_backend_contract
+            assert emitted.missing_reason == contract.missing_reason
+            assert emitted.required_evidence_refs == list(
+                contract.required_evidence_refs
+            )
+            assert emitted.required_evidence_count == len(
+                contract.required_evidence_refs
+            )
+            assert emitted.missing_evidence_refs == list(contract.missing_evidence_refs)
+            assert emitted.missing_evidence_count == len(
+                contract.missing_evidence_refs
+            )
+            assert emitted.forbidden_execution_claims == list(
+                contract.forbidden_execution_claims
+            )
+            assert emitted.forbidden_execution_claim_count == len(
+                contract.forbidden_execution_claims
+            )
+            assert emitted.backend_owned == contract.backend_owned
+            assert emitted.read_only == contract.read_only
+            assert emitted.spot_rule_authority == contract.spot_rule_authority
+            assert emitted.semantic_ready is False
+            assert emitted.runtime_evidence_observed is False
+            assert (
+                emitted.runtime_evidence_satisfies_execution_eligibility_blocker
+                is False
+            )
+            assert emitted.blocker_resolved is False
+            assert emitted.validation_record_execution_eligible is False
+            assert emitted.execution_allowed is False
+            assert emitted.live_coinbase_orders_ran is False
+            assert emitted.browser_authority == contract.browser_authority
+            assert emitted.bff_authority == contract.bff_authority
+            assert emitted.detail == contract.detail
+
     assert emitted_count == len(FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS)
     assert validator_emitted_count == len(FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS)
     assert input_schema_emitted_count == len(
@@ -2526,6 +2672,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert validation_record_execution_eligibility_emitted_count == len(
         FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS
+    )
+    assert validation_record_execution_eligibility_blocker_emitted_count == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS
     )
     assert command_suite.request_field_count == len(
         FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
@@ -2662,6 +2811,26 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     assert command_suite.execution_eligible_request_payload_validation_record_count == 0
     assert (
         command_suite.runtime_observed_request_payload_validation_record_execution_eligibility_count
+        == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_execution_eligibility_blocker_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_execution_eligibility_blocker_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.resolved_request_payload_validation_record_execution_eligibility_blocker_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count
         == 0
     )
 
@@ -4519,6 +4688,8 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert service.futures_risk_proof_store is store
 
     payload = futures_command_suite_api_payload(service.build_futures_command_suite())
+    encoded_payload = json.dumps(payload, separators=(",", ":"))
+    assert len(encoded_payload) < 10_000_000
     place = next(
         item
         for item in payload["commands"]
@@ -4538,6 +4709,10 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert margin_collateral["proof_acceptance_blocked"] is True
     assert margin_collateral["proof_acceptance_blocker_count"] == 6
     assert margin_collateral["proof_record_resolves_acceptance"] is False
+    assert (
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
+        not in margin_collateral
+    )
     assert margin_collateral["semantic_contract_requirement_count"] == 2
     assert margin_collateral["registered_semantic_contract_count"] == 0
     assert margin_collateral["semantic_contract_definition_count"] == 2

@@ -13,9 +13,9 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6601-6620"`. Futures/perpetual command-suite reads
-expose backend-owned disabled execution-eligibility evidence while carrying
-forward earlier admission-link evidence:
+`"approved_phase_range": "6621-6640"`. Futures/perpetual command-suite reads
+expose backend-owned disabled execution-eligibility blocker evidence while
+carrying forward earlier execution-eligibility and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -38,6 +38,10 @@ forward earlier admission-link evidence:
 `iter_futures_request_payload_validation_record_audit_links`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`,
 `iter_futures_request_payload_validation_record_admission_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+`iter_futures_request_payload_validation_record_execution_eligibilities`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
+`iter_futures_request_payload_validation_record_execution_eligibility_blockers`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
 and `iter_futures_request_payload_validation_record_execution_eligibilities`.
 

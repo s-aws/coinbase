@@ -99,6 +99,21 @@ and notional evidence fields.
   funding/order/cancel/reconciliation semantics, call Coinbase, mutate futures
   state, or grant browser/BFF or spot-rule authority.
 - The command-suite route also exposes request-payload validation record
+  execution-eligibility blocker evidence through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_execution_eligibility_blockers`,
+  `request_payload_validation_record_execution_eligibility_blocker_count`,
+  `blocking_request_payload_validation_record_execution_eligibility_blocker_count`,
+  `resolved_request_payload_validation_record_execution_eligibility_blocker_count`,
+  `runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count`,
+  and `request_payload_validation_record_execution_eligibility_blockers`.
+  Rows expose `validation_record_execution_eligibility_blocker_ref`,
+  `semantic_ref`, `required_backend_artifact_ref`, `missing_reason`, and
+  `forbidden_execution_claims` while semantic readiness, blocker resolution,
+  validation-record execution eligibility, execution, live Coinbase, browser,
+  BFF, and spot-rule authority remain false. Active M57 `6621-6640` evidence adds disabled futures request payload validation record execution-eligibility blocker evidence while completed M57 `6601-6620` carries forward disabled futures request payload validation record execution-eligibility evidence.
+  Literal machine-check phrase: futures request payload validation record execution-eligibility blocker evidence.
+- The command-suite route also exposes request-payload validation record
   admission-link evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`,
   `iter_futures_request_payload_validation_record_admission_links`,
@@ -130,7 +145,7 @@ and notional evidence fields.
   state, or grant browser/BFF or spot-rule authority. Completed M57
   `6561-6580` audit-link evidence remains visible for contextless review and
   display parity.
-  Active M57 `6601-6620` evidence adds disabled futures request payload
+  Completed M57 `6601-6620` evidence adds disabled futures request payload
   validation record execution-eligibility evidence while completed M57
   `6581-6600` carries forward disabled futures request payload
   validation record admission-link evidence while carrying forward futures

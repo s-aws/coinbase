@@ -123,10 +123,23 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6581-6600` under M57.
-- Active autonomous range: `6601-6620` under M57.
+- Latest completed autonomous range: `6601-6620` under M57.
+- Active autonomous range: `6621-6640` under M57.
 - Active range adds disabled futures request payload validation record
-  execution-eligibility evidence through
+  execution-eligibility blocker evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_execution_eligibility_blockers`,
+  including `request_payload_validation_record_execution_eligibility_blocker_count`,
+  `blocking_request_payload_validation_record_execution_eligibility_blocker_count`,
+  `resolved_request_payload_validation_record_execution_eligibility_blocker_count`,
+  `runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count`,
+  `request_payload_validation_record_execution_eligibility_blockers`,
+  `validation_record_execution_eligibility_blocker_ref`, `semantic_ref`,
+  `required_backend_artifact_ref`, `missing_reason`, and
+  `forbidden_execution_claims`. Completed `6601-6620` carries forward disabled
+  futures request payload validation record execution-eligibility evidence
+  through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
   and `iter_futures_request_payload_validation_record_execution_eligibilities`,

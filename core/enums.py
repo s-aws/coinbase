@@ -1176,6 +1176,21 @@ class AdminFuturesCommandEnablementBlocker(str, Enum):
     CONTEXTLESS_REVIEW_GATE = "contextless_review_gate"
 
 
+class AdminFuturesCommandExecutionEligibilityBlocker(str, Enum):
+    """Missing futures semantics that block validation-record execution."""
+
+    POSITION_SEMANTICS_MISSING = "position_semantics_missing"
+    MARGIN_SEMANTICS_MISSING = "margin_semantics_missing"
+    COLLATERAL_SEMANTICS_MISSING = "collateral_semantics_missing"
+    LIQUIDATION_SEMANTICS_MISSING = "liquidation_semantics_missing"
+    REDUCE_ONLY_SEMANTICS_MISSING = "reduce_only_semantics_missing"
+    CLOSE_ONLY_SEMANTICS_MISSING = "close_only_semantics_missing"
+    FUNDING_SEMANTICS_MISSING = "funding_semantics_missing"
+    ORDER_SEMANTICS_MISSING = "order_semantics_missing"
+    CANCEL_SEMANTICS_MISSING = "cancel_semantics_missing"
+    RECONCILIATION_SEMANTICS_MISSING = "reconciliation_semantics_missing"
+
+
 class AdminFuturesCommandRiskProofKind(str, Enum):
     """Futures/perpetual proof requirement categories before command enablement."""
 
