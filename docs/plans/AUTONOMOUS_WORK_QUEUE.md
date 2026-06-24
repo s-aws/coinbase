@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6521-6540**.
+- Approved phase range: **6541-6560**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6501-6520`.
+- Previous completed range: `6521-6540`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6520`.
+- `current_phase`: `6540`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,165 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6521-6540
+## Active Phases 6541-6560
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Replay Guard Evidence.
+
+These phases continue M57 after completed `6521-6540` exposed disabled futures
+request payload validation-record schema and append-only log contracts. The
+next concrete gap is that contextless agents can inspect record schemas, logs,
+stores, writers, and replay guard refs, but cannot inspect the backend-owned
+idempotency binding and replay guard contract evidence required before a
+validation record can be written, reused, or replay-protected. Active
+`6541-6560` adds
+`application/admin_api/futures_request_payload_validation_record_replay_guards.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_replay_guards` as disabled
+evidence only, derived from
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validation_record_schemas`. The command suite
+carries forward all request-field, validator, validation-evidence,
+validation-record, and validation-record schema counts, then emits
+`request_payload_validation_record_replay_guard_count`,
+`blocking_request_payload_validation_record_replay_guard_count`,
+`ready_request_payload_validation_record_replay_guard_count`,
+`idempotency_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_replay_guard_count`, and
+`request_payload_validation_record_replay_guards`. Each row exposes
+`validation_record_replay_guard_contract_ref`,
+`validation_record_idempotency_contract_ref`,
+`validation_record_replay_window_ref`,
+`validation_record_duplicate_policy_ref`,
+`validation_record_replay_guard_field_refs`,
+`validation_record_replay_guard_field_count`, `required_evidence_refs`,
+`missing_evidence_refs`,
+`runtime_evidence_satisfies_validation_record_replay_guard=false`,
+`validation_record_replay_guard_contract_ready=false`,
+`validation_record_replay_guard_ready=false`,
+`validation_record_idempotency_contract_ready=false`,
+`validation_record_idempotency_bound=false`,
+`validation_record_replay_protected=false`, and
+`request_payload_validated=false`. Route/draft flags remain true while
+execution remains false. This range must not implement validators, validate
+submitted command payloads, create record schemas, create append-only logs,
+write validation records, bind idempotency keys, enforce replay windows, submit
+or cancel Coinbase orders, execute reconciliation, mutate futures/order/exchange
+state, accept risk proofs as command readiness, or grant browser/BFF execution
+authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
+inventory-lot assumptions remain forbidden as futures/perpetual authority.
+
+### Phase 6541 - Prior Range Closure
+
+- Record completed phases `6521-6540` as historical validation-record schema
+  rows and move active metadata to `6541-6560`.
+
+### Phase 6542 - Replay Guard Registry
+
+- Add a backend-owned disabled validation-record replay guard registry derived
+  from `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`.
+
+### Phase 6543 - Replay Guard Field Refs
+
+- Emit deterministic disabled `validation_record_replay_guard_field_refs` for
+  every futures request payload validation-record replay guard row.
+
+### Phase 6544 - Replay Guard Field Counts
+
+- Emit `validation_record_replay_guard_field_count` for every disabled replay
+  guard row.
+
+### Phase 6545 - Idempotency Contract Refs
+
+- Emit `validation_record_idempotency_contract_ref` for every disabled replay
+  guard row without binding runtime idempotency keys.
+
+### Phase 6546 - Replay Window And Duplicate Policy Refs
+
+- Emit `validation_record_replay_window_ref` and
+  `validation_record_duplicate_policy_ref` as disabled backend evidence.
+
+### Phase 6547 - Replay Guard Evidence Refs
+
+- Emit `required_evidence_refs`, `required_evidence_count`,
+  `missing_evidence_refs`, and `missing_evidence_count` for every replay guard
+  row.
+
+### Phase 6548 - Replay Guard Readiness Flags
+
+- Keep `runtime_evidence_satisfies_validation_record_replay_guard=false`,
+  `validation_record_replay_guard_contract_ready=false`,
+  `validation_record_replay_guard_ready=false`,
+  `validation_record_idempotency_contract_ready=false`,
+  `validation_record_idempotency_bound=false`,
+  `validation_record_replay_protected=false`, and
+  `request_payload_validated=false`.
+
+### Phase 6549 - Command-Level Replay Guard Counts
+
+- Add per-command replay guard counts and blocked/ready/idempotency/runtime
+  aggregate counts to `AdminFuturesCommandContractItem`.
+
+### Phase 6550 - Suite-Level Replay Guard Counts
+
+- Add futures command-suite aggregate replay guard counts across place,
+  close/reduce, cancel, and reconciliation command drafts.
+
+### Phase 6551 - Required Backend Contract Refs
+
+- Include disabled replay guard refs in each command's
+  `required_backend_contracts` without marking them executable.
+
+### Phase 6552 - OpenAPI Schema Sync
+
+- Regenerate backend-owned OpenAPI for the replay guard item and aggregate
+  count fields.
+
+### Phase 6553 - Frontend Generated Schema Sync
+
+- Regenerate the frontend API schema from backend OpenAPI without hand-editing
+  generated files.
+
+### Phase 6554 - Frontend Mock Data Sync
+
+- Update frontend mocks/fixtures with replay guard rows, counts,
+  idempotency refs, replay-window refs, duplicate-policy refs, field refs,
+  evidence refs, and false readiness flags.
+
+### Phase 6555 - Frontend Adapter Mapping
+
+- Map replay guard rows into typed futures/perpetual read-model view data.
+
+### Phase 6556 - Frontend Display Evidence
+
+- Display replay guard contracts as read-only futures/perpetual command-suite
+  data with browser authority remaining display-only.
+
+### Phase 6557 - Backend Focused Tests
+
+- Add focused backend coverage proving replay guards are disabled,
+  backend-owned, no-live, and not validation, idempotency, replay, or
+  record-write authority.
+
+### Phase 6558 - Frontend Focused Tests
+
+- Add focused frontend coverage proving replay guards are displayed and not
+  treated as execution, validation, idempotency, replay, or record-write
+  authority.
+
+### Phase 6559 - Docs And Contextless Review
+
+- Update docs, examples, maintainer handoff, agent state, API references, and
+  review logs for replay guard contracts; run fresh blind/contextless backend
+  and frontend reviews and remediate blocking ambiguity.
+
+### Phase 6560 - No-Live Commit And Push
+
+- Record submitted notional `0` USDC, executed notional `0` USDC, no Coinbase
+  calls, no reconciliation execution, no futures state mutation, then close
+  phase-scoped/stale subagents and commit/push backend and frontend work
+  separately.
+
+## Historical Plan - Phases 6521-6540
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Schema Evidence.
 

@@ -696,27 +696,34 @@ evidence. Rows expose `validation_record_contract_ref`,
 writing, no payload validation, no Coinbase calls, no reconciliation execution,
 no futures/order/exchange state mutation, and no browser/BFF or spot-rule
 authority.
-Current M57 phases 6521-6540 add disabled futures request payload validation
-record schema and append-only log evidence through
-`application/admin_api/futures_request_payload_validation_record_schemas.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_schemas`; command-suite
-`request_payload_validation_record_schema_count`,
-`blocking_request_payload_validation_record_schema_count`,
-`ready_request_payload_validation_record_schema_count`,
-`registered_request_payload_validation_record_schema_count`,
-`runtime_observed_request_payload_validation_record_schema_count`, and
-`request_payload_validation_record_schemas` remain backend-owned display
-evidence. Rows expose `validation_record_schema_ref`,
-`validation_record_append_only_log_ref`,
-`validation_record_schema_field_refs`, `validation_record_schema_field_count`,
-`runtime_evidence_satisfies_validation_record_schema=false`,
-`validation_record_schema_ready=false`,
-`validation_record_schema_registered=false`, and
-`validation_record_append_only_log_ready=false` while preserving no schema
-registration, no append-only log writing, no payload validation, no Coinbase
-calls, no reconciliation execution, no futures/order/exchange state mutation,
-and no browser/BFF or spot-rule authority.
+Current M57 phases 6541-6560 add disabled futures request payload validation
+record replay guard evidence through
+`application/admin_api/futures_request_payload_validation_record_replay_guards.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_replay_guards`; command-suite
+`request_payload_validation_record_replay_guard_count`,
+`blocking_request_payload_validation_record_replay_guard_count`,
+`ready_request_payload_validation_record_replay_guard_count`,
+`idempotency_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_replay_guard_count`, and
+`request_payload_validation_record_replay_guards` remain backend-owned display
+evidence. Rows expose `validation_record_replay_guard_contract_ref`,
+`validation_record_idempotency_contract_ref`,
+`validation_record_replay_window_ref`,
+`validation_record_duplicate_policy_ref`,
+`validation_record_replay_guard_field_refs`,
+`validation_record_replay_guard_field_count`,
+`runtime_evidence_satisfies_validation_record_replay_guard=false`,
+`validation_record_replay_guard_contract_ready=false`,
+`validation_record_idempotency_contract_ready=false`,
+`validation_record_replay_protected=false`, and
+`validation_record_idempotency_bound=false` while preserving no idempotency
+binding, no replay protection, no payload validation, no Coinbase calls, no
+reconciliation execution, no futures/order/exchange state mutation, and no
+browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
+6521-6540 remains exposed through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validation_record_schemas`.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
@@ -1808,7 +1815,7 @@ and rotation policy without disclosing a token value.
 - [Order ID Handling](genai_data/ORDER_ID_HANDLING.md)
 - [Documentation Index](docs/README.md)
 
-## Current M57 Validation Record Schema Evidence
+## Completed M57 Validation Record Schema Evidence
 
 Completed phases `6501-6520` add disabled futures request payload validation
 evidence record contract evidence through
@@ -1839,7 +1846,7 @@ validation records, register record stores, call Coinbase, execute
 reconciliation, mutate futures/order/exchange state, or grant browser/BFF
 authority.
 
-Current phases `6521-6540` add disabled futures request payload validation
+Completed phases `6521-6540` add disabled futures request payload validation
 record schema and append-only log evidence through
 `application/admin_api/futures_request_payload_validation_record_schemas.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and

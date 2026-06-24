@@ -424,21 +424,26 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   append_only_validation_record=false,
   validation_record_idempotency_bound=false, and request_payload_validated=false.
   Machine-check evidence: futures request payload validation evidence record contract evidence.
-  Current M57 phases 6521-6540 expose disabled futures request payload
-  validation record schema and append-only log evidence through
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`,
-  `iter_futures_request_payload_validation_record_schemas`,
-  `request_payload_validation_record_schema_count`,
-  `blocking_request_payload_validation_record_schema_count`,
-  `request_payload_validation_record_schemas`,
-  `validation_record_schema_ref`,
-  `validation_record_append_only_log_ref`,
-  `validation_record_schema_field_refs`, `validation_record_schema_field_count`,
-  runtime_evidence_satisfies_validation_record_schema=false,
-  validation_record_schema_ready=false,
-  validation_record_schema_registered=false, and
-  validation_record_append_only_log_ready=false.
-  Machine-check evidence: futures request payload validation record schema evidence.
+  Current M57 phases 6541-6560 expose disabled futures request payload
+  validation record replay guard evidence through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_replay_guards`,
+  `request_payload_validation_record_replay_guard_count`,
+  `blocking_request_payload_validation_record_replay_guard_count`,
+  `request_payload_validation_record_replay_guards`,
+  `validation_record_replay_guard_contract_ref`,
+  `validation_record_idempotency_contract_ref`,
+  `validation_record_replay_window_ref`,
+  `validation_record_duplicate_policy_ref`,
+  `validation_record_replay_guard_field_refs`,
+  `validation_record_replay_guard_field_count`,
+  runtime_evidence_satisfies_validation_record_replay_guard=false,
+  validation_record_replay_guard_contract_ready=false,
+  validation_record_idempotency_contract_ready=false,
+  validation_record_replay_protected=false, and
+  validation_record_idempotency_bound=false.
+  Machine-check evidence: futures request payload validation record replay guard evidence.
+  Carried-forward machine-check evidence: futures request payload validation record schema evidence.
   Machine-check evidence: validate command request payloads remains forbidden.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define
@@ -574,7 +579,7 @@ See [Futures/Perpetuals Examples](docs/examples/futures-perpetuals.md).
 - [Admin API Route Inventory](docs/plans/ADMIN_API_ROUTE_INVENTORY.md)
 - [Documentation Index](docs/README.md)
 
-## Current M57 Validation Record Schema Evidence
+## Completed M57 Validation Record Schema Evidence
 
 Completed `6501-6520` extends the no-live futures/perpetual command-suite
 contract with disabled request payload validation evidence record contract rows.
@@ -609,7 +614,7 @@ validation-evidence rows still expose `validation_evidence_ready=false` and
 `runtime_evidence_satisfies_validator_registration=false`, while output-schema
 rows expose `output_schema_registered=false`.
 
-Active `6521-6540` extends the same no-live futures/perpetual command-suite
+Completed `6521-6540` extends the same no-live futures/perpetual command-suite
 contract with disabled request payload validation record schema and append-only
 log rows. Backend registry:
 `application/admin_api/futures_request_payload_validation_record_schemas.py`,

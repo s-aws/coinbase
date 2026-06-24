@@ -16,6 +16,84 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
+Current M57 futures/perpetual replay guard evidence for
+`GET /api/v1/futures/command-suite`: futures request payload contract registry
+evidence; futures request payload validator contract registry evidence; futures
+request payload validator input-schema evidence; futures request payload
+validator output-schema evidence; futures request payload validator registration
+evidence; futures request payload validation evidence; futures request payload
+validation record schema evidence; futures request payload validation record
+replay guard evidence. Source registries include
+`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
+`iter_futures_request_payload_contracts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
+`iter_futures_request_payload_validator_contracts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validator_input_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validator_output_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`,
+`iter_futures_request_payload_validator_registrations`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`,
+`iter_futures_request_payload_validation_evidence`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validation_record_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_replay_guards`.
+
+Representative command-suite keys: `request_payload_validator_contract_count`,
+`blocking_request_payload_validator_contract_count`,
+`request_payload_validator_input_schema_count`,
+`blocking_request_payload_validator_input_schema_count`,
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`request_payload_validator_registration_count`,
+`blocking_request_payload_validator_registration_count`,
+`request_payload_validation_evidence_count`,
+`blocking_request_payload_validation_evidence_count`,
+`request_payload_validation_evidence_record_count`,
+`blocking_request_payload_validation_evidence_record_count`,
+`request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`request_payload_validation_record_replay_guard_count`,
+`blocking_request_payload_validation_record_replay_guard_count`,
+`validation_gate_ref`, `validation_evidence_ref`, `validator_contract_ref`,
+`validator_input_schema_ref`, `validator_output_schema_ref`,
+`output_schema_field_refs`, `output_schema_field_count`,
+`validator_registration_ref`, `validator_registration_field_refs`,
+`validator_registration_field_count`, `validation_evidence_contract_ref`,
+`validation_evidence_field_refs`, `validation_evidence_field_count`,
+`validation_record_contract_ref`, `validation_record_store_ref`,
+`validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+`validation_record_field_refs`, `validation_record_field_count`,
+`validation_record_schema_ref`, `validation_record_append_only_log_ref`,
+`validation_record_replay_guard_contract_ref`,
+`validation_record_idempotency_contract_ref`,
+`validation_record_replay_window_ref`,
+`validation_record_duplicate_policy_ref`,
+`validation_record_schema_field_refs`,
+`validation_record_schema_field_count`,
+`validation_record_replay_guard_field_refs`, and
+`validation_record_replay_guard_field_count`.
+
+False flags remain validation_gate_ready=false,
+validation_gate_passed=false, output_schema_registered=false,
+validator_registration_ready=false,
+runtime_evidence_satisfies_validator_registration=false,
+runtime_evidence_satisfies_validation_evidence=false,
+validation_evidence_ready=false, validation_evidence_recorded=false,
+validation_record_contract_ready=false, validation_record_store_ready=false,
+validation_record_writer_enabled=false,
+validation_record_replay_guard_ready=false,
+runtime_evidence_satisfies_validation_record_schema=false,
+runtime_evidence_satisfies_validation_record_replay_guard=false,
+validation_record_schema_ready=false, validation_record_schema_registered=false,
+validation_record_replay_guard_contract_ready=false,
+validation_record_idempotency_contract_ready=false,
+validation_record_replay_protected=false,
+append_only_validation_record=false,
+validation_record_idempotency_bound=false, and request_payload_validated=false.
+
 Current route adapters:
 - `POST /api/v1/orders`
 - `GET /api/v1/orders`
@@ -544,7 +622,7 @@ Current behavior:
   validation_record_replay_guard_ready=false,
   validation_recorded=false, append_only_validation_record=false, and
   validation_record_idempotency_bound=false.
-  Current M57 `6521-6540` evidence adds disabled futures request payload
+  Completed M57 `6521-6540` evidence added disabled futures request payload
   validation record schema and append-only log evidence through
   `application/admin_api/futures_request_payload_validation_record_schemas.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
@@ -1452,7 +1530,7 @@ Inflight categories used by callers include:
 
 Last updated: 2026-06-24
 
-## Current M57 Futures Request Payload Validation Record Schema Evidence
+## Completed M57 Futures Request Payload Validation Record Schema Evidence
 
 `GET /api/v1/futures/command-suite` completed `6501-6520` evidence includes
 futures request payload validation evidence record contract evidence through
@@ -1500,7 +1578,7 @@ rows still expose `validator_registration_ready=false` and
 `runtime_evidence_satisfies_validator_registration=false`; carried-forward
 output-schema rows still expose `output_schema_registered=false`.
 
-Active `6521-6540` evidence adds futures request payload validation record
+Completed `6521-6540` evidence added futures request payload validation record
 schema and append-only log evidence through disabled rows from
 `application/admin_api/futures_request_payload_validation_record_schemas.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
