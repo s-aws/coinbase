@@ -13,9 +13,10 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6701-6720"`. Futures/perpetual command-suite reads
-expose backend-owned disabled semantic artifact definition review input
-evidence while carrying forward earlier semantic artifact definition review,
+`"approved_phase_range": "6721-6740"`. Futures/perpetual command-suite reads
+expose backend-owned disabled semantic artifact definition review output
+evidence while carrying forward earlier semantic artifact definition review input,
+semantic artifact definition review,
 semantic artifact definition, semantic artifact, execution-eligibility blocker,
 execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
@@ -49,10 +50,34 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
 `iter_futures_request_payload_validation_record_semantic_artifact_definitions`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
 and
-`iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`.
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`.
 
-Active semantic artifact definition review rows expose
+Active semantic artifact definition review output rows expose
+`request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_outputs`,
+`semantic_artifact_definition_review_output_ref`,
+`semantic_artifact_definition_review_output_contract_ref`,
+`semantic_artifact_definition_review_output_available=false`, and
+`semantic_artifact_definition_review_output_accepted=false`. Completed semantic
+artifact definition review input rows expose
+`request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+`semantic_artifact_definition_review_input_ref`,
+`semantic_artifact_definition_review_input_contract_ref`,
+`semantic_artifact_definition_review_input_available=false`, and
+`semantic_artifact_definition_review_input_accepted=false`. Completed semantic
+artifact definition review rows expose
 `request_payload_validation_record_semantic_artifact_definition_review_count`,
 `blocking_request_payload_validation_record_semantic_artifact_definition_review_count`,
 `ready_request_payload_validation_record_semantic_artifact_definition_review_count`,
@@ -85,6 +110,7 @@ definition rows expose
 blocked evidence only; they do not define futures semantics, resolve execution
 eligibility blockers, validate request payloads, admit commands, call Coinbase,
 execute reconciliation, mutate futures state, or grant browser/BFF authority.
+Exact autonomous phrase: Active M57 `6721-6740` evidence adds disabled futures request payload validation record semantic artifact definition review output evidence while completed M57 `6701-6720` carries forward disabled futures request payload validation record semantic artifact definition review input evidence.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,

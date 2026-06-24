@@ -125,6 +125,33 @@ def test_stale_checker_matches_young_high_memory_backend_regression_process():
     ) == [high_memory_pytest]
 
 
+def test_stale_checker_matches_windows_pytest_launcher_relative_regression_process():
+    repo = Path("C:/coinbase")
+    high_memory_pytest = ProcessInfo(
+        name="python.exe",
+        process_id=106,
+        parent_process_id=10,
+        age_seconds=120,
+        private_mb=48_000.0,
+        working_set_mb=33_000.0,
+        command_line=(
+            r'"C:\Users\heisg\AppData\Local\Programs\Python\Python313\python.exe" '
+            r'"C:\Users\heisg\AppData\Local\Programs\Python\Python313\Scripts\pytest.exe" '
+            r"tests\regression\test_admin_api_contract.py::"
+            "test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules "
+            "-q --tb=short"
+        ),
+    )
+
+    assert is_test_process(high_memory_pytest, [repo])
+    assert find_stale_test_processes(
+        [high_memory_pytest],
+        roots=[repo],
+        min_age_seconds=900,
+        max_memory_mb=8192.0,
+    ) == [high_memory_pytest]
+
+
 def test_parse_process_json_accepts_single_or_list_payload():
     single = parse_process_json(
         json.dumps(

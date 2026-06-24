@@ -42,10 +42,10 @@ TEST_COMMAND_TOKENS = (
 )
 
 BACKEND_RELATIVE_REGRESSION_TOKENS = (
-    " pytest tests\\regression",
-    " pytest tests/regression",
-    " pytest .\\tests\\regression",
-    " pytest ./tests/regression",
+    " tests\\regression",
+    " tests/regression",
+    " .\\tests\\regression",
+    " ./tests/regression",
 )
 
 
