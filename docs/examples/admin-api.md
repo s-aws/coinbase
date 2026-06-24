@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6481-6500",
+  "approved_phase_range": "6501-6520",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6481-6500",
+  "approved_phase_range": "6501-6520",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1887,7 +1887,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6481-6500",
+  "approved_phase_range": "6501-6520",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1924,6 +1924,16 @@ Expected command-suite posture:
   "ready_request_payload_validator_registration_count": 0,
   "registered_request_payload_validator_registration_count": 0,
   "runtime_observed_request_payload_validator_registration_count": 0,
+  "request_payload_validation_evidence_count": 22,
+  "blocking_request_payload_validation_evidence_count": 22,
+  "ready_request_payload_validation_evidence_count": 0,
+  "recorded_request_payload_validation_evidence_count": 0,
+  "runtime_observed_request_payload_validation_evidence_count": 0,
+  "request_payload_validation_evidence_record_count": 22,
+  "blocking_request_payload_validation_evidence_record_count": 22,
+  "ready_request_payload_validation_evidence_record_count": 0,
+  "stored_request_payload_validation_evidence_record_count": 0,
+  "runtime_observed_request_payload_validation_evidence_record_count": 0,
   "request_fields": [
     {
       "field": "client_order_id",
@@ -1936,6 +1946,43 @@ Expected command-suite posture:
       "validation_gate_passed": false,
       "validator_contract_registered": false,
       "validator_registered": false,
+      "request_payload_validated": false
+    }
+  ],
+  "request_payload_validation_evidence": [
+    {
+      "field": "client_order_id",
+      "validation_evidence_contract_ref": "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence",
+      "validation_evidence_field_refs": [
+        "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence.status",
+        "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence.source"
+      ],
+      "validation_evidence_field_count": 6,
+      "runtime_evidence_satisfies_validation_evidence": false,
+      "validation_evidence_ready": false,
+      "validation_evidence_recorded": false,
+      "request_payload_validated": false
+    }
+  ],
+  "request_payload_validation_evidence_records": [
+    {
+      "field": "client_order_id",
+      "validation_record_contract_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record",
+      "validation_record_store_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record_store",
+      "validation_record_writer_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record_writer",
+      "validation_record_replay_guard_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record_replay_guard",
+      "validation_record_field_refs": [
+        "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record.validation_evidence_contract_ref",
+        "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record.validation_record_store_ref"
+      ],
+      "validation_record_field_count": 8,
+      "validation_record_contract_ready": false,
+      "validation_record_store_ready": false,
+      "validation_record_writer_enabled": false,
+      "validation_record_replay_guard_ready": false,
+      "validation_recorded": false,
+      "append_only_validation_record": false,
+      "validation_record_idempotency_bound": false,
       "request_payload_validated": false
     }
   ],
@@ -2459,7 +2506,7 @@ registration evidence through
 `"validator_registration_ready": false`, and
 `"runtime_evidence_satisfies_validator_registration": false`.
 Machine-check evidence: futures request payload validator registration evidence.
-The active 6481-6500 range reports futures request payload validation evidence
+Completed 6481-6500 work reports futures request payload validation evidence
 through `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
 `iter_futures_request_payload_validation_evidence`, with
 `"request_payload_validation_evidence_count": 22`,
@@ -2475,10 +2522,34 @@ through `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
 `"validation_evidence_ready": false`, and
 `"validation_evidence_recorded": false`.
 Machine-check evidence: futures request payload validation evidence.
+The active 6501-6520 range reports futures request payload validation evidence
+record contract evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence_records`, with
+`"approved_phase_range": "6501-6520"`,
+`"request_payload_validation_evidence_record_count": 22`,
+`"blocking_request_payload_validation_evidence_record_count": 22`,
+`"ready_request_payload_validation_evidence_record_count": 0`,
+`"stored_request_payload_validation_evidence_record_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_record_count": 0`,
+`"request_payload_validation_evidence_records"`,
+`"validation_record_contract_ref"`, `"validation_record_store_ref"`,
+`"validation_record_writer_ref"`,
+`"validation_record_replay_guard_ref"`,
+`"validation_record_field_refs"`, `"validation_record_field_count"`,
+`"validation_record_contract_ready": false`,
+`"validation_record_store_ready": false`,
+`"validation_record_writer_enabled": false`,
+`"validation_record_replay_guard_ready": false`,
+`"validation_recorded": false`,
+`"append_only_validation_record": false`, and
+`"validation_record_idempotency_bound": false`.
+Machine-check evidence: futures request payload validation evidence record contract evidence.
 The registry and disabled gate evidence do not validate command request
-payloads, record validation evidence, satisfy validator registrations, register
-payload validators, bind live adapters, call Coinbase, execute reconciliation,
-mutate futures/order/exchange state, or grant browser/BFF authority.
+payloads, record validation evidence, write append-only validation records,
+satisfy validator registrations, register payload validators, bind live
+adapters, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, or grant browser/BFF authority.
 Machine-check evidence: futures request payload contract registry evidence.
 Machine-check evidence: futures request payload validation gate evidence.
 Machine-check evidence: futures request payload validator contract registry evidence.
@@ -3920,12 +3991,14 @@ evidence artifacts. `server_env_static` BFF authority is local/staging evidence
 only; production readiness is conditional on frontend `backend_oidc_jwt` BFF
 mode and backend `oidc_jwt` verifier configuration.
 
-## Current Futures Validation Evidence
+## Current Futures Validation Record Evidence
 
-Example active `6481-6500` range responses include futures request payload
-validation evidence. This futures request payload validation evidence includes
-One-line evidence phrase: futures request payload validation evidence.
-`"approved_phase_range": "6481-6500"`,
+Example active `6501-6520` range responses include futures request payload
+validation evidence record contract evidence. This carries forward completed
+futures request payload validation evidence and adds disabled validation-record
+contract rows.
+One-line evidence phrase: futures request payload validation evidence record contract evidence.
+`"approved_phase_range": "6501-6520"`,
 `"request_payload_validation_evidence_count": 22`,
 `"blocking_request_payload_validation_evidence_count": 22`,
 `"ready_request_payload_validation_evidence_count": 0`,
@@ -3938,14 +4011,32 @@ One-line evidence phrase: futures request payload validation evidence.
 `"runtime_evidence_satisfies_validation_evidence": false`,
 `"validation_evidence_ready": false`,
 `"validation_evidence_recorded": false`,
+`"request_payload_validation_evidence_record_count": 22`,
+`"blocking_request_payload_validation_evidence_record_count": 22`,
+`"ready_request_payload_validation_evidence_record_count": 0`,
+`"stored_request_payload_validation_evidence_record_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_record_count": 0`,
+`"request_payload_validation_evidence_records"`,
+`"validation_record_contract_ref"`, `"validation_record_store_ref"`,
+`"validation_record_writer_ref"`, `"validation_record_replay_guard_ref"`,
+`"validation_record_field_refs"`, `"validation_record_field_count"`,
+`"validation_record_contract_ready": false`,
+`"validation_record_store_ready": false`,
+`"validation_record_writer_enabled": false`,
+`"validation_record_replay_guard_ready": false`,
+`"validation_recorded": false`,
+`"append_only_validation_record": false`,
+`"validation_record_idempotency_bound": false`,
 `"validator_input_schema_ref"`, `"validator_output_schema_ref"`,
 `"validator_registration_ref"`, and `"request_payload_validated": false`.
-The rows come from
+The validation evidence rows come from
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
-`iter_futures_request_payload_validation_evidence`; they are no-live display
-evidence and do not validate command request payloads, record validation
-evidence, or register payload validators. Completed registration evidence
-remains available through
+`iter_futures_request_payload_validation_evidence`; validation-record rows come
+from `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence_records`. They are no-live
+display evidence and do not validate command request payloads, record
+validation evidence, write append-only validation records, or register payload
+validators. Completed registration evidence remains available through
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS` and
 `iter_futures_request_payload_validator_registrations`, while completed
 output-schema evidence remains available through

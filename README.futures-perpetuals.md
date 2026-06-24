@@ -393,7 +393,7 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   `validator_registration_field_count`,
   validator_registration_ready=false, and
   runtime_evidence_satisfies_validator_registration=false.
-  Current M57 phases 6481-6500 expose disabled futures request payload
+  Completed M57 phases 6481-6500 expose disabled futures request payload
   validation evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`,
   `iter_futures_request_payload_validation_evidence`,
@@ -406,6 +406,24 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   Machine-check evidence: futures request payload validator output-schema evidence.
   Machine-check evidence: futures request payload validator registration evidence.
   Machine-check evidence: futures request payload validation evidence.
+  Current M57 phases 6501-6520 expose disabled futures request payload
+  validation evidence record contract evidence through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`,
+  `iter_futures_request_payload_validation_evidence_records`,
+  `request_payload_validation_evidence_record_count`,
+  `blocking_request_payload_validation_evidence_record_count`,
+  `request_payload_validation_evidence_records`,
+  `validation_record_contract_ref`, `validation_record_store_ref`,
+  `validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+  `validation_record_field_refs`, `validation_record_field_count`,
+  runtime_evidence_satisfies_validation_record=false,
+  validation_record_contract_ready=false,
+  validation_record_store_ready=false,
+  validation_record_writer_enabled=false,
+  validation_record_replay_guard_ready=false, validation_recorded=false,
+  append_only_validation_record=false,
+  validation_record_idempotency_bound=false, and request_payload_validated=false.
+  Machine-check evidence: futures request payload validation evidence record contract evidence.
   Machine-check evidence: validate command request payloads remains forbidden.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define
@@ -541,26 +559,36 @@ See [Futures/Perpetuals Examples](docs/examples/futures-perpetuals.md).
 - [Admin API Route Inventory](docs/plans/ADMIN_API_ROUTE_INVENTORY.md)
 - [Documentation Index](docs/README.md)
 
-## Current M57 Validation Evidence
+## Current M57 Validation Record Evidence
 
-Active `6481-6500` extends the no-live futures/perpetual command-suite contract
-with disabled request payload validation evidence rows. Backend registry:
-`application/admin_api/futures_request_payload_validation_evidence.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
-`iter_futures_request_payload_validation_evidence`. Command-suite evidence:
-`request_payload_validation_evidence_count`,
-`blocking_request_payload_validation_evidence_count`,
-`request_payload_validation_evidence`, `validator_input_schema_ref`,
+Active `6501-6520` extends the no-live futures/perpetual command-suite contract
+with disabled request payload validation evidence record contract rows. Backend
+registry:
+`application/admin_api/futures_request_payload_validation_evidence_records.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence_records`. Command-suite
+evidence: `request_payload_validation_evidence_record_count`,
+`blocking_request_payload_validation_evidence_record_count`,
+`request_payload_validation_evidence_records`, `validator_input_schema_ref`,
 `validator_output_schema_ref`, `validator_registration_ref`,
-`validation_evidence_contract_ref`, `validation_evidence_field_refs`,
-`validation_evidence_field_count`, `required_evidence_refs`,
+`validation_evidence_contract_ref`, `validation_record_contract_ref`,
+`validation_record_store_ref`, `validation_record_writer_ref`,
+`validation_record_replay_guard_ref`, `validation_record_field_refs`,
+`validation_record_field_count`, `required_evidence_refs`,
 `missing_evidence_refs`,
-`runtime_evidence_satisfies_validation_evidence=false`,
-`validation_evidence_ready=false`, `validation_evidence_recorded=false`, and
+`runtime_evidence_satisfies_validation_record=false`,
+`validation_record_contract_ready=false`,
+`validation_record_store_ready=false`,
+`validation_record_writer_enabled=false`,
+`validation_record_replay_guard_ready=false`, `validation_recorded=false`,
+`append_only_validation_record=false`,
+`validation_record_idempotency_bound=false`, and
 `request_payload_validated=false`. Route/draft true and execution false flags
 remain required; this evidence must not validate command request payloads,
-record validation evidence, register payload validators, call Coinbase, execute
+write validation records, register record stores, call Coinbase, execute
 reconciliation, mutate state, or create spot-rule authority. Carried-forward
-validator-registration rows still expose `validator_registration_ready=false`
-and `runtime_evidence_satisfies_validator_registration=false`, while
-output-schema rows expose `output_schema_registered=false`.
+validation-evidence rows still expose `validation_evidence_ready=false` and
+`validation_evidence_recorded=false`; validator-registration rows still expose
+`validator_registration_ready=false` and
+`runtime_evidence_satisfies_validator_registration=false`, while output-schema
+rows expose `output_schema_registered=false`.

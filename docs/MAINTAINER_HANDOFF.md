@@ -123,21 +123,26 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6461-6480` under M57.
-- Active autonomous range: `6481-6500` under M57.
-- Active range adds disabled futures request payload validation evidence through
-  `application/admin_api/futures_request_payload_validation_evidence.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
-  `iter_futures_request_payload_validation_evidence`, including
-  `request_payload_validation_evidence_count`,
-  `blocking_request_payload_validation_evidence_count`,
-  `request_payload_validation_evidence`,
-  `validation_evidence_contract_ref`,
-  `validation_evidence_field_refs`,
-  `validation_evidence_field_count`,
-  `runtime_evidence_satisfies_validation_evidence=false`,
-  `validation_evidence_ready=false`,
-  `validation_evidence_recorded=false`, and
+- Latest completed autonomous range: `6481-6500` under M57.
+- Active autonomous range: `6501-6520` under M57.
+- Active range adds disabled futures request payload validation-evidence record
+  contract evidence through
+  `application/admin_api/futures_request_payload_validation_evidence_records.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+  `iter_futures_request_payload_validation_evidence_records`, including
+  `request_payload_validation_evidence_record_count`,
+  `blocking_request_payload_validation_evidence_record_count`,
+  `request_payload_validation_evidence_records`,
+  `validation_record_contract_ref`, `validation_record_store_ref`,
+  `validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+  `validation_record_field_refs`, `validation_record_field_count`,
+  `runtime_evidence_satisfies_validation_record=false`,
+  `validation_record_contract_ready=false`,
+  `validation_record_store_ready=false`,
+  `validation_record_writer_enabled=false`,
+  `validation_record_replay_guard_ready=false`,
+  `validation_recorded=false`, `append_only_validation_record=false`,
+  `validation_record_idempotency_bound=false`, and
   `request_payload_validated=false`.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
@@ -877,8 +882,8 @@ notional, retained inventory, reconciliation result, and audit ids.
   `validation_evidence_ref`, `validator_contract_ref`,
   `validator_registration_ref`, validation_gate_ready=false,
   validation_gate_passed=false, and request_payload_validated=false.
-  Latest completed autonomous range: `6461-6480`.
-  Active autonomous range: `6481-6500`.
+  Latest completed autonomous range: `6481-6500`.
+  Active autonomous range: `6501-6520`.
   Completed 6401-6420 work added disabled futures request payload validator
   contract registry evidence through
   `application/admin_api/futures_request_payload_validators.py`,
@@ -903,7 +908,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   payload validators, make validation gates ready, call Coinbase, execute
   reconciliation, mutate futures/order/exchange state, or grant browser/BFF
   or spot-rule authority.
-  Active 6481-6500 adds disabled futures request payload validation evidence
+  Completed 6481-6500 added disabled futures request payload validation evidence
   through
   `application/admin_api/futures_request_payload_validation_evidence.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
@@ -918,6 +923,27 @@ notional, retained inventory, reconciliation result, and audit ids.
   validator_registered=false, and request_payload_validated=false are
   evidence only and must not validate command request payloads, record
   validation evidence, register payload validators, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+  or spot-rule authority.
+  Active 6501-6520 adds disabled futures request payload validation evidence
+  record contract evidence through
+  `application/admin_api/futures_request_payload_validation_evidence_records.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+  `iter_futures_request_payload_validation_evidence_records`. Command-suite
+  `request_payload_validation_evidence_record_count`,
+  `blocking_request_payload_validation_evidence_record_count`,
+  `request_payload_validation_evidence_records`,
+  `validation_record_contract_ref`, `validation_record_store_ref`,
+  `validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+  `validation_record_field_refs`, and `validation_record_field_count`,
+  runtime_evidence_satisfies_validation_record=false,
+  validation_record_contract_ready=false, validation_record_store_ready=false,
+  validation_record_writer_enabled=false,
+  validation_record_replay_guard_ready=false, validation_recorded=false,
+  append_only_validation_record=false,
+  validation_record_idempotency_bound=false, and request_payload_validated=false
+  are evidence only and must not validate command request payloads, write
+  validation records, register record stores, call Coinbase, execute
   reconciliation, mutate futures/order/exchange state, or grant browser/BFF
   or spot-rule authority.
 - The long claim-trace clearance-step review-input, review-input

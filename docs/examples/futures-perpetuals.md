@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6481-6500 range targets explicit M57 futures/perpetual request
-payload validation evidence for
+The active 6501-6520 range targets explicit M57 futures/perpetual request
+payload validation evidence record contract evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Completed 6221-6240 work added aggregate
 blocked summaries for unresolved prerequisites, request payload contracts,
@@ -112,7 +112,7 @@ registration evidence through
 `"validator_registration_ready": false`, and
 `"runtime_evidence_satisfies_validator_registration": false`.
 Machine-check evidence: futures request payload validator registration evidence.
-The active 6481-6500 range reports futures request payload validation evidence
+Completed 6481-6500 work reports futures request payload validation evidence
 through `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
 `iter_futures_request_payload_validation_evidence`, with
 `"request_payload_validation_evidence_count": 22`,
@@ -128,9 +128,33 @@ through `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
 `"validation_evidence_ready": false`, and
 `"validation_evidence_recorded": false`.
 Machine-check evidence: futures request payload validation evidence.
+The active 6501-6520 range reports futures request payload validation evidence
+record contract evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence_records`, with
+`"approved_phase_range": "6501-6520"`,
+`"request_payload_validation_evidence_record_count": 22`,
+`"blocking_request_payload_validation_evidence_record_count": 22`,
+`"ready_request_payload_validation_evidence_record_count": 0`,
+`"stored_request_payload_validation_evidence_record_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_record_count": 0`,
+`"request_payload_validation_evidence_records"`,
+`"validation_record_contract_ref"`, `"validation_record_store_ref"`,
+`"validation_record_writer_ref"`,
+`"validation_record_replay_guard_ref"`,
+`"validation_record_field_refs"`, `"validation_record_field_count"`,
+`"validation_record_contract_ready": false`,
+`"validation_record_store_ready": false`,
+`"validation_record_writer_enabled": false`,
+`"validation_record_replay_guard_ready": false`,
+`"validation_recorded": false`,
+`"append_only_validation_record": false`, and
+`"validation_record_idempotency_bound": false`.
+Machine-check evidence: futures request payload validation evidence record contract evidence.
 Route/draft flags are true while execution remains false; the registries do
-not validate command request payloads, record validation evidence, register
-payload validators, call Coinbase, execute reconciliation, mutate
+not validate command request payloads, record validation evidence, write
+append-only validation records, register payload validators, call Coinbase,
+execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF authority.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
@@ -245,7 +269,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6481-6500",
+  "approved_phase_range": "6501-6520",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2385,13 +2409,14 @@ grant browser/BFF authority.
   contract is extended.
 - Live Coinbase execution for these examples: not run; notional `$0`.
 
-## Current Validation Example Evidence
+## Current Validation Record Example Evidence
 
-The active 6481-6500 range reports futures request payload validation evidence
-in `GET /api/v1/futures/command-suite`. This futures request payload validation
-evidence includes
-One-line evidence phrase: futures request payload validation evidence.
-`"approved_phase_range": "6481-6500"`,
+The active 6501-6520 range reports futures request payload validation evidence
+record contract evidence in `GET /api/v1/futures/command-suite`. This carries
+forward completed futures request payload validation evidence and adds disabled
+validation-record contract rows.
+One-line evidence phrase: futures request payload validation evidence record contract evidence.
+`"approved_phase_range": "6501-6520"`,
 `"request_payload_validation_evidence_count": 22`,
 `"blocking_request_payload_validation_evidence_count": 22`,
 `"ready_request_payload_validation_evidence_count": 0`,
@@ -2404,14 +2429,34 @@ One-line evidence phrase: futures request payload validation evidence.
 `"runtime_evidence_satisfies_validation_evidence": false`,
 `"validation_evidence_ready": false`,
 `"validation_evidence_recorded": false`,
+`"request_payload_validation_evidence_record_count": 22`,
+`"blocking_request_payload_validation_evidence_record_count": 22`,
+`"ready_request_payload_validation_evidence_record_count": 0`,
+`"stored_request_payload_validation_evidence_record_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_record_count": 0`,
+`"request_payload_validation_evidence_records"`,
+`"validation_record_contract_ref"`, `"validation_record_store_ref"`,
+`"validation_record_writer_ref"`, `"validation_record_replay_guard_ref"`,
+`"validation_record_field_refs"`, `"validation_record_field_count"`,
+`"validation_record_contract_ready": false`,
+`"validation_record_store_ready": false`,
+`"validation_record_writer_enabled": false`,
+`"validation_record_replay_guard_ready": false`,
+`"validation_recorded": false`,
+`"append_only_validation_record": false`,
+`"validation_record_idempotency_bound": false`,
 `"validator_input_schema_ref"`, `"validator_output_schema_ref"`,
 `"validator_registration_ref"`, and `"request_payload_validated": false`.
-The registry is
+The validation evidence registry is
 `application/admin_api/futures_request_payload_validation_evidence.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
-`iter_futures_request_payload_validation_evidence`; these rows remain blocked,
-backend-owned, read-only, display-only, and no-live. Completed registration
-evidence remains available through
+`iter_futures_request_payload_validation_evidence`; the validation-record
+registry is
+`application/admin_api/futures_request_payload_validation_evidence_records.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence_records`. These rows remain
+blocked, backend-owned, read-only, display-only, and no-live. Completed
+registration evidence remains available through
 `application/admin_api/futures_request_payload_validator_registrations.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
 `iter_futures_request_payload_validator_registrations`; completed output-schema
