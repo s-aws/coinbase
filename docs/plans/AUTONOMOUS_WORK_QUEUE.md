@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6561-6580**.
+- Approved phase range: **6581-6600**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6541-6560`.
+- Previous completed range: `6561-6580`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6560`.
+- `current_phase`: `6580`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,154 +81,173 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6561-6580
+## Active Phases 6581-6600
 
-Batch label: Futures/Perpetuals Request Payload Validation Evidence Record Audit Link Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Admission Link Evidence.
 
-These phases continue M57 after completed `6541-6560` exposed disabled futures
-request payload validation record replay guard evidence. The next concrete gap
-is that contextless agents can inspect validation record schema, append-only
-log, idempotency, duplicate, replay-window, and replay guard evidence, but
-cannot inspect the backend-owned actor, operator-intent, correlation,
-admission-audit, and audit-record binding evidence required before validation
-records can be trusted as durable command evidence. Active `6561-6580` adds
-`application/admin_api/futures_request_payload_validation_record_audit_links.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_audit_links` as disabled
+These phases continue M57 after completed `6561-6580` exposed disabled futures
+request payload validation record audit-link evidence. The next concrete gap is
+that contextless agents can inspect actor, operator-intent, correlation,
+admission-audit, and audit-record binding, but cannot inspect how a validation
+record is bound to approval snapshots, cap/guard decisions, reconciliation
+plans, live intent, and command admission before any futures/perpetual command
+could execute. Active `6581-6600` adds
+`application/admin_api/futures_request_payload_validation_record_admission_links.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_admission_links` as disabled
 evidence only, derived from
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS` and
-`iter_futures_request_payload_validation_record_replay_guards`. The command
-suite carries forward all request-field, validator, validation-evidence,
-validation-record, validation-record schema, and validation-record replay guard
-counts, then emits `request_payload_validation_record_audit_link_count`,
-`blocking_request_payload_validation_record_audit_link_count`,
-`ready_request_payload_validation_record_audit_link_count`,
-`audit_bound_request_payload_validation_record_count`,
-`runtime_observed_request_payload_validation_record_audit_link_count`, and
-`request_payload_validation_record_audit_links`. Each row exposes
-`validation_record_audit_link_contract_ref`, `validation_record_actor_ref`,
-`validation_record_operator_intent_ref`, `validation_record_correlation_ref`,
-`validation_record_admission_audit_ref`, `validation_record_audit_record_ref`,
-`validation_record_audit_link_field_refs`,
-`validation_record_audit_link_field_count`, `required_evidence_refs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS` and
+`iter_futures_request_payload_validation_record_audit_links`. The command suite
+carries forward all request-field, validator, validation-evidence,
+validation-record, schema, replay-guard, and audit-link counts, then emits
+`request_payload_validation_record_admission_link_count`,
+`blocking_request_payload_validation_record_admission_link_count`,
+`ready_request_payload_validation_record_admission_link_count`,
+`admission_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_admission_link_count`, and
+`request_payload_validation_record_admission_links`. Each row exposes
+`validation_record_admission_link_contract_ref`,
+`validation_record_approval_snapshot_ref`,
+`validation_record_cap_guard_decision_ref`,
+`validation_record_reconciliation_plan_ref`,
+`validation_record_live_intent_ref`,
+`validation_record_command_admission_ref`,
+`validation_record_admission_link_field_refs`,
+`validation_record_admission_link_field_count`, `required_evidence_refs`,
 `missing_evidence_refs`,
-`runtime_evidence_satisfies_validation_record_audit_link=false`,
-`validation_record_audit_link_contract_ready=false`,
-`validation_record_audit_link_ready=false`,
-`validation_record_actor_bound=false`,
-`validation_record_operator_intent_bound=false`,
-`validation_record_correlation_bound=false`,
-`validation_record_admission_audit_bound=false`,
-`validation_record_audit_recorded=false`, and
-`request_payload_validated=false`. Route/draft flags remain true while
-execution remains false. This range must not implement validators, validate
-submitted command payloads, create record schemas, create append-only logs,
-write validation records, bind idempotency keys, enforce replay windows, bind
-actor/operator/correlation evidence, append admission-audit records, submit or
-cancel Coinbase orders, execute reconciliation, mutate futures/order/exchange
+`runtime_evidence_satisfies_validation_record_admission_link=false`,
+`validation_record_admission_link_contract_ready=false`,
+`validation_record_admission_link_ready=false`,
+`validation_record_approval_snapshot_bound=false`,
+`validation_record_cap_guard_decision_bound=false`,
+`validation_record_reconciliation_plan_bound=false`,
+`validation_record_live_intent_bound=false`,
+`validation_record_command_admission_bound=false`,
+`validation_record_admitted=false`, and `request_payload_validated=false`.
+Route/draft flags remain true while execution remains false. This range must
+not implement validators, validate submitted command payloads, bind approval
+snapshots, enforce caps, execute reconciliation, express live intent, admit
+commands, submit or cancel Coinbase orders, mutate futures/order/exchange
 state, accept risk proofs as command readiness, or grant browser/BFF execution
 authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
 inventory-lot assumptions remain forbidden as futures/perpetual authority.
 
-### Phase 6561 - Prior Range Closure
+Carried-forward audit-link machine-check terms remain visible for contextless
+review: `validation_record_audit_link_contract_ref`,
+`validation_record_actor_ref`, `validation_record_operator_intent_ref`,
+`validation_record_correlation_ref`,
+`validation_record_admission_audit_ref`, and
+`validation_record_audit_record_ref`.
 
-- Record completed phases `6541-6560` as historical validation-record replay
-  guard rows and move active metadata to `6561-6580`.
+### Phase 6581 - Prior Range Closure
 
-### Phase 6562 - Audit Link Registry
+- Record completed phases `6561-6580` as historical audit-link evidence and
+  move active metadata to `6581-6600`.
 
-- Add a backend-owned disabled validation-record audit-link registry derived
-  from `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`.
+### Phase 6582 - Admission Link Registry
 
-### Phase 6563 - Actor Binding Evidence
+- Add a backend-owned disabled validation-record admission-link registry
+  derived from `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`.
 
-- Expose disabled actor binding refs for each futures/perpetual command field
-  without accepting browser, BFF, or spot authority as actor evidence.
+### Phase 6583 - Approval Snapshot Binding Evidence
 
-### Phase 6564 - Operator Intent Binding Evidence
+- Expose disabled approval-snapshot refs for each futures/perpetual command
+  field without accepting frontend or BFF authority.
 
-- Expose disabled operator-intent refs for each validation record row and keep
-  command draft flags read-only/non-executable.
+### Phase 6584 - Cap Guard Decision Binding Evidence
 
-### Phase 6565 - Correlation Binding Evidence
+- Expose disabled cap/guard decision refs and keep command admission false.
 
-- Expose disabled correlation refs so future durable records can link request,
-  decision, audit, and idempotency evidence through one backend-owned chain.
+### Phase 6585 - Reconciliation Plan Binding Evidence
 
-### Phase 6566 - Admission Audit Binding Evidence
+- Expose disabled reconciliation-plan refs without executing reconciliation or
+  mutating futures state.
 
-- Expose disabled admission-audit refs without appending audit records or
-  treating existing runtime reads as sufficient validation evidence.
+### Phase 6586 - Live Intent Binding Evidence
 
-### Phase 6567 - Audit Record Evidence
+- Expose disabled live-intent refs while keeping live Coinbase execution false.
 
-- Expose disabled audit-record refs and false recorded flags for every
-  futures/perpetual request payload validation record row.
+### Phase 6587 - Command Admission Binding Evidence
 
-### Phase 6568 - Command Suite Counts
+- Expose disabled command-admission refs and `validation_record_admitted=false`
+  for every futures/perpetual request payload validation record row.
 
-- Add command-level audit-link counts and ready/audit-bound/runtime-observed
+### Phase 6588 - Command Suite Counts
+
+- Add command-level admission-link counts and ready/admission-bound/runtime
   false counts to `/api/v1/futures/command-suite`.
 
-### Phase 6569 - Suite Aggregate Counts
+### Phase 6589 - Suite Aggregate Counts
 
-- Add suite-level aggregate audit-link counts while preserving blocked,
+- Add suite-level aggregate admission-link counts while preserving blocked,
   read-only, no-live command status.
 
-### Phase 6570 - Required Backend Contract Binding
+### Phase 6590 - Required Backend Contract Binding
 
-- Add audit-link refs to `required_backend_contracts` so contextless agents can
-  see that audit/correlation binding is a required backend gap, not optional UI
-  display metadata.
+- Add admission-link refs to `required_backend_contracts` so contextless agents
+  see admission binding as a required backend gap, not optional UI metadata.
 
-### Phase 6571 - OpenAPI Contract Regeneration
+### Phase 6591 - OpenAPI Contract Regeneration
 
-- Regenerate the Admin API OpenAPI schema and prove the audit-link fields are
+- Regenerate the Admin API OpenAPI schema and prove admission-link fields are
   present in generated contracts.
 
-### Phase 6572 - Backend Regression Coverage
+### Phase 6592 - Backend Regression Coverage
 
 - Extend focused futures/perpetual contract regressions for registry rows,
   emitted rows, counts, false flags, required refs, and forbidden authority.
 
-### Phase 6573 - API Reference Update
+### Phase 6593 - API Reference Update
 
-- Update backend API reference docs with the active `6561-6580` evidence and
-  carry-forward replay guard context.
+- Update backend API reference docs with the active `6581-6600` evidence and
+  carry-forward audit-link context.
 
-### Phase 6574 - Examples Update
+### Phase 6594 - Examples Update
 
-- Update admin and futures/perpetual examples with audit-link response fields
-  and explicit no-live/no-mutation language.
+- Update admin and futures/perpetual examples with admission-link response
+  fields and explicit no-live/no-mutation language.
 
-### Phase 6575 - Frontend Generated Client Sync
+### Phase 6595 - Frontend Generated Client Sync
 
 - Regenerate frontend API types after backend OpenAPI changes.
 
-### Phase 6576 - Frontend Adapter Mapping
+### Phase 6596 - Frontend Adapter Mapping
 
-- Map audit-link rows through the frontend backend adapter without creating
+- Map admission-link rows through the frontend backend adapter without creating
   trading behavior or BFF execution authority.
 
-### Phase 6577 - Frontend Read Model Display
+### Phase 6597 - Frontend Read Model Display
 
-- Display audit-link counts and row fields in the futures/perpetual admin view
-  as blocked/read-only backend evidence.
+- Display admission-link counts and row fields in the futures/perpetual admin
+  view as blocked/read-only backend evidence.
 
-### Phase 6578 - Frontend Tests And Quality Metadata
+### Phase 6598 - Frontend Tests And Quality Metadata
 
 - Extend frontend mock backend, read-model tests, quality artifact, and
-  deployment readiness metadata for the active audit-link range.
+  deployment readiness metadata for the active admission-link range.
 
-### Phase 6579 - Contextless Review And Hygiene
+### Phase 6599 - Contextless Review And Hygiene
 
-- Run blind/contextless backend and frontend review for audit-link evidence;
-  remediate ambiguity and complete phase-end stale-subagent cleanup.
+- Run blind/contextless backend and frontend review for admission-link
+  evidence; remediate ambiguity and complete phase-end stale-subagent cleanup.
 
-### Phase 6580 - No-Live Commit And Push
+### Phase 6600 - No-Live Commit And Push
 
-- Commit and push backend/frontend no-live audit-link evidence with `0` USDC
-  submitted, `0` USDC executed, and no Coinbase orders run.
+- Commit and push backend/frontend no-live admission-link evidence with `0`
+  USDC submitted, `0` USDC executed, and no Coinbase orders run.
+
+## Historical Plan - Phases 6561-6580
+
+Batch label: Futures/Perpetuals Request Payload Validation Evidence Record Audit Link Evidence.
+
+Completed `6561-6580` added disabled futures request payload validation record
+audit-link evidence through
+`application/admin_api/futures_request_payload_validation_record_audit_links.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_audit_links`, including
+`request_payload_validation_record_audit_link_count`,
+`blocking_request_payload_validation_record_audit_link_count`, and
+`request_payload_validation_record_audit_links`.
 
 ## Historical Plan - Phases 6541-6560
 

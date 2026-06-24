@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6561-6580`.
+- Commit (optional): current active range is `6581-6600`.
 
 ## Current Objective
 
@@ -56,9 +56,14 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6541-6560`.
-- Active autonomous range: `6561-6580`.
-- Active `6561-6580` adds disabled futures request payload validation record
+- Latest completed autonomous range before current work: `6561-6580`.
+- Active autonomous range: `6581-6600`.
+- Active `6581-6600` adds disabled futures request payload validation record
+  admission-link evidence through
+  `application/admin_api/futures_request_payload_validation_record_admission_links.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_admission_links`. Completed
+  `6561-6580` carries forward futures request payload validation record
   audit-link evidence through
   `application/admin_api/futures_request_payload_validation_record_audit_links.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`, and
@@ -68,20 +73,20 @@ Keep it short. Keep it factual.
   `application/admin_api/futures_request_payload_validation_record_replay_guards.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
   `iter_futures_request_payload_validation_record_replay_guards`. The command
-  suite must expose `request_payload_validation_record_audit_link_count`,
-  `blocking_request_payload_validation_record_audit_link_count`,
-  `ready_request_payload_validation_record_audit_link_count`,
-  `audit_bound_request_payload_validation_record_count`,
-  `runtime_observed_request_payload_validation_record_audit_link_count`,
-  `request_payload_validation_record_audit_links`,
-  `validation_record_audit_link_contract_ref`,
-  `validation_record_actor_ref`,
-  `validation_record_operator_intent_ref`,
-  `validation_record_correlation_ref`,
-  `validation_record_admission_audit_ref`,
-  `validation_record_audit_record_ref`,
-  `validation_record_audit_link_field_refs`,
-  `validation_record_audit_link_field_count`,
+  suite must expose `request_payload_validation_record_admission_link_count`,
+  `blocking_request_payload_validation_record_admission_link_count`,
+  `ready_request_payload_validation_record_admission_link_count`,
+  `admission_bound_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_admission_link_count`,
+  `request_payload_validation_record_admission_links`,
+  `validation_record_admission_link_contract_ref`,
+  `validation_record_approval_snapshot_ref`,
+  `validation_record_cap_guard_decision_ref`,
+  `validation_record_reconciliation_plan_ref`,
+  `validation_record_live_intent_ref`,
+  `validation_record_command_admission_ref`,
+  `validation_record_admission_link_field_refs`,
+  `validation_record_admission_link_field_count`,
   `request_payload_validation_record_replay_guard_count`,
   `blocking_request_payload_validation_record_replay_guard_count`,
   `ready_request_payload_validation_record_replay_guard_count`,
@@ -125,16 +130,25 @@ Keep it short. Keep it factual.
   `runtime_evidence_satisfies_validation_record_schema=false`,
   `runtime_evidence_satisfies_validation_record_replay_guard=false`,
   `runtime_evidence_satisfies_validation_record_audit_link=false`,
+  `runtime_evidence_satisfies_validation_record_admission_link=false`,
   `validation_record_replay_guard_contract_ready=false`,
   `validation_record_idempotency_contract_ready=false`,
   `validation_record_replay_protected=false`,
   `validation_record_audit_link_contract_ready=false`,
   `validation_record_audit_link_ready=false`,
+  `validation_record_admission_link_contract_ready=false`,
+  `validation_record_admission_link_ready=false`,
   `validation_record_actor_bound=false`,
   `validation_record_operator_intent_bound=false`,
   `validation_record_correlation_bound=false`,
   `validation_record_admission_audit_bound=false`,
   `validation_record_audit_recorded=false`,
+  `validation_record_approval_snapshot_bound=false`,
+  `validation_record_cap_guard_decision_bound=false`,
+  `validation_record_reconciliation_plan_bound=false`,
+  `validation_record_live_intent_bound=false`,
+  `validation_record_command_admission_bound=false`,
+  `validation_record_admitted=false`,
   `validation_record_schema_ready=false`,
   `validation_record_schema_registered=false`,
   `validation_record_append_only_log_ready=false`,
@@ -157,13 +171,14 @@ Keep it short. Keep it factual.
   validation evidence recording, validation record writing, validation record
   schema creation, append-only log creation, validator registration,
   idempotency binding, replay protection, actor binding, operator-intent
-  binding, correlation binding, admission-audit append, or spot-rule authority
-  is allowed.
-- Current direction: complete phases `6561-6580` with futures request payload
-  validation record audit-link evidence, frontend display, focused
+  binding, correlation binding, admission-audit append, approval binding, cap
+  decision binding, reconciliation execution, live intent, command admission,
+  or spot-rule authority is allowed.
+- Current direction: complete phases `6581-6600` with futures request payload
+  validation record admission-link evidence, frontend display, focused
   checks, blind/contextless review, phase-end subagent sweep, and no-live
   commit/push.
-- One-line current evidence phrase: futures request payload validation record audit-link evidence.
+- One-line current evidence phrase: futures request payload validation record admission-link evidence.
 - Carried-forward machine-check phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence.
 - Carried-forward registries: `application/admin_api/futures_request_payload_contracts.py`, `application/admin_api/futures_request_payload_validators.py`, `application/admin_api/futures_request_payload_validator_input_schemas.py`, `application/admin_api/futures_request_payload_validator_output_schemas.py`, `application/admin_api/futures_request_payload_validator_registrations.py`, `application/admin_api/futures_request_payload_validation_evidence.py`, `application/admin_api/futures_request_payload_validation_evidence_records.py`, `application/admin_api/futures_request_payload_validation_record_schemas.py`, `application/admin_api/futures_request_payload_validation_record_replay_guards.py`, `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, `iter_futures_request_payload_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, `iter_futures_request_payload_validator_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_input_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_output_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, `iter_futures_request_payload_validator_registrations`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, `iter_futures_request_payload_validation_evidence`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, `iter_futures_request_payload_validation_evidence_records`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validation_record_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and `iter_futures_request_payload_validation_record_replay_guards`.
 - Completed `6281-6300` added disabled futures reconciliation command-service

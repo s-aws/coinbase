@@ -724,36 +724,41 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6561-6580 add disabled futures request payload validation
-record audit-link evidence through
-`application/admin_api/futures_request_payload_validation_record_audit_links.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_audit_links`; command-suite
-`request_payload_validation_record_audit_link_count`,
-`blocking_request_payload_validation_record_audit_link_count`,
-`ready_request_payload_validation_record_audit_link_count`,
-`audit_bound_request_payload_validation_record_count`,
-`runtime_observed_request_payload_validation_record_audit_link_count`, and
-`request_payload_validation_record_audit_links` remain backend-owned display
-evidence. Rows expose `validation_record_audit_link_contract_ref`,
-`validation_record_actor_ref`, `validation_record_operator_intent_ref`,
-`validation_record_correlation_ref`,
-`validation_record_admission_audit_ref`,
-`validation_record_audit_record_ref`,
-`validation_record_audit_link_field_refs`,
-`validation_record_audit_link_field_count`,
-`runtime_evidence_satisfies_validation_record_audit_link=false`,
-`validation_record_audit_link_contract_ready=false`,
-`validation_record_audit_link_ready=false`,
-`validation_record_actor_bound=false`,
-`validation_record_operator_intent_bound=false`,
-`validation_record_correlation_bound=false`,
-`validation_record_admission_audit_bound=false`, and
-`validation_record_audit_recorded=false` while preserving no actor binding, no
-operator-intent binding, no correlation binding, no admission-audit append, no
-payload validation, no Coinbase calls, no reconciliation execution, no
-futures/order/exchange state mutation, and no browser/BFF or spot-rule
-authority.
+Current M57 phases 6581-6600 add disabled futures request payload validation
+record admission-link evidence through
+`application/admin_api/futures_request_payload_validation_record_admission_links.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_admission_links`; command-suite
+`request_payload_validation_record_admission_link_count`,
+`blocking_request_payload_validation_record_admission_link_count`,
+`ready_request_payload_validation_record_admission_link_count`,
+`admission_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_admission_link_count`, and
+`request_payload_validation_record_admission_links` remain backend-owned
+display evidence. Rows expose
+`validation_record_admission_link_contract_ref`,
+`validation_record_approval_snapshot_ref`,
+`validation_record_cap_guard_decision_ref`,
+`validation_record_reconciliation_plan_ref`,
+`validation_record_live_intent_ref`,
+`validation_record_command_admission_ref`,
+`validation_record_admission_link_field_refs`,
+`validation_record_admission_link_field_count`,
+`runtime_evidence_satisfies_validation_record_admission_link=false`,
+`validation_record_admission_link_contract_ready=false`,
+`validation_record_admission_link_ready=false`,
+`validation_record_approval_snapshot_bound=false`,
+`validation_record_cap_guard_decision_bound=false`,
+`validation_record_reconciliation_plan_bound=false`,
+`validation_record_live_intent_bound=false`,
+`validation_record_command_admission_bound=false`, and
+`validation_record_admitted=false` while preserving no approval binding, no cap
+decision binding, no reconciliation execution, no live intent, no command
+admission, no payload validation, no Coinbase calls, no futures/order/exchange
+state mutation, and no browser/BFF or spot-rule authority. Completed
+6561-6580 audit-link evidence remains available through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS` and
+`iter_futures_request_payload_validation_record_audit_links`.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

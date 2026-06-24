@@ -123,36 +123,43 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6541-6560` under M57.
-- Active autonomous range: `6561-6580` under M57.
+- Latest completed autonomous range: `6561-6580` under M57.
+- Active autonomous range: `6581-6600` under M57.
 - Active range adds disabled futures request payload validation record
-  audit-link evidence through
-  `application/admin_api/futures_request_payload_validation_record_audit_links.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`, and
-  `iter_futures_request_payload_validation_record_audit_links`, including
+  admission-link evidence through
+  `application/admin_api/futures_request_payload_validation_record_admission_links.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_admission_links`, including
+  `request_payload_validation_record_admission_link_count`,
+  `blocking_request_payload_validation_record_admission_link_count`,
+  `ready_request_payload_validation_record_admission_link_count`,
+  `admission_bound_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_admission_link_count`,
+  `request_payload_validation_record_admission_links`,
+  `validation_record_admission_link_contract_ref`,
+  `validation_record_approval_snapshot_ref`,
+  `validation_record_cap_guard_decision_ref`,
+  `validation_record_reconciliation_plan_ref`,
+  `validation_record_live_intent_ref`,
+  `validation_record_command_admission_ref`,
+  `validation_record_admission_link_field_refs`,
+  `validation_record_admission_link_field_count`,
+  `runtime_evidence_satisfies_validation_record_admission_link=false`,
+  `validation_record_admission_link_contract_ready=false`,
+  `validation_record_admission_link_ready=false`,
+  `validation_record_approval_snapshot_bound=false`,
+  `validation_record_cap_guard_decision_bound=false`,
+  `validation_record_reconciliation_plan_bound=false`,
+  `validation_record_live_intent_bound=false`,
+  `validation_record_command_admission_bound=false`, and
+  `validation_record_admitted=false`. Completed `6561-6580` carries forward
+  disabled audit-link evidence through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_audit_links`,
   `request_payload_validation_record_audit_link_count`,
-  `blocking_request_payload_validation_record_audit_link_count`,
-  `ready_request_payload_validation_record_audit_link_count`,
-  `audit_bound_request_payload_validation_record_count`,
-  `runtime_observed_request_payload_validation_record_audit_link_count`,
-  `request_payload_validation_record_audit_links`,
-  `validation_record_audit_link_contract_ref`,
-  `validation_record_actor_ref`,
-  `validation_record_operator_intent_ref`,
-  `validation_record_correlation_ref`,
-  `validation_record_admission_audit_ref`,
-  `validation_record_audit_record_ref`,
-  `validation_record_audit_link_field_refs`,
-  `validation_record_audit_link_field_count`,
-  `runtime_evidence_satisfies_validation_record_audit_link=false`,
-  `validation_record_audit_link_contract_ready=false`,
-  `validation_record_audit_link_ready=false`,
-  `validation_record_actor_bound=false`,
-  `validation_record_operator_intent_bound=false`,
-  `validation_record_correlation_bound=false`,
-  `validation_record_admission_audit_bound=false`, and
-  `validation_record_audit_recorded=false`. Completed `6541-6560` carries
-  forward disabled replay guard evidence through
+  `blocking_request_payload_validation_record_audit_link_count`, and
+  `request_payload_validation_record_audit_links`. Completed `6541-6560`
+  carries forward disabled replay guard evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
   `iter_futures_request_payload_validation_record_replay_guards`,
   `request_payload_validation_record_replay_guard_count`,

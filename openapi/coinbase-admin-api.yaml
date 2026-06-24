@@ -13504,6 +13504,37 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem'
           type: array
           title: Request Payload Validation Record Audit Links
+        request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Admission Link Count
+          default: 0
+        blocking_request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Admission Link Count
+          default: 0
+        ready_request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Admission Link Count
+          default: 0
+        admission_bound_request_payload_validation_record_count:
+          type: integer
+          minimum: 0.0
+          title: Admission Bound Request Payload Validation Record Count
+          default: 0
+        runtime_observed_request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Admission Link
+            Count
+          default: 0
+        request_payload_validation_record_admission_links:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordAdmissionLinkItem'
+          type: array
+          title: Request Payload Validation Record Admission Links
         semantic_guard_count:
           type: integer
           minimum: 0.0
@@ -15439,6 +15470,364 @@ components:
       title: AdminFuturesCommandRequestPayloadValidationEvidenceRecordItem
       description: One disabled validation-evidence record row for a futures request
         payload.
+    AdminFuturesCommandRequestPayloadValidationRecordAdmissionLinkItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        request_payload_contract_ref:
+          type: string
+          title: Request Payload Contract Ref
+        validation_gate_ref:
+          type: string
+          title: Validation Gate Ref
+        validation_evidence_ref:
+          type: string
+          title: Validation Evidence Ref
+        validation_evidence_contract_ref:
+          type: string
+          title: Validation Evidence Contract Ref
+        validator_contract_ref:
+          type: string
+          title: Validator Contract Ref
+        validator_input_schema_ref:
+          type: string
+          title: Validator Input Schema Ref
+        validator_output_schema_ref:
+          type: string
+          title: Validator Output Schema Ref
+        validator_registration_ref:
+          type: string
+          title: Validator Registration Ref
+        validation_record_contract_ref:
+          type: string
+          title: Validation Record Contract Ref
+        validation_record_store_ref:
+          type: string
+          title: Validation Record Store Ref
+        validation_record_writer_ref:
+          type: string
+          title: Validation Record Writer Ref
+        validation_record_replay_guard_ref:
+          type: string
+          title: Validation Record Replay Guard Ref
+        validation_record_schema_ref:
+          type: string
+          title: Validation Record Schema Ref
+        validation_record_append_only_log_ref:
+          type: string
+          title: Validation Record Append Only Log Ref
+        validation_record_replay_guard_contract_ref:
+          type: string
+          title: Validation Record Replay Guard Contract Ref
+        validation_record_idempotency_contract_ref:
+          type: string
+          title: Validation Record Idempotency Contract Ref
+        validation_record_replay_window_ref:
+          type: string
+          title: Validation Record Replay Window Ref
+        validation_record_duplicate_policy_ref:
+          type: string
+          title: Validation Record Duplicate Policy Ref
+        validation_record_audit_link_contract_ref:
+          type: string
+          title: Validation Record Audit Link Contract Ref
+        validation_record_actor_ref:
+          type: string
+          title: Validation Record Actor Ref
+        validation_record_operator_intent_ref:
+          type: string
+          title: Validation Record Operator Intent Ref
+        validation_record_correlation_ref:
+          type: string
+          title: Validation Record Correlation Ref
+        validation_record_admission_audit_ref:
+          type: string
+          title: Validation Record Admission Audit Ref
+        validation_record_audit_record_ref:
+          type: string
+          title: Validation Record Audit Record Ref
+        validation_record_admission_link_contract_ref:
+          type: string
+          title: Validation Record Admission Link Contract Ref
+        validation_record_approval_snapshot_ref:
+          type: string
+          title: Validation Record Approval Snapshot Ref
+        validation_record_cap_guard_decision_ref:
+          type: string
+          title: Validation Record Cap Guard Decision Ref
+        validation_record_reconciliation_plan_ref:
+          type: string
+          title: Validation Record Reconciliation Plan Ref
+        validation_record_live_intent_ref:
+          type: string
+          title: Validation Record Live Intent Ref
+        validation_record_command_admission_ref:
+          type: string
+          title: Validation Record Command Admission Ref
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        missing_backend_contract:
+          type: string
+          title: Missing Backend Contract
+        validation_record_admission_link_field_refs:
+          items:
+            type: string
+          type: array
+          title: Validation Record Admission Link Field Refs
+        validation_record_admission_link_field_count:
+          type: integer
+          minimum: 0.0
+          title: Validation Record Admission Link Field Count
+          default: 0
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        runtime_evidence_satisfies_validation_record_admission_link:
+          type: boolean
+          title: Runtime Evidence Satisfies Validation Record Admission Link
+          default: false
+        validation_record_admission_link_contract_ready:
+          type: boolean
+          title: Validation Record Admission Link Contract Ready
+          default: false
+        validation_record_admission_link_ready:
+          type: boolean
+          title: Validation Record Admission Link Ready
+          default: false
+        validation_record_approval_snapshot_bound:
+          type: boolean
+          title: Validation Record Approval Snapshot Bound
+          default: false
+        validation_record_cap_guard_decision_bound:
+          type: boolean
+          title: Validation Record Cap Guard Decision Bound
+          default: false
+        validation_record_reconciliation_plan_bound:
+          type: boolean
+          title: Validation Record Reconciliation Plan Bound
+          default: false
+        validation_record_live_intent_bound:
+          type: boolean
+          title: Validation Record Live Intent Bound
+          default: false
+        validation_record_command_admission_bound:
+          type: boolean
+          title: Validation Record Command Admission Bound
+          default: false
+        validation_record_admitted:
+          type: boolean
+          title: Validation Record Admitted
+          default: false
+        validation_record_audit_link_contract_ready:
+          type: boolean
+          title: Validation Record Audit Link Contract Ready
+          default: false
+        validation_record_audit_link_ready:
+          type: boolean
+          title: Validation Record Audit Link Ready
+          default: false
+        validation_record_actor_bound:
+          type: boolean
+          title: Validation Record Actor Bound
+          default: false
+        validation_record_operator_intent_bound:
+          type: boolean
+          title: Validation Record Operator Intent Bound
+          default: false
+        validation_record_correlation_bound:
+          type: boolean
+          title: Validation Record Correlation Bound
+          default: false
+        validation_record_admission_audit_bound:
+          type: boolean
+          title: Validation Record Admission Audit Bound
+          default: false
+        validation_record_audit_recorded:
+          type: boolean
+          title: Validation Record Audit Recorded
+          default: false
+        validation_record_replay_guard_contract_ready:
+          type: boolean
+          title: Validation Record Replay Guard Contract Ready
+          default: false
+        validation_record_replay_guard_ready:
+          type: boolean
+          title: Validation Record Replay Guard Ready
+          default: false
+        validation_record_idempotency_contract_ready:
+          type: boolean
+          title: Validation Record Idempotency Contract Ready
+          default: false
+        validation_record_idempotency_bound:
+          type: boolean
+          title: Validation Record Idempotency Bound
+          default: false
+        validation_record_replay_protected:
+          type: boolean
+          title: Validation Record Replay Protected
+          default: false
+        validation_record_schema_ready:
+          type: boolean
+          title: Validation Record Schema Ready
+          default: false
+        validation_record_schema_registered:
+          type: boolean
+          title: Validation Record Schema Registered
+          default: false
+        validation_record_append_only_log_ready:
+          type: boolean
+          title: Validation Record Append Only Log Ready
+          default: false
+        validation_record_contract_ready:
+          type: boolean
+          title: Validation Record Contract Ready
+          default: false
+        validation_record_store_ready:
+          type: boolean
+          title: Validation Record Store Ready
+          default: false
+        validation_record_writer_enabled:
+          type: boolean
+          title: Validation Record Writer Enabled
+          default: false
+        validation_evidence_ready:
+          type: boolean
+          title: Validation Evidence Ready
+          default: false
+        validation_evidence_recorded:
+          type: boolean
+          title: Validation Evidence Recorded
+          default: false
+        validation_recorded:
+          type: boolean
+          title: Validation Recorded
+          default: false
+        append_only_validation_record:
+          type: boolean
+          title: Append Only Validation Record
+          default: false
+        request_payload_validated:
+          type: boolean
+          title: Request Payload Validated
+          default: false
+        validator_registered:
+          type: boolean
+          title: Validator Registered
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: true
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: true
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - request_payload_contract_ref
+      - validation_gate_ref
+      - validation_evidence_ref
+      - validation_evidence_contract_ref
+      - validator_contract_ref
+      - validator_input_schema_ref
+      - validator_output_schema_ref
+      - validator_registration_ref
+      - validation_record_contract_ref
+      - validation_record_store_ref
+      - validation_record_writer_ref
+      - validation_record_replay_guard_ref
+      - validation_record_schema_ref
+      - validation_record_append_only_log_ref
+      - validation_record_replay_guard_contract_ref
+      - validation_record_idempotency_contract_ref
+      - validation_record_replay_window_ref
+      - validation_record_duplicate_policy_ref
+      - validation_record_audit_link_contract_ref
+      - validation_record_actor_ref
+      - validation_record_operator_intent_ref
+      - validation_record_correlation_ref
+      - validation_record_admission_audit_ref
+      - validation_record_audit_record_ref
+      - validation_record_admission_link_contract_ref
+      - validation_record_approval_snapshot_ref
+      - validation_record_cap_guard_decision_ref
+      - validation_record_reconciliation_plan_ref
+      - validation_record_live_intent_ref
+      - validation_record_command_admission_ref
+      - required_backend_contract
+      - missing_backend_contract
+      - detail
+      title: AdminFuturesCommandRequestPayloadValidationRecordAdmissionLinkItem
+      description: One disabled validation-record admission binding row.
     AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem:
       properties:
         field:
@@ -30888,6 +31277,32 @@ components:
           type: integer
           minimum: 0.0
           title: Runtime Observed Request Payload Validation Record Audit Link Count
+          default: 0
+        request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Admission Link Count
+          default: 0
+        blocking_request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Admission Link Count
+          default: 0
+        ready_request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Admission Link Count
+          default: 0
+        admission_bound_request_payload_validation_record_count:
+          type: integer
+          minimum: 0.0
+          title: Admission Bound Request Payload Validation Record Count
+          default: 0
+        runtime_observed_request_payload_validation_record_admission_link_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Admission Link
+            Count
           default: 0
         semantic_guard_count:
           type: integer

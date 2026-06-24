@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6561-6580"`. Futures/perpetual command-suite reads
-expose backend-owned disabled audit-link evidence only:
+`"approved_phase_range": "6581-6600"`. Futures/perpetual command-suite reads
+expose backend-owned disabled admission-link evidence only:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -33,8 +33,10 @@ expose backend-owned disabled audit-link evidence only:
 `iter_futures_request_payload_validation_record_schemas`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
 `iter_futures_request_payload_validation_record_replay_guards`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_audit_links`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_audit_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_admission_links`.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,
@@ -67,6 +69,12 @@ Representative no-live response keys include
 `"request_payload_validation_evidence"`,
 `"request_payload_validation_evidence_record_count"`,
 `"blocking_request_payload_validation_evidence_record_count"`,
+`"request_payload_validation_record_admission_link_count"`,
+`"blocking_request_payload_validation_record_admission_link_count"`,
+`"ready_request_payload_validation_record_admission_link_count"`,
+`"admission_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_admission_link_count"`,
+`"request_payload_validation_record_admission_links"`,
 `"request_payload_validation_record_audit_link_count"`,
 `"blocking_request_payload_validation_record_audit_link_count"`,
 `"ready_request_payload_validation_record_audit_link_count"`,
@@ -103,6 +111,12 @@ Machine-check replay guard count keys:
 `idempotency_bound_request_payload_validation_record_count`,
 `runtime_observed_request_payload_validation_record_replay_guard_count`,
 `request_payload_validation_record_replay_guards`,
+`request_payload_validation_record_admission_link_count`,
+`blocking_request_payload_validation_record_admission_link_count`,
+`ready_request_payload_validation_record_admission_link_count`,
+`admission_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_admission_link_count`,
+`request_payload_validation_record_admission_links`,
 `request_payload_validation_record_audit_link_count`,
 `blocking_request_payload_validation_record_audit_link_count`,
 `ready_request_payload_validation_record_audit_link_count`,

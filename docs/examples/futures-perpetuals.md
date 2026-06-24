@@ -11,18 +11,22 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6561-6580 range targets explicit M57 futures/perpetual request
-payload validation record audit-link evidence for
+The active 6581-6600 range targets explicit M57 futures/perpetual request
+payload validation record admission-link evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6561-6580"` and no-live audit-link counts such as
+`"approved_phase_range": "6581-6600"` and no-live admission-link counts such as
+`"request_payload_validation_record_admission_link_count"`,
+`"blocking_request_payload_validation_record_admission_link_count"`,
+`"ready_request_payload_validation_record_admission_link_count"`,
+`"admission_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_admission_link_count"`,
+and `"request_payload_validation_record_admission_links"`. Completed
+6561-6580 audit-link evidence remains visible through
 `"request_payload_validation_record_audit_link_count"`,
-`"blocking_request_payload_validation_record_audit_link_count"`,
-`"ready_request_payload_validation_record_audit_link_count"`,
-`"audit_bound_request_payload_validation_record_count"`,
-`"runtime_observed_request_payload_validation_record_audit_link_count"`, and
+`"blocking_request_payload_validation_record_audit_link_count"`, and
 `"request_payload_validation_record_audit_links"`. Completed 6541-6560 replay
-guard evidence remains visible through
+guard evidence also remains visible through
 `"request_payload_validation_record_replay_guard_count"`,
 `"blocking_request_payload_validation_record_replay_guard_count"`,
 `"ready_request_payload_validation_record_replay_guard_count"`,
