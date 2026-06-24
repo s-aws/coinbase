@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6401-6420`.
+- Commit (optional): current active range is `6421-6440`.
 
 ## Current Objective
 
@@ -56,8 +56,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6381-6400`.
-- Active autonomous range: `6401-6420`.
+- Latest completed autonomous range before current work: `6401-6420`.
+- Active autonomous range: `6421-6440`.
 - Completed `6281-6300` added disabled futures reconciliation command-service
   parity evidence to the M57 futures/perpetual command suite. The
   `futures_reconcile` row reports
@@ -125,19 +125,33 @@ Keep it short. Keep it factual.
   not validate command request payloads, register validators, submit/cancel
   Coinbase orders, execute reconciliation, mutate futures/order/exchange
   state, or grant browser/BFF or spot-rule authority.
-  Active `6401-6420` adds disabled futures request payload validator
+  Completed `6401-6420` added disabled futures request payload validator
   contract registry evidence through
   `application/admin_api/futures_request_payload_validators.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
-  `iter_futures_request_payload_validator_contracts`. The command suite must
-  expose `request_payload_validator_contract_count`,
+  `iter_futures_request_payload_validator_contracts`. The command suite
+  exposes `request_payload_validator_contract_count`,
   `blocking_request_payload_validator_contract_count`,
   `request_payload_validator_contracts`, `validator_input_schema_ref`,
   `validator_output_schema_ref`, `validator_input_schema_registered`,
   `validator_output_schema_registered`, and false validation/registration
   evidence while keeping route/draft flags true and execution false.
-- Current direction: complete phases `6401-6420` by adding no-live futures
-  request payload validator contract registry evidence, syncing
+  Active `6421-6440` adds disabled futures request payload validator
+  input-schema evidence through
+  `application/admin_api/futures_request_payload_validator_input_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validator_input_schemas`. The command suite
+  must expose `request_payload_validator_input_schema_count`,
+  `blocking_request_payload_validator_input_schema_count`,
+  `ready_request_payload_validator_input_schema_count`,
+  `registered_request_payload_validator_input_schema_count`,
+  `request_payload_validator_input_schemas`, `input_schema_field_refs`,
+  `input_schema_field_count`, `input_schema_registered=false`,
+  `validator_contract_registered=false`, `validator_registered=false`, and
+  `request_payload_validated=false` while keeping route/draft flags true and
+  execution false.
+- Current direction: complete phases `6421-6440` by adding no-live futures
+  request payload validator input-schema evidence, syncing
   backend/frontend contracts/mocks/docs, focused gates, blind/contextless
   review, and phase-end stale-subagent sweep. Registered routes from completed
   `6341-6360` remain
@@ -150,10 +164,11 @@ Keep it short. Keep it factual.
   live-enablement blockers include `live_execution_disabled`,
   `futures live adapter contract missing`, and
   `futures reconciliation execution missing`.
-- Current boundary label: futures request payload validator contract registry evidence.
-- Previous completed boundary label: futures request payload validation gate evidence.
+- Current boundary label: futures request payload validator input-schema evidence.
+- Previous completed boundary label: futures request payload validator contract registry evidence.
 - Machine-check evidence: futures request payload contract registry evidence.
-- Current trace evidence label: backend-owned futures request payload validator contract registry evidence.
+- Machine-check evidence: futures request payload validation gate evidence.
+- Current trace evidence label: backend-owned futures request payload validator input-schema evidence.
 - Completed sequence evidence label: backend-owned futures command enablement sequence steps.
 - Historical boundary label retained for validators: disabled futures adapter-execution contract evidence.
 - Current contract split: adapter contract refs are required/present disabled
@@ -776,10 +791,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6401-6420`.
+- Active autonomous range: `6421-6440`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6401-6420` by syncing
-  no-live futures/perpetual request payload validator contract registry
+- Current direction: complete active phases `6421-6440` by syncing
+  no-live futures/perpetual request payload validator input-schema
   evidence for the route-bound command drafts at
   `POST /api/v1/futures/orders`,
   `POST /api/v1/futures/positions/{position_key}/close-reduce`,
@@ -795,14 +810,21 @@ Keep it short. Keep it factual.
   `validator_contract_ref`, `validator_registration_ref`, and false
   validation readiness flags on those fields while `request_field_count`,
   `blocking_request_field_count`, and request-field `required_backend_contracts`
-  stayed registry-derived. Active `6401-6420` exposes disabled
+  stayed registry-derived. Completed `6401-6420` exposed disabled
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
   `iter_futures_request_payload_validator_contracts`,
   `request_payload_validator_contract_count`,
   `blocking_request_payload_validator_contract_count`,
   `validator_input_schema_ref`, `validator_output_schema_ref`,
   validator_input_schema_registered=false, and
-  validator_output_schema_registered=false. The route/draft flags are true
+  validator_output_schema_registered=false. Active `6421-6440` exposes
+  disabled `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`,
+  `iter_futures_request_payload_validator_input_schemas`,
+  `request_payload_validator_input_schema_count`,
+  `blocking_request_payload_validator_input_schema_count`,
+  `request_payload_validator_input_schemas`, `input_schema_field_refs`,
+  `input_schema_field_count`, and input_schema_registered=false. The
+  route/draft flags are true
   while execution remains false.
   Adapter contract refs, adapter construction refs, adapter decision refs,
   adapter decision-record refs, adapter invocation refs, and adapter execution
@@ -1662,9 +1684,9 @@ Keep it short. Keep it factual.
   contract registry work began; frontend contract sync, focused
   backend/frontend gates, fresh blind/contextless reviews, and phase-end
   stale-subagent sweep are pending.
-- Exact next command: complete active phases `6401-6420` by syncing backend and
+- Exact next command: complete active phases `6421-6440` by syncing backend and
   frontend contracts/mocks/docs for no-live futures request payload validator
-  contract registry evidence, running focused backend/frontend gates,
+  input-schema evidence, running focused backend/frontend gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live proof.
   The active gap is disabled validator contract/input schema/output schema/
   registration evidence only; no command request payload validation, payload

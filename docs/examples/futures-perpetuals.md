@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6401-6420 range targets explicit M57 futures/perpetual request
-payload validator contract registry evidence for
+The active 6421-6440 range targets explicit M57 futures/perpetual request
+payload validator input-schema evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Completed 6221-6240 work added aggregate
 blocked summaries for unresolved prerequisites, request payload contracts,
@@ -64,7 +64,7 @@ with `"validation_gate_ref"`, `"validation_evidence_ref"`,
 `"validation_gate_ready": false`, `"validation_gate_passed": false`,
 `"validator_contract_registered": false`, `"validator_registered": false`,
 and `"request_payload_validated": false`.
-Active 6401-6420 work reports futures request payload validator contract
+Completed 6401-6420 work reports futures request payload validator contract
 registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
 `iter_futures_request_payload_validator_contracts`, with
 `"request_payload_validator_contract_count": 22`,
@@ -76,6 +76,16 @@ registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
 `"validator_input_schema_registered": false`, and
 `"validator_output_schema_registered": false`.
 Machine-check evidence: futures request payload validator contract registry evidence.
+Active 6421-6440 work reports futures request payload validator input-schema
+evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`
+and `iter_futures_request_payload_validator_input_schemas`, with
+`"request_payload_validator_input_schema_count": 22`,
+`"blocking_request_payload_validator_input_schema_count": 22`,
+`"ready_request_payload_validator_input_schema_count": 0`,
+`"registered_request_payload_validator_input_schema_count": 0`,
+`"request_payload_validator_input_schemas"`, `"input_schema_field_refs"`,
+`"input_schema_field_count": 5`, and `"input_schema_registered": false`.
+Machine-check evidence: futures request payload validator input-schema evidence.
 Route/draft flags are true while execution remains false; the registry does
 not validate command request payloads, register payload validators, call
 Coinbase, execute reconciliation, mutate futures/order/exchange state, or
@@ -192,7 +202,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6401-6420",
+  "approved_phase_range": "6421-6440",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,

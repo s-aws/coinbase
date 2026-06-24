@@ -608,7 +608,7 @@ disabled futures/perpetual request payload contract registry evidence through
 derive from that backend-owned registry. Route/draft flags remain true while
 execution remains false. Completed M57 phases 6381-6400 added explicit
 disabled validation gate refs, validator refs, and false readiness flags to
-those request fields. Current M57 phases 6401-6420 add disabled
+those request fields. Completed M57 phases 6401-6420 added disabled
 futures request payload validator contract registry evidence through
 `application/admin_api/futures_request_payload_validators.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
@@ -616,8 +616,17 @@ futures request payload validator contract registry evidence through
 `request_payload_validator_contract_count`,
 `blocking_request_payload_validator_contract_count`, and
 `request_payload_validator_contracts` expose validator input/output schema refs
-and false schema/validator registration flags while preserving no validation,
-no validator registration, no Coinbase calls, no reconciliation execution, no
+and false schema/validator registration flags. Current M57 phases 6421-6440 add
+disabled futures request payload validator input-schema evidence through
+`application/admin_api/futures_request_payload_validator_input_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_input_schemas`; command-suite
+`request_payload_validator_input_schema_count`,
+`blocking_request_payload_validator_input_schema_count`,
+`request_payload_validator_input_schemas`, `input_schema_field_refs`,
+`input_schema_field_count`, and `input_schema_registered=false` remain
+backend-owned display evidence while preserving no validation, no validator
+registration, no Coinbase calls, no reconciliation execution, no
 futures/order/exchange state mutation, and no browser/BFF or spot-rule
 authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`

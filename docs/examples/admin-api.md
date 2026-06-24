@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6401-6420",
+  "approved_phase_range": "6421-6440",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6401-6420",
+  "approved_phase_range": "6421-6440",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1887,7 +1887,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6401-6420",
+  "approved_phase_range": "6421-6440",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2400,7 +2400,7 @@ evidence on those same request-field rows: `"validation_gate_ref"`,
 `"validation_evidence_ref"`, `"validator_contract_ref"`,
 `"validator_registration_ref"`, `"validation_gate_ready": false`,
 `"validation_gate_passed": false`, and `"request_payload_validated": false`.
-Active 6401-6420 work reports futures request payload validator contract
+Completed 6401-6420 work reports futures request payload validator contract
 registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
 `iter_futures_request_payload_validator_contracts`, with
 `"request_payload_validator_contract_count"`,
@@ -2411,6 +2411,16 @@ registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
 `"validator_output_schema_ref"`,
 `"validator_input_schema_registered": false`, and
 `"validator_output_schema_registered": false`.
+Active 6421-6440 work reports futures request payload validator input-schema
+evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`
+and `iter_futures_request_payload_validator_input_schemas`, with
+`"request_payload_validator_input_schema_count": 22`,
+`"blocking_request_payload_validator_input_schema_count": 22`,
+`"ready_request_payload_validator_input_schema_count": 0`,
+`"registered_request_payload_validator_input_schema_count": 0`,
+`"request_payload_validator_input_schemas"`, `"input_schema_field_refs"`,
+`"input_schema_field_count": 5`, and `"input_schema_registered": false`.
+Machine-check evidence: futures request payload validator input-schema evidence.
 The registry and disabled gate evidence do not validate command request
 payloads, register payload validators, bind live adapters, call Coinbase,
 execute reconciliation, mutate futures/order/exchange state, or grant

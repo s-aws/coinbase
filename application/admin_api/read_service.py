@@ -134,6 +134,7 @@ from .models import (
     AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
     AdminFuturesCommandRequestPayloadValidatorContractItem,
+    AdminFuturesCommandRequestPayloadValidatorInputSchemaItem,
     AdminFuturesCommandRiskProofAcceptanceCriterionItem,
     AdminFuturesCommandRiskProofContractItem,
     AdminFuturesCommandRiskProofPayloadFieldItem,
@@ -313,6 +314,9 @@ from .futures_request_payload_contracts import (
 from .futures_request_payload_validators import (
     iter_futures_request_payload_validator_contracts,
 )
+from .futures_request_payload_validator_input_schemas import (
+    iter_futures_request_payload_validator_input_schemas,
+)
 from .futures_proof_writer import get_futures_proof_writer_contract
 from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
 from .futures_route_contracts import (
@@ -425,7 +429,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6401-6420"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6421-6440"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20165,6 +20169,15 @@ class AdminApiReadService:
             ]
             for command in AdminFuturesCommandAction
         }
+        futures_request_payload_validator_input_schema_refs = {
+            command: [
+                contract.validator_input_schema_ref
+                for contract in iter_futures_request_payload_validator_input_schemas(
+                    command
+                )
+            ]
+            for command in AdminFuturesCommandAction
+        }
         backend_contracts = [
             futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
             futures_command_service_contract_refs[
@@ -20262,14 +20275,23 @@ class AdminApiReadService:
             *futures_request_payload_validator_contract_refs[
                 AdminFuturesCommandAction.PLACE
             ],
+            *futures_request_payload_validator_input_schema_refs[
+                AdminFuturesCommandAction.PLACE
+            ],
             *futures_request_payload_contract_refs[
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
             *futures_request_payload_validator_contract_refs[
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
+            *futures_request_payload_validator_input_schema_refs[
+                AdminFuturesCommandAction.CLOSE_REDUCE
+            ],
             *futures_request_payload_contract_refs[AdminFuturesCommandAction.CANCEL],
             *futures_request_payload_validator_contract_refs[
+                AdminFuturesCommandAction.CANCEL
+            ],
+            *futures_request_payload_validator_input_schema_refs[
                 AdminFuturesCommandAction.CANCEL
             ],
             *futures_request_payload_contract_refs[
@@ -20278,12 +20300,18 @@ class AdminApiReadService:
             *futures_request_payload_validator_contract_refs[
                 AdminFuturesCommandAction.RECONCILE
             ],
+            *futures_request_payload_validator_input_schema_refs[
+                AdminFuturesCommandAction.RECONCILE
+            ],
         ]
         command_required_backend_contracts = {
             AdminFuturesCommandAction.PLACE: [
                 futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
                 *futures_request_payload_contract_refs[AdminFuturesCommandAction.PLACE],
                 *futures_request_payload_validator_contract_refs[
+                    AdminFuturesCommandAction.PLACE
+                ],
+                *futures_request_payload_validator_input_schema_refs[
                     AdminFuturesCommandAction.PLACE
                 ],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
@@ -20322,6 +20350,9 @@ class AdminApiReadService:
                 *futures_request_payload_validator_contract_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
+                *futures_request_payload_validator_input_schema_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[
@@ -20358,6 +20389,9 @@ class AdminApiReadService:
                 *futures_request_payload_validator_contract_refs[
                     AdminFuturesCommandAction.CANCEL
                 ],
+                *futures_request_payload_validator_input_schema_refs[
+                    AdminFuturesCommandAction.CANCEL
+                ],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
                 futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
@@ -20391,6 +20425,9 @@ class AdminApiReadService:
                     AdminFuturesCommandAction.RECONCILE
                 ],
                 *futures_request_payload_validator_contract_refs[
+                    AdminFuturesCommandAction.RECONCILE
+                ],
+                *futures_request_payload_validator_input_schema_refs[
                     AdminFuturesCommandAction.RECONCILE
                 ],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
@@ -20663,6 +20700,49 @@ class AdminApiReadService:
                     detail=contract.detail,
                 )
                 for contract in iter_futures_request_payload_validator_contracts(
+                    command_id
+                )
+            ]
+
+        def request_payload_validator_input_schemas_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> list[AdminFuturesCommandRequestPayloadValidatorInputSchemaItem]:
+            return [
+                AdminFuturesCommandRequestPayloadValidatorInputSchemaItem(
+                    field=contract.field,
+                    status=contract.status,
+                    source=contract.source,
+                    required=contract.required,
+                    blocking=contract.blocking,
+                    request_payload_contract_ref=(
+                        contract.request_payload_contract_ref
+                    ),
+                    validation_gate_ref=contract.validation_gate_ref,
+                    validation_evidence_ref=contract.validation_evidence_ref,
+                    validator_contract_ref=contract.validator_contract_ref,
+                    validator_input_schema_ref=contract.validator_input_schema_ref,
+                    validator_output_schema_ref=contract.validator_output_schema_ref,
+                    validator_registration_ref=contract.validator_registration_ref,
+                    input_schema_field_refs=list(contract.input_schema_field_refs),
+                    input_schema_field_count=len(contract.input_schema_field_refs),
+                    input_schema_registered=contract.input_schema_registered,
+                    validator_contract_registered=(
+                        contract.validator_contract_registered
+                    ),
+                    validator_registered=contract.validator_registered,
+                    request_payload_validated=contract.request_payload_validated,
+                    command_route_registered=contract.command_route_registered,
+                    command_draft_allowed=contract.command_draft_allowed,
+                    execution_allowed=contract.execution_allowed,
+                    live_coinbase_orders_ran=contract.live_coinbase_orders_ran,
+                    backend_owned=contract.backend_owned,
+                    read_only=contract.read_only,
+                    spot_rule_authority=contract.spot_rule_authority,
+                    browser_authority=contract.browser_authority,
+                    bff_authority=contract.bff_authority,
+                    detail=contract.detail,
+                )
+                for contract in iter_futures_request_payload_validator_input_schemas(
                     command_id
                 )
             ]
@@ -29293,6 +29373,9 @@ class AdminApiReadService:
             request_payload_validator_contracts: list[
                 AdminFuturesCommandRequestPayloadValidatorContractItem
             ],
+            request_payload_validator_input_schemas: list[
+                AdminFuturesCommandRequestPayloadValidatorInputSchemaItem
+            ],
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
@@ -29362,6 +29445,28 @@ class AdminApiReadService:
                 ),
                 request_payload_validator_contracts=(
                     request_payload_validator_contracts
+                ),
+                request_payload_validator_input_schema_count=len(
+                    request_payload_validator_input_schemas
+                ),
+                blocking_request_payload_validator_input_schema_count=sum(
+                    1
+                    for item in request_payload_validator_input_schemas
+                    if item.blocking
+                ),
+                ready_request_payload_validator_input_schema_count=sum(
+                    1
+                    for item in request_payload_validator_input_schemas
+                    if item.input_schema_registered
+                    and item.validator_contract_registered
+                ),
+                registered_request_payload_validator_input_schema_count=sum(
+                    1
+                    for item in request_payload_validator_input_schemas
+                    if item.input_schema_registered
+                ),
+                request_payload_validator_input_schemas=(
+                    request_payload_validator_input_schemas
                 ),
                 semantic_guard_count=len(semantic_guards),
                 blocking_semantic_guard_count=sum(
@@ -29926,6 +30031,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validator_input_schemas=(
+                    request_payload_validator_input_schemas_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 semantic_guards=placement_semantic_guards,
                 detail=(
                     "Futures placement has a route-bound command draft, but "
@@ -29945,6 +30055,11 @@ class AdminApiReadService:
                 request_fields=close_reduce_request_fields,
                 request_payload_validator_contracts=(
                     request_payload_validator_contracts_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validator_input_schemas=(
+                    request_payload_validator_input_schemas_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -29971,6 +30086,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validator_input_schemas=(
+                    request_payload_validator_input_schemas_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 semantic_guards=cancel_semantic_guards,
                 detail=(
                     "Futures cancel has a route-bound command draft keyed by "
@@ -29992,6 +30112,11 @@ class AdminApiReadService:
                 request_fields=reconciliation_request_fields,
                 request_payload_validator_contracts=(
                     request_payload_validator_contracts_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validator_input_schemas=(
+                    request_payload_validator_input_schemas_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -30451,6 +30576,22 @@ class AdminApiReadService:
             ),
             registered_request_payload_validator_contract_count=sum(
                 command.registered_request_payload_validator_contract_count
+                for command in commands
+            ),
+            request_payload_validator_input_schema_count=sum(
+                command.request_payload_validator_input_schema_count
+                for command in commands
+            ),
+            blocking_request_payload_validator_input_schema_count=sum(
+                command.blocking_request_payload_validator_input_schema_count
+                for command in commands
+            ),
+            ready_request_payload_validator_input_schema_count=sum(
+                command.ready_request_payload_validator_input_schema_count
+                for command in commands
+            ),
+            registered_request_payload_validator_input_schema_count=sum(
+                command.registered_request_payload_validator_input_schema_count
                 for command in commands
             ),
             semantic_guard_count=sum(
