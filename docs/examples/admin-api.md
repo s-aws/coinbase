@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6541-6560"`. Futures/perpetual command-suite reads
-expose backend-owned disabled replay guard evidence only:
+`"approved_phase_range": "6561-6580"`. Futures/perpetual command-suite reads
+expose backend-owned disabled audit-link evidence only:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -31,8 +31,10 @@ expose backend-owned disabled replay guard evidence only:
 `iter_futures_request_payload_validation_evidence_records`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`,
 `iter_futures_request_payload_validation_record_schemas`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_replay_guards`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
+`iter_futures_request_payload_validation_record_replay_guards`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_audit_links`.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,
@@ -65,6 +67,12 @@ Representative no-live response keys include
 `"request_payload_validation_evidence"`,
 `"request_payload_validation_evidence_record_count"`,
 `"blocking_request_payload_validation_evidence_record_count"`,
+`"request_payload_validation_record_audit_link_count"`,
+`"blocking_request_payload_validation_record_audit_link_count"`,
+`"ready_request_payload_validation_record_audit_link_count"`,
+`"audit_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_audit_link_count"`,
+`"request_payload_validation_record_audit_links"`,
 `"ready_request_payload_validation_evidence_record_count"`,
 `"stored_request_payload_validation_evidence_record_count"`,
 `"runtime_observed_request_payload_validation_evidence_record_count"`,
@@ -80,7 +88,13 @@ Representative no-live response keys include
 `"ready_request_payload_validation_record_replay_guard_count"`,
 `"idempotency_bound_request_payload_validation_record_count"`,
 `"runtime_observed_request_payload_validation_record_replay_guard_count"`,
-and `"request_payload_validation_record_replay_guards"`.
+`"request_payload_validation_record_replay_guards"`,
+`"request_payload_validation_record_audit_link_count"`,
+`"blocking_request_payload_validation_record_audit_link_count"`,
+`"ready_request_payload_validation_record_audit_link_count"`,
+`"audit_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_audit_link_count"`, and
+`"request_payload_validation_record_audit_links"`.
 
 Machine-check replay guard count keys:
 `request_payload_validation_record_replay_guard_count`,
@@ -88,7 +102,13 @@ Machine-check replay guard count keys:
 `ready_request_payload_validation_record_replay_guard_count`,
 `idempotency_bound_request_payload_validation_record_count`,
 `runtime_observed_request_payload_validation_record_replay_guard_count`,
-`request_payload_validation_record_replay_guards`.
+`request_payload_validation_record_replay_guards`,
+`request_payload_validation_record_audit_link_count`,
+`blocking_request_payload_validation_record_audit_link_count`,
+`ready_request_payload_validation_record_audit_link_count`,
+`audit_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_audit_link_count`,
+`request_payload_validation_record_audit_links`.
 
 Row evidence includes `"validation_gate_ref"`, `"validation_evidence_ref"`,
 `"validator_contract_ref"`, `"validator_input_schema_ref"`,
@@ -107,8 +127,16 @@ Row evidence includes `"validation_gate_ref"`, `"validation_evidence_ref"`,
 `"validation_record_duplicate_policy_ref"`,
 `"validation_record_schema_field_refs"`,
 `"validation_record_schema_field_count"`,
-`"validation_record_replay_guard_field_refs"`, and
-`"validation_record_replay_guard_field_count"`.
+`"validation_record_replay_guard_field_refs"`,
+`"validation_record_replay_guard_field_count"`,
+`"validation_record_audit_link_contract_ref"`,
+`"validation_record_actor_ref"`,
+`"validation_record_operator_intent_ref"`,
+`"validation_record_correlation_ref"`,
+`"validation_record_admission_audit_ref"`,
+`"validation_record_audit_record_ref"`,
+`"validation_record_audit_link_field_refs"`, and
+`"validation_record_audit_link_field_count"`.
 
 False authority flags remain `"validation_gate_ready": false`,
 `"validation_gate_passed": false`, `"validator_contract_registered": false`,
@@ -127,9 +155,17 @@ False authority flags remain `"validation_gate_ready": false`,
 `"validation_record_append_only_log_ready": false`,
 `"runtime_evidence_satisfies_validation_record_schema": false`,
 `"runtime_evidence_satisfies_validation_record_replay_guard": false`,
+`"runtime_evidence_satisfies_validation_record_audit_link": false`,
 `"validation_record_replay_guard_contract_ready": false`,
 `"validation_record_idempotency_contract_ready": false`,
 `"validation_record_replay_protected": false`,
+`"validation_record_audit_link_contract_ready": false`,
+`"validation_record_audit_link_ready": false`,
+`"validation_record_actor_bound": false`,
+`"validation_record_operator_intent_bound": false`,
+`"validation_record_correlation_bound": false`,
+`"validation_record_admission_audit_bound": false`,
+`"validation_record_audit_recorded": false`,
 append_only_validation_record=false,
 validation_record_idempotency_bound=false, request_payload_validated=false.
 Machine-check evidence: futures request payload contract registry evidence;
@@ -139,7 +175,8 @@ input-schema evidence; futures request payload validator output-schema evidence;
 futures request payload validator registration evidence; futures request
 payload validation evidence; futures request payload validation evidence record
 contract evidence; futures request payload validation record schema evidence;
-futures request payload validation record replay guard evidence. The rows keep
+futures request payload validation record replay guard evidence; futures
+request payload validation record audit-link evidence. The rows keep
 route/draft true and execution false flags; they do not validate command
 request payloads, register payload validators, register proof routes, create
 proof writers, call Coinbase, execute reconciliation, mutate

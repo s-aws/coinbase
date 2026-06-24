@@ -62,9 +62,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6541-6560"
-APPROVED_PHASES = tuple(range(6541, 6561))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6521-6540"
+APPROVED_PHASE_RANGE = "6561-6580"
+APPROVED_PHASES = tuple(range(6561, 6581))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6541-6560"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -156,6 +156,8 @@ def _check_phase_range(body: str) -> QueueCheck:
             "Futures/Perpetuals Request Payload Validation Evidence Record Contract Evidence",
             "## Historical Plan - Phases 6521-6540",
             "Futures/Perpetuals Request Payload Validation Record Schema Evidence",
+            "## Historical Plan - Phases 6541-6560",
+            "Futures/Perpetuals Request Payload Validation Record Replay Guard Evidence",
             "## Historical Plan - Phases 6421-6440",
             "Futures/Perpetuals Request Payload Validator Input Schema Evidence",
         )
@@ -457,6 +459,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "`iter_futures_request_payload_validation_evidence_records`",
             "`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`",
             "`iter_futures_request_payload_validation_record_schemas`",
+            "`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`",
+            "`iter_futures_request_payload_validation_record_audit_links`",
             "futures request payload contract registry evidence",
             "futures request payload validator contract registry evidence",
             "futures request payload validator input-schema evidence",
@@ -466,6 +470,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation evidence record contract evidence",
             "futures request payload validation record schema evidence",
             "futures request payload validation record replay guard evidence",
+            "Active M57 `6561-6580` evidence adds disabled futures request payload",
+            "futures request payload validation record audit-link evidence",
             "`request_payload_validator_contract_count`",
             "`blocking_request_payload_validator_contract_count`",
             "`request_payload_validator_input_schema_count`",
@@ -480,6 +486,9 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "`blocking_request_payload_validation_evidence_record_count`",
             "`request_payload_validation_evidence_record_count`",
             "`blocking_request_payload_validation_evidence_record_count`",
+            "`request_payload_validation_record_audit_link_count`",
+            "`blocking_request_payload_validation_record_audit_link_count`",
+            "`request_payload_validation_record_audit_links`",
             "`validation_gate_ref`",
             "`validation_evidence_ref`",
             "`validator_contract_ref`",
@@ -505,6 +514,14 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "`validation_record_replay_guard_ref`",
             "`validation_record_field_refs`",
             "`validation_record_field_count`",
+            "`validation_record_audit_link_contract_ref`",
+            "`validation_record_actor_ref`",
+            "`validation_record_operator_intent_ref`",
+            "`validation_record_correlation_ref`",
+            "`validation_record_admission_audit_ref`",
+            "`validation_record_audit_record_ref`",
+            "`validation_record_audit_link_field_refs`",
+            "`validation_record_audit_link_field_count`",
             "validation_gate_ready=false",
             "validation_gate_passed=false",
             "output_schema_registered=false",
@@ -517,6 +534,14 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "validation_record_store_ready=false",
             "validation_record_writer_enabled=false",
             "validation_record_replay_guard_ready=false",
+            "runtime_evidence_satisfies_validation_record_audit_link=false",
+            "validation_record_audit_link_contract_ready=false",
+            "validation_record_audit_link_ready=false",
+            "validation_record_actor_bound=false",
+            "validation_record_operator_intent_bound=false",
+            "validation_record_correlation_bound=false",
+            "validation_record_admission_audit_bound=false",
+            "validation_record_audit_recorded=false",
             "validation_recorded=false",
             "append_only_validation_record=false",
             "validation_record_idempotency_bound=false",

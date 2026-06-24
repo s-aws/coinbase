@@ -139,6 +139,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidatorRegistrationItem,
     AdminFuturesCommandRequestPayloadValidationEvidenceItem,
     AdminFuturesCommandRequestPayloadValidationEvidenceRecordItem,
+    AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem,
     AdminFuturesCommandRequestPayloadValidationRecordReplayGuardItem,
     AdminFuturesCommandRequestPayloadValidationRecordSchemaItem,
     AdminFuturesCommandRiskProofAcceptanceCriterionItem,
@@ -341,6 +342,9 @@ from .futures_request_payload_validation_record_schemas import (
 from .futures_request_payload_validation_record_replay_guards import (
     iter_futures_request_payload_validation_record_replay_guards,
 )
+from .futures_request_payload_validation_record_audit_links import (
+    iter_futures_request_payload_validation_record_audit_links,
+)
 from .futures_proof_writer import get_futures_proof_writer_contract
 from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
 from .futures_route_contracts import (
@@ -453,7 +457,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6541-6560"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6561-6580"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -20256,6 +20260,15 @@ class AdminApiReadService:
             ]
             for command in AdminFuturesCommandAction
         }
+        futures_request_payload_validation_record_audit_link_refs = {
+            command: [
+                contract.validation_record_audit_link_contract_ref
+                for contract in iter_futures_request_payload_validation_record_audit_links(
+                    command
+                )
+            ]
+            for command in AdminFuturesCommandAction
+        }
         backend_contracts = [
             futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
             futures_command_service_contract_refs[
@@ -20374,6 +20387,9 @@ class AdminApiReadService:
             *futures_request_payload_validation_record_replay_guard_refs[
                 AdminFuturesCommandAction.PLACE
             ],
+            *futures_request_payload_validation_record_audit_link_refs[
+                AdminFuturesCommandAction.PLACE
+            ],
             *futures_request_payload_contract_refs[
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
@@ -20399,6 +20415,9 @@ class AdminApiReadService:
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
             *futures_request_payload_validation_record_replay_guard_refs[
+                AdminFuturesCommandAction.CLOSE_REDUCE
+            ],
+            *futures_request_payload_validation_record_audit_link_refs[
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
             *futures_request_payload_contract_refs[AdminFuturesCommandAction.CANCEL],
@@ -20426,6 +20445,9 @@ class AdminApiReadService:
             *futures_request_payload_validation_record_replay_guard_refs[
                 AdminFuturesCommandAction.CANCEL
             ],
+            *futures_request_payload_validation_record_audit_link_refs[
+                AdminFuturesCommandAction.CANCEL
+            ],
             *futures_request_payload_contract_refs[
                 AdminFuturesCommandAction.RECONCILE
             ],
@@ -20451,6 +20473,9 @@ class AdminApiReadService:
                 AdminFuturesCommandAction.RECONCILE
             ],
             *futures_request_payload_validation_record_replay_guard_refs[
+                AdminFuturesCommandAction.RECONCILE
+            ],
+            *futures_request_payload_validation_record_audit_link_refs[
                 AdminFuturesCommandAction.RECONCILE
             ],
         ]
@@ -20480,6 +20505,9 @@ class AdminApiReadService:
                     AdminFuturesCommandAction.PLACE
                 ],
                 *futures_request_payload_validation_record_replay_guard_refs[
+                    AdminFuturesCommandAction.PLACE
+                ],
+                *futures_request_payload_validation_record_audit_link_refs[
                     AdminFuturesCommandAction.PLACE
                 ],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
@@ -20539,6 +20567,9 @@ class AdminApiReadService:
                 *futures_request_payload_validation_record_replay_guard_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
+                *futures_request_payload_validation_record_audit_link_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[
@@ -20596,6 +20627,9 @@ class AdminApiReadService:
                 *futures_request_payload_validation_record_replay_guard_refs[
                     AdminFuturesCommandAction.CANCEL
                 ],
+                *futures_request_payload_validation_record_audit_link_refs[
+                    AdminFuturesCommandAction.CANCEL
+                ],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
                 futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
@@ -20650,6 +20684,9 @@ class AdminApiReadService:
                     AdminFuturesCommandAction.RECONCILE
                 ],
                 *futures_request_payload_validation_record_replay_guard_refs[
+                    AdminFuturesCommandAction.RECONCILE
+                ],
+                *futures_request_payload_validation_record_audit_link_refs[
                     AdminFuturesCommandAction.RECONCILE
                 ],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
@@ -21444,6 +21481,164 @@ class AdminApiReadService:
                     detail=contract.detail,
                 )
                 for contract in iter_futures_request_payload_validation_record_replay_guards(
+                    command_id
+                )
+            ]
+
+        def request_payload_validation_record_audit_links_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> list[
+            AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem
+        ]:
+            return [
+                AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem(
+                    field=contract.field,
+                    status=contract.status,
+                    source=contract.source,
+                    required=contract.required,
+                    blocking=contract.blocking,
+                    request_payload_contract_ref=(
+                        contract.request_payload_contract_ref
+                    ),
+                    validation_gate_ref=contract.validation_gate_ref,
+                    validation_evidence_ref=contract.validation_evidence_ref,
+                    validation_evidence_contract_ref=(
+                        contract.validation_evidence_contract_ref
+                    ),
+                    validator_contract_ref=contract.validator_contract_ref,
+                    validator_input_schema_ref=contract.validator_input_schema_ref,
+                    validator_output_schema_ref=contract.validator_output_schema_ref,
+                    validator_registration_ref=contract.validator_registration_ref,
+                    validation_record_contract_ref=(
+                        contract.validation_record_contract_ref
+                    ),
+                    validation_record_store_ref=contract.validation_record_store_ref,
+                    validation_record_writer_ref=contract.validation_record_writer_ref,
+                    validation_record_replay_guard_ref=(
+                        contract.validation_record_replay_guard_ref
+                    ),
+                    validation_record_schema_ref=contract.validation_record_schema_ref,
+                    validation_record_append_only_log_ref=(
+                        contract.validation_record_append_only_log_ref
+                    ),
+                    validation_record_replay_guard_contract_ref=(
+                        contract.validation_record_replay_guard_contract_ref
+                    ),
+                    validation_record_idempotency_contract_ref=(
+                        contract.validation_record_idempotency_contract_ref
+                    ),
+                    validation_record_replay_window_ref=(
+                        contract.validation_record_replay_window_ref
+                    ),
+                    validation_record_duplicate_policy_ref=(
+                        contract.validation_record_duplicate_policy_ref
+                    ),
+                    validation_record_audit_link_contract_ref=(
+                        contract.validation_record_audit_link_contract_ref
+                    ),
+                    validation_record_actor_ref=contract.validation_record_actor_ref,
+                    validation_record_operator_intent_ref=(
+                        contract.validation_record_operator_intent_ref
+                    ),
+                    validation_record_correlation_ref=(
+                        contract.validation_record_correlation_ref
+                    ),
+                    validation_record_admission_audit_ref=(
+                        contract.validation_record_admission_audit_ref
+                    ),
+                    validation_record_audit_record_ref=(
+                        contract.validation_record_audit_record_ref
+                    ),
+                    required_backend_contract=contract.required_backend_contract,
+                    missing_backend_contract=contract.missing_backend_contract,
+                    validation_record_audit_link_field_refs=list(
+                        contract.validation_record_audit_link_field_refs
+                    ),
+                    validation_record_audit_link_field_count=len(
+                        contract.validation_record_audit_link_field_refs
+                    ),
+                    required_evidence_refs=list(contract.required_evidence_refs),
+                    required_evidence_count=len(contract.required_evidence_refs),
+                    missing_evidence_refs=list(contract.missing_evidence_refs),
+                    missing_evidence_count=len(contract.missing_evidence_refs),
+                    runtime_evidence_observed=contract.runtime_evidence_observed,
+                    runtime_evidence_satisfies_validation_record_audit_link=(
+                        contract.runtime_evidence_satisfies_validation_record_audit_link
+                    ),
+                    validation_record_audit_link_contract_ready=(
+                        contract.validation_record_audit_link_contract_ready
+                    ),
+                    validation_record_audit_link_ready=(
+                        contract.validation_record_audit_link_ready
+                    ),
+                    validation_record_actor_bound=(
+                        contract.validation_record_actor_bound
+                    ),
+                    validation_record_operator_intent_bound=(
+                        contract.validation_record_operator_intent_bound
+                    ),
+                    validation_record_correlation_bound=(
+                        contract.validation_record_correlation_bound
+                    ),
+                    validation_record_admission_audit_bound=(
+                        contract.validation_record_admission_audit_bound
+                    ),
+                    validation_record_audit_recorded=(
+                        contract.validation_record_audit_recorded
+                    ),
+                    validation_record_replay_guard_contract_ready=(
+                        contract.validation_record_replay_guard_contract_ready
+                    ),
+                    validation_record_replay_guard_ready=(
+                        contract.validation_record_replay_guard_ready
+                    ),
+                    validation_record_idempotency_contract_ready=(
+                        contract.validation_record_idempotency_contract_ready
+                    ),
+                    validation_record_idempotency_bound=(
+                        contract.validation_record_idempotency_bound
+                    ),
+                    validation_record_replay_protected=(
+                        contract.validation_record_replay_protected
+                    ),
+                    validation_record_schema_ready=(
+                        contract.validation_record_schema_ready
+                    ),
+                    validation_record_schema_registered=(
+                        contract.validation_record_schema_registered
+                    ),
+                    validation_record_append_only_log_ready=(
+                        contract.validation_record_append_only_log_ready
+                    ),
+                    validation_record_contract_ready=(
+                        contract.validation_record_contract_ready
+                    ),
+                    validation_record_store_ready=contract.validation_record_store_ready,
+                    validation_record_writer_enabled=(
+                        contract.validation_record_writer_enabled
+                    ),
+                    validation_evidence_ready=contract.validation_evidence_ready,
+                    validation_evidence_recorded=(
+                        contract.validation_evidence_recorded
+                    ),
+                    validation_recorded=contract.validation_recorded,
+                    append_only_validation_record=(
+                        contract.append_only_validation_record
+                    ),
+                    request_payload_validated=contract.request_payload_validated,
+                    validator_registered=contract.validator_registered,
+                    command_route_registered=contract.command_route_registered,
+                    command_draft_allowed=contract.command_draft_allowed,
+                    execution_allowed=contract.execution_allowed,
+                    live_coinbase_orders_ran=contract.live_coinbase_orders_ran,
+                    backend_owned=contract.backend_owned,
+                    read_only=contract.read_only,
+                    spot_rule_authority=contract.spot_rule_authority,
+                    browser_authority=contract.browser_authority,
+                    bff_authority=contract.bff_authority,
+                    detail=contract.detail,
+                )
+                for contract in iter_futures_request_payload_validation_record_audit_links(
                     command_id
                 )
             ]
@@ -30095,6 +30290,9 @@ class AdminApiReadService:
             request_payload_validation_record_replay_guards: list[
                 AdminFuturesCommandRequestPayloadValidationRecordReplayGuardItem
             ],
+            request_payload_validation_record_audit_links: list[
+                AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem
+            ],
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
@@ -30345,6 +30543,41 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_replay_guards=(
                     request_payload_validation_record_replay_guards
+                ),
+                request_payload_validation_record_audit_link_count=len(
+                    request_payload_validation_record_audit_links
+                ),
+                blocking_request_payload_validation_record_audit_link_count=sum(
+                    1
+                    for item in request_payload_validation_record_audit_links
+                    if item.blocking
+                ),
+                ready_request_payload_validation_record_audit_link_count=sum(
+                    1
+                    for item in request_payload_validation_record_audit_links
+                    if item.validation_record_audit_link_contract_ready
+                    and item.validation_record_actor_bound
+                    and item.validation_record_operator_intent_bound
+                    and item.validation_record_correlation_bound
+                    and item.validation_record_admission_audit_bound
+                    and item.validation_record_audit_recorded
+                ),
+                audit_bound_request_payload_validation_record_count=sum(
+                    1
+                    for item in request_payload_validation_record_audit_links
+                    if item.validation_record_actor_bound
+                    and item.validation_record_operator_intent_bound
+                    and item.validation_record_correlation_bound
+                    and item.validation_record_admission_audit_bound
+                    and item.validation_record_audit_recorded
+                ),
+                runtime_observed_request_payload_validation_record_audit_link_count=sum(
+                    1
+                    for item in request_payload_validation_record_audit_links
+                    if item.runtime_evidence_observed
+                ),
+                request_payload_validation_record_audit_links=(
+                    request_payload_validation_record_audit_links
                 ),
                 semantic_guard_count=len(semantic_guards),
                 blocking_semantic_guard_count=sum(
@@ -30944,6 +31177,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validation_record_audit_links=(
+                    request_payload_validation_record_audit_links_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 semantic_guards=placement_semantic_guards,
                 detail=(
                     "Futures placement has a route-bound command draft, but "
@@ -30998,6 +31236,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_replay_guards=(
                     request_payload_validation_record_replay_guards_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validation_record_audit_links=(
+                    request_payload_validation_record_audit_links_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -31059,6 +31302,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validation_record_audit_links=(
+                    request_payload_validation_record_audit_links_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 semantic_guards=cancel_semantic_guards,
                 detail=(
                     "Futures cancel has a route-bound command draft keyed by "
@@ -31115,6 +31363,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_replay_guards=(
                     request_payload_validation_record_replay_guards_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validation_record_audit_links=(
+                    request_payload_validation_record_audit_links_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -31706,6 +31959,26 @@ class AdminApiReadService:
             ),
             runtime_observed_request_payload_validation_record_replay_guard_count=sum(
                 command.runtime_observed_request_payload_validation_record_replay_guard_count
+                for command in commands
+            ),
+            request_payload_validation_record_audit_link_count=sum(
+                command.request_payload_validation_record_audit_link_count
+                for command in commands
+            ),
+            blocking_request_payload_validation_record_audit_link_count=sum(
+                command.blocking_request_payload_validation_record_audit_link_count
+                for command in commands
+            ),
+            ready_request_payload_validation_record_audit_link_count=sum(
+                command.ready_request_payload_validation_record_audit_link_count
+                for command in commands
+            ),
+            audit_bound_request_payload_validation_record_count=sum(
+                command.audit_bound_request_payload_validation_record_count
+                for command in commands
+            ),
+            runtime_observed_request_payload_validation_record_audit_link_count=sum(
+                command.runtime_observed_request_payload_validation_record_audit_link_count
                 for command in commands
             ),
             semantic_guard_count=sum(

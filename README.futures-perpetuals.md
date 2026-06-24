@@ -58,6 +58,36 @@ and notional evidence fields.
   each planned command family. These fields are blocked backend contract
   evidence only; they are not accepted payloads and do not create executable
   routes.
+- The command-suite route also exposes request-payload validation record
+  audit-link evidence through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_audit_links`,
+  `request_payload_validation_record_audit_link_count`,
+  `blocking_request_payload_validation_record_audit_link_count`,
+  `ready_request_payload_validation_record_audit_link_count`,
+  `audit_bound_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_audit_link_count`, and
+  `request_payload_validation_record_audit_links`. Rows expose
+  `validation_record_audit_link_contract_ref`,
+  `validation_record_actor_ref`, `validation_record_operator_intent_ref`,
+  `validation_record_correlation_ref`,
+  `validation_record_admission_audit_ref`,
+  `validation_record_audit_record_ref`,
+  `validation_record_audit_link_field_refs`,
+  `validation_record_audit_link_field_count`,
+  `runtime_evidence_satisfies_validation_record_audit_link=false`,
+  `validation_record_audit_link_contract_ready=false`,
+  `validation_record_audit_link_ready=false`,
+  `validation_record_actor_bound=false`,
+  `validation_record_operator_intent_bound=false`,
+  `validation_record_correlation_bound=false`,
+  `validation_record_admission_audit_bound=false`, and
+  `validation_record_audit_recorded=false`. This evidence is disabled and does
+  not bind actor/operator/correlation, append admission audit records, validate
+  payloads, call Coinbase, execute reconciliation, mutate futures state, or
+  grant browser/BFF or spot-rule authority.
+  Active M57 `6561-6580` evidence adds disabled futures request payload
+  validation record audit-link evidence; this futures request payload validation record audit-link evidence is for contextless review and display parity only.
 - The command-suite route exposes semantic guard metadata for each planned
   command family. These rows identify identity, risk, audit, reconciliation,
   and live-boundary blockers; they are not browser validation authority and do
@@ -424,7 +454,7 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   append_only_validation_record=false,
   validation_record_idempotency_bound=false, and request_payload_validated=false.
   Machine-check evidence: futures request payload validation evidence record contract evidence.
-  Current M57 phases 6541-6560 expose disabled futures request payload
+  Completed M57 phases 6541-6560 expose disabled futures request payload
   validation record replay guard evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
   `iter_futures_request_payload_validation_record_replay_guards`,
