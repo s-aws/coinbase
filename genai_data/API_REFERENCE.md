@@ -16,14 +16,22 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 futures/perpetual replay guard evidence for
-`GET /api/v1/futures/command-suite`: futures request payload contract registry
-evidence; futures request payload validator contract registry evidence; futures
-request payload validator input-schema evidence; futures request payload
-validator output-schema evidence; futures request payload validator registration
-evidence; futures request payload validation evidence; futures request payload
-validation record schema evidence; futures request payload validation record
-replay guard evidence. Source registries include
+Current M57 futures/perpetual semantic artifact definition review output
+acceptance evidence for `GET /api/v1/futures/command-suite`: futures request
+payload contract registry evidence; futures request payload validator contract
+registry evidence; futures request payload validator input-schema evidence;
+futures request payload validator output-schema evidence; futures request
+payload validator registration evidence; futures request payload validation
+evidence; futures request payload validation evidence record contract evidence;
+futures request payload validation record schema evidence; futures request
+payload validation record replay guard evidence; futures request payload
+validation record audit-link evidence; futures request payload validation
+record admission-link evidence; futures request payload validation record
+semantic artifact definition review evidence; futures request payload
+validation record semantic artifact definition review input evidence; futures
+request payload validation record semantic artifact definition review output
+evidence; futures request payload validation record semantic artifact
+definition review output acceptance evidence. Source registries include
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -36,10 +44,25 @@ replay guard evidence. Source registries include
 `iter_futures_request_payload_validator_registrations`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`,
 `iter_futures_request_payload_validation_evidence`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`,
+`iter_futures_request_payload_validation_evidence_records`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`,
 `iter_futures_request_payload_validation_record_schemas`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_replay_guards`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
+`iter_futures_request_payload_validation_record_replay_guards`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_audit_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_admission_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
 
 Representative command-suite keys: `request_payload_validator_contract_count`,
 `blocking_request_payload_validator_contract_count`,
@@ -57,6 +80,11 @@ Representative command-suite keys: `request_payload_validator_contract_count`,
 `blocking_request_payload_validation_record_schema_count`,
 `request_payload_validation_record_replay_guard_count`,
 `blocking_request_payload_validation_record_replay_guard_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
 `validation_gate_ref`, `validation_evidence_ref`, `validator_contract_ref`,
 `validator_input_schema_ref`, `validator_output_schema_ref`,
 `output_schema_field_refs`, `output_schema_field_count`,
@@ -73,8 +101,26 @@ Representative command-suite keys: `request_payload_validator_contract_count`,
 `validation_record_duplicate_policy_ref`,
 `validation_record_schema_field_refs`,
 `validation_record_schema_field_count`,
-`validation_record_replay_guard_field_refs`, and
-`validation_record_replay_guard_field_count`.
+`validation_record_replay_guard_field_refs`,
+`validation_record_replay_guard_field_count`,
+`semantic_artifact_definition_review_output_acceptance_ref`, and
+`semantic_artifact_definition_review_output_acceptance_contract_ref`.
+
+Carried-forward execution-eligibility refs remain visible:
+`validation_record_execution_eligibility_contract_ref`,
+`validation_record_position_semantics_ref`,
+`validation_record_margin_semantics_ref`,
+`validation_record_collateral_semantics_ref`,
+`validation_record_liquidation_semantics_ref`,
+`validation_record_reduce_only_semantics_ref`,
+`validation_record_close_only_semantics_ref`,
+`validation_record_funding_semantics_ref`,
+`validation_record_order_semantics_ref`,
+`validation_record_cancel_semantics_ref`,
+`validation_record_reconciliation_semantics_ref`,
+`validation_record_execution_eligibility_field_refs`,
+runtime_evidence_satisfies_validation_record_execution_eligibility=false, and
+validation_record_execution_eligibility_contract_ready=false.
 
 False flags remain validation_gate_ready=false,
 validation_gate_passed=false, output_schema_registered=false,
@@ -663,55 +709,52 @@ Current behavior:
   validation_record_replay_guard_contract_ready=false,
   validation_record_idempotency_contract_ready=false, and
   validation_record_replay_protected=false.
-- Active M57 `6601-6620` evidence adds disabled futures request payload
-  validation record execution-eligibility evidence through
-  `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_execution_eligibilities`.
+- Active M57 `6741-6760` evidence adds disabled futures request payload
+  validation record semantic artifact definition review output acceptance
+  evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
   The command-suite response exposes
-  `request_payload_validation_record_execution_eligibility_count`,
-  `blocking_request_payload_validation_record_execution_eligibility_count`,
-  `ready_request_payload_validation_record_execution_eligibility_count`,
-  `execution_eligible_request_payload_validation_record_count`,
-  `runtime_observed_request_payload_validation_record_execution_eligibility_count`,
-  `request_payload_validation_record_execution_eligibilities`,
-  `validation_record_execution_eligibility_contract_ref`,
-  `validation_record_position_semantics_ref`,
-  `validation_record_margin_semantics_ref`,
-  `validation_record_collateral_semantics_ref`,
-  `validation_record_liquidation_semantics_ref`,
-  `validation_record_reduce_only_semantics_ref`,
-  `validation_record_close_only_semantics_ref`,
-  `validation_record_funding_semantics_ref`,
-  `validation_record_order_semantics_ref`,
-  `validation_record_cancel_semantics_ref`,
-  `validation_record_reconciliation_semantics_ref`,
-  `validation_record_execution_eligibility_field_refs`,
-  `validation_record_execution_eligibility_field_count`,
-  runtime_evidence_satisfies_validation_record_execution_eligibility=false,
-  validation_record_execution_eligibility_contract_ready=false, and
-  validation_record_execution_eligible=false. Completed `6581-6600` evidence
-  carries forward disabled futures request payload
-  validation record admission-link evidence through
-  `application/admin_api/futures_request_payload_validation_record_admission_links.py`,
+  `request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+  `semantic_artifact_definition_review_output_acceptance_ref`,
+  `semantic_artifact_definition_review_output_acceptance_contract_ref`,
+  `semantic_artifact_definition_review_output_ref`,
+  `semantic_artifact_definition_review_output_contract_ref`,
+  `semantic_artifact_definition_review_ref`,
+  `semantic_artifact_definition_review_contract_ref`,
+  `semantic_artifact_definition_ref`,
+  `semantic_artifact_definition_contract_ref`,
+  contextless_review_required=true,
+  semantic_artifact_definition_review_output_acceptance_available=false, and
+  semantic_artifact_definition_review_output_acceptance_accepted=false.
+  Completed `6721-6740` evidence carries forward disabled futures request
+  payload validation record semantic artifact definition review output
+  evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_outputs.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`.
+  The carried-forward response exposes
+  `request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  and
+  `request_payload_validation_record_semantic_artifact_definition_review_outputs`.
+  The older execution-eligibility and admission-link rows remain present as
+  backend-owned blockers through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_execution_eligibilities`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
-  `iter_futures_request_payload_validation_record_admission_links`. The
-  command-suite response exposes
-  `request_payload_validation_record_admission_link_count`,
-  `blocking_request_payload_validation_record_admission_link_count`,
-  `ready_request_payload_validation_record_admission_link_count`,
-  `admission_bound_request_payload_validation_record_count`,
-  `runtime_observed_request_payload_validation_record_admission_link_count`,
-  `request_payload_validation_record_admission_links`,
-  `validation_record_admission_link_contract_ref`,
-  `validation_record_approval_snapshot_ref`,
-  `validation_record_cap_guard_decision_ref`,
-  `validation_record_reconciliation_plan_ref`,
-  `validation_record_live_intent_ref`,
-  `validation_record_command_admission_ref`,
-  `validation_record_admission_link_field_refs`,
-  `validation_record_admission_link_field_count`,
-  runtime_evidence_satisfies_validation_record_admission_link=false,
+  `iter_futures_request_payload_validation_record_admission_links`. These
+  rows preserve validation_record_execution_eligible=false,
+  validation_record_admitted=false,
   validation_record_admission_link_contract_ready=false,
   validation_record_admission_link_ready=false,
   validation_record_approval_snapshot_bound=false,
