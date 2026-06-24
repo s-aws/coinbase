@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6341-6360` under M57.
-- Active autonomous range: `6361-6380` under M57.
+- Latest completed autonomous range: `6381-6400` under M57.
+- Active autonomous range: `6401-6420` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -858,17 +858,26 @@ notional, retained inventory, reconciliation result, and audit ids.
   not validate command request payloads, register payload validators, call
   Coinbase, execute reconciliation, mutate futures/order/exchange state, or
   grant browser/BFF or spot-rule authority.
-  Latest completed autonomous range: `6361-6380`.
-  Active autonomous range: `6381-6400`.
-  Active 6381-6400 work adds disabled request payload validation gate evidence
-  to those request fields through `validation_gate_ref`,
+  Completed 6381-6400 work added disabled futures request payload validation
+  gate evidence to those request fields through `validation_gate_ref`,
   `validation_evidence_ref`, `validator_contract_ref`,
   `validator_registration_ref`, validation_gate_ready=false,
-  validation_gate_passed=false, and request_payload_validated=false. These
-  fields are evidence only and must not validate command request payloads,
-  register payload validators, make validation gates ready, call Coinbase,
-  execute reconciliation, mutate futures/order/exchange state, or grant
-  browser/BFF or spot-rule authority.
+  validation_gate_passed=false, and request_payload_validated=false.
+  Latest completed autonomous range: `6381-6400`.
+  Active autonomous range: `6401-6420`.
+  Active 6401-6420 work adds disabled futures request payload validator
+  contract registry evidence through
+  `application/admin_api/futures_request_payload_validators.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
+  `iter_futures_request_payload_validator_contracts`. Command-suite
+  `request_payload_validator_contract_count`,
+  `blocking_request_payload_validator_contract_count`,
+  `request_payload_validator_contracts`, `validator_input_schema_ref`,
+  `validator_output_schema_ref`, validator_input_schema_registered=false, and
+  validator_output_schema_registered=false are evidence only and must not
+  validate command request payloads, register payload validators, make
+  validation gates ready, call Coinbase, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser/BFF or spot-rule authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

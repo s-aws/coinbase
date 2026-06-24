@@ -13249,6 +13249,31 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRequestFieldItem'
           type: array
           title: Request Fields
+        request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validator Contract Count
+          default: 0
+        blocking_request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validator Contract Count
+          default: 0
+        ready_request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validator Contract Count
+          default: 0
+        registered_request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Request Payload Validator Contract Count
+          default: 0
+        request_payload_validator_contracts:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidatorContractItem'
+          type: array
+          title: Request Payload Validator Contracts
         semantic_guard_count:
           type: integer
           minimum: 0.0
@@ -14811,6 +14836,123 @@ components:
       - detail
       title: AdminFuturesCommandRequestFieldItem
       description: One planned futures/perpetual command request field row.
+    AdminFuturesCommandRequestPayloadValidatorContractItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        request_payload_contract_ref:
+          type: string
+          title: Request Payload Contract Ref
+        validation_gate_ref:
+          type: string
+          title: Validation Gate Ref
+        validation_evidence_ref:
+          type: string
+          title: Validation Evidence Ref
+        validator_contract_ref:
+          type: string
+          title: Validator Contract Ref
+        validator_input_schema_ref:
+          type: string
+          title: Validator Input Schema Ref
+        validator_output_schema_ref:
+          type: string
+          title: Validator Output Schema Ref
+        validator_registration_ref:
+          type: string
+          title: Validator Registration Ref
+        validation_gate_ready:
+          type: boolean
+          title: Validation Gate Ready
+          default: false
+        validation_gate_passed:
+          type: boolean
+          title: Validation Gate Passed
+          default: false
+        validator_contract_registered:
+          type: boolean
+          title: Validator Contract Registered
+          default: false
+        validator_input_schema_registered:
+          type: boolean
+          title: Validator Input Schema Registered
+          default: false
+        validator_output_schema_registered:
+          type: boolean
+          title: Validator Output Schema Registered
+          default: false
+        validator_registered:
+          type: boolean
+          title: Validator Registered
+          default: false
+        request_payload_validated:
+          type: boolean
+          title: Request Payload Validated
+          default: false
+        command_route_registered:
+          type: boolean
+          title: Command Route Registered
+          default: true
+        command_draft_allowed:
+          type: boolean
+          title: Command Draft Allowed
+          default: true
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - request_payload_contract_ref
+      - validation_gate_ref
+      - validation_evidence_ref
+      - validator_contract_ref
+      - validator_input_schema_ref
+      - validator_output_schema_ref
+      - validator_registration_ref
+      - detail
+      title: AdminFuturesCommandRequestPayloadValidatorContractItem
+      description: One disabled validator contract row for a futures request payload
+        field.
     AdminFuturesCommandRiskProofAcceptanceBlocker:
       type: string
       enum:
@@ -28760,6 +28902,26 @@ components:
           type: integer
           minimum: 0.0
           title: Blocking Request Field Count
+          default: 0
+        request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validator Contract Count
+          default: 0
+        blocking_request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validator Contract Count
+          default: 0
+        ready_request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validator Contract Count
+          default: 0
+        registered_request_payload_validator_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Request Payload Validator Contract Count
           default: 0
         semantic_guard_count:
           type: integer

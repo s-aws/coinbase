@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6381-6400",
+  "approved_phase_range": "6401-6420",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6381-6400",
+  "approved_phase_range": "6401-6420",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1887,7 +1887,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6381-6400",
+  "approved_phase_range": "6401-6420",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2395,16 +2395,29 @@ evidence through `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
 `"request_field_count"`, `"blocking_request_field_count"`, and request-field
 `required_backend_contracts`, including
 `"application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract"`.
-Active 6381-6400 work reports futures request payload validation gate evidence
-on those same request-field rows: `"validation_gate_ref"`,
+Completed 6381-6400 work reports futures request payload validation gate
+evidence on those same request-field rows: `"validation_gate_ref"`,
 `"validation_evidence_ref"`, `"validator_contract_ref"`,
 `"validator_registration_ref"`, `"validation_gate_ready": false`,
 `"validation_gate_passed": false`, and `"request_payload_validated": false`.
-The registry and disabled gate evidence do not validate command request payloads, register payload
-validators, bind live adapters, call Coinbase, execute reconciliation, mutate
-futures/order/exchange state, or grant browser/BFF authority.
+Active 6401-6420 work reports futures request payload validator contract
+registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
+`iter_futures_request_payload_validator_contracts`, with
+`"request_payload_validator_contract_count"`,
+`"blocking_request_payload_validator_contract_count"`,
+`"ready_request_payload_validator_contract_count"`,
+`"registered_request_payload_validator_contract_count"`,
+`"request_payload_validator_contracts"`, `"validator_input_schema_ref"`,
+`"validator_output_schema_ref"`,
+`"validator_input_schema_registered": false`, and
+`"validator_output_schema_registered": false`.
+The registry and disabled gate evidence do not validate command request
+payloads, register payload validators, bind live adapters, call Coinbase,
+execute reconciliation, mutate futures/order/exchange state, or grant
+browser/BFF authority.
 Machine-check evidence: futures request payload contract registry evidence.
 Machine-check evidence: futures request payload validation gate evidence.
+Machine-check evidence: futures request payload validator contract registry evidence.
 Machine-check evidence: route/draft flags remain true while execution remains false.
 
 ```http

@@ -456,29 +456,51 @@ Current behavior:
   route/draft flags true while execution remains false; request-field
   `required_backend_contracts` include refs such as
   `application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract`.
-  Active M57 `6381-6400` evidence adds disabled `validation_gate_ref`,
+  Completed M57 `6381-6400` evidence adds disabled `validation_gate_ref`,
   `validation_evidence_ref`, `validator_contract_ref`,
   `validator_registration_ref`, validation_gate_ready=false,
   validation_gate_passed=false, and request_payload_validated=false to those
-  request-field rows. These rows do not validate command request payloads, register payload
-  validators, bind live adapters, submit or cancel Coinbase orders, execute
-  reconciliation, mutate futures/order/exchange state, or grant browser, BFF,
-  or spot-rule authority.
+  request-field rows. Active M57 `6401-6420` evidence adds disabled futures
+  request payload validator contract registry evidence through
+  `application/admin_api/futures_request_payload_validators.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
+  `iter_futures_request_payload_validator_contracts`. The command-suite
+  response exposes `request_payload_validator_contract_count`,
+  `blocking_request_payload_validator_contract_count`,
+  `request_payload_validator_contracts`, `validator_input_schema_ref`,
+  `validator_output_schema_ref`, validator_input_schema_registered=false, and
+  validator_output_schema_registered=false. These rows do not validate command
+  request payloads, register payload validators, bind live adapters, submit or
+  cancel Coinbase orders, execute reconciliation, mutate futures/order/exchange
+  state, or grant browser, BFF, or spot-rule authority.
 - Machine-check evidence: futures request payload contract registry evidence.
 - Machine-check evidence: futures request payload validation gate evidence.
+- Machine-check evidence: futures request payload validator contract registry evidence.
 - Machine-check evidence:
   `application/admin_api/futures_request_payload_contracts.py`.
+- Machine-check evidence:
+  `application/admin_api/futures_request_payload_validators.py`.
 - Machine-check evidence: `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`.
 - Machine-check evidence: `iter_futures_request_payload_contracts`.
+- Machine-check evidence: `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`.
+- Machine-check evidence:
+  `iter_futures_request_payload_validator_contracts`.
 - Machine-check evidence: request_field_count.
 - Machine-check evidence: blocking_request_field_count.
+- Machine-check evidence: `request_payload_validator_contract_count`.
+- Machine-check evidence: `blocking_request_payload_validator_contract_count`.
 - Machine-check evidence: `validation_gate_ref`.
 - Machine-check evidence: `validation_evidence_ref`.
 - Machine-check evidence: `validator_contract_ref`.
+- Machine-check evidence: `validator_input_schema_ref`.
+- Machine-check evidence: `validator_output_schema_ref`.
 - Machine-check evidence: `validator_registration_ref`.
+- Machine-check evidence: validator_input_schema_registered=false.
+- Machine-check evidence: validator_output_schema_registered=false.
 - Machine-check evidence: validation_gate_ready=false.
 - Machine-check evidence: validation_gate_passed=false.
 - Machine-check evidence: request_payload_validated=false.
+- Machine-check evidence: validate command request payloads remains forbidden.
 - Machine-check evidence: register payload validators remains forbidden.
 - Machine-check evidence: route/draft flags are true while execution remains
   false.

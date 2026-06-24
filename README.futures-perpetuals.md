@@ -354,11 +354,19 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   command request payloads, register payload validators, bind live adapters,
   submit or cancel Coinbase orders, execute reconciliation, mutate
   futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-  Current M57 phases 6381-6400 expose disabled `validation_gate_ref`,
+  Completed M57 phases 6381-6400 exposed disabled `validation_gate_ref`,
   `validation_evidence_ref`, `validator_contract_ref`,
   `validator_registration_ref`, and false readiness flags on those request
   fields: validation_gate_ready=false, validation_gate_passed=false, and
-  request_payload_validated=false. Machine-check evidence: validate command request payloads remains forbidden.
+  request_payload_validated=false. Current M57 phases 6401-6420 expose
+  disabled futures request payload validator contract registry evidence
+  through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
+  `iter_futures_request_payload_validator_contracts`,
+  `request_payload_validator_contract_count`,
+  `blocking_request_payload_validator_contract_count`,
+  `validator_input_schema_ref`, `validator_output_schema_ref`,
+  validator_input_schema_registered=false, and
+  validator_output_schema_registered=false. Machine-check evidence: validate command request payloads remains forbidden.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define
   `evaluate_futures_margin_collateral_liquidation` as disabled backend
@@ -379,9 +387,10 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   `api/v1/routes/futures.py::*_route_contract` refs as required/present
   disabled backend evidence only. Completed phases 6341-6360 register
   route-bound no-live drafts for the four command families, completed phases
-  6361-6380 bind disabled request payload contract registry evidence, and
-  current phases 6381-6400 keep route/draft flags true while executable command
-  count stays zero.
+  6361-6380 bind disabled request payload contract registry evidence,
+  completed phases 6381-6400 bind disabled request payload validation gate
+  evidence, and current phases 6401-6420 keep route/draft flags true while
+  executable command count stays zero.
 - Do not treat disabled live-adapter contract metadata as adapter construction
   or invocation. M57 phases 6061-6080 define
   `application/admin_api/live_execution.py::*_adapter_contract` refs as

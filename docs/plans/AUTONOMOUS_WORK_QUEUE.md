@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6381-6400**.
+- Approved phase range: **6401-6420**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6361-6380`.
+- Previous completed range: `6381-6400`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6380`.
+- `current_phase`: `6400`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,141 +81,153 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6381-6400
+## Active Phases 6401-6420
 
-Batch label: Futures/Perpetuals Request Payload Validation Gate Evidence.
+Batch label: Futures/Perpetuals Request Payload Validator Contract Registry Evidence.
 
-These phases continue M57 after completed `6361-6380` added the disabled
-request payload contract registry for futures/perpetual command request
-fields. The next concrete gap is that contextless agents can see a field is
-blocked, but cannot see the exact missing validation gate, validator contract,
-validator registration, or false readiness flags that keep payload validation
-disabled. `application/admin_api/futures_request_payload_contracts.py` remains
-the registry source, and `request_field_count` plus
-`blocking_request_field_count` remain the aggregate count evidence. Active
-`6381-6400` may expose backend-owned disabled gate evidence on
-each command-suite request field: `request_payload_contract_ref`,
-`validation_evidence_ref`, `validation_gate_ref`, `validator_contract_ref`,
-`validator_registration_ref`, `validation_gate_ready=false`,
-`validation_gate_passed=false`, `validator_contract_registered=false`,
-`validator_registered=false`, `validation_registered=false`, and
+These phases continue M57 after completed `6381-6400` exposed disabled
+request-payload validation gate evidence on each futures/perpetual command
+request field. The next concrete gap is that contextless agents can see a
+future validator contract ref on each field, but cannot see a backend-owned
+registry for the future validator contract, input schema, output schema,
+registration, and false readiness flags. Active `6401-6420` adds
+`application/admin_api/futures_request_payload_validators.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
+`iter_futures_request_payload_validator_contracts` as disabled evidence only,
+while carrying forward request-field aggregate evidence through
+`request_field_count` and `blocking_request_field_count`. It then emits
+`request_payload_validator_contract_count`,
+`blocking_request_payload_validator_contract_count`,
+`ready_request_payload_validator_contract_count`,
+`registered_request_payload_validator_contract_count`, and
+`request_payload_validator_contracts` in the futures command suite. Each row
+may expose `validator_input_schema_ref`, `validator_output_schema_ref`,
+`validator_registration_ref`, `validator_input_schema_registered=false`,
+`validator_output_schema_registered=false`, `validator_registered=false`,
+`validation_gate_ready=false`, `validation_gate_passed=false`, and
 `request_payload_validated=false`. Route/draft flags remain true while
-execution remains false. It must not validate command request payloads,
-register payload validators, bind live adapters, submit or cancel Coinbase
-orders, acknowledge exchange orders, execute reconciliation, mutate
-futures/order/exchange state, accept risk proofs as command readiness, or
-grant browser/BFF execution authority. Spot wallet, no-shorting, USDC,
+execution remains false. This range must not implement validators, validate
+submitted command payloads, register validators, bind live adapters, submit or
+cancel Coinbase orders, acknowledge exchange orders, execute reconciliation,
+mutate futures/order/exchange state, accept risk proofs as command readiness,
+or grant browser/BFF execution authority. Spot wallet, no-shorting, USDC,
 cost-basis, average-cost, and inventory-lot assumptions remain forbidden as
 futures/perpetual authority.
 
-### Phase 6381 - Prior Range Closure
+### Phase 6401 - Prior Range Closure
 
-- Record completed phases `6361-6380` as historical request payload contract
-  registry evidence and move active metadata to `6381-6400`.
+- Record completed phases `6381-6400` as historical validation-gate evidence
+  and move active metadata to `6401-6420`.
 
-### Phase 6382 - Request Field Gate Refs
+### Phase 6402 - Validator Contract Registry
 
-- Add deterministic disabled `validation_gate_ref` values for every
-  `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` row.
+- Add a backend-owned disabled validator registry derived from
+  `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, preserving the existing request
+  field registry as the source of command/field scope.
 
-### Phase 6383 - Validation Evidence Refs
+### Phase 6403 - Validator Input Schema Refs
 
-- Surface the existing request-payload validation evidence ref on emitted
-  command-suite request fields without marking validation passed.
+- Emit deterministic disabled `validator_input_schema_ref` evidence for every
+  futures/perpetual request payload validator contract.
 
-### Phase 6384 - Validator Contract Refs
+### Phase 6404 - Validator Output Schema Refs
 
-- Add missing future validator contract refs for every futures/perpetual
-  request field without creating validator implementations.
+- Emit deterministic disabled `validator_output_schema_ref` evidence for every
+  futures/perpetual request payload validator contract.
 
-### Phase 6385 - Validator Registration Refs
+### Phase 6405 - Validator Registration Refs
 
-- Add missing future validator registration refs while keeping validator
-  registration disabled.
+- Carry validator registration refs into the validator-contract rows while
+  keeping registration blocked and backend-owned.
 
-### Phase 6386 - False-State Gate Flags
+### Phase 6406 - False-State Validator Flags
 
-- Emit false readiness and registration flags for validation gates, validator
-  contracts, validator registration, validation registration, and payload
-  validation.
+- Emit false readiness, schema-registration, validator-registration, and
+  payload-validation flags for every validator contract row.
 
-### Phase 6387 - Placement Gate Evidence
+### Phase 6407 - Command-Level Validator Counts
 
-- Prove placement request fields expose gate refs and false validation flags
-  for product, side, type, size, limit price, time-in-force, and
-  `client_order_id`.
+- Add per-command validator contract counts and blocked/ready/registered
+  aggregate counts to `AdminFuturesCommandContractItem`.
 
-### Phase 6388 - Close/Reduce Gate Evidence
+### Phase 6408 - Suite-Level Validator Counts
 
-- Prove close/reduce request fields expose gate refs and false validation flags
-  for position identity, product, side, size, reduce-only, close-only, and
-  `client_order_id`.
+- Add futures command-suite aggregate validator counts across place,
+  close/reduce, cancel, and reconciliation command drafts.
 
-### Phase 6389 - Cancel Gate Evidence
+### Phase 6409 - Required Backend Contract Refs
 
-- Prove cancel request fields expose gate refs and false validation flags for
-  `client_order_id`, product context, and operator notes while preserving
-  cancel-by-`client_order_id` discipline.
+- Include disabled validator contract refs in each command's
+  `required_backend_contracts` without marking them missing or executable.
 
-### Phase 6390 - Reconciliation Gate Evidence
+### Phase 6410 - OpenAPI Schema Sync
 
-- Prove reconciliation request fields expose gate refs and false validation
-  flags without enabling reconciliation execution.
+- Regenerate backend-owned OpenAPI so the validator contract item and aggregate
+  count fields are visible to generated clients.
 
-### Phase 6391 - OpenAPI Schema Sync
+### Phase 6411 - Frontend Generated Schema Sync
 
-- Regenerate backend-owned OpenAPI so `AdminFuturesCommandRequestFieldItem`
-  exposes the new gate refs and false validation flags.
+- Regenerate the frontend API schema from backend OpenAPI without hand-editing
+  generated files.
 
-### Phase 6392 - Frontend Contract Association
+### Phase 6412 - Frontend Mock Data Sync
 
-- Sync generated frontend API schema, mocks, adapters, and read-model display
-  with backend-owned request-field gate evidence.
+- Update frontend mocks/fixtures to include validator contract rows, counts,
+  schema refs, and false readiness/registration flags.
 
-### Phase 6393 - Backend Focused Tests
+### Phase 6413 - Frontend Adapter Mapping
 
-- Add focused backend coverage proving request-field gate evidence is disabled,
+- Map validator contract rows into typed read-model view data using the
+  existing backend API wrapper path.
+
+### Phase 6414 - Frontend Display Evidence
+
+- Display validator contract evidence as read-only futures/perpetual command
+  suite data with browser authority remaining display-only.
+
+### Phase 6415 - Backend Focused Tests
+
+- Add focused backend coverage proving validator contract evidence is disabled,
   backend-owned, no-live, and not validation authority.
 
-### Phase 6394 - Backend Docs And Examples
+### Phase 6416 - Frontend Focused Tests
 
-- Update Admin API, futures/perpetual feature docs, examples, maintainer
-  handoff, capability matrix references, and agent state for validation gate
-  evidence.
+- Add focused frontend unit/component coverage proving validator evidence is
+  displayed and not treated as execution authority.
 
-### Phase 6395 - Autonomous Validators
+### Phase 6417 - Docs And Examples
 
-- Update autonomous queue validators and context artifacts to require
-  `6381-6400` validation gate evidence and to treat `6361-6380` as completed
-  history.
+- Update Admin API, futures/perpetual docs, examples, maintainer handoff,
+  agent state, and API references for validator-contract evidence.
 
-### Phase 6396 - Deployment/Release Validator Sync
+### Phase 6418 - Autonomous Validators
 
-- Update frontend release, deployment, artifact, and runtime-evidence
-  validators so current approved range and no-live posture match backend and
-  frontend state.
+- Update backend/frontend autonomous validators to require `6401-6420`
+  validator-contract evidence and to treat `6381-6400` as completed history.
 
-### Phase 6397 - Backend Contextless Review
+### Phase 6419 - Contextless Review And Subagent Sweep
 
-- Run fresh blind/contextless backend review for request-field gate evidence,
-  no-live posture, `client_order_id` cancel discipline, and no spot-rule
-  leakage.
+- Run fresh blind/contextless backend and frontend reviews, remediate blocking
+  ambiguity, then close phase-scoped, stale, or previously unused subagents.
 
-### Phase 6398 - Frontend Contextless Review
+### Phase 6420 - Commit And Push
 
-- Run fresh blind/contextless frontend review for display-only gate refs,
-  validator refs, false readiness flags, and no browser/BFF execution
-  authority.
+- Commit and push backend and frontend work separately with submitted notional
+  `0` USDC, executed notional `0` USDC, and no Coinbase calls.
 
-### Phase 6399 - Subagent Sweep And No-Live Evidence
+## Historical Plan - Phases 6381-6400
 
-- Close phase-scoped, stale, or previously unused subagents after findings are
-  consumed, remediated, or explicitly deferred. Record submitted notional `0`
-  USDC, executed notional `0` USDC, and no Coinbase calls.
+Batch label: Futures/Perpetuals Request Payload Validation Gate Evidence.
 
-### Phase 6400 - Commit And Push
-
-- Commit and push backend and frontend work separately with no-live evidence.
+These phases completed disabled validation gate evidence on futures/perpetual
+command-suite request fields. They exposed `validation_gate_ref`,
+`validation_evidence_ref`, `validator_contract_ref`,
+`validator_registration_ref`, `validation_gate_ready=false`,
+`validation_gate_passed=false`, `validator_contract_registered=false`,
+`validator_registered=false`, `validation_registered=false`, and
+`request_payload_validated=false` while preserving route/draft flags true,
+execution false, no Coinbase activity, no reconciliation execution, no
+futures/order/exchange mutation, and no browser/BFF authority.
 
 ## Historical Plan - Phases 6361-6380
 

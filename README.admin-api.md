@@ -606,11 +606,20 @@ disabled futures/perpetual request payload contract registry evidence through
 `iter_futures_request_payload_contracts`; command-suite `request_field_count`,
 `blocking_request_field_count`, and request-field `required_backend_contracts`
 derive from that backend-owned registry. Route/draft flags remain true while
-execution remains false. Current M57 phases 6381-6400 add explicit disabled
-validation gate refs, validator refs, and false readiness flags to those
-request fields while preserving no validation, no validator registration, no
-Coinbase calls, no reconciliation execution, no futures/order/exchange state
-mutation, and no browser/BFF or spot-rule authority.
+execution remains false. Completed M57 phases 6381-6400 added explicit
+disabled validation gate refs, validator refs, and false readiness flags to
+those request fields. Current M57 phases 6401-6420 add disabled
+futures request payload validator contract registry evidence through
+`application/admin_api/futures_request_payload_validators.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
+`iter_futures_request_payload_validator_contracts`; command-suite
+`request_payload_validator_contract_count`,
+`blocking_request_payload_validator_contract_count`, and
+`request_payload_validator_contracts` expose validator input/output schema refs
+and false schema/validator registration flags while preserving no validation,
+no validator registration, no Coinbase calls, no reconciliation execution, no
+futures/order/exchange state mutation, and no browser/BFF or spot-rule
+authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

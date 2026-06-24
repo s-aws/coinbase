@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6381-6400`.
+- Commit (optional): current active range is `6401-6420`.
 
 ## Current Objective
 
@@ -56,8 +56,8 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6361-6380`.
-- Active autonomous range: `6381-6400`.
+- Latest completed autonomous range before current work: `6381-6400`.
+- Active autonomous range: `6401-6420`.
 - Completed `6281-6300` added disabled futures reconciliation command-service
   parity evidence to the M57 futures/perpetual command suite. The
   `futures_reconcile` row reports
@@ -117,18 +117,29 @@ Keep it short. Keep it factual.
   request payloads, register payload validators, submit/cancel Coinbase
   orders, execute reconciliation, mutate futures/order/exchange state, or
   grant browser/BFF or spot-rule authority.
-  Active `6381-6400` may add disabled request payload validation gate evidence
-  on those request fields: `validation_gate_ref`, `validation_evidence_ref`,
-  `validator_contract_ref`, `validator_registration_ref`,
-  validation_gate_ready=false, validation_gate_passed=false, and
-  request_payload_validated=false. It must not
-  validate command request payloads, register validators, submit/cancel
+  Completed `6381-6400` added disabled futures request payload validation
+  gate evidence to those request fields: `validation_gate_ref`,
+  `validation_evidence_ref`, `validator_contract_ref`,
+  `validator_registration_ref`, validation_gate_ready=false,
+  validation_gate_passed=false, and request_payload_validated=false. It did
+  not validate command request payloads, register validators, submit/cancel
   Coinbase orders, execute reconciliation, mutate futures/order/exchange
   state, or grant browser/BFF or spot-rule authority.
-- Current direction: complete phases `6381-6400` by adding no-live futures
-  request payload validation gate evidence, syncing backend/frontend
-  contracts/mocks/docs, focused gates, blind/contextless review, and
-  phase-end stale-subagent sweep. Registered routes from completed
+  Active `6401-6420` adds disabled futures request payload validator
+  contract registry evidence through
+  `application/admin_api/futures_request_payload_validators.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
+  `iter_futures_request_payload_validator_contracts`. The command suite must
+  expose `request_payload_validator_contract_count`,
+  `blocking_request_payload_validator_contract_count`,
+  `request_payload_validator_contracts`, `validator_input_schema_ref`,
+  `validator_output_schema_ref`, `validator_input_schema_registered`,
+  `validator_output_schema_registered`, and false validation/registration
+  evidence while keeping route/draft flags true and execution false.
+- Current direction: complete phases `6401-6420` by adding no-live futures
+  request payload validator contract registry evidence, syncing
+  backend/frontend contracts/mocks/docs, focused gates, blind/contextless
+  review, and phase-end stale-subagent sweep. Registered routes from completed
   `6341-6360` remain
   `/api/v1/futures/orders`,
   `/api/v1/futures/positions/{position_key}/close-reduce`,
@@ -139,9 +150,10 @@ Keep it short. Keep it factual.
   live-enablement blockers include `live_execution_disabled`,
   `futures live adapter contract missing`, and
   `futures reconciliation execution missing`.
-- Current boundary label: futures request payload validation gate evidence.
-- Previous completed boundary label: futures request payload contract registry evidence.
-- Current trace evidence label: backend-owned futures request payload validation gate evidence.
+- Current boundary label: futures request payload validator contract registry evidence.
+- Previous completed boundary label: futures request payload validation gate evidence.
+- Machine-check evidence: futures request payload contract registry evidence.
+- Current trace evidence label: backend-owned futures request payload validator contract registry evidence.
 - Completed sequence evidence label: backend-owned futures command enablement sequence steps.
 - Historical boundary label retained for validators: disabled futures adapter-execution contract evidence.
 - Current contract split: adapter contract refs are required/present disabled
@@ -764,11 +776,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6381-6400`.
+- Active autonomous range: `6401-6420`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6381-6400` by syncing
-  no-live futures/perpetual request payload validation gate evidence for
-  the route-bound command drafts at
+- Current direction: complete active phases `6401-6420` by syncing
+  no-live futures/perpetual request payload validator contract registry
+  evidence for the route-bound command drafts at
   `POST /api/v1/futures/orders`,
   `POST /api/v1/futures/positions/{position_key}/close-reduce`,
   `POST /api/v1/futures/orders/{client_order_id}/cancel`, and
@@ -778,13 +790,20 @@ Keep it short. Keep it factual.
   Completed `6361-6380` established
   `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
   `iter_futures_request_payload_contracts` as the backend-owned registry for
-  command-suite request fields. Active `6381-6400` exposes disabled
+  command-suite request fields. Completed `6381-6400` exposed disabled
   `validation_gate_ref`, `validation_evidence_ref`,
   `validator_contract_ref`, `validator_registration_ref`, and false
   validation readiness flags on those fields while `request_field_count`,
-  `blocking_request_field_count`, and request-field
-  `required_backend_contracts` stay registry-derived. The route/draft flags
-  are true while execution remains false.
+  `blocking_request_field_count`, and request-field `required_backend_contracts`
+  stayed registry-derived. Active `6401-6420` exposes disabled
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
+  `iter_futures_request_payload_validator_contracts`,
+  `request_payload_validator_contract_count`,
+  `blocking_request_payload_validator_contract_count`,
+  `validator_input_schema_ref`, `validator_output_schema_ref`,
+  validator_input_schema_registered=false, and
+  validator_output_schema_registered=false. The route/draft flags are true
+  while execution remains false.
   Adapter contract refs, adapter construction refs, adapter decision refs,
   adapter decision-record refs, adapter invocation refs, and adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
@@ -1643,13 +1662,13 @@ Keep it short. Keep it factual.
   contract registry work began; frontend contract sync, focused
   backend/frontend gates, fresh blind/contextless reviews, and phase-end
   stale-subagent sweep are pending.
-- Exact next command: complete active phases `6381-6400` by syncing backend and
-  frontend contracts/mocks/docs for no-live futures request payload validation
-  gate evidence, running focused backend/frontend gates,
+- Exact next command: complete active phases `6401-6420` by syncing backend and
+  frontend contracts/mocks/docs for no-live futures request payload validator
+  contract registry evidence, running focused backend/frontend gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live proof.
-  The active gap is disabled validation gate and validator reference evidence
-  only; no command request payload validation, payload validator registration,
-  ready validation gate, live adapter binding, Coinbase
+  The active gap is disabled validator contract/input schema/output schema/
+  registration evidence only; no command request payload validation, payload
+  validator registration, ready validation gate, live adapter binding, Coinbase
   placement/cancellation, exchange acknowledgement, reconciliation execution,
   Coinbase read/write authority, futures/order/exchange-state mutation,
   accepted proof record as command readiness, adapter invocation authority,
