@@ -82,10 +82,15 @@ multiplying the route-model memory footprint across workers. Documented false
 positives use `parallel-regression: serial-safe`.
 
 The runner also records per-lane peak memory samples in its summary JSON when
-the Windows memory guard is active. Preserve that line for closeout evidence;
-`memory_guard_aborted` means the gate failed. Run the stale process checker,
-run the runtime artifact checker, then split or reduce the offending regression
-surface before retrying.
+the Windows memory guard is active. Before pytest starts, it also fails fast
+when oversized repo-local runtime artifacts under `runtime_state/` exceed
+`1 GiB`. Preserve the summary line for closeout evidence.
+`runtime_artifact_preflight_failed` means the gate failed before pytest; run
+the runtime artifact checker, preserve evidence, and clean or archive artifacts
+only after explicit operator cleanup approval. `memory_guard_aborted` means the
+gate failed during pytest. Run the stale process checker, run the runtime
+artifact checker, then split or reduce the offending regression surface before
+retrying.
 
 Before full closeout gates and after interrupted or timed-out backend/frontend
 test commands, run:

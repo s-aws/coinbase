@@ -146,6 +146,13 @@ regression files `pytest.mark.serial` when they touch shared DB cursors, fixed
 service ports, process-global state, full FastAPI app imports, or other
 process-shared/memory-heavy resources. If the static classifier reports a false
 positive, add a `parallel-regression: serial-safe` comment with the reason.
+The helper fails before pytest when oversized repo-local runtime artifacts under
+`runtime_state/` exceed 1 GiB. If it emits
+`runtime_artifact_preflight_failed`, treat the full regression gate as failed:
+run `python tools/check_runtime_artifacts.py`, preserve the evidence, and clean
+or archive artifacts only after explicit operator cleanup approval. Use
+`--disable-runtime-artifact-preflight` only for a scoped diagnostic run after
+preserving artifact evidence.
 The helper uses short tracebacks and a Windows memory-pressure guard by default.
 It samples every 5 seconds and aborts on high absolute commit pressure, high
 commit percentage, high physical-memory pressure, or low available physical

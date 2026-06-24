@@ -20,6 +20,32 @@ from pathlib import Path
 from typing import Iterable
 from uuid import uuid4
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+try:
+    from tools.check_runtime_artifacts import (
+        DEFAULT_RUNTIME_STATE_DIR,
+        RuntimeArtifactFinding,
+        find_runtime_artifacts,
+    )
+except ModuleNotFoundError:
+    checker_module_name = "_coinbase_check_runtime_artifacts"
+    checker_path = Path(__file__).with_name("check_runtime_artifacts.py")
+    checker_spec = importlib.util.spec_from_file_location(
+        checker_module_name,
+        checker_path,
+    )
+    if checker_spec is None or checker_spec.loader is None:
+        raise
+    checker_module = importlib.util.module_from_spec(checker_spec)
+    sys.modules[checker_module_name] = checker_module
+    checker_spec.loader.exec_module(checker_module)
+    DEFAULT_RUNTIME_STATE_DIR = checker_module.DEFAULT_RUNTIME_STATE_DIR
+    RuntimeArtifactFinding = checker_module.RuntimeArtifactFinding
+    find_runtime_artifacts = checker_module.find_runtime_artifacts
+
 
 SUMMARY_PREFIX = "PARALLEL_REGRESSION_RUNNER_SUMMARY "
 SERIAL_SAFE_COMMENT = "parallel-regression: serial-safe"
@@ -31,6 +57,7 @@ DEFAULT_MAX_COMMIT_GB = 96.0
 DEFAULT_MAX_COMMIT_PERCENT = 85.0
 DEFAULT_MAX_PHYSICAL_PERCENT = 75.0
 DEFAULT_MIN_AVAILABLE_PHYSICAL_GB = 24.0
+DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB = 1.0
 MEMORY_ABORT_EXIT_CODE = 87
 
 
@@ -340,6 +367,33 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Disable the Windows memory pressure guard. Use only for a scoped "
             "diagnostic run."
+        ),
+    )
+    parser.add_argument(
+        "--runtime-state-dir",
+        type=Path,
+        default=DEFAULT_RUNTIME_STATE_DIR,
+        help=(
+            "Runtime-state directory checked for stale repo-local test artifacts "
+            "before pytest starts."
+        ),
+    )
+    parser.add_argument(
+        "--runtime-artifact-fail-above-gb",
+        default=DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB,
+        type=_validate_positive_float,
+        help=(
+            "Abort before pytest when detected runtime-state test artifacts "
+            "exceed this many GiB. Defaults to "
+            f"{DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB}."
+        ),
+    )
+    parser.add_argument(
+        "--disable-runtime-artifact-preflight",
+        action="store_true",
+        help=(
+            "Skip the runtime artifact preflight. Use only for a scoped "
+            "diagnostic run after preserving artifact evidence."
         ),
     )
     lane_group = parser.add_mutually_exclusive_group()
@@ -745,6 +799,22 @@ def _format_process_memory_snapshots(
     return formatted or None
 
 
+def _format_runtime_artifact_findings(
+    findings: Iterable[RuntimeArtifactFinding],
+) -> list[dict[str, object]] | None:
+    formatted = [
+        {
+            "path": str(finding.path),
+            "reason": finding.reason,
+            "file_count": finding.file_count,
+            "total_gb": finding.total_gb,
+            "largest_file_mb": finding.largest_file_mb,
+        }
+        for finding in findings
+    ]
+    return formatted or None
+
+
 def _emit_summary(
     *,
     status: str,
@@ -755,6 +825,9 @@ def _emit_summary(
     max_commit_percent: float,
     max_physical_percent: float,
     min_available_physical_gb: float,
+    runtime_artifact_preflight_enabled: bool,
+    runtime_artifact_fail_above_gb: float,
+    runtime_artifact_findings: list[RuntimeArtifactFinding] | None = None,
     memory_peak_snapshots: dict[str, MemorySnapshot | None] | None = None,
     process_memory_snapshots: dict[str, tuple[ProcessMemorySnapshot, ...] | None]
     | None = None,
@@ -771,6 +844,13 @@ def _emit_summary(
                 "max_commit_percent": max_commit_percent,
                 "max_physical_percent": max_physical_percent,
                 "min_available_physical_gb": min_available_physical_gb,
+                "runtime_artifact_preflight_enabled": (
+                    runtime_artifact_preflight_enabled
+                ),
+                "runtime_artifact_fail_above_gb": runtime_artifact_fail_above_gb,
+                "runtime_artifact_findings": _format_runtime_artifact_findings(
+                    runtime_artifact_findings or []
+                ),
                 "memory_peak_snapshots": _format_memory_peak_snapshots(
                     memory_peak_snapshots or {}
                 ),
@@ -795,6 +875,11 @@ def main(argv: list[str] | None = None) -> int:
         and not args.check_serial_classification_only
         and sys.platform.startswith("win")
     )
+    runtime_artifact_preflight_enabled = (
+        not args.disable_runtime_artifact_preflight
+        and not args.dry_run
+        and not args.check_serial_classification_only
+    )
 
     serial_findings = find_serial_classification_findings()
     if serial_findings:
@@ -808,6 +893,8 @@ def main(argv: list[str] | None = None) -> int:
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
+            runtime_artifact_preflight_enabled=runtime_artifact_preflight_enabled,
+            runtime_artifact_fail_above_gb=args.runtime_artifact_fail_above_gb,
         )
         return 2
 
@@ -821,6 +908,8 @@ def main(argv: list[str] | None = None) -> int:
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
+            runtime_artifact_preflight_enabled=runtime_artifact_preflight_enabled,
+            runtime_artifact_fail_above_gb=args.runtime_artifact_fail_above_gb,
         )
         return 0
 
@@ -836,8 +925,56 @@ def main(argv: list[str] | None = None) -> int:
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
+            runtime_artifact_preflight_enabled=runtime_artifact_preflight_enabled,
+            runtime_artifact_fail_above_gb=args.runtime_artifact_fail_above_gb,
         )
         return 0
+
+    runtime_artifact_findings: list[RuntimeArtifactFinding] = []
+    if runtime_artifact_preflight_enabled:
+        runtime_state_dir = args.runtime_state_dir.resolve()
+        runtime_artifact_findings = find_runtime_artifacts(runtime_state_dir)
+        total_artifact_gb = sum(
+            finding.total_bytes for finding in runtime_artifact_findings
+        ) / (1024**3)
+        if total_artifact_gb > args.runtime_artifact_fail_above_gb:
+            print(
+                (
+                    "Runtime artifact preflight failed before pytest: "
+                    f"{total_artifact_gb:.3f}GiB of repo-local runtime_state "
+                    "test artifacts were found. Run "
+                    "`python tools/check_runtime_artifacts.py`, preserve the "
+                    "summary evidence, and clean or archive artifacts only "
+                    "after explicit operator approval."
+                ),
+                file=sys.stderr,
+            )
+            for finding in runtime_artifact_findings:
+                print(
+                    (
+                        f"- {finding.path}: reason={finding.reason} "
+                        f"files={finding.file_count} "
+                        f"total_gb={finding.total_gb:.3f} "
+                        f"largest_file_mb={finding.largest_file_mb:.1f}"
+                    ),
+                    file=sys.stderr,
+                )
+            _emit_summary(
+                status="runtime_artifact_preflight_failed",
+                commands=commands,
+                failed="runtime_artifact_preflight",
+                memory_watch_enabled=memory_watch_enabled,
+                max_commit_gb=args.max_commit_gb,
+                max_commit_percent=args.max_commit_percent,
+                max_physical_percent=args.max_physical_percent,
+                min_available_physical_gb=args.min_available_physical_gb,
+                runtime_artifact_preflight_enabled=(
+                    runtime_artifact_preflight_enabled
+                ),
+                runtime_artifact_fail_above_gb=args.runtime_artifact_fail_above_gb,
+                runtime_artifact_findings=runtime_artifact_findings,
+            )
+            return 2
 
     if not args.serial_only and not is_xdist_available():
         print(
@@ -854,6 +991,9 @@ def main(argv: list[str] | None = None) -> int:
             max_commit_percent=args.max_commit_percent,
             max_physical_percent=args.max_physical_percent,
             min_available_physical_gb=args.min_available_physical_gb,
+            runtime_artifact_preflight_enabled=runtime_artifact_preflight_enabled,
+            runtime_artifact_fail_above_gb=args.runtime_artifact_fail_above_gb,
+            runtime_artifact_findings=runtime_artifact_findings,
         )
         return 2
 
@@ -890,6 +1030,11 @@ def main(argv: list[str] | None = None) -> int:
                 max_commit_percent=args.max_commit_percent,
                 max_physical_percent=args.max_physical_percent,
                 min_available_physical_gb=args.min_available_physical_gb,
+                runtime_artifact_preflight_enabled=(
+                    runtime_artifact_preflight_enabled
+                ),
+                runtime_artifact_fail_above_gb=args.runtime_artifact_fail_above_gb,
+                runtime_artifact_findings=runtime_artifact_findings,
                 memory_peak_snapshots=memory_peak_snapshots,
                 process_memory_snapshots=process_memory_snapshots,
             )
@@ -904,6 +1049,9 @@ def main(argv: list[str] | None = None) -> int:
         max_commit_percent=args.max_commit_percent,
         max_physical_percent=args.max_physical_percent,
         min_available_physical_gb=args.min_available_physical_gb,
+        runtime_artifact_preflight_enabled=runtime_artifact_preflight_enabled,
+        runtime_artifact_fail_above_gb=args.runtime_artifact_fail_above_gb,
+        runtime_artifact_findings=runtime_artifact_findings,
         memory_peak_snapshots=memory_peak_snapshots,
         process_memory_snapshots=process_memory_snapshots,
     )

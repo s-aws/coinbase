@@ -44,6 +44,14 @@ policy and the runner tests. The regression suite is process-parallel, so each
 worker imports project and test state independently; unbounded worker fan-out
 can multiply memory use even when individual tests are not leaking.
 
+The runner first checks for oversized repo-local runtime artifacts under
+`runtime_state/` and fails before pytest when those artifacts exceed `1 GiB`.
+Treat a `runtime_artifact_preflight_failed` summary as a failed closeout gate:
+run `python tools/check_runtime_artifacts.py`, preserve the summary evidence,
+and clean or archive artifacts only after explicit operator cleanup approval.
+Use `--disable-runtime-artifact-preflight` only for a scoped diagnostic run
+after preserving artifact evidence.
+
 The runner also uses quiet pytest output, short pytest tracebacks, and a Windows
 memory-pressure guard by default. Keep the quiet output mode enabled for normal
 closeout runs so terminal renderers and agent UIs do not retain thousands of
@@ -125,7 +133,9 @@ memory spike, run the report-only artifact checker:
 python tools/check_runtime_artifacts.py
 ```
 
-Use an explicit cap when a closeout run must fail on leftover payloads:
+The full regression runner already uses this checker as a fail-fast preflight
+with a `1 GiB` cap. Use the checker directly when investigating memory growth
+or when preserving evidence before an operator-approved cleanup:
 
 ```powershell
 python tools/check_runtime_artifacts.py --fail-above-gb 1

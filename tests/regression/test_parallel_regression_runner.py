@@ -5,6 +5,7 @@ from pathlib import Path
 
 from tools.run_parallel_regression import (
     DEFAULT_MAX_COMMIT_GB,
+    DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB,
     MEMORY_ABORT_EXIT_CODE,
     PYTEST_TRACEBACK_STYLE,
     PYTEST_OUTPUT_MODE,
@@ -14,6 +15,7 @@ from tools.run_parallel_regression import (
     ProcessMemorySnapshot,
     RegressionCommand,
     RegressionRunResult,
+    RuntimeArtifactFinding,
     build_commands,
     build_parser,
     find_serial_classification_findings,
@@ -187,6 +189,9 @@ def test_parallel_regression_runner_rejects_unbounded_worker_counts():
     with pytest.raises(SystemExit):
         parser.parse_args(["--memory-sample-seconds", "0"])
 
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--runtime-artifact-fail-above-gb", "0"])
+
 
 def test_parallel_regression_runner_defaults_to_bounded_memory_watch():
     args = build_parser().parse_args([])
@@ -197,6 +202,11 @@ def test_parallel_regression_runner_defaults_to_bounded_memory_watch():
     assert args.max_physical_percent == 75.0
     assert args.min_available_physical_gb == 24.0
     assert args.memory_sample_seconds == 5
+    assert args.disable_runtime_artifact_preflight is False
+    assert (
+        args.runtime_artifact_fail_above_gb
+        == DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB
+    )
 
 
 def test_parallel_regression_runner_accepts_per_run_basetemp():
@@ -354,6 +364,8 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
             "2",
             "--basetemp-root",
             str(tmp_path / "parallel-regression"),
+            "--runtime-state-dir",
+            str(tmp_path / "runtime_state"),
         ]
     )
 
@@ -417,6 +429,119 @@ def test_parallel_regression_runner_creates_lane_basetemp_dirs(
             ],
         },
     ]
+    assert summary["runtime_artifact_preflight_enabled"] is True
+    assert summary["runtime_artifact_findings"] is None
+
+
+def test_parallel_regression_runner_fails_before_pytest_on_runtime_artifacts(
+    monkeypatch,
+    tmp_path,
+    capsys,
+):
+    artifact_dir = tmp_path / "runtime_state" / "test_admin_api_contract"
+    finding = RuntimeArtifactFinding(
+        path=artifact_dir.resolve(),
+        reason="admin_api_contract_runtime_state",
+        file_count=3,
+        total_bytes=2 * 1024 * 1024 * 1024,
+        largest_file_bytes=64 * 1024 * 1024,
+    )
+
+    def should_not_run(*args, **kwargs):
+        raise AssertionError("pytest lane should not run after artifact preflight")
+
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.is_xdist_available",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.run_regression_command",
+        should_not_run,
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.find_runtime_artifacts",
+        lambda _runtime_state_dir: [finding],
+    )
+
+    exit_code = main(
+        [
+            "--parallel-only",
+            "--runtime-state-dir",
+            str(tmp_path / "runtime_state"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "Runtime artifact preflight failed before pytest" in captured.err
+    summary_line = next(
+        line for line in captured.out.splitlines() if line.startswith(SUMMARY_PREFIX)
+    )
+    summary = json.loads(summary_line.removeprefix(SUMMARY_PREFIX))
+    assert summary["status"] == "runtime_artifact_preflight_failed"
+    assert summary["failed_command"] == "runtime_artifact_preflight"
+    assert summary["runtime_artifact_preflight_enabled"] is True
+    assert summary["runtime_artifact_findings"] == [
+        {
+            "path": str(artifact_dir.resolve()),
+            "reason": "admin_api_contract_runtime_state",
+            "file_count": 3,
+            "total_gb": 2.0,
+            "largest_file_mb": 64.0,
+        }
+    ]
+
+
+def test_parallel_regression_runner_diagnostic_bypass_skips_artifact_preflight(
+    monkeypatch,
+    tmp_path,
+    capsys,
+):
+    artifact_dir = tmp_path / "runtime_state" / "test_admin_api_contract"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "stale.bin").write_bytes(b"x" * 2048)
+    seen_commands = []
+
+    def fake_run_regression_command(command, **_kwargs):
+        seen_commands.append(command.name)
+        return RegressionRunResult(returncode=0)
+
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.is_xdist_available",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.run_regression_command",
+        fake_run_regression_command,
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.find_runtime_artifacts",
+        lambda _runtime_state_dir: (_ for _ in ()).throw(
+            AssertionError("artifact preflight should be disabled")
+        ),
+    )
+
+    exit_code = main(
+        [
+            "--parallel-only",
+            "--runtime-state-dir",
+            str(tmp_path / "runtime_state"),
+            "--runtime-artifact-fail-above-gb",
+            "0.000001",
+            "--disable-runtime-artifact-preflight",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert seen_commands == ["parallel_safe_regression"]
+    summary_line = next(
+        line for line in captured.out.splitlines() if line.startswith(SUMMARY_PREFIX)
+    )
+    summary = json.loads(summary_line.removeprefix(SUMMARY_PREFIX))
+    assert summary["status"] == "passed"
+    assert summary["runtime_artifact_preflight_enabled"] is False
+    assert summary["runtime_artifact_findings"] is None
 
 
 def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
