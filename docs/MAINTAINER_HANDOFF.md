@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6661-6680` under M57.
-- Active autonomous range: `6681-6700` under M57.
+- Latest completed autonomous range: `6681-6700` under M57.
+- Active autonomous range: `6701-6720` under M57.
 - Current enterprise manual Spot order path is dry-submit/review only:
   `POST /api/v1/orders` remains live-disabled, may derive backend-owned
   `client_order_id`, and exits before Spot wallet, no-short sell authority,
@@ -134,16 +134,16 @@ notional, retained inventory, reconciliation result, and audit ids.
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
 - Active range adds disabled futures request payload validation record
-  semantic artifact definition review evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_reviews.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+  semantic artifact definition review input evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_inputs.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
   and
-  `iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`,
-  including `request_payload_validation_record_semantic_artifact_definition_review_count`,
-  `blocking_request_payload_validation_record_semantic_artifact_definition_review_count`,
-  `ready_request_payload_validation_record_semantic_artifact_definition_review_count`,
-  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count`,
-  `request_payload_validation_record_semantic_artifact_definition_reviews`,
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+  including `request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  `request_payload_validation_record_semantic_artifact_definition_review_inputs`,
   `semantic_artifact_definition_review_ref`,
   `semantic_artifact_definition_review_contract_ref`,
   `semantic_artifact_definition_review_input_ref`,

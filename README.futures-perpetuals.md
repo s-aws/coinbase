@@ -122,25 +122,37 @@ and notional evidence fields.
   `semantic_artifact_runtime_evidence_bound=false`,
   `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
   `runtime_evidence_satisfies_semantic_artifact_definition=false`, and
-  `execution_eligibility_blocker_resolved=false`. Active M57 `6681-6700`
+  `execution_eligibility_blocker_resolved=false`. Active M57 `6701-6720`
   evidence adds disabled futures request payload validation record semantic
-  artifact definition review evidence while completed M57 `6661-6680` carries
-  forward disabled futures request payload validation record semantic artifact
-  definition evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`,
+  artifact definition review input evidence while completed M57 `6681-6700`
+  carries forward disabled futures request payload validation record semantic
+  artifact definition review evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_inputs.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+  `request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+  and `request_payload_validation_record_semantic_artifact_definition_review_inputs`.
+  Rows expose `semantic_artifact_definition_review_input_contract_ref`,
+  `semantic_artifact_definition_review_input_available=false`, and
+  `semantic_artifact_definition_review_input_accepted=false`. Completed M57
+  `6661-6680` still carries forward disabled futures request payload validation
+  record semantic artifact definition evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
   `iter_futures_request_payload_validation_record_semantic_artifact_definitions`,
   `request_payload_validation_record_semantic_artifact_definition_count`,
   `blocking_request_payload_validation_record_semantic_artifact_definition_count`,
   `ready_request_payload_validation_record_semantic_artifact_definition_count`,
   `runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
-  and `request_payload_validation_record_semantic_artifact_definitions`. This
-  evidence does not define futures semantics, pass contextless reviews, validate
-  payloads, resolve blockers, admit commands, call Coinbase, execute
-  reconciliation, mutate futures/order/exchange state, or grant browser/BFF or
-  spot-rule authority.
-  Exact autonomous phrase: Active M57 `6681-6700` evidence adds disabled futures request payload validation record semantic artifact definition review evidence while completed M57 `6661-6680` carries forward disabled futures request payload validation record semantic artifact definition evidence.
-  Literal machine-check phrase: futures request payload validation record semantic artifact definition review evidence.
+  and `request_payload_validation_record_semantic_artifact_definitions`.
+  This evidence does not accept review inputs, define futures semantics, pass
+  contextless reviews, validate payloads, resolve blockers, admit commands, call
+  Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+  grant browser/BFF or spot-rule authority.
+  Exact autonomous phrase: Active M57 `6701-6720` evidence adds disabled futures request payload validation record semantic artifact definition review input evidence while completed M57 `6681-6700` carries forward disabled futures request payload validation record semantic artifact definition review evidence.
+  Literal machine-check phrase: futures request payload validation record semantic artifact definition review input evidence.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,

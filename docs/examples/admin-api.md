@@ -13,10 +13,10 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6681-6700"`. Futures/perpetual command-suite reads
-expose backend-owned disabled semantic artifact definition review evidence
-while carrying forward earlier semantic artifact definition, semantic artifact,
-execution-eligibility blocker,
+`"approved_phase_range": "6701-6720"`. Futures/perpetual command-suite reads
+expose backend-owned disabled semantic artifact definition review input
+evidence while carrying forward earlier semantic artifact definition review,
+semantic artifact definition, semantic artifact, execution-eligibility blocker,
 execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
