@@ -4316,6 +4316,51 @@ class AdminFuturesCommandRequestPayloadValidatorOutputSchemaItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidatorRegistrationItem(BaseModel):
+    """One disabled registration row for a futures request payload validator."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    request_payload_contract_ref: str
+    validation_gate_ref: str
+    validation_evidence_ref: str
+    validator_contract_ref: str
+    validator_input_schema_ref: str
+    validator_output_schema_ref: str
+    validator_registration_ref: str
+    required_backend_contract: str
+    missing_backend_contract: str
+    validator_registration_field_refs: list[str] = Field(default_factory=list)
+    validator_registration_field_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_validator_registration: bool = False
+    validator_contract_registered: bool = False
+    input_schema_registered: bool = False
+    output_schema_registered: bool = False
+    validator_registration_ready: bool = False
+    validator_registered: bool = False
+    request_payload_validated: bool = False
+    command_route_registered: bool = True
+    command_draft_allowed: bool = True
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandSemanticGuardItem(BaseModel):
     """One backend-owned futures/perpetual command semantic guard row."""
 
@@ -8676,6 +8721,23 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validator_output_schemas: list[
         AdminFuturesCommandRequestPayloadValidatorOutputSchemaItem
     ] = Field(default_factory=list)
+    request_payload_validator_registration_count: int = Field(default=0, ge=0)
+    blocking_request_payload_validator_registration_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validator_registration_count: int = Field(default=0, ge=0)
+    registered_request_payload_validator_registration_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validator_registration_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validator_registrations: list[
+        AdminFuturesCommandRequestPayloadValidatorRegistrationItem
+    ] = Field(default_factory=list)
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
@@ -9217,6 +9279,20 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     )
     ready_request_payload_validator_output_schema_count: int = Field(default=0, ge=0)
     registered_request_payload_validator_output_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validator_registration_count: int = Field(default=0, ge=0)
+    blocking_request_payload_validator_registration_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validator_registration_count: int = Field(default=0, ge=0)
+    registered_request_payload_validator_registration_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validator_registration_count: int = Field(
         default=0,
         ge=0,
     )

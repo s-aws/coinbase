@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6421-6440",
+  "approved_phase_range": "6461-6480",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6421-6440",
+  "approved_phase_range": "6461-6480",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1887,7 +1887,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6421-6440",
+  "approved_phase_range": "6461-6480",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -1907,6 +1907,23 @@ Expected command-suite posture:
   "request_field_count": 22,
   "required_request_field_count": 22,
   "blocking_request_field_count": 22,
+  "request_payload_validator_contract_count": 22,
+  "blocking_request_payload_validator_contract_count": 22,
+  "ready_request_payload_validator_contract_count": 0,
+  "registered_request_payload_validator_contract_count": 0,
+  "request_payload_validator_input_schema_count": 22,
+  "blocking_request_payload_validator_input_schema_count": 22,
+  "ready_request_payload_validator_input_schema_count": 0,
+  "registered_request_payload_validator_input_schema_count": 0,
+  "request_payload_validator_output_schema_count": 22,
+  "blocking_request_payload_validator_output_schema_count": 22,
+  "ready_request_payload_validator_output_schema_count": 0,
+  "registered_request_payload_validator_output_schema_count": 0,
+  "request_payload_validator_registration_count": 22,
+  "blocking_request_payload_validator_registration_count": 22,
+  "ready_request_payload_validator_registration_count": 0,
+  "registered_request_payload_validator_registration_count": 0,
+  "runtime_observed_request_payload_validator_registration_count": 0,
   "request_fields": [
     {
       "field": "client_order_id",
@@ -2421,10 +2438,31 @@ and `iter_futures_request_payload_validator_input_schemas`, with
 `"request_payload_validator_input_schemas"`, `"input_schema_field_refs"`,
 `"input_schema_field_count": 5`, and `"input_schema_registered": false`.
 Machine-check evidence: futures request payload validator input-schema evidence.
+Completed 6441-6460 work reports futures request payload validator
+output-schema evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validator_output_schemas`, with
+`"request_payload_validator_output_schema_count": 22`,
+`"blocking_request_payload_validator_output_schema_count": 22`,
+`"request_payload_validator_output_schemas"`, `"output_schema_field_refs"`,
+`"output_schema_field_count": 5`, and `"output_schema_registered": false`.
+Machine-check evidence: futures request payload validator output-schema evidence.
+The active 6461-6480 range reports futures request payload validator
+registration evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS` and
+`iter_futures_request_payload_validator_registrations`, with
+`"request_payload_validator_registration_count": 22`,
+`"blocking_request_payload_validator_registration_count": 22`,
+`"request_payload_validator_registrations"`,
+`"validator_registration_field_refs"`,
+`"validator_registration_field_count": 6`,
+`"validator_registration_ready": false`, and
+`"runtime_evidence_satisfies_validator_registration": false`.
+Machine-check evidence: futures request payload validator registration evidence.
 The registry and disabled gate evidence do not validate command request
-payloads, register payload validators, bind live adapters, call Coinbase,
-execute reconciliation, mutate futures/order/exchange state, or grant
-browser/BFF authority.
+payloads, satisfy validator registrations, register payload validators, bind
+live adapters, call Coinbase, execute reconciliation, mutate futures/order/
+exchange state, or grant browser/BFF authority.
 Machine-check evidence: futures request payload contract registry evidence.
 Machine-check evidence: futures request payload validation gate evidence.
 Machine-check evidence: futures request payload validator contract registry evidence.
@@ -3866,22 +3904,29 @@ evidence artifacts. `server_env_static` BFF authority is local/staging evidence
 only; production readiness is conditional on frontend `backend_oidc_jwt` BFF
 mode and backend `oidc_jwt` verifier configuration.
 
-## Current Futures Output-Schema Evidence
+## Current Futures Registration Evidence
 
-Example active `6441-6460` range responses include futures request payload
-validator output-schema evidence. This futures request payload validator
-output-schema evidence includes
-One-line evidence phrase: futures request payload validator output-schema evidence.
-`"approved_phase_range": "6441-6460"`,
-`"request_payload_validator_output_schema_count": 22`,
-`"blocking_request_payload_validator_output_schema_count": 22`,
-`"ready_request_payload_validator_output_schema_count": 0`,
-`"registered_request_payload_validator_output_schema_count": 0`,
-`"request_payload_validator_output_schemas"`,
-`"output_schema_field_refs"`, `"output_schema_field_count"`,
-`"output_schema_registered": false`, `"validator_input_schema_ref"`,
-`"validator_output_schema_ref"`, and `"request_payload_validated": false`.
+Example active `6461-6480` range responses include futures request payload
+validator registration evidence. This futures request payload validator
+registration evidence includes
+One-line evidence phrase: futures request payload validator registration evidence.
+`"approved_phase_range": "6461-6480"`,
+`"request_payload_validator_registration_count": 22`,
+`"blocking_request_payload_validator_registration_count": 22`,
+`"ready_request_payload_validator_registration_count": 0`,
+`"registered_request_payload_validator_registration_count": 0`,
+`"runtime_observed_request_payload_validator_registration_count": 0`,
+`"request_payload_validator_registrations"`,
+`"validator_registration_field_refs"`,
+`"validator_registration_field_count"`,
+`"validator_registration_ready": false`,
+`"runtime_evidence_satisfies_validator_registration": false`,
+`"validator_input_schema_ref"`, `"validator_output_schema_ref"`,
+`"validator_registration_ref"`, and `"request_payload_validated": false`.
 The rows come from
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS` and
+`iter_futures_request_payload_validator_registrations`; they are no-live
+display evidence and do not validate command request payloads or register
+payload validators. Completed output-schema evidence remains available through
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS` and
-`iter_futures_request_payload_validator_output_schemas`; they are no-live
-display evidence and do not validate command request payloads.
+`iter_futures_request_payload_validator_output_schemas`.

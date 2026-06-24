@@ -628,7 +628,29 @@ disabled futures request payload validator input-schema evidence through
 backend-owned display evidence while preserving no validation, no validator
 registration, no Coinbase calls, no reconciliation execution, no
 futures/order/exchange state mutation, and no browser/BFF or spot-rule
-authority.
+authority. Completed M57 phases 6441-6460 add disabled futures request
+payload validator output-schema evidence through
+`application/admin_api/futures_request_payload_validator_output_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_output_schemas`; command-suite
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`request_payload_validator_output_schemas`, `output_schema_field_refs`,
+`output_schema_field_count`, and `output_schema_registered=false` remain
+backend-owned display evidence. Current M57 phases 6461-6480 add disabled
+futures request payload validator registration evidence through
+`application/admin_api/futures_request_payload_validator_registrations.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
+`iter_futures_request_payload_validator_registrations`; command-suite
+`request_payload_validator_registration_count`,
+`blocking_request_payload_validator_registration_count`,
+`request_payload_validator_registrations`,
+`validator_registration_field_refs`, `validator_registration_field_count`,
+`validator_registration_ready=false`, and
+`runtime_evidence_satisfies_validator_registration=false` remain backend-owned
+display evidence while preserving no validator registration, no payload
+validation, no Coinbase calls, no reconciliation execution, no futures/order/
+exchange state mutation, and no browser/BFF or spot-rule authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
@@ -1720,20 +1742,24 @@ and rotation policy without disclosing a token value.
 - [Order ID Handling](genai_data/ORDER_ID_HANDLING.md)
 - [Documentation Index](docs/README.md)
 
-## Current M57 Output Schema Evidence
+## Current M57 Registration Evidence
 
-Current phases `6441-6460` add disabled futures request payload validator
-output-schema evidence through
-`application/admin_api/futures_request_payload_validator_output_schemas.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
-`iter_futures_request_payload_validator_output_schemas`. The command suite
-continues to expose input-schema evidence and now also exposes
-`request_payload_validator_output_schema_count`,
-`blocking_request_payload_validator_output_schema_count`,
-`ready_request_payload_validator_output_schema_count`,
-`registered_request_payload_validator_output_schema_count`,
-`request_payload_validator_output_schemas`, `output_schema_field_refs`,
-`output_schema_field_count`, and `output_schema_registered=false`. These rows
-are backend-owned display evidence only; they do not validate command request
+Current phases `6461-6480` add disabled futures request payload validator
+registration evidence through
+`application/admin_api/futures_request_payload_validator_registrations.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
+`iter_futures_request_payload_validator_registrations`. The command suite
+continues to expose input-schema and output-schema evidence and now also
+exposes `request_payload_validator_registration_count`,
+`blocking_request_payload_validator_registration_count`,
+`ready_request_payload_validator_registration_count`,
+`registered_request_payload_validator_registration_count`,
+`runtime_observed_request_payload_validator_registration_count`,
+`request_payload_validator_registrations`,
+`validator_registration_field_refs`, `validator_registration_field_count`,
+`required_evidence_refs`, `missing_evidence_refs`,
+`validator_registration_ready=false`, and
+`runtime_evidence_satisfies_validator_registration=false`. These rows are
+backend-owned display evidence only; they do not validate command request
 payloads, register payload validators, call Coinbase, execute reconciliation,
 mutate futures/order/exchange state, or grant browser/BFF authority.
