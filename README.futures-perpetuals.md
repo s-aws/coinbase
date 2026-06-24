@@ -342,6 +342,19 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   records, create proof writers, make route-bound command drafts executable,
   call Coinbase, execute reconciliation, mutate futures/order/exchange state,
   or grant browser/BFF authority.
+- Do not treat futures request payload contract registry evidence as payload
+  validation or command authority. Current M57 phases 6361-6380 define
+  `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+  `iter_futures_request_payload_contracts` as disabled backend-owned registry
+  evidence for the exact command request fields emitted by
+  `GET /api/v1/futures/command-suite`. Command-suite `request_field_count`,
+  `blocking_request_field_count`, and request-field
+  `required_backend_contracts` derive from that registry. route/draft true
+  and execution false flags remain in force. These rows must not validate
+  command request payloads, register payload validators, bind live adapters,
+  submit or cancel Coinbase orders, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+  Machine-check evidence: validate command request payloads remains forbidden.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define
   `evaluate_futures_margin_collateral_liquidation` as disabled backend
@@ -360,9 +373,10 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 - Do not treat disabled route-registration contract metadata by itself as
   execution authority. M57 phases 6041-6060 define
   `api/v1/routes/futures.py::*_route_contract` refs as required/present
-  disabled backend evidence only. Current phases 6341-6360 register
-  route-bound no-live drafts for the four command families, but executable
-  command count stays zero.
+  disabled backend evidence only. Completed phases 6341-6360 register
+  route-bound no-live drafts for the four command families, and current phases
+  6361-6380 keep route/draft flags true while executable command count stays
+  zero.
 - Do not treat disabled live-adapter contract metadata as adapter construction
   or invocation. M57 phases 6061-6080 define
   `application/admin_api/live_execution.py::*_adapter_contract` refs as

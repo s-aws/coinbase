@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6341-6360",
+  "approved_phase_range": "6361-6380",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6341-6360",
+  "approved_phase_range": "6361-6380",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1887,7 +1887,7 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6341-6360",
+  "approved_phase_range": "6361-6380",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2355,7 +2355,7 @@ create proof writers, accept proof records, satisfy risk proofs, call
 Coinbase, execute reconciliation, mutate futures state, or grant browser/BFF
 authority.
 
-Active 6321-6340 work reports futures proof payload-field contract registry
+Completed 6321-6340 work reports futures proof payload-field contract registry
 evidence in `risk_proof_requirements[*].payload_fields`, including
 `"proof_payload.command"`, `"proof_payload.validation.status"`,
 `"futures_place_margin_collateral_payload_command_validated"`,
@@ -2364,6 +2364,27 @@ These rows do not validate submitted proof payloads, register validators,
 accept proof records, create proof writers, make route-bound command drafts
 executable, call Coinbase, execute reconciliation, mutate futures state, or
 grant browser/BFF authority.
+
+Completed 6341-6360 work reports futures route-bound command draft evidence
+for `POST /api/v1/futures/orders`,
+`POST /api/v1/futures/positions/{position_key}/close-reduce`,
+`POST /api/v1/futures/orders/{client_order_id}/cancel`, and
+`POST /api/v1/futures/positions/{position_key}/reconciliation`.
+Machine-check evidence: route/draft flags remain true while execution remains
+false; cancel uses
+`client_order_id`.
+
+Active 6361-6380 work reports futures request payload contract registry
+evidence through `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_request_payload_contracts`. The command-suite response exposes
+`"request_field_count"`, `"blocking_request_field_count"`, and request-field
+`required_backend_contracts`, including
+`"application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract"`.
+The registry does not validate command request payloads, register payload
+validators, bind live adapters, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF authority.
+Machine-check evidence: futures request payload contract registry evidence.
+Machine-check evidence: route/draft flags remain true while execution remains false.
 
 ```http
 GET /api/v1/futures/account

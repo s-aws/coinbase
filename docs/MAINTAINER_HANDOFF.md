@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6321-6340` under M57.
-- Active autonomous range: `6341-6360` under M57.
+- Latest completed autonomous range: `6341-6360` under M57.
+- Active autonomous range: `6361-6380` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -841,12 +841,23 @@ notional, retained inventory, reconciliation result, and audit ids.
   `proof_payload.command`, `proof_payload.validation.status`,
   `futures_place_margin_collateral_payload_command_validated`,
   `payload_field_present=false`, and `validation_registered=false`.
-  Active 6341-6360 work adds route-bound no-live futures/perpetual command
+  Completed 6341-6360 work adds route-bound no-live futures/perpetual command
   draft evidence for placement, close/reduce, cancel by `client_order_id`, and
   reconciliation. Route/draft flags are true while execution remains false.
   Coinbase order submission, exchange acknowledgement, proof acceptance,
   post-exchange reconciliation execution, futures state mutation, browser
   authority, BFF authority, and spot-rule authority remain blocked.
+  Active 6361-6380 work adds disabled futures request payload contract
+  registry evidence through
+  `application/admin_api/futures_request_payload_contracts.py`,
+  `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, and
+  `iter_futures_request_payload_contracts`. Command-suite
+  `request_field_count`, `blocking_request_field_count`, and request-field
+  `required_backend_contracts` derive from that backend-owned registry while
+  route/draft flags are true and execution remains false. The registry must
+  not validate command request payloads, register payload validators, call
+  Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+  grant browser/BFF or spot-rule authority.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

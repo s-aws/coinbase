@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6341-6360**.
+- Approved phase range: **6361-6380**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6321-6340`.
+- Previous completed range: `6341-6360`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6340`.
+- `current_phase`: `6360`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,131 +81,153 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6341-6360
+## Active Phases 6361-6380
 
-Batch label: Futures/Perpetuals Route-Bound Command Drafts.
+Batch label: Futures/Perpetuals Request Payload Contract Registry Evidence.
 
-These phases continue M57 after completed `6321-6340` added disabled proof
-payload-field registry evidence. The next concrete gap is that the
-futures/perpetual command suite had backend-owned service, risk, proof, and
-payload metadata but no Admin API command draft routes. Active `6341-6360`
-may register route-bound no-live command drafts for placement, close/reduce,
-cancel by `client_order_id`, and reconciliation through the shared
-`AdminApiCommandService`. It may update route inventory, live-enablement
-metadata, enterprise mutation taxonomy, OpenAPI, frontend fixtures, docs,
-focused tests, and blind/contextless review evidence. It must not bind live
-adapters, submit or cancel Coinbase orders, acknowledge exchange orders,
-execute reconciliation, mutate futures/order/exchange state, accept risk
-proofs as command readiness, or grant browser/BFF execution authority. Spot
-wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot
-assumptions remain forbidden as futures/perpetual authority.
+These phases continue M57 after completed `6341-6360` added route-bound
+no-live futures/perpetual command drafts for placement, close/reduce, cancel
+by `client_order_id`, and reconciliation. The next concrete gap is that the
+command-suite `request_fields` rows are still inline metadata. Active
+`6361-6380` may add a backend-owned disabled request payload contract registry
+for the exact futures command request fields and bind command-suite
+`request_field_count`, `blocking_request_field_count`, and
+`required_backend_contracts` to that registry. Route/draft flags remain true
+while execution remains false. It must not validate command request payloads,
+register payload validators, bind live adapters, submit or cancel Coinbase
+orders, acknowledge exchange orders, execute reconciliation, mutate
+futures/order/exchange state, accept risk proofs as command readiness, or
+grant browser/BFF execution authority. Spot wallet, no-shorting, USDC,
+cost-basis, average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority.
 
-### Phase 6341 - Prior Range Closure
+### Phase 6361 - Prior Range Closure
 
-- Record completed phases `6321-6340` as historical payload-field registry
-  evidence and move active metadata to `6341-6360`.
+- Record completed phases `6341-6360` as historical route-bound command draft
+  evidence and move active metadata to `6361-6380`.
 
-### Phase 6342 - Futures Draft Request Models
+### Phase 6362 - Request Payload Contract Registry
 
-- Add strict enum-backed request/command models for futures place,
-  close/reduce, cancel by `client_order_id`, and reconciliation draft routes.
+- Add enum-backed disabled backend-owned request payload field contracts in
+  `application/admin_api/futures_request_payload_contracts.py` through
+  `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+  `iter_futures_request_payload_contracts`.
 
-### Phase 6343 - Disabled Command-Service Draft Responses
+### Phase 6363 - Placement Field Binding
 
-- Add shared command-service methods that return authoritative
-  `not_implemented` responses with no Coinbase, adapter, reconciliation,
-  state mutation, browser, BFF, or spot-rule authority.
+- Bind futures placement `product_id`, side, order type, size, limit price,
+  time-in-force, and `client_order_id` request fields to registry contract
+  refs while preserving blocked/no-live posture.
 
-### Phase 6344 - Route-Bound Draft Registration
+### Phase 6364 - Close/Reduce Field Binding
 
-- Register POST Admin API routes for `/api/v1/futures/orders`,
-  `/api/v1/futures/positions/{position_key}/close-reduce`,
-  `/api/v1/futures/orders/{client_order_id}/cancel`, and
-  `/api/v1/futures/positions/{position_key}/reconciliation`.
+- Bind close/reduce `position_key`, product, side, size, reduce-only,
+  close-only, and `client_order_id` fields to registry contract refs without
+  importing spot wallet or average-cost rules.
 
-### Phase 6345 - Command-Suite Route State
+### Phase 6365 - Cancel Field Binding
 
-- Update route contracts, readiness decisions, closure steps, blocker
-  summaries, and command-suite counts so route/draft flags are true while
-  execution remains false.
+- Bind futures cancel `client_order_id`, optional product context, and operator
+  notes to registry contract refs. Cancellation remains by `client_order_id`
+  through the project wrapper contract, with exchange `order_id` as exchange
+  evidence only.
 
-### Phase 6346 - Route Inventory And OpenAPI
+### Phase 6366 - Reconciliation Field Binding
 
-- Sync route inventory and generated OpenAPI/route-inventory artifacts with
-  the new futures draft routes.
+- Bind reconciliation `position_key`, product, expected position state,
+  reconciliation reason, and operator notes to registry contract refs while
+  keeping reconciliation execution disabled.
 
-### Phase 6347 - Live-Enablement Metadata Sync
+### Phase 6367 - Command-Suite Request Counts
 
-- Update live-enablement route identity and counts so futures place uses
-  `product_id`, close/reduce uses `position_key`, and cancel uses
-  `client_order_id` while all live eligibility remains false.
+- Prove command-suite request field totals, required counts, blocking counts,
+  and per-command required backend contract refs derive from the registry.
 
-### Phase 6348 - Enterprise Taxonomy Sync
+### Phase 6368 - No-Authority Guard Assertions
 
-- Update enterprise mutation taxonomy so route inventory and taxonomy command
-  surfaces match for the new futures draft routes and risk-proof evidence.
+- Prove registry rows remain blocked, backend-owned, display-only,
+  BFF-forward-only, validation-unregistered, no-live, no-state-mutation, and
+  no spot-rule authority.
 
-### Phase 6349 - Backend Focused Tests
+### Phase 6369 - Backend Focused Tests
 
-- Add focused route-contract, command-route smoke, inventory/OpenAPI,
-  command-suite, live-enablement, and enterprise taxonomy tests.
+- Add focused backend coverage for the request payload registry, command-suite
+  emitted request fields, required backend contracts, and no-authority guards.
 
-### Phase 6350 - Frontend Contract Sync
-
-- Regenerate or update frontend backend contracts, route fixtures, mocks, and
-  generated API metadata for the route-bound futures drafts.
-
-### Phase 6351 - Frontend Display-Only State
-
-- Ensure frontend futures/admin surfaces render the draft routes as
-  display-only/no-live and do not expose execution controls.
-
-### Phase 6352 - Frontend Focused Tests
-
-- Run focused frontend typecheck, API freshness, mock/contract tests,
-  autonomous queue, and deployment checks that cover the changed futures route
-  metadata.
-
-### Phase 6353 - Backend Docs And Examples
+### Phase 6370 - Backend Docs And Examples
 
 - Update Admin API, futures/perpetual feature docs, examples, maintainer
-  handoff, route inventory notes, and agent state for route-bound drafts.
+  handoff, capability matrix references, and agent state for request payload
+  contract registry evidence.
 
-### Phase 6354 - Autonomous Validators
+### Phase 6371 - Autonomous Validators
 
 - Update autonomous queue validators and context artifacts to require
-  `6341-6360` route-bound command draft evidence.
+  `6361-6380` request payload contract registry evidence and to treat
+  `6341-6360` as completed history.
 
-### Phase 6355 - Backend Focused Gates
+### Phase 6372 - Frontend Contract Fixture Sync
 
-- Run backend py_compile, focused futures route tests, focused admin-contract
-  tests, route inventory/OpenAPI generators, autonomous queue check, and
-  ownership/stale-process checks.
+- Sync frontend mocks, backend contracts, fixture metadata, and generated API
+  expectations so request fields and `requiredBackendContracts` reflect the
+  backend registry without creating frontend trading authority.
 
-### Phase 6356 - Frontend Focused Gates
+### Phase 6373 - Frontend Display Boundary Copy
 
-- Run frontend focused gates after contract sync and document any no-live
-  evidence.
+- Ensure frontend futures/admin surfaces describe request fields as
+  display-only backend contract evidence and do not expose execution,
+  validation, Coinbase, reconciliation, or spot-rule authority.
 
-### Phase 6357 - Backend Contextless Review
+### Phase 6374 - Frontend Focused Tests
 
-- Run fresh blind/contextless backend review for route-bound drafts, no-live
-  posture, `client_order_id` cancel discipline, and no spot-rule leakage.
+- Run focused frontend typecheck, mock/contract tests, autonomous queue, API,
+  and deployment checks that cover the updated futures request payload
+  contract metadata.
 
-### Phase 6358 - Frontend Contextless Review
+### Phase 6375 - Deployment/Release Validator Sync
 
-- Run fresh blind/contextless frontend review for display-only futures route
-  metadata and no browser/BFF execution authority.
+- Update deployment, release, artifact, and runtime-evidence validators so the
+  current approved range and no-live posture match backend and frontend state.
 
-### Phase 6359 - Subagent Sweep And No-Live Evidence
+### Phase 6376 - Backend Association Check
+
+- Verify backend-owned contracts, route identities, command-suite fixtures, and
+  frontend association docs agree on request payload registry evidence.
+
+### Phase 6377 - Backend Contextless Review
+
+- Run fresh blind/contextless backend review for request payload registry
+  discoverability, no-live posture, `client_order_id` cancel discipline, and
+  no spot-rule leakage.
+
+### Phase 6378 - Frontend Contextless Review
+
+- Run fresh blind/contextless frontend review for display-only request payload
+  metadata, `requiredBackendContracts`, and no browser/BFF execution authority.
+
+### Phase 6379 - Subagent Sweep And No-Live Evidence
 
 - Close phase-scoped, stale, or previously unused subagents after findings are
   consumed, remediated, or explicitly deferred. Record submitted notional `0`
   USDC, executed notional `0` USDC, and no Coinbase calls.
 
-### Phase 6360 - Commit And Push
+### Phase 6380 - Commit And Push
 
 - Commit and push backend and frontend work separately with no-live evidence.
+
+## Historical Plan - Phases 6341-6360
+
+Batch label: Futures/Perpetuals Route-Bound Command Drafts.
+
+These phases completed route-bound no-live Admin API command drafts for
+placement, close/reduce, cancel by `client_order_id`, and reconciliation
+through the shared `AdminApiCommandService`. They synced route inventory,
+live-enablement metadata, enterprise mutation taxonomy, OpenAPI, frontend
+fixtures, docs, focused tests, and blind/contextless review evidence. They did
+not bind live adapters, submit or cancel Coinbase orders, acknowledge exchange
+orders, execute reconciliation, mutate futures/order/exchange state, accept
+risk proofs as command readiness, or grant browser/BFF execution authority.
+Route/draft flags are true while execution remains false.
 
 ## Historical Plan - Phases 6321-6340
 

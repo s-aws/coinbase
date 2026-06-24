@@ -33,6 +33,10 @@ from application.admin_api.futures_proof_payload_fields import (
 )
 from application.admin_api.futures_proof_routes import FUTURES_PROOF_ROUTE_CONTRACTS
 from application.admin_api.futures_proof_writer import FUTURES_PROOF_WRITER_CONTRACTS
+from application.admin_api.futures_request_payload_contracts import (
+    FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS,
+    iter_futures_request_payload_contracts,
+)
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -98,6 +102,7 @@ from core.enums import (
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofKind,
+    AdminFuturesEvidenceSource,
     AdminFuturesRiskProofEvidenceSource,
     OrderSide,
     OrderType,
@@ -311,6 +316,64 @@ def test_futures_risk_proof_payload_field_contracts_are_disabled() -> None:
                 assert emitted.spot_rule_authority is False
                 assert emitted.browser_authority == "display_only"
                 assert emitted.bff_authority == "forward_only_no_execution"
+
+
+def test_futures_request_payload_field_contracts_are_disabled() -> None:
+    command_suite = AdminApiReadService().build_futures_command_suite()
+
+    assert len(FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS) == 22
+    assert all(
+        contract.required is True
+        and contract.status == AdminApiGateStatus.BLOCKED
+        and contract.source == AdminFuturesEvidenceSource.BACKEND_CONTRACT
+        and contract.backend_owned is True
+        and contract.spot_rule_authority is False
+        and contract.command_route_registered is True
+        and contract.command_draft_allowed is True
+        and contract.execution_allowed is False
+        and contract.validation_registered is False
+        and contract.live_coinbase_orders_ran is False
+        and contract.browser_authority == "display_only"
+        and contract.bff_authority == "forward_only_no_execution"
+        for contract in FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
+    )
+
+    emitted_count = 0
+    for command in command_suite.commands:
+        registry_rows = list(iter_futures_request_payload_contracts(command.command))
+        emitted_count += len(command.request_fields)
+        assert command.request_field_count == len(registry_rows)
+        assert command.required_request_field_count == len(registry_rows)
+        assert command.blocking_request_field_count == len(registry_rows)
+        assert all(
+            contract.contract_ref in command.required_backend_contracts
+            for contract in registry_rows
+        )
+        for emitted, contract in zip(
+            command.request_fields,
+            registry_rows,
+            strict=True,
+        ):
+            assert emitted.field == contract.field
+            assert emitted.status == contract.status
+            assert emitted.source == contract.source
+            assert emitted.required == contract.required
+            assert emitted.identity_field == contract.identity_field
+            assert emitted.risk_field == contract.risk_field
+            assert emitted.payload_field == contract.payload_field
+            assert emitted.backend_owned == contract.backend_owned
+            assert emitted.spot_rule_authority == contract.spot_rule_authority
+            assert emitted.browser_authority == contract.browser_authority
+            assert emitted.bff_authority == contract.bff_authority
+            assert emitted.detail == contract.detail
+
+    assert emitted_count == len(FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS)
+    assert command_suite.request_field_count == len(
+        FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
+    )
+    assert command_suite.blocking_request_field_count == len(
+        FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
+    )
 
 
 def test_futures_risk_guard_contract_is_disabled() -> None:

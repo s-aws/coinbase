@@ -11,9 +11,9 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6341-6360 range targets explicit M57 futures/perpetual route-bound
-command draft evidence for `GET /api/v1/futures/command-suite` and the
-disabled command draft routes. Completed 6221-6240 work added aggregate
+The active 6361-6380 range targets explicit M57 futures/perpetual request
+payload contract registry evidence for `GET /api/v1/futures/command-suite`
+and the disabled command draft routes. Completed 6221-6240 work added aggregate
 blocked summaries for unresolved prerequisites, request payload contracts,
 semantic guard evidence, risk proof acceptance, live service adapters, and
 contextless review. Completed 6241-6260 work added
@@ -44,13 +44,23 @@ Machine-check evidence: proof payload-field contract registry evidence;
 `"proof_payload.command"`; `"proof_payload.validation.status"`;
 `"futures_place_margin_collateral_payload_command_validated"`;
 `"payload_field_present": false`; `"validation_registered": false`.
-Active 6341-6360 work reports route-bound command draft evidence for
+Completed 6341-6360 work reports route-bound command draft evidence for
 `/api/v1/futures/orders`,
 `/api/v1/futures/positions/{position_key}/close-reduce`,
 `/api/v1/futures/orders/{client_order_id}/cancel`, and
 `/api/v1/futures/positions/{position_key}/reconciliation`. Machine-check
 evidence: futures route-bound command draft evidence; route/draft flags are
 true while execution remains false; cancel by client_order_id.
+Active 6361-6380 work reports futures request payload contract registry
+evidence through `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_request_payload_contracts`. Machine-check evidence:
+futures request payload contract registry evidence; `"request_field_count": 22`;
+`"blocking_request_field_count": 22`;
+`"application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract"`.
+Route/draft flags are true while execution remains false; the registry does
+not validate command request payloads, register payload validators, call
+Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+grant browser/BFF authority.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
@@ -163,7 +173,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6341-6360",
+  "approved_phase_range": "6361-6380",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,

@@ -62,9 +62,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6341-6360"
-APPROVED_PHASES = tuple(range(6341, 6361))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6321-6340"
+APPROVED_PHASE_RANGE = "6361-6380"
+APPROVED_PHASES = tuple(range(6361, 6381))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6341-6360"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -231,6 +231,12 @@ def _check_example_phase_range_docs() -> QueueCheck:
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
             "GET /api/v1/futures/command-suite",
             "Futures/perpetual command-suite reads expose backend-owned",
+            "`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`",
+            "`iter_futures_request_payload_contracts`",
+            '"request_field_count"',
+            '"blocking_request_field_count"',
+            "futures request payload contract registry evidence",
+            "route/draft flags remain true while execution remains false",
             '"risk_proof_requirements"',
             '"proof_contracts"',
             '"payload_fields"',
@@ -278,6 +284,12 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"validation_registered": false',
         ],
         FUTURES_PERPETUALS_README: [
+            "`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`",
+            "`iter_futures_request_payload_contracts`",
+            "futures request payload contract registry evidence",
+            "route/draft true and execution false flags",
+            "validate command request payloads",
+            "register payload validators",
             "`FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS`",
             "`iter_futures_proof_payload_field_contracts`",
             "`proof_payload.command`",
@@ -301,6 +313,12 @@ def _check_example_phase_range_docs() -> QueueCheck:
         ],
         API_REFERENCE_DOC: [
             "`GET /api/v1/futures/command-suite`",
+            "`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`",
+            "`iter_futures_request_payload_contracts`",
+            "futures request payload contract registry evidence",
+            "route/draft flags true while execution remains",
+            "validate command request payloads",
+            "register payload validators",
             "`FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS`",
             "`iter_futures_proof_payload_field_contracts`",
             "`proof_payload.command`",
@@ -324,6 +342,14 @@ def _check_example_phase_range_docs() -> QueueCheck:
         FUTURES_PERPETUALS_EXAMPLES_DOC: [
             f'"approved_phase_range": "{APPROVED_PHASE_RANGE}"',
             f"active {APPROVED_PHASE_RANGE} range",
+            "`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`",
+            "`iter_futures_request_payload_contracts`",
+            "futures request payload contract registry evidence",
+            '"request_field_count": 22',
+            '"blocking_request_field_count": 22',
+            "application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract",
+            "route/draft flags are",
+            "true while execution remains false",
             '"proof_payload.command"',
             '"proof_payload.validation.status"',
             '"futures_place_margin_collateral_payload_command_validated"',
@@ -337,8 +363,6 @@ def _check_example_phase_range_docs() -> QueueCheck:
             '"command_enablement_blocker_summary_count": 6',
             '"command_route_count": 4',
             '"command_draft_allowed_count": 4',
-            "route/draft flags are",
-            "true while execution remains false",
             "make route-bound command drafts executable",
             "adapter contract refs are required/present disabled evidence",
             "adapter construction refs are required/present disabled evidence",
@@ -945,13 +969,18 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
-        "futures route-bound command drafts",
+        "futures request payload contract registry evidence",
+        "application/admin_api/futures_request_payload_contracts.py",
+        "FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS",
+        "iter_futures_request_payload_contracts",
+        "request_field_count",
+        "blocking_request_field_count",
+        "route/draft flags are true while execution remains false",
+        "cancel by `client_order_id`",
         "/api/v1/futures/orders",
         "/api/v1/futures/positions/{position_key}/close-reduce",
         "/api/v1/futures/orders/{client_order_id}/cancel",
         "/api/v1/futures/positions/{position_key}/reconciliation",
-        "route/draft flags are true while execution remains false",
-        "cancel by `client_order_id`",
         "live_execution_disabled",
         "futures live adapter contract missing",
         "futures reconciliation execution missing",
@@ -1084,6 +1113,10 @@ def _check_agent_state_docs() -> QueueCheck:
         "Active autonomous range: `6301-6320`",
         "complete active phases `6301-6320`",
         "Active `6301-6320`",
+        "current active range is `6341-6360`",
+        "Active autonomous range: `6341-6360`",
+        "complete active phases `6341-6360`",
+        "Active `6341-6360`",
     ]
     body = AGENT_STATE_DOC.read_text(encoding="utf-8") if AGENT_STATE_DOC.exists() else ""
     missing = [text for text in required if text not in body]
@@ -1112,12 +1145,17 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
-        "futures route-bound command draft evidence",
+        "futures request payload contract registry evidence",
+        "application/admin_api/futures_request_payload_contracts.py",
+        "FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS",
+        "iter_futures_request_payload_contracts",
+        "request_field_count",
+        "blocking_request_field_count",
+        "route/draft flags remain true while execution remains false",
         "/api/v1/futures/orders",
         "/api/v1/futures/positions/{position_key}/close-reduce",
         "/api/v1/futures/orders/{client_order_id}/cancel",
         "/api/v1/futures/positions/{position_key}/reconciliation",
-        "route/draft flags are true while execution remains false",
         "cancel by client_order_id",
         "required_backend_contracts",
         "/api/v1/futures/risk-proofs",
