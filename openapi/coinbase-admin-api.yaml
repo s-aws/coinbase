@@ -13595,6 +13595,32 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem'
           type: array
           title: Request Payload Validation Record Execution Eligibility Blockers
+        request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Semantic Artifact Count
+          default: 0
+        blocking_request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Semantic Artifact Count
+          default: 0
+        ready_request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Semantic Artifact Count
+          default: 0
+        runtime_observed_request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Semantic Artifact
+            Count
+          default: 0
+        request_payload_validation_record_semantic_artifacts:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem'
+          type: array
+          title: Request Payload Validation Record Semantic Artifacts
         semantic_guard_count:
           type: integer
           minimum: 0.0
@@ -17279,6 +17305,154 @@ components:
       title: AdminFuturesCommandRequestPayloadValidationRecordSchemaItem
       description: One disabled validation-record schema row for a futures request
         payload.
+    AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        blocker:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityBlocker'
+        semantic_artifact:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticArtifact'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        validation_record_execution_eligibility_contract_ref:
+          type: string
+          title: Validation Record Execution Eligibility Contract Ref
+        validation_record_execution_eligibility_blocker_ref:
+          type: string
+          title: Validation Record Execution Eligibility Blocker Ref
+        semantic_ref:
+          type: string
+          title: Semantic Ref
+        semantic_artifact_ref:
+          type: string
+          title: Semantic Artifact Ref
+        semantic_artifact_contract_ref:
+          type: string
+          title: Semantic Artifact Contract Ref
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        missing_backend_contract:
+          type: string
+          title: Missing Backend Contract
+        missing_reason:
+          type: string
+          title: Missing Reason
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        forbidden_execution_claims:
+          items:
+            type: string
+          type: array
+          title: Forbidden Execution Claims
+        forbidden_execution_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Forbidden Execution Claim Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        semantic_artifact_defined:
+          type: boolean
+          title: Semantic Artifact Defined
+          default: false
+        semantic_artifact_reviewed:
+          type: boolean
+          title: Semantic Artifact Reviewed
+          default: false
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        runtime_evidence_satisfies_semantic_artifact:
+          type: boolean
+          title: Runtime Evidence Satisfies Semantic Artifact
+          default: false
+        execution_eligibility_blocker_resolved:
+          type: boolean
+          title: Execution Eligibility Blocker Resolved
+          default: false
+        validation_record_execution_eligible:
+          type: boolean
+          title: Validation Record Execution Eligible
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - blocker
+      - semantic_artifact
+      - validation_record_execution_eligibility_contract_ref
+      - validation_record_execution_eligibility_blocker_ref
+      - semantic_ref
+      - semantic_artifact_ref
+      - semantic_artifact_contract_ref
+      - required_backend_contract
+      - missing_backend_contract
+      - missing_reason
+      - detail
+      title: AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem
+      description: One disabled semantic artifact row required by execution blockers.
     AdminFuturesCommandRequestPayloadValidatorContractItem:
       properties:
         field:
@@ -31545,6 +31719,21 @@ components:
       - detail
       title: AdminFuturesCommandRiskProofSemanticValidatorRegistrationItem
       description: One blocked backend registration required before validator readiness.
+    AdminFuturesCommandSemanticArtifact:
+      type: string
+      enum:
+      - position_semantics
+      - margin_semantics
+      - collateral_semantics
+      - liquidation_semantics
+      - reduce_only_semantics
+      - close_only_semantics
+      - funding_semantics
+      - order_semantics
+      - cancel_semantics
+      - reconciliation_semantics
+      title: AdminFuturesCommandSemanticArtifact
+      description: Backend-owned futures semantic artifacts required before execution.
     AdminFuturesCommandSemanticGuard:
       type: string
       enum:
@@ -32029,6 +32218,27 @@ components:
           minimum: 0.0
           title: Runtime Observed Request Payload Validation Record Execution Eligibility
             Blocker Count
+          default: 0
+        request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Semantic Artifact Count
+          default: 0
+        blocking_request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Semantic Artifact Count
+          default: 0
+        ready_request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Semantic Artifact Count
+          default: 0
+        runtime_observed_request_payload_validation_record_semantic_artifact_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Semantic Artifact
+            Count
           default: 0
         semantic_guard_count:
           type: integer

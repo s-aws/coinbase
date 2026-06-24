@@ -13,9 +13,10 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6621-6640"`. Futures/perpetual command-suite reads
-expose backend-owned disabled execution-eligibility blocker evidence while
-carrying forward earlier execution-eligibility and admission-link evidence:
+`"approved_phase_range": "6641-6660"`. Futures/perpetual command-suite reads
+expose backend-owned disabled semantic artifact evidence while carrying
+forward earlier execution-eligibility blocker, execution-eligibility, and
+admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -42,8 +43,19 @@ carrying forward earlier execution-eligibility and admission-link evidence:
 `iter_futures_request_payload_validation_record_execution_eligibilities`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
 `iter_futures_request_payload_validation_record_execution_eligibility_blockers`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_execution_eligibilities`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_semantic_artifacts`.
+
+Active semantic artifact rows expose
+`request_payload_validation_record_semantic_artifact_count`,
+`blocking_request_payload_validation_record_semantic_artifact_count`,
+`ready_request_payload_validation_record_semantic_artifact_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_count`,
+`request_payload_validation_record_semantic_artifacts`,
+`semantic_artifact_ref`, and `semantic_artifact_contract_ref`. These rows are
+blocked evidence only; they do not define futures semantics, resolve execution
+eligibility blockers, validate request payloads, admit commands, call Coinbase,
+execute reconciliation, mutate futures state, or grant browser/BFF authority.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,

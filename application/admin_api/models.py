@@ -53,6 +53,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyBlocker,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemBlocker,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceBlocker,
+    AdminFuturesCommandSemanticArtifact,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -4939,6 +4940,50 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlock
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
+    BaseModel
+):
+    """One disabled semantic artifact row required by execution blockers."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    blocker: AdminFuturesCommandExecutionEligibilityBlocker
+    semantic_artifact: AdminFuturesCommandSemanticArtifact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    validation_record_execution_eligibility_contract_ref: str
+    validation_record_execution_eligibility_blocker_ref: str
+    semantic_ref: str
+    semantic_artifact_ref: str
+    semantic_artifact_contract_ref: str
+    required_backend_contract: str
+    missing_backend_contract: str
+    missing_reason: str
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    forbidden_execution_claims: list[str] = Field(default_factory=list)
+    forbidden_execution_claim_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    semantic_artifact_defined: bool = False
+    semantic_artifact_reviewed: bool = False
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_semantic_artifact: bool = False
+    execution_eligibility_blocker_resolved: bool = False
+    validation_record_execution_eligible: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandSemanticGuardItem(BaseModel):
     """One backend-owned futures/perpetual command semantic guard row."""
 
@@ -9477,6 +9522,24 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_blockers: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_semantic_artifact_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_semantic_artifact_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_semantic_artifact_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_semantic_artifact_count: int = (
+        Field(default=0, ge=0)
+    )
+    request_payload_validation_record_semantic_artifacts: list[
+        AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem
+    ] = Field(default_factory=list)
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
@@ -10170,6 +10233,21 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count: int = (
+        Field(default=0, ge=0)
+    )
+    request_payload_validation_record_semantic_artifact_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_semantic_artifact_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_semantic_artifact_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_semantic_artifact_count: int = (
         Field(default=0, ge=0)
     )
     semantic_guard_count: int = Field(default=0, ge=0)

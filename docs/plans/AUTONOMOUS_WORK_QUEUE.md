@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6621-6640**.
+- Approved phase range: **6641-6660**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6601-6620`.
+- Previous completed range: `6621-6640`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6620`.
+- `current_phase`: `6640`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,139 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6621-6640
+## Active Phases 6641-6660
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Semantic Artifact Evidence.
+
+These phases continue M57 after completed `6621-6640` exposed disabled futures
+request payload validation record execution-eligibility blocker evidence. The
+next concrete gap is that contextless agents can see each missing semantic
+blocker, but cannot inspect the backend semantic artifact contract row that
+would be required to resolve that blocker. Active M57 `6641-6660` evidence
+adds disabled futures request payload validation record semantic artifact
+evidence through
+`application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_semantic_artifacts`. The
+command suite carries forward execution-eligibility and blocker counts and
+emits `request_payload_validation_record_semantic_artifact_count`,
+`blocking_request_payload_validation_record_semantic_artifact_count`,
+`ready_request_payload_validation_record_semantic_artifact_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_count`,
+and `request_payload_validation_record_semantic_artifacts`. Each row exposes
+`semantic_artifact_ref`, `semantic_artifact_contract_ref`,
+`validation_record_execution_eligibility_blocker_ref`, `semantic_ref`,
+`missing_reason`, and `forbidden_execution_claims` while
+`semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
+`execution_eligibility_blocker_resolved=false`,
+`validation_record_execution_eligible=false`, `execution_allowed=false`, and
+`live_coinbase_orders_ran=false`. This range must not implement semantic
+validators, validate submitted command payloads, admit commands, submit or
+cancel Coinbase orders, execute reconciliation, mutate futures/order/exchange
+state, accept risk proofs as command readiness, or grant browser/BFF execution
+authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
+inventory-lot assumptions remain forbidden as futures/perpetual authority.
+
+### Phase 6641 - Prior Range Closure
+
+- Record completed phases `6621-6640` as historical blocker evidence and move
+  active metadata to `6641-6660`.
+
+### Phase 6642 - Semantic Artifact Enum
+
+- Add typed futures semantic artifact categories for position, margin,
+  collateral, liquidation, reduce-only, close-only, funding, order, cancel, and
+  reconciliation semantics.
+
+### Phase 6643 - Semantic Artifact Registry
+
+- Add a backend-owned disabled semantic artifact registry derived from
+  execution-eligibility blocker contracts.
+
+### Phase 6644 - Semantic Artifact False Flags
+
+- Keep artifact-defined, artifact-reviewed, blocker-resolved, execution,
+  live Coinbase, browser, BFF, and spot-rule flags false for every row.
+
+### Phase 6645 - Command Suite Counts
+
+- Add command-level semantic artifact counts and ready/runtime false counts to
+  `/api/v1/futures/command-suite`.
+
+### Phase 6646 - Suite Aggregate Counts
+
+- Add suite-level aggregate semantic artifact counts while preserving blocked,
+  read-only, no-live command status.
+
+### Phase 6647 - Required Backend Contract Binding
+
+- Add semantic artifact contract refs to `required_backend_contracts` after
+  execution-eligibility blocker refs.
+
+### Phase 6648 - OpenAPI Contract Regeneration
+
+- Regenerate the Admin API OpenAPI schema and prove semantic artifact fields
+  are present in generated contracts.
+
+### Phase 6649 - Backend Regression Coverage
+
+- Extend focused futures/perpetual contract regressions for registry rows,
+  emitted rows, counts, false flags, required refs, and forbidden authority.
+
+### Phase 6650 - Backend Response Contract Coverage
+
+- Extend Admin API contract tests for representative semantic artifact
+  response rows and no-spot-rule futures semantics.
+
+### Phase 6651 - Frontend Generated Client Sync
+
+- Regenerate frontend API types after backend OpenAPI changes.
+
+### Phase 6652 - Frontend Mock Backend Sync
+
+- Map semantic artifact rows through the mock backend without creating trading
+  behavior or BFF execution authority.
+
+### Phase 6653 - Frontend Adapter Mapping
+
+- Map generated semantic artifact rows into futures/perpetual read-model data.
+
+### Phase 6654 - Frontend Display
+
+- Display semantic artifact aggregate counts and a dedicated read-only table in
+  the futures/perpetual admin view.
+
+### Phase 6655 - Frontend Tests
+
+- Extend frontend read-model, mock-backend, backend-runtime, and quality tests
+  for semantic artifact display and false flags.
+
+### Phase 6656 - Docs And Examples
+
+- Update backend/frontend docs and examples for the active semantic artifact
+  evidence range.
+
+### Phase 6657 - Contextless Review
+
+- Record no-live/no-mutation/no-browser/no-BFF/no-spot-rule review evidence.
+
+### Phase 6658 - Focused Validation
+
+- Run focused backend tests, frontend typecheck, API check, autonomous checks,
+  and focused frontend tests that cover this range.
+
+### Phase 6659 - Phase-End Hygiene
+
+- Run stale test-process checks and record that no phase-scoped subagents were
+  left open.
+
+### Phase 6660 - Commit And Push
+
+- Commit and push backend/frontend changes after focused gates pass. No live
+  Coinbase execution is planned; submitted and executed notional remain `0`
+  USDC.
+
+## Historical Phases 6621-6640
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution Eligibility Blocker Evidence.
 

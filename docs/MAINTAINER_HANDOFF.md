@@ -123,9 +123,23 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6601-6620` under M57.
-- Active autonomous range: `6621-6640` under M57.
+- Latest completed autonomous range: `6621-6640` under M57.
+- Active autonomous range: `6641-6660` under M57.
 - Active range adds disabled futures request payload validation record
+  semantic artifact evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_semantic_artifacts`,
+  including `request_payload_validation_record_semantic_artifact_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_count`,
+  `ready_request_payload_validation_record_semantic_artifact_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_count`,
+  `request_payload_validation_record_semantic_artifacts`,
+  `semantic_artifact_ref`, `semantic_artifact_contract_ref`,
+  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
+  `runtime_evidence_satisfies_semantic_artifact=false`, and
+  `execution_eligibility_blocker_resolved=false`. Completed `6621-6640`
+  carries forward disabled futures request payload validation record
   execution-eligibility blocker evidence through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,

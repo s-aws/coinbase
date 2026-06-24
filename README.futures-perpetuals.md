@@ -99,6 +99,29 @@ and notional evidence fields.
   funding/order/cancel/reconciliation semantics, call Coinbase, mutate futures
   state, or grant browser/BFF or spot-rule authority.
 - The command-suite route also exposes request-payload validation record
+  semantic artifact evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_semantic_artifacts`,
+  `request_payload_validation_record_semantic_artifact_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_count`,
+  `ready_request_payload_validation_record_semantic_artifact_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_count`,
+  and `request_payload_validation_record_semantic_artifacts`. Rows expose
+  `semantic_artifact_ref`, `semantic_artifact_contract_ref`,
+  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
+  `runtime_evidence_satisfies_semantic_artifact=false`, and
+  `execution_eligibility_blocker_resolved=false`. Active M57 `6641-6660`
+  evidence adds disabled futures request payload validation record semantic
+  artifact evidence while completed M57 `6621-6640` carries forward disabled
+  futures request payload validation record execution-eligibility blocker
+  evidence. This evidence does not define futures semantics, validate payloads,
+  resolve blockers, admit commands, call Coinbase, execute reconciliation,
+  mutate futures/order/exchange state, or grant browser/BFF or spot-rule
+  authority.
+  Exact autonomous phrase: Active M57 `6641-6660` evidence adds disabled futures request payload validation record semantic artifact evidence while completed M57 `6621-6640` carries forward disabled futures request payload validation record execution-eligibility blocker evidence.
+  Literal machine-check phrase: futures request payload validation record semantic artifact evidence.
+- The command-suite route also exposes request-payload validation record
   execution-eligibility blocker evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
   `iter_futures_request_payload_validation_record_execution_eligibility_blockers`,
@@ -111,7 +134,7 @@ and notional evidence fields.
   `semantic_ref`, `required_backend_artifact_ref`, `missing_reason`, and
   `forbidden_execution_claims` while semantic readiness, blocker resolution,
   validation-record execution eligibility, execution, live Coinbase, browser,
-  BFF, and spot-rule authority remain false. Active M57 `6621-6640` evidence adds disabled futures request payload validation record execution-eligibility blocker evidence while completed M57 `6601-6620` carries forward disabled futures request payload validation record execution-eligibility evidence.
+  BFF, and spot-rule authority remain false. Completed M57 `6621-6640` evidence adds disabled futures request payload validation record execution-eligibility blocker evidence while completed M57 `6601-6620` carries forward disabled futures request payload validation record execution-eligibility evidence.
   Literal machine-check phrase: futures request payload validation record execution-eligibility blocker evidence.
 - The command-suite route also exposes request-payload validation record
   admission-link evidence through

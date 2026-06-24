@@ -1191,6 +1191,21 @@ class AdminFuturesCommandExecutionEligibilityBlocker(str, Enum):
     RECONCILIATION_SEMANTICS_MISSING = "reconciliation_semantics_missing"
 
 
+class AdminFuturesCommandSemanticArtifact(str, Enum):
+    """Backend-owned futures semantic artifacts required before execution."""
+
+    POSITION_SEMANTICS = "position_semantics"
+    MARGIN_SEMANTICS = "margin_semantics"
+    COLLATERAL_SEMANTICS = "collateral_semantics"
+    LIQUIDATION_SEMANTICS = "liquidation_semantics"
+    REDUCE_ONLY_SEMANTICS = "reduce_only_semantics"
+    CLOSE_ONLY_SEMANTICS = "close_only_semantics"
+    FUNDING_SEMANTICS = "funding_semantics"
+    ORDER_SEMANTICS = "order_semantics"
+    CANCEL_SEMANTICS = "cancel_semantics"
+    RECONCILIATION_SEMANTICS = "reconciliation_semantics"
+
+
 class AdminFuturesCommandRiskProofKind(str, Enum):
     """Futures/perpetual proof requirement categories before command enablement."""
 

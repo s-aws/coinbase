@@ -73,7 +73,7 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(6621, 6641))
+    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(6641, 6661))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
         name: check for name, check in check_results.items() if not check["passed"]
@@ -87,7 +87,7 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
         ]
         assert review_evidence["first_review_heading"] == (
             "## M57 Futures/Perpetual Request Payload Validation Record "
-            "Execution Eligibility Blocker Evidence - Phases 6621-6640"
+            "Semantic Artifact Evidence - Phases 6641-6660"
         )
         assert (
             "Result: PASS or PASS-after-remediation"
@@ -99,7 +99,7 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
         )
     else:
         assert summary["status"] == "passed"
-    assert summary["approved_phase_range"] == "6621-6640"
+    assert summary["approved_phase_range"] == "6641-6660"
     assert summary["approved_phase_count"] == 20
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
