@@ -13,10 +13,10 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6641-6660"`. Futures/perpetual command-suite reads
-expose backend-owned disabled semantic artifact evidence while carrying
-forward earlier execution-eligibility blocker, execution-eligibility, and
-admission-link evidence:
+`"approved_phase_range": "6661-6680"`. Futures/perpetual command-suite reads
+expose backend-owned disabled semantic artifact definition evidence while
+carrying forward earlier semantic artifact, execution-eligibility blocker,
+execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -44,9 +44,23 @@ admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
 `iter_futures_request_payload_validation_record_execution_eligibility_blockers`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_semantic_artifacts`.
+`iter_futures_request_payload_validation_record_semantic_artifacts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_definitions`.
 
-Active semantic artifact rows expose
+Active semantic artifact definition rows expose
+`request_payload_validation_record_semantic_artifact_definition_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
+`request_payload_validation_record_semantic_artifact_definitions`,
+`semantic_artifact_definition_ref`,
+`semantic_artifact_definition_contract_ref`,
+`semantic_artifact_definition_available=false`,
+`semantic_artifact_definition_reviewed=false`, and
+`semantic_artifact_runtime_evidence_bound=false`. Completed semantic artifact
+rows expose
 `request_payload_validation_record_semantic_artifact_count`,
 `blocking_request_payload_validation_record_semantic_artifact_count`,
 `ready_request_payload_validation_record_semantic_artifact_count`,
