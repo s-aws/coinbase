@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6421-6440**.
+- Approved phase range: **6441-6460**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6401-6420`.
+- Previous completed range: `6421-6440`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6420`.
+- `current_phase`: `6440`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,141 +81,165 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6421-6440
+## Active Phases 6441-6460
 
-Batch label: Futures/Perpetuals Request Payload Validator Input Schema Evidence.
+Batch label: Futures/Perpetuals Request Payload Validator Output Schema Evidence.
 
-These phases continue M57 after completed `6401-6420` exposed disabled
-futures request payload validator contract registry evidence. The next concrete
-gap is that contextless agents can see `validator_input_schema_ref` strings on
-validator-contract rows, but cannot inspect a separate backend-owned
-input-schema evidence row with field-level refs and false registration flags.
-Active `6421-6440` adds
-`application/admin_api/futures_request_payload_validator_input_schemas.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
-`iter_futures_request_payload_validator_input_schemas` as disabled evidence
+These phases continue M57 after completed `6421-6440` exposed disabled
+futures request payload validator input-schema evidence. The next concrete gap
+is that contextless agents can see `validator_output_schema_ref` strings, but
+cannot inspect a separate backend-owned output-schema evidence row with
+field-level refs and false registration flags. Active `6441-6460` adds
+`application/admin_api/futures_request_payload_validator_output_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_output_schemas` as disabled evidence
 only, derived from `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
 `iter_futures_request_payload_validator_contracts`. The command suite carries
-forward `request_field_count`, `blocking_request_field_count`,
-`request_payload_validator_contract_count`, and
-`blocking_request_payload_validator_contract_count`, then emits
-`request_payload_validator_input_schema_count`,
-`blocking_request_payload_validator_input_schema_count`,
-`ready_request_payload_validator_input_schema_count`,
-`registered_request_payload_validator_input_schema_count`, and
-`request_payload_validator_input_schemas`. Each row exposes
+forward request field, validator-contract, and input-schema counts including
+`request_field_count`, `blocking_request_field_count`,
+`request_payload_validator_contract_count`,
+`blocking_request_payload_validator_contract_count`,
+`request_payload_validator_input_schema_count`, and
+`blocking_request_payload_validator_input_schema_count`, then emits
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`ready_request_payload_validator_output_schema_count`,
+`registered_request_payload_validator_output_schema_count`, and
+`request_payload_validator_output_schemas`. Each row exposes
 `request_payload_contract_ref`, `validation_gate_ref`,
 `validation_evidence_ref`, `validator_contract_ref`,
 `validator_input_schema_ref`, `validator_output_schema_ref`,
-`validator_registration_ref`, `input_schema_field_refs`,
-`input_schema_field_count`, `input_schema_registered=false`,
+`validator_registration_ref`, `output_schema_field_refs`,
+`output_schema_field_count`, `output_schema_registered=false`,
 `validator_contract_registered=false`, `validator_registered=false`, and
 `request_payload_validated=false`. Route/draft flags remain true while
 execution remains false. This range must not implement validators, validate
-submitted command payloads, register input schemas or payload validators, bind
+submitted command payloads, register output schemas or payload validators, bind
 live adapters, submit or cancel Coinbase orders, acknowledge exchange orders,
 execute reconciliation, mutate futures/order/exchange state, accept risk
 proofs as command readiness, or grant browser/BFF execution authority. Spot
 wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot
 assumptions remain forbidden as futures/perpetual authority.
 
-### Phase 6421 - Prior Range Closure
+### Phase 6441 - Prior Range Closure
 
-- Record completed phases `6401-6420` as historical validator-contract
-  registry evidence and move active metadata to `6421-6440`.
+- Record completed phases `6421-6440` as historical input-schema evidence and
+  move active metadata to `6441-6460`.
 
-### Phase 6422 - Input Schema Contract Registry
+### Phase 6442 - Output Schema Contract Registry
 
-- Add a backend-owned disabled input-schema registry derived from
+- Add a backend-owned disabled output-schema registry derived from
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`.
 
-### Phase 6423 - Input Schema Field Refs
+### Phase 6443 - Output Schema Field Refs
 
-- Emit deterministic disabled `input_schema_field_refs` for every futures
-  request payload validator input-schema row.
+- Emit deterministic disabled `output_schema_field_refs` for every futures
+  request payload validator output-schema row.
 
-### Phase 6424 - Input Schema Field Counts
+### Phase 6444 - Output Schema Field Counts
 
-- Emit `input_schema_field_count` for every disabled input-schema row.
+- Emit `output_schema_field_count` for every disabled output-schema row.
 
-### Phase 6425 - Input Schema Registration Flags
+### Phase 6445 - Output Schema Registration Flags
 
-- Keep `input_schema_registered=false`, `validator_contract_registered=false`,
+- Keep `output_schema_registered=false`, `validator_contract_registered=false`,
   `validator_registered=false`, and `request_payload_validated=false`.
 
-### Phase 6426 - Command-Level Input Schema Counts
+### Phase 6446 - Command-Level Output Schema Counts
 
-- Add per-command input-schema counts and blocked/ready/registered aggregate
+- Add per-command output-schema counts and blocked/ready/registered aggregate
   counts to `AdminFuturesCommandContractItem`.
 
-### Phase 6427 - Suite-Level Input Schema Counts
+### Phase 6447 - Suite-Level Output Schema Counts
 
-- Add futures command-suite aggregate input-schema counts across place,
+- Add futures command-suite aggregate output-schema counts across place,
   close/reduce, cancel, and reconciliation command drafts.
 
-### Phase 6428 - Required Backend Contract Refs
+### Phase 6448 - Required Backend Contract Refs
 
-- Include disabled validator input-schema refs in each command's
+- Include disabled validator output-schema refs in each command's
   `required_backend_contracts` without marking them missing or executable.
 
-### Phase 6429 - OpenAPI Schema Sync
+### Phase 6449 - OpenAPI Schema Sync
 
-- Regenerate backend-owned OpenAPI for the input-schema item and aggregate
+- Regenerate backend-owned OpenAPI for the output-schema item and aggregate
   count fields.
 
-### Phase 6430 - Frontend Generated Schema Sync
+### Phase 6450 - Frontend Generated Schema Sync
 
 - Regenerate the frontend API schema from backend OpenAPI without hand-editing
   generated files.
 
-### Phase 6431 - Frontend Mock Data Sync
+### Phase 6451 - Frontend Mock Data Sync
 
-- Update frontend mocks/fixtures with input-schema rows, counts, field refs,
+- Update frontend mocks/fixtures with output-schema rows, counts, field refs,
   and false readiness/registration flags.
 
-### Phase 6432 - Frontend Adapter Mapping
+### Phase 6452 - Frontend Adapter Mapping
 
-- Map input-schema rows into typed futures/perpetual read-model view data.
+- Map output-schema rows into typed futures/perpetual read-model view data.
 
-### Phase 6433 - Frontend Display Evidence
+### Phase 6453 - Frontend Display Evidence
 
-- Display input-schema evidence as read-only futures/perpetual command-suite
+- Display output-schema evidence as read-only futures/perpetual command-suite
   data with browser authority remaining display-only.
 
-### Phase 6434 - Backend Focused Tests
+### Phase 6454 - Backend Focused Tests
 
-- Add focused backend coverage proving input-schema evidence is disabled,
+- Add focused backend coverage proving output-schema evidence is disabled,
   backend-owned, no-live, and not validation authority.
 
-### Phase 6435 - Frontend Focused Tests
+### Phase 6455 - Frontend Focused Tests
 
-- Add focused frontend coverage proving input-schema evidence is displayed and
+- Add focused frontend coverage proving output-schema evidence is displayed and
   not treated as execution authority.
 
-### Phase 6436 - Docs And Examples
+### Phase 6456 - Docs And Examples
 
 - Update Admin API, futures/perpetual docs, examples, maintainer handoff,
-  agent state, and API references for input-schema evidence.
+  agent state, and API references for output-schema evidence.
 
-### Phase 6437 - Autonomous Validators
+### Phase 6457 - Autonomous Validators
 
-- Update backend/frontend autonomous validators to require `6421-6440`
-  input-schema evidence and treat `6401-6420` as completed history.
+- Update backend/frontend autonomous validators to require `6441-6460`
+  output-schema evidence and treat `6421-6440` as completed history.
 
-### Phase 6438 - Contextless Review And Subagent Sweep
+### Phase 6458 - Contextless Review And Subagent Sweep
 
 - Run fresh blind/contextless backend and frontend reviews, remediate blocking
   ambiguity, then close phase-scoped, stale, or previously unused subagents.
 
-### Phase 6439 - No-Live Evidence Summary
+### Phase 6459 - No-Live Evidence Summary
 
 - Record submitted notional `0` USDC, executed notional `0` USDC, no Coinbase
   calls, no reconciliation execution, and no futures state mutation.
 
-### Phase 6440 - Commit And Push
+### Phase 6460 - Commit And Push
 
 - Commit and push backend and frontend work separately with submitted notional
   `0` USDC, executed notional `0` USDC, and no Coinbase calls.
+
+## Historical Plan - Phases 6421-6440
+
+Batch label: Futures/Perpetuals Request Payload Validator Input Schema Evidence.
+
+These completed phases added disabled backend-owned futures request payload
+validator input-schema evidence from `GET /api/v1/futures/command-suite`
+through `application/admin_api/futures_request_payload_validator_input_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_input_schemas`. The command suite
+carried forward request-field and validator-contract counts, then exposed
+`request_payload_validator_input_schema_count`,
+`blocking_request_payload_validator_input_schema_count`,
+`ready_request_payload_validator_input_schema_count`,
+`registered_request_payload_validator_input_schema_count`, and
+`request_payload_validator_input_schemas`. Rows included
+`input_schema_field_refs`, `input_schema_field_count`,
+`input_schema_registered=false`, `validator_contract_registered=false`,
+`validator_registered=false`, and `request_payload_validated=false`. These
+rows remained backend-owned read-only evidence only, with no payload validation,
+validator registration, Coinbase activity, reconciliation execution, futures
+state mutation, browser/BFF execution authority, or spot-rule authority.
 
 ## Historical Plan - Phases 6401-6420
 

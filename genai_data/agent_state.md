@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6421-6440`.
+- Commit (optional): current active range is `6441-6460`.
 
 ## Current Objective
 
@@ -56,8 +56,28 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6401-6420`.
-- Active autonomous range: `6421-6440`.
+- Latest completed autonomous range before current work: `6421-6440`.
+- Active autonomous range: `6441-6460`.
+- Active `6441-6460` adds disabled futures request payload validator
+  output-schema evidence through
+  `application/admin_api/futures_request_payload_validator_output_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validator_output_schemas`. The command suite
+  must expose `request_payload_validator_output_schema_count`,
+  `blocking_request_payload_validator_output_schema_count`,
+  `ready_request_payload_validator_output_schema_count`,
+  `registered_request_payload_validator_output_schema_count`,
+  `request_payload_validator_output_schemas`, `output_schema_field_refs`,
+  `output_schema_field_count`, `output_schema_registered`,
+  `validator_input_schema_ref`, `validator_output_schema_ref`, and false
+  validator registration/payload validation flags. Route/draft flags are true
+  while execution remains false. Cancel remains by `client_order_id`; no
+  Coinbase activity, reconciliation execution, futures state mutation,
+  browser/BFF authority, proof acceptance, or spot-rule authority is allowed.
+- Current direction: complete phases `6441-6460` with futures request payload
+  validator output-schema evidence, frontend display, focused checks,
+  blind/contextless review, phase-end subagent sweep, and no-live commit/push.
+- One-line current evidence phrase: futures request payload validator output-schema evidence.
 - Completed `6281-6300` added disabled futures reconciliation command-service
   parity evidence to the M57 futures/perpetual command suite. The
   `futures_reconcile` row reports

@@ -2411,7 +2411,7 @@ registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
 `"validator_output_schema_ref"`,
 `"validator_input_schema_registered": false`, and
 `"validator_output_schema_registered": false`.
-Active 6421-6440 work reports futures request payload validator input-schema
+Completed 6421-6440 work reports futures request payload validator input-schema
 evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`
 and `iter_futures_request_payload_validator_input_schemas`, with
 `"request_payload_validator_input_schema_count": 22`,
@@ -3865,3 +3865,23 @@ The frontend deployment package manifest and observability drill are no-live
 evidence artifacts. `server_env_static` BFF authority is local/staging evidence
 only; production readiness is conditional on frontend `backend_oidc_jwt` BFF
 mode and backend `oidc_jwt` verifier configuration.
+
+## Current Futures Output-Schema Evidence
+
+Example active `6441-6460` range responses include futures request payload
+validator output-schema evidence. This futures request payload validator
+output-schema evidence includes
+One-line evidence phrase: futures request payload validator output-schema evidence.
+`"approved_phase_range": "6441-6460"`,
+`"request_payload_validator_output_schema_count": 22`,
+`"blocking_request_payload_validator_output_schema_count": 22`,
+`"ready_request_payload_validator_output_schema_count": 0`,
+`"registered_request_payload_validator_output_schema_count": 0`,
+`"request_payload_validator_output_schemas"`,
+`"output_schema_field_refs"`, `"output_schema_field_count"`,
+`"output_schema_registered": false`, `"validator_input_schema_ref"`,
+`"validator_output_schema_ref"`, and `"request_payload_validated": false`.
+The rows come from
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validator_output_schemas`; they are no-live
+display evidence and do not validate command request payloads.

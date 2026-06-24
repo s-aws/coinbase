@@ -473,7 +473,7 @@ Current behavior:
   request payloads, register payload validators, bind live adapters, submit or
   cancel Coinbase orders, execute reconciliation, mutate futures/order/exchange
   state, or grant browser, BFF, or spot-rule authority.
-  Active M57 `6421-6440` evidence adds disabled futures request payload
+  Completed M57 `6421-6440` evidence adds disabled futures request payload
   validator input-schema evidence through
   `application/admin_api/futures_request_payload_validator_input_schemas.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
@@ -1362,3 +1362,26 @@ Inflight categories used by callers include:
 ---
 
 Last updated: 2026-06-10
+
+## Current M57 Futures Request Payload Validator Output Schemas
+
+`GET /api/v1/futures/command-suite` active `6441-6460` evidence includes
+futures request payload validator output-schema evidence through disabled rows
+from
+`application/admin_api/futures_request_payload_validator_output_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_output_schemas`. The response includes
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`ready_request_payload_validator_output_schema_count`,
+`registered_request_payload_validator_output_schema_count`,
+`request_payload_validator_output_schemas`, `output_schema_field_refs`,
+`output_schema_field_count`, `output_schema_registered=false`,
+`validator_input_schema_ref`, `validator_output_schema_ref`,
+`request_payload_validated=false`. These rows are evidence only; they do not
+validate command request payloads, register payload validators, call Coinbase,
+execute reconciliation, mutate futures/order/exchange state, or grant
+browser/BFF/spot-rule authority.
+Carried-forward validator-contract rows still expose
+`validator_input_schema_registered=false` and
+`validator_output_schema_registered=false`.

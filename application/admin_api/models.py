@@ -4281,6 +4281,41 @@ class AdminFuturesCommandRequestPayloadValidatorInputSchemaItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidatorOutputSchemaItem(BaseModel):
+    """One disabled output-schema row for a futures request payload validator."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    request_payload_contract_ref: str
+    validation_gate_ref: str
+    validation_evidence_ref: str
+    validator_contract_ref: str
+    validator_input_schema_ref: str
+    validator_output_schema_ref: str
+    validator_registration_ref: str
+    output_schema_field_refs: list[str] = Field(default_factory=list)
+    output_schema_field_count: int = Field(default=0, ge=0)
+    output_schema_registered: bool = False
+    validator_contract_registered: bool = False
+    validator_registered: bool = False
+    request_payload_validated: bool = False
+    command_route_registered: bool = True
+    command_draft_allowed: bool = True
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandSemanticGuardItem(BaseModel):
     """One backend-owned futures/perpetual command semantic guard row."""
 
@@ -8628,6 +8663,19 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validator_input_schemas: list[
         AdminFuturesCommandRequestPayloadValidatorInputSchemaItem
     ] = Field(default_factory=list)
+    request_payload_validator_output_schema_count: int = Field(default=0, ge=0)
+    blocking_request_payload_validator_output_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validator_output_schema_count: int = Field(default=0, ge=0)
+    registered_request_payload_validator_output_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validator_output_schemas: list[
+        AdminFuturesCommandRequestPayloadValidatorOutputSchemaItem
+    ] = Field(default_factory=list)
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
@@ -9159,6 +9207,16 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     )
     ready_request_payload_validator_input_schema_count: int = Field(default=0, ge=0)
     registered_request_payload_validator_input_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validator_output_schema_count: int = Field(default=0, ge=0)
+    blocking_request_payload_validator_output_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validator_output_schema_count: int = Field(default=0, ge=0)
+    registered_request_payload_validator_output_schema_count: int = Field(
         default=0,
         ge=0,
     )

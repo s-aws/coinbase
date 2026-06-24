@@ -366,7 +366,7 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   `blocking_request_payload_validator_contract_count`,
   `validator_input_schema_ref`, `validator_output_schema_ref`,
   validator_input_schema_registered=false, and
-  validator_output_schema_registered=false. Current M57 phases 6421-6440
+  validator_output_schema_registered=false. Completed M57 phases 6421-6440
   expose disabled futures request payload validator input-schema evidence
   through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`,
   `iter_futures_request_payload_validator_input_schemas`,
@@ -398,7 +398,7 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   6361-6380 bind disabled request payload contract registry evidence,
   completed phases 6381-6400 bind disabled request payload validation gate
   evidence, completed phases 6401-6420 bind disabled validator contract
-  registry evidence, and current phases 6421-6440 bind disabled validator
+  registry evidence, and completed phases 6421-6440 bind disabled validator
   input-schema evidence while keeping route/draft flags true while
   executable command count stays zero.
 - Do not treat disabled live-adapter contract metadata as adapter construction
@@ -508,3 +508,23 @@ See [Futures/Perpetuals Examples](docs/examples/futures-perpetuals.md).
 - [Admin Module Capability Matrix](docs/ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Admin API Route Inventory](docs/plans/ADMIN_API_ROUTE_INVENTORY.md)
 - [Documentation Index](docs/README.md)
+
+## Current M57 Output Schema Evidence
+
+Active `6441-6460` extends the no-live futures/perpetual command-suite contract
+with disabled request payload validator output-schema rows. Backend registry:
+`application/admin_api/futures_request_payload_validator_output_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_output_schemas`. Command-suite evidence:
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`request_payload_validator_output_schemas`, `validator_input_schema_ref`,
+`validator_output_schema_ref`, `output_schema_field_refs`,
+`output_schema_field_count`, `output_schema_registered=false`,
+`request_payload_validated=false`. Route/draft true and execution false flags
+remain required; this evidence must not validate command request payloads,
+register payload validators, call Coinbase, execute reconciliation, mutate
+state, or create spot-rule authority.
+Carried-forward validator-contract rows still expose
+`validator_input_schema_registered=false` and
+`validator_output_schema_registered=false`.

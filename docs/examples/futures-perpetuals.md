@@ -11,7 +11,7 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6421-6440 range targets explicit M57 futures/perpetual request
+The completed 6421-6440 range targeted explicit M57 futures/perpetual request
 payload validator input-schema evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Completed 6221-6240 work added aggregate
@@ -76,7 +76,7 @@ registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
 `"validator_input_schema_registered": false`, and
 `"validator_output_schema_registered": false`.
 Machine-check evidence: futures request payload validator contract registry evidence.
-Active 6421-6440 work reports futures request payload validator input-schema
+Completed 6421-6440 work reports futures request payload validator input-schema
 evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`
 and `iter_futures_request_payload_validator_input_schemas`, with
 `"request_payload_validator_input_schema_count": 22`,
@@ -2281,3 +2281,24 @@ grant browser/BFF authority.
 - Treat `funding.status="not_modeled"` as unsupported until the backend
   contract is extended.
 - Live Coinbase execution for these examples: not run; notional `$0`.
+
+## Current Output-Schema Example Evidence
+
+The active 6441-6460 range reports futures request payload validator
+output-schema evidence in `GET /api/v1/futures/command-suite`. This futures
+request payload validator output-schema evidence includes
+One-line evidence phrase: futures request payload validator output-schema evidence.
+`"approved_phase_range": "6441-6460"`,
+`"request_payload_validator_output_schema_count": 22`,
+`"blocking_request_payload_validator_output_schema_count": 22`,
+`"ready_request_payload_validator_output_schema_count": 0`,
+`"registered_request_payload_validator_output_schema_count": 0`,
+`"request_payload_validator_output_schemas"`,
+`"output_schema_field_refs"`, `"output_schema_field_count"`,
+`"output_schema_registered": false`, `"validator_input_schema_ref"`,
+`"validator_output_schema_ref"`, and `"request_payload_validated": false`.
+The registry is
+`application/admin_api/futures_request_payload_validator_output_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_output_schemas`;
+these rows remain blocked, backend-owned, read-only, display-only, and no-live.

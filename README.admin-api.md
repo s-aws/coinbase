@@ -616,7 +616,7 @@ futures request payload validator contract registry evidence through
 `request_payload_validator_contract_count`,
 `blocking_request_payload_validator_contract_count`, and
 `request_payload_validator_contracts` expose validator input/output schema refs
-and false schema/validator registration flags. Current M57 phases 6421-6440 add
+and false schema/validator registration flags. Completed M57 phases 6421-6440 add
 disabled futures request payload validator input-schema evidence through
 `application/admin_api/futures_request_payload_validator_input_schemas.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
@@ -1719,3 +1719,21 @@ and rotation policy without disclosing a token value.
 - [API Reference](genai_data/API_REFERENCE.md)
 - [Order ID Handling](genai_data/ORDER_ID_HANDLING.md)
 - [Documentation Index](docs/README.md)
+
+## Current M57 Output Schema Evidence
+
+Current phases `6441-6460` add disabled futures request payload validator
+output-schema evidence through
+`application/admin_api/futures_request_payload_validator_output_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_output_schemas`. The command suite
+continues to expose input-schema evidence and now also exposes
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`ready_request_payload_validator_output_schema_count`,
+`registered_request_payload_validator_output_schema_count`,
+`request_payload_validator_output_schemas`, `output_schema_field_refs`,
+`output_schema_field_count`, and `output_schema_registered=false`. These rows
+are backend-owned display evidence only; they do not validate command request
+payloads, register payload validators, call Coinbase, execute reconciliation,
+mutate futures/order/exchange state, or grant browser/BFF authority.
