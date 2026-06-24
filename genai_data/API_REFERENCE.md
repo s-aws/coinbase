@@ -498,7 +498,7 @@ Current behavior:
   `registered_request_payload_validator_output_schema_count`,
   `request_payload_validator_output_schemas`, `output_schema_field_refs`,
   `output_schema_field_count`, and output_schema_registered=false.
-  Current M57 `6461-6480` evidence adds disabled futures request payload
+  Completed M57 `6461-6480` evidence adds disabled futures request payload
   validator registration evidence through
   `application/admin_api/futures_request_payload_validator_registrations.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
@@ -510,12 +510,27 @@ Current behavior:
   `validator_registration_field_count`,
   validator_registration_ready=false, and
   runtime_evidence_satisfies_validator_registration=false.
+  Current M57 `6481-6500` evidence adds disabled futures request payload
+  validation evidence through
+  `application/admin_api/futures_request_payload_validation_evidence.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+  `iter_futures_request_payload_validation_evidence`. The command-suite
+  response exposes `request_payload_validation_evidence_count`,
+  `blocking_request_payload_validation_evidence_count`,
+  `ready_request_payload_validation_evidence_count`,
+  `recorded_request_payload_validation_evidence_count`,
+  `runtime_observed_request_payload_validation_evidence_count`,
+  `request_payload_validation_evidence`, `validation_evidence_contract_ref`,
+  `validation_evidence_field_refs`, `validation_evidence_field_count`,
+  runtime_evidence_satisfies_validation_evidence=false,
+  validation_evidence_ready=false, and validation_evidence_recorded=false.
 - Machine-check evidence: futures request payload contract registry evidence.
 - Machine-check evidence: futures request payload validation gate evidence.
 - Machine-check evidence: futures request payload validator contract registry evidence.
 - Machine-check evidence: futures request payload validator input-schema evidence.
 - Machine-check evidence: futures request payload validator output-schema evidence.
 - Machine-check evidence: futures request payload validator registration evidence.
+- Machine-check evidence: futures request payload validation evidence.
 - Machine-check evidence:
   `application/admin_api/futures_request_payload_contracts.py`.
 - Machine-check evidence:
@@ -1398,29 +1413,29 @@ Inflight categories used by callers include:
 
 Last updated: 2026-06-24
 
-## Current M57 Futures Request Payload Validator Registrations
+## Current M57 Futures Request Payload Validation Evidence
 
-`GET /api/v1/futures/command-suite` active `6461-6480` evidence includes
-futures request payload validator registration evidence through disabled rows
-from
-`application/admin_api/futures_request_payload_validator_registrations.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
-`iter_futures_request_payload_validator_registrations`. The response includes
-`request_payload_validator_registration_count`,
-`blocking_request_payload_validator_registration_count`,
-`ready_request_payload_validator_registration_count`,
-`registered_request_payload_validator_registration_count`,
-`runtime_observed_request_payload_validator_registration_count`,
-`request_payload_validator_registrations`,
-`validator_registration_field_refs`, `validator_registration_field_count`,
+`GET /api/v1/futures/command-suite` active `6481-6500` evidence includes
+futures request payload validation evidence through disabled rows from
+`application/admin_api/futures_request_payload_validation_evidence.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence`. The response includes
+`request_payload_validation_evidence_count`,
+`blocking_request_payload_validation_evidence_count`,
+`ready_request_payload_validation_evidence_count`,
+`recorded_request_payload_validation_evidence_count`,
+`runtime_observed_request_payload_validation_evidence_count`,
+`request_payload_validation_evidence`, `validation_evidence_contract_ref`,
+`validation_evidence_field_refs`, `validation_evidence_field_count`,
 `required_evidence_refs`, `missing_evidence_refs`,
-`validator_registration_ready=false`,
-`runtime_evidence_satisfies_validator_registration=false`,
+`runtime_evidence_satisfies_validation_evidence=false`,
+`validation_evidence_ready=false`, `validation_evidence_recorded=false`,
 `validator_input_schema_ref`, `validator_output_schema_ref`,
 `validator_registration_ref`, and `request_payload_validated=false`. These
-rows are evidence only; they do not validate command request payloads, register
-payload validators, call Coinbase, execute reconciliation, mutate futures/order
-or exchange state, or grant browser/BFF/spot-rule authority. Carried-forward
-validator-contract rows still expose `validator_input_schema_registered=false`
-and `validator_output_schema_registered=false`; carried-forward output-schema
-rows still expose `output_schema_registered=false`.
+rows are evidence only; they do not validate command request payloads, record
+validation evidence, register payload validators, call Coinbase, execute
+reconciliation, mutate futures/order or exchange state, or grant
+browser/BFF/spot-rule authority. Carried-forward validator-registration rows
+still expose `validator_registration_ready=false` and
+`runtime_evidence_satisfies_validator_registration=false`; carried-forward
+output-schema rows still expose `output_schema_registered=false`.

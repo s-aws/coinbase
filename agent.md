@@ -155,8 +155,9 @@ observed peak when the guard is active. Use those snapshots as host attribution
 evidence so pytest workers can be distinguished from Codex, VS Code, browsers,
 WSL, Docker, or unrelated host processes.
 If it emits `memory_guard_aborted`, treat the full regression gate as failed:
-run the stale process checker, record the memory evidence, and split or reduce
-the offending regression surface before retrying. Do not pass
+run the stale process checker, run the runtime artifact checker, record the
+memory evidence, and split or reduce the offending regression surface before
+retrying. Do not pass
 `--disable-memory-watch` for normal milestone closeout.
 Before full closeout gates and after any interrupted or timed-out backend or
 frontend test command, run the stale process checker:
@@ -171,6 +172,9 @@ python tools/run_parallel_regression.py --workers 4
 
 # Stale test-process hygiene - before closeout gates and after interruptions
 python tools/check_stale_test_processes.py --include-sibling-frontend
+
+# Runtime artifact attribution - after memory guard aborts or unexpected spikes
+python tools/check_runtime_artifacts.py
 
 # Sequential fallback only when pytest-xdist is unavailable
 pytest tests/regression/ -v --tb=short

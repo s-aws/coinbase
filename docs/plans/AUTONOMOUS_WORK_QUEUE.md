@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6461-6480**.
+- Approved phase range: **6481-6500**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6441-6460`.
+- Previous completed range: `6461-6480`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -81,153 +81,184 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6461-6480
+## Active Phases 6481-6500
 
-Batch label: Futures/Perpetuals Request Payload Validator Registration Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Evidence.
 
-These phases continue M57 after completed `6441-6460` exposed disabled
-futures request payload validator output-schema evidence. The next concrete gap
-is that contextless agents can see `validator_registration_ref` strings, but
-cannot inspect a separate backend-owned validator-registration evidence row
-that binds the validator contract, input schema, output schema, request
-payload contract, validation gate, evidence refs, and authority flags. Active
-`6461-6480` adds
-`application/admin_api/futures_request_payload_validator_registrations.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
-`iter_futures_request_payload_validator_registrations` as disabled evidence
-only, derived from `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`
-and `iter_futures_request_payload_validator_output_schemas`. The command suite
-carries forward request field, validator-contract, input-schema, and
-output-schema counts including `request_field_count`,
-`blocking_request_field_count`, `request_payload_validator_contract_count`,
+These phases continue M57 after completed `6461-6480` exposed disabled futures
+request payload validator registration evidence. The next concrete gap is that
+contextless agents can see registration rows and `validation_evidence_ref`
+strings, but cannot inspect a separate backend-owned validation-evidence row
+that binds the request payload contract, validation gate, validator
+registration, runtime evidence snapshot, and authority flags. Active
+`6481-6500` adds
+`application/admin_api/futures_request_payload_validation_evidence.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence` as disabled evidence only,
+derived from `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS` and
+`iter_futures_request_payload_validator_registrations`. The command suite
+carries forward request field, validator-contract, input-schema,
+output-schema, and validator-registration counts including
+`request_field_count`, `blocking_request_field_count`,
+`request_payload_validator_contract_count`,
 `blocking_request_payload_validator_contract_count`,
 `request_payload_validator_input_schema_count`,
 `blocking_request_payload_validator_input_schema_count`,
-`request_payload_validator_output_schema_count`, and
-`blocking_request_payload_validator_output_schema_count`, then emits
-`request_payload_validator_registration_count`,
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`request_payload_validator_registration_count`, and
+`blocking_request_payload_validator_registration_count`, then emits
+`request_payload_validation_evidence_count`,
+`blocking_request_payload_validation_evidence_count`,
+`ready_request_payload_validation_evidence_count`,
+`recorded_request_payload_validation_evidence_count`,
+`runtime_observed_request_payload_validation_evidence_count`, and
+`request_payload_validation_evidence`. Each row exposes
+`request_payload_contract_ref`, `validation_gate_ref`,
+`validation_evidence_ref`, `validation_evidence_contract_ref`,
+`validator_contract_ref`, `validator_input_schema_ref`,
+`validator_output_schema_ref`, `validator_registration_ref`,
+`validation_evidence_field_refs`, `validation_evidence_field_count`,
+`required_evidence_refs`, `missing_evidence_refs`,
+`runtime_evidence_observed=false`,
+`runtime_evidence_satisfies_validation_evidence=false`,
+`validation_evidence_ready=false`, `validation_evidence_recorded=false`,
+`validator_registration_ready=false`, `validator_registered=false`, and
+`request_payload_validated=false`. Route/draft flags remain true while
+execution remains false. This range must not implement validators, validate
+submitted command payloads, record validation evidence, register payload
+validators, bind live adapters, submit or cancel Coinbase orders, acknowledge
+exchange orders, execute reconciliation, mutate futures/order/exchange state,
+accept risk proofs as command readiness, or grant browser/BFF execution
+authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
+inventory-lot assumptions remain forbidden as futures/perpetual authority.
+
+### Phase 6481 - Prior Range Closure
+
+- Record completed phases `6461-6480` as historical validator-registration
+  evidence and move active metadata to `6481-6500`.
+
+### Phase 6482 - Validation Evidence Registry
+
+- Add a backend-owned disabled validation-evidence registry derived from
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`.
+
+### Phase 6483 - Validation Evidence Field Refs
+
+- Emit deterministic disabled `validation_evidence_field_refs` for every
+  futures request payload validation evidence row.
+
+### Phase 6484 - Validation Evidence Field Counts
+
+- Emit `validation_evidence_field_count` for every disabled validation
+  evidence row.
+
+### Phase 6485 - Validation Evidence Refs
+
+- Emit `required_evidence_refs`, `required_evidence_count`,
+  `missing_evidence_refs`, and `missing_evidence_count` for every row.
+
+### Phase 6486 - Validation Readiness Flags
+
+- Keep `runtime_evidence_satisfies_validation_evidence=false`,
+  `validation_evidence_ready=false`, `validation_evidence_recorded=false`,
+  `validator_registered=false`, and `request_payload_validated=false`.
+
+### Phase 6487 - Command-Level Validation Counts
+
+- Add per-command validation-evidence counts and blocked/ready/recorded/runtime
+  aggregate counts to `AdminFuturesCommandContractItem`.
+
+### Phase 6488 - Suite-Level Validation Counts
+
+- Add futures command-suite aggregate validation-evidence counts across place,
+  close/reduce, cancel, and reconciliation command drafts.
+
+### Phase 6489 - Required Backend Contract Refs
+
+- Include disabled validation-evidence refs in each command's
+  `required_backend_contracts` without marking them executable.
+
+### Phase 6490 - OpenAPI Schema Sync
+
+- Regenerate backend-owned OpenAPI for the validation-evidence item and
+  aggregate count fields.
+
+### Phase 6491 - Frontend Generated Schema Sync
+
+- Regenerate the frontend API schema from backend OpenAPI without hand-editing
+  generated files.
+
+### Phase 6492 - Frontend Mock Data Sync
+
+- Update frontend mocks/fixtures with validation-evidence rows, counts, field
+  refs, evidence refs, and false readiness/recording flags.
+
+### Phase 6493 - Frontend Adapter Mapping
+
+- Map validation-evidence rows into typed futures/perpetual read-model view
+  data.
+
+### Phase 6494 - Frontend Display Evidence
+
+- Display validation evidence as read-only futures/perpetual command-suite data
+  with browser authority remaining display-only.
+
+### Phase 6495 - Backend Focused Tests
+
+- Add focused backend coverage proving validation evidence is disabled,
+  backend-owned, no-live, and not validation authority.
+
+### Phase 6496 - Frontend Focused Tests
+
+- Add focused frontend coverage proving validation evidence is displayed and
+  not treated as execution authority.
+
+### Phase 6497 - Docs And Examples
+
+- Update Admin API, futures/perpetual docs, examples, maintainer handoff,
+  agent state, and API references for validation evidence.
+
+### Phase 6498 - Autonomous Validators
+
+- Update backend/frontend autonomous validators to require `6481-6500`
+  validation evidence and treat `6461-6480` as completed history.
+
+### Phase 6499 - Contextless Review And Subagent Sweep
+
+- Run fresh blind/contextless backend and frontend reviews, remediate blocking
+  ambiguity, then close phase-scoped, stale, or previously unused subagents.
+
+### Phase 6500 - No-Live Commit And Push
+
+- Record submitted notional `0` USDC, executed notional `0` USDC, no Coinbase
+  calls, no reconciliation execution, no futures state mutation, then commit
+  and push backend and frontend work separately.
+
+## Historical Plan - Phases 6461-6480
+
+Batch label: Futures/Perpetuals Request Payload Validator Registration Evidence.
+
+These completed phases added disabled backend-owned futures request payload
+validator-registration evidence from `GET /api/v1/futures/command-suite`
+through `application/admin_api/futures_request_payload_validator_registrations.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
+`iter_futures_request_payload_validator_registrations`. The command suite
+exposes `request_payload_validator_registration_count`,
 `blocking_request_payload_validator_registration_count`,
 `ready_request_payload_validator_registration_count`,
 `registered_request_payload_validator_registration_count`,
 `runtime_observed_request_payload_validator_registration_count`, and
 `request_payload_validator_registrations`. Each row exposes
-`request_payload_contract_ref`, `validation_gate_ref`,
-`validation_evidence_ref`, `validator_contract_ref`,
-`validator_input_schema_ref`, `validator_output_schema_ref`,
 `validator_registration_ref`, `validator_registration_field_refs`,
 `validator_registration_field_count`, `required_evidence_refs`,
 `missing_evidence_refs`, `runtime_evidence_observed=false`,
 `runtime_evidence_satisfies_validator_registration=false`,
 `validator_registration_ready=false`, `validator_registered=false`, and
-`request_payload_validated=false`. Route/draft flags remain true while
-execution remains false. This range must not implement validators, validate
-submitted command payloads, register payload validators, bind live adapters,
-submit or cancel Coinbase orders, acknowledge exchange orders, execute
-reconciliation, mutate futures/order/exchange state, accept risk proofs as
-command readiness, or grant browser/BFF execution authority. Spot wallet,
-no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
-remain forbidden as futures/perpetual authority.
-
-### Phase 6461 - Prior Range Closure
-
-- Record completed phases `6441-6460` as historical output-schema evidence and
-  move active metadata to `6461-6480`.
-
-### Phase 6462 - Registration Contract Registry
-
-- Add a backend-owned disabled validator-registration registry derived from
-  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`.
-
-### Phase 6463 - Registration Field Refs
-
-- Emit deterministic disabled `validator_registration_field_refs` for every
-  futures request payload validator registration row.
-
-### Phase 6464 - Registration Field Counts
-
-- Emit `validator_registration_field_count` for every disabled registration
-  row.
-
-### Phase 6465 - Registration Evidence Refs
-
-- Emit `required_evidence_refs`, `required_evidence_count`,
-  `missing_evidence_refs`, and `missing_evidence_count` for every row.
-
-### Phase 6466 - Registration Readiness Flags
-
-- Keep `runtime_evidence_satisfies_validator_registration=false`,
-  `validator_registration_ready=false`, `validator_registered=false`, and
-  `request_payload_validated=false`.
-
-### Phase 6467 - Command-Level Registration Counts
-
-- Add per-command registration counts and blocked/ready/registered/runtime
-  aggregate counts to `AdminFuturesCommandContractItem`.
-
-### Phase 6468 - Suite-Level Registration Counts
-
-- Add futures command-suite aggregate registration counts across place,
-  close/reduce, cancel, and reconciliation command drafts.
-
-### Phase 6469 - Required Backend Contract Refs
-
-- Include disabled validator-registration refs in each command's
-  `required_backend_contracts` without marking them missing or executable.
-
-### Phase 6470 - OpenAPI Schema Sync
-
-- Regenerate backend-owned OpenAPI for the registration item and aggregate
-  count fields.
-
-### Phase 6471 - Frontend Generated Schema Sync
-
-- Regenerate the frontend API schema from backend OpenAPI without hand-editing
-  generated files.
-
-### Phase 6472 - Frontend Mock Data Sync
-
-- Update frontend mocks/fixtures with registration rows, counts, field refs,
-  evidence refs, and false readiness/registration flags.
-
-### Phase 6473 - Frontend Adapter Mapping
-
-- Map registration rows into typed futures/perpetual read-model view data.
-
-### Phase 6474 - Frontend Display Evidence
-
-- Display registration evidence as read-only futures/perpetual command-suite
-  data with browser authority remaining display-only.
-
-### Phase 6475 - Backend Focused Tests
-
-- Add focused backend coverage proving registration evidence is disabled,
-  backend-owned, no-live, and not validation authority.
-
-### Phase 6476 - Frontend Focused Tests
-
-- Add focused frontend coverage proving registration evidence is displayed and
-  not treated as execution authority.
-
-### Phase 6477 - Docs And Examples
-
-- Update Admin API, futures/perpetual docs, examples, maintainer handoff,
-  agent state, and API references for registration evidence.
-
-### Phase 6478 - Autonomous Validators
-
-- Update backend/frontend autonomous validators to require `6461-6480`
-  registration evidence and treat `6441-6460` as completed history.
-
-### Phase 6479 - Contextless Review And Subagent Sweep
-
-- Run fresh blind/contextless backend and frontend reviews, remediate blocking
-  ambiguity, then close phase-scoped, stale, or previously unused subagents.
-
-### Phase 6480 - No-Live Commit And Push
-
-- Record submitted notional `0` USDC, executed notional `0` USDC, no Coinbase
-  calls, no reconciliation execution, no futures state mutation, then commit
-  and push backend and frontend work separately.
+`request_payload_validated=false`. These rows are backend-owned read-only
+evidence and must not validate command request payloads, register payload
+validators, call Coinbase, execute reconciliation, mutate futures/order/
+exchange state, or grant browser/BFF or spot-rule authority.
 
 ## Historical Plan - Phases 6441-6460
 

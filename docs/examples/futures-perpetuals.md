@@ -11,8 +11,8 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6461-6480 range targets explicit M57 futures/perpetual request
-payload validator registration evidence for
+The active 6481-6500 range targets explicit M57 futures/perpetual request
+payload validation evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Completed 6221-6240 work added aggregate
 blocked summaries for unresolved prerequisites, request payload contracts,
@@ -97,7 +97,7 @@ output-schema evidence through
 `"request_payload_validator_output_schemas"`, `"output_schema_field_refs"`,
 `"output_schema_field_count": 5`, and `"output_schema_registered": false`.
 Machine-check evidence: futures request payload validator output-schema evidence.
-The active 6461-6480 range reports futures request payload validator
+Completed 6461-6480 work reports futures request payload validator
 registration evidence through
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS` and
 `iter_futures_request_payload_validator_registrations`, with
@@ -112,10 +112,26 @@ registration evidence through
 `"validator_registration_ready": false`, and
 `"runtime_evidence_satisfies_validator_registration": false`.
 Machine-check evidence: futures request payload validator registration evidence.
-Route/draft flags are true while execution remains false; the registry does
-not validate command request payloads, register payload validators, call
-Coinbase, execute reconciliation, mutate futures/order/exchange state, or
-grant browser/BFF authority.
+The active 6481-6500 range reports futures request payload validation evidence
+through `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence`, with
+`"request_payload_validation_evidence_count": 22`,
+`"blocking_request_payload_validation_evidence_count": 22`,
+`"ready_request_payload_validation_evidence_count": 0`,
+`"recorded_request_payload_validation_evidence_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_count": 0`,
+`"request_payload_validation_evidence"`,
+`"validation_evidence_contract_ref"`,
+`"validation_evidence_field_refs"`,
+`"validation_evidence_field_count": 6`,
+`"runtime_evidence_satisfies_validation_evidence": false`,
+`"validation_evidence_ready": false`, and
+`"validation_evidence_recorded": false`.
+Machine-check evidence: futures request payload validation evidence.
+Route/draft flags are true while execution remains false; the registries do
+not validate command request payloads, record validation evidence, register
+payload validators, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF authority.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
@@ -229,7 +245,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6461-6480",
+  "approved_phase_range": "6481-6500",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -290,6 +306,11 @@ Expected response posture:
   "ready_request_payload_validator_registration_count": 0,
   "registered_request_payload_validator_registration_count": 0,
   "runtime_observed_request_payload_validator_registration_count": 0,
+  "request_payload_validation_evidence_count": 22,
+  "blocking_request_payload_validation_evidence_count": 22,
+  "ready_request_payload_validation_evidence_count": 0,
+  "recorded_request_payload_validation_evidence_count": 0,
+  "runtime_observed_request_payload_validation_evidence_count": 0,
   "request_fields": [
     {
       "field": "client_order_id",
@@ -324,6 +345,22 @@ Expected response posture:
       "validator_registration_ready": false,
       "runtime_evidence_satisfies_validator_registration": false,
       "validator_registered": false,
+      "request_payload_validated": false
+    }
+  ],
+  "request_payload_validation_evidence": [
+    {
+      "field": "client_order_id",
+      "validation_evidence_contract_ref": "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence",
+      "validation_evidence_field_refs": [
+        "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence.validation_evidence_ref"
+      ],
+      "validation_evidence_field_count": 6,
+      "required_evidence_count": 7,
+      "missing_evidence_count": 7,
+      "runtime_evidence_satisfies_validation_evidence": false,
+      "validation_evidence_ready": false,
+      "validation_evidence_recorded": false,
       "request_payload_validated": false
     }
   ],
@@ -2348,31 +2385,37 @@ grant browser/BFF authority.
   contract is extended.
 - Live Coinbase execution for these examples: not run; notional `$0`.
 
-## Current Registration Example Evidence
+## Current Validation Example Evidence
 
-The active 6461-6480 range reports futures request payload validator
-registration evidence in `GET /api/v1/futures/command-suite`. This futures
-request payload validator registration evidence includes
-One-line evidence phrase: futures request payload validator registration evidence.
-`"approved_phase_range": "6461-6480"`,
-`"request_payload_validator_registration_count": 22`,
-`"blocking_request_payload_validator_registration_count": 22`,
-`"ready_request_payload_validator_registration_count": 0`,
-`"registered_request_payload_validator_registration_count": 0`,
-`"runtime_observed_request_payload_validator_registration_count": 0`,
-`"request_payload_validator_registrations"`,
-`"validator_registration_field_refs"`,
-`"validator_registration_field_count"`,
-`"validator_registration_ready": false`,
-`"runtime_evidence_satisfies_validator_registration": false`,
+The active 6481-6500 range reports futures request payload validation evidence
+in `GET /api/v1/futures/command-suite`. This futures request payload validation
+evidence includes
+One-line evidence phrase: futures request payload validation evidence.
+`"approved_phase_range": "6481-6500"`,
+`"request_payload_validation_evidence_count": 22`,
+`"blocking_request_payload_validation_evidence_count": 22`,
+`"ready_request_payload_validation_evidence_count": 0`,
+`"recorded_request_payload_validation_evidence_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_count": 0`,
+`"request_payload_validation_evidence"`,
+`"validation_evidence_contract_ref"`,
+`"validation_evidence_field_refs"`,
+`"validation_evidence_field_count"`,
+`"runtime_evidence_satisfies_validation_evidence": false`,
+`"validation_evidence_ready": false`,
+`"validation_evidence_recorded": false`,
 `"validator_input_schema_ref"`, `"validator_output_schema_ref"`,
 `"validator_registration_ref"`, and `"request_payload_validated": false`.
 The registry is
+`application/admin_api/futures_request_payload_validation_evidence.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence`; these rows remain blocked,
+backend-owned, read-only, display-only, and no-live. Completed registration
+evidence remains available through
 `application/admin_api/futures_request_payload_validator_registrations.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
-`iter_futures_request_payload_validator_registrations`; these rows remain
-blocked, backend-owned, read-only, display-only, and no-live. Completed
-output-schema evidence remains available through
+`iter_futures_request_payload_validator_registrations`; completed output-schema
+evidence remains available through
 `application/admin_api/futures_request_payload_validator_output_schemas.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
 `iter_futures_request_payload_validator_output_schemas`.

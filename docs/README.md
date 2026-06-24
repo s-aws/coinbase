@@ -82,6 +82,10 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   `python tools\run_admin_api.py --dev-token local-admin-token`
 - Process-parallel regression closeout:
   `python tools\run_parallel_regression.py --workers 4`
+- Stale test-process check before closeout and after interrupted tests:
+  `python tools\check_stale_test_processes.py --include-sibling-frontend`
+- Runtime artifact check after regression memory spikes:
+  `python tools\check_runtime_artifacts.py`
 - Admin API OIDC readiness smoke:
   `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
 - Admin API route inventory export:

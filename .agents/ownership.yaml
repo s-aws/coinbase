@@ -61,6 +61,7 @@ owners:
       - tools/run_spot_release_gate.py
       - tools/run_parallel_regression.py
       - tools/check_stale_test_processes.py
+      - tools/check_runtime_artifacts.py
       - tools/run_admin_oidc_readiness_smoke.py
       - tools/run_autonomous_work_queue_check.py
       - ai-context.md
@@ -108,6 +109,7 @@ owners:
       - tests/regression/test_live_spot_usdc_smoke_runner.py
       - tests/regression/test_parallel_regression_runner.py
       - tests/regression/test_stale_test_process_checker.py
+      - tests/regression/test_runtime_artifact_checker.py
       - tests/regression/test_spot_contextless_agent_checklist.py
       - tests/regression/test_spot_readiness_gate.py
     tests:

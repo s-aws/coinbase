@@ -83,8 +83,9 @@ positives use `parallel-regression: serial-safe`.
 
 The runner also records per-lane peak memory samples in its summary JSON when
 the Windows memory guard is active. Preserve that line for closeout evidence;
-`memory_guard_aborted` means the gate failed and the offending regression
-surface must be split or reduced before retrying.
+`memory_guard_aborted` means the gate failed. Run the stale process checker,
+run the runtime artifact checker, then split or reduce the offending regression
+surface before retrying.
 
 Before full closeout gates and after interrupted or timed-out backend/frontend
 test commands, run:
@@ -96,6 +97,15 @@ python tools/check_stale_test_processes.py --include-sibling-frontend
 Use `--kill` only for matched repo-owned test command lines that are stale and
 not part of active validation. Do not terminate generic `node.exe`,
 `python.exe`, Codex, VS Code, or browser processes by name alone.
+
+After a memory-guard abort or unexplained memory spike, also run:
+
+```powershell
+python tools/check_runtime_artifacts.py
+```
+
+It is report-only and identifies oversized `runtime_state/` test artifacts; do
+not delete artifacts without an explicit cleanup decision.
 
 ## Subagent Hygiene
 

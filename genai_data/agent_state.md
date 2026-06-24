@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-23
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6461-6480`.
+- Commit (optional): current active range is `6481-6500`.
 
 ## Current Objective
 
@@ -56,38 +56,47 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6441-6460`.
-- Active autonomous range: `6461-6480`.
-- Active `6461-6480` adds disabled futures request payload validator
-  registration evidence through
-  `application/admin_api/futures_request_payload_validator_registrations.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
-  `iter_futures_request_payload_validator_registrations`. The command suite
-  must expose `request_payload_validator_registration_count`,
-  `blocking_request_payload_validator_registration_count`,
-  `ready_request_payload_validator_registration_count`,
-  `registered_request_payload_validator_registration_count`,
-  `runtime_observed_request_payload_validator_registration_count`,
-  `request_payload_validator_registrations`,
+- Latest completed autonomous range before current work: `6461-6480`.
+- Active autonomous range: `6481-6500`.
+- Active `6481-6500` adds disabled futures request payload validation
+  evidence through
+  `application/admin_api/futures_request_payload_validation_evidence.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+  `iter_futures_request_payload_validation_evidence`. The command suite must
+  expose `request_payload_validation_evidence_count`,
+  `blocking_request_payload_validation_evidence_count`,
+  `ready_request_payload_validation_evidence_count`,
+  `recorded_request_payload_validation_evidence_count`,
+  `runtime_observed_request_payload_validation_evidence_count`,
+  `request_payload_validation_evidence`,
   `request_payload_validator_input_schema_count`,
   `blocking_request_payload_validator_input_schema_count`,
   `request_payload_validator_output_schema_count`,
   `blocking_request_payload_validator_output_schema_count`,
-  `validator_registration_field_refs`, `validator_registration_field_count`,
+  `request_payload_validator_registration_count`,
+  `blocking_request_payload_validator_registration_count`,
+  `input_schema_field_refs`, `input_schema_field_count`,
   `output_schema_field_refs`, `output_schema_field_count`,
-  `required_evidence_refs`, `missing_evidence_refs`,
+  `validation_evidence_contract_ref`, `validation_evidence_field_refs`,
+  `validation_evidence_field_count`, `validator_registration_field_refs`,
+  `validator_registration_field_count`, `required_evidence_refs`,
+  `missing_evidence_refs`,
+  `runtime_evidence_satisfies_validation_evidence=false`,
+  `validation_evidence_ready=false`, `validation_evidence_recorded=false`,
   `validator_registration_ready=false`,
   `runtime_evidence_satisfies_validator_registration=false`,
   `validator_registered=false`, and `request_payload_validated=false`.
   The futures request payload validator output-schema evidence remains carried
-  forward from `6441-6460`. route/draft flags are true while execution remains false. Cancel remains by
-  `client_order_id`; no Coinbase activity, reconciliation execution, futures
-  state mutation, browser/BFF authority, proof acceptance, payload validation,
+  forward from `6441-6460`, and the futures request payload validator registration evidence remains carried forward from `6461-6480`. route/draft
+  flags are true while execution remains false. Cancel remains by
+  `client_order_id`; no Coinbase activity,
+  reconciliation execution, futures state mutation, browser/BFF authority,
+  proof acceptance, payload validation, validation evidence recording,
   validator registration, or spot-rule authority is allowed.
-- Current direction: complete phases `6461-6480` with futures request payload
-  validator registration evidence, frontend display, focused checks,
-  blind/contextless review, phase-end subagent sweep, and no-live commit/push.
-- One-line current evidence phrase: futures request payload validator registration evidence.
+- Current direction: complete phases `6481-6500` with futures request payload
+  validation evidence, frontend display, focused checks, blind/contextless
+  review, phase-end subagent sweep, and no-live commit/push.
+- One-line current evidence phrase: futures request payload validation evidence.
 - Completed `6281-6300` added disabled futures reconciliation command-service
   parity evidence to the M57 futures/perpetual command suite. The
   `futures_reconcile` row reports
@@ -176,7 +185,7 @@ Keep it short. Keep it factual.
   `application/admin_api/futures_request_payload_validator_output_schemas.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
   `iter_futures_request_payload_validator_output_schemas`.
-  Active `6461-6480` adds disabled futures request payload validator
+  Completed `6461-6480` added disabled futures request payload validator
   registration evidence through
   `application/admin_api/futures_request_payload_validator_registrations.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
@@ -192,11 +201,22 @@ Keep it short. Keep it factual.
   `validator_registration_ready=false`,
   `runtime_evidence_satisfies_validator_registration=false`,
   `validator_registered=false`, and `request_payload_validated=false` while
-  keeping route/draft flags true and execution false.
-- Current direction: complete phases `6461-6480` by adding no-live futures
-  request payload validator registration evidence, syncing backend/frontend
-  contracts/mocks/docs, focused gates, blind/contextless review, and
-  phase-end stale-subagent sweep. Registered routes from completed `6341-6360`
+  keeping route/draft flags true and execution false. Active `6481-6500` adds
+  disabled futures request payload validation evidence through
+  `application/admin_api/futures_request_payload_validation_evidence.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+  `iter_futures_request_payload_validation_evidence`; command-suite
+  `request_payload_validation_evidence_count`,
+  `blocking_request_payload_validation_evidence_count`,
+  `request_payload_validation_evidence`, `validation_evidence_contract_ref`,
+  `validation_evidence_field_refs`, `validation_evidence_field_count`,
+  runtime_evidence_satisfies_validation_evidence=false,
+  validation_evidence_ready=false, validation_evidence_recorded=false, and
+  request_payload_validated=false remain disabled evidence only.
+- Current direction: complete phases `6481-6500` by adding no-live futures
+  request payload validation evidence, syncing backend/frontend contracts,
+  mocks, docs, focused gates, blind/contextless review, and phase-end
+  stale-subagent sweep. Registered routes from completed `6341-6360`
   remain `/api/v1/futures/orders`,
   `/api/v1/futures/positions/{position_key}/close-reduce`,
   `/api/v1/futures/orders/{client_order_id}/cancel`, and
@@ -832,10 +852,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6461-6480`.
+- Active autonomous range: `6481-6500`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete active phases `6461-6480` by syncing
-  no-live futures/perpetual request payload validator registration
+- Current direction: complete active phases `6481-6500` by syncing
+  no-live futures/perpetual request payload validation
   evidence for the route-bound command drafts at
   `POST /api/v1/futures/orders`,
   `POST /api/v1/futures/positions/{position_key}/close-reduce`,
@@ -866,7 +886,7 @@ Keep it short. Keep it factual.
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`,
   `iter_futures_request_payload_validator_output_schemas`, output-schema row
   counts, `output_schema_field_refs`, and output_schema_registered=false.
-  Active `6461-6480` exposes disabled
+  Completed `6461-6480` exposed disabled
   `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`,
   `iter_futures_request_payload_validator_registrations`,
   `request_payload_validator_registration_count`,
@@ -875,8 +895,17 @@ Keep it short. Keep it factual.
   `validator_registration_field_refs`,
   `validator_registration_field_count`,
   validator_registration_ready=false, and
-  runtime_evidence_satisfies_validator_registration=false. The route/draft
-  flags are true while execution remains false.
+  runtime_evidence_satisfies_validator_registration=false. Active `6481-6500`
+  exposes disabled `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`,
+  `iter_futures_request_payload_validation_evidence`,
+  `request_payload_validation_evidence_count`,
+  `blocking_request_payload_validation_evidence_count`,
+  `request_payload_validation_evidence`,
+  `validation_evidence_contract_ref`, `validation_evidence_field_refs`,
+  `validation_evidence_field_count`,
+  runtime_evidence_satisfies_validation_evidence=false,
+  validation_evidence_ready=false, and validation_evidence_recorded=false. The
+  route/draft flags are true while execution remains false.
   Adapter contract refs, adapter construction refs, adapter decision refs,
   adapter decision-record refs, adapter invocation refs, and adapter execution
   refs are required/present disabled evidence; Coinbase exchange-submission
@@ -1732,16 +1761,17 @@ Keep it short. Keep it factual.
   no-idempotency-binding, no-payload-validation, no-replay-protection,
   no-record-write, no-adapter, no-live, display-only, and forward-only.
 - What is blocked: Nothing currently known after backend request payload
-  validator registration work began; frontend contract sync, focused
+  validation evidence work began; frontend contract sync, focused
   backend/frontend gates, fresh blind/contextless reviews, and phase-end
   stale-subagent sweep are pending.
-- Exact next command: complete active phases `6461-6480` by syncing backend and
-  frontend contracts/mocks/docs for no-live futures request payload validator
-  registration evidence, running focused backend/frontend gates,
+- Exact next command: complete active phases `6481-6500` by syncing backend and
+  frontend contracts/mocks/docs for no-live futures request payload validation
+  evidence, running focused backend/frontend gates,
   blind/contextless review, phase-end stale-subagent sweep, and no-live proof.
   The active gap is disabled validator contract/input schema/output schema/
-  registration evidence only; no command request payload validation, payload
-  validator registration, ready validation gate, live adapter binding, Coinbase
+  registration/validation evidence only; no command request payload
+  validation, validation evidence recording, payload validator registration,
+  ready validation gate, live adapter binding, Coinbase
   placement/cancellation, exchange acknowledgement, reconciliation execution,
   Coinbase read/write authority, futures/order/exchange-state mutation,
   accepted proof record as command readiness, adapter invocation authority,

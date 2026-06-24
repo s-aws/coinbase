@@ -60,8 +60,8 @@ evidence to distinguish repo-owned pytest workers from Codex, VS Code,
 browsers, WSL, Docker, or unrelated host processes; do not guess from process
 names after the fact. Treat a
 `memory_guard_aborted` summary as a failed closeout gate, then run the stale
-process checker and split or reduce the offending regression surface before
-retrying. Do not disable the memory watch for normal closeout; use
+process checker and the runtime artifact checker, then split or reduce the
+offending regression surface before retrying. Do not disable the memory watch for normal closeout; use
 `--disable-memory-watch` only for a scoped diagnostic run where external
 process monitoring is already active.
 
@@ -112,6 +112,28 @@ python tools/check_stale_test_processes.py --include-sibling-frontend --kill
 Do not manually kill generic `node.exe`, `python.exe`, `Code.exe`, `Codex.exe`,
 Chrome, or VS Code extension processes based only on process name. Use command
 line, repository path, age, and active validation state as the evidence.
+
+## Runtime Artifact Hygiene
+
+Unexpected regression memory growth is not always a live process. Old
+repo-local test payloads under `runtime_state/` can leave large compressed
+idempotency responses or per-run stores that make filesystem watchers, IDEs,
+and later tests harder to attribute. After a memory-guard abort or unexplained
+memory spike, run the report-only artifact checker:
+
+```powershell
+python tools/check_runtime_artifacts.py
+```
+
+Use an explicit cap when a closeout run must fail on leftover payloads:
+
+```powershell
+python tools/check_runtime_artifacts.py --fail-above-gb 1
+```
+
+The checker emits `RUNTIME_ARTIFACT_SUMMARY` and never deletes files. Preserve
+the summary as evidence. Delete or archive artifacts only after an explicit
+operator cleanup decision.
 
 ## Generated Test Artifacts
 

@@ -47,9 +47,16 @@ absolute commit pressure, high commit percentage, high physical-memory
 pressure, or low available physical memory. Preserve the summary JSON because
 it includes per-lane peak memory samples and top-process
 `process_memory_snapshots` when the guard is active. A `memory_guard_aborted`
-summary means the closeout gate failed; run the stale process checker, preserve
-the evidence, and split or reduce the offending regression file before
-retrying. Do not disable the guard for normal milestone closeout.
+summary means the closeout gate failed; run the stale process checker and the
+runtime artifact checker, preserve the evidence, and split or reduce the
+offending regression file before retrying. Do not disable the guard for normal
+milestone closeout.
+
+Runtime artifact check after memory guard aborts or unexplained memory spikes:
+
+```powershell
+python tools/check_runtime_artifacts.py
+```
 
 The helper first validates serial-lane classification. Regression files that
 touch shared DB cursors, fixed service ports, process-global state, full
