@@ -11,19 +11,19 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6321-6340 range targets explicit M57 futures/perpetual proof
-payload-field contract registry evidence for
-`GET /api/v1/futures/command-suite`. Completed 6221-6240 work added aggregate
+The active 6341-6360 range targets explicit M57 futures/perpetual route-bound
+command draft evidence for `GET /api/v1/futures/command-suite` and the
+disabled command draft routes. Completed 6221-6240 work added aggregate
 blocked summaries for unresolved prerequisites, request payload contracts,
-semantic guard evidence, risk proof acceptance, admin command routes, live
-service adapters, and contextless review. Completed 6241-6260 work added
+semantic guard evidence, risk proof acceptance, live service adapters, and
+contextless review. Completed 6241-6260 work added
 ordered `command_enablement_sequence_steps` derived from backend
 `readiness_closure_steps`. Completed 6261-6280 work added
 `command_enablement_sequence_command_traces` so contextless maintainers can see
 which per-command closure rows back the sequence:
 `resolve_prerequisite_contracts`, `define_request_payload_contract`,
-`bind_semantic_guard_evidence`, `register_admin_command_route`,
-`bind_live_service_adapter`, and `run_contextless_review_gate`. Completed
+`bind_semantic_guard_evidence`, `bind_live_service_adapter`, and
+`run_contextless_review_gate`. Completed
 6281-6300 work reports `service_method="reconcile_futures_position"` for the
 `futures_reconcile` row as a disabled shared command-service bridge while
 keeping `record_futures_reconciliation_plan` as the separate required
@@ -36,7 +36,7 @@ Machine-check evidence: proof route/writer contract registry evidence;
 `"application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof"`;
 `"application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof"`;
 `"registered_proof_route_count": 0`; `"enabled_proof_writer_count": 0`.
-Active 6321-6340 work reports registry-backed `payload_fields` with
+Completed 6321-6340 work reports registry-backed `payload_fields` with
 `proof_payload.command`, `proof_payload.validation.status`,
 `futures_place_margin_collateral_payload_command_validated`,
 `payload_field_present=false`, and `validation_registered=false`.
@@ -44,19 +44,27 @@ Machine-check evidence: proof payload-field contract registry evidence;
 `"proof_payload.command"`; `"proof_payload.validation.status"`;
 `"futures_place_margin_collateral_payload_command_validated"`;
 `"payload_field_present": false`; `"validation_registered": false`.
+Active 6341-6360 work reports route-bound command draft evidence for
+`/api/v1/futures/orders`,
+`/api/v1/futures/positions/{position_key}/close-reduce`,
+`/api/v1/futures/orders/{client_order_id}/cancel`, and
+`/api/v1/futures/positions/{position_key}/reconciliation`. Machine-check
+evidence: futures route-bound command draft evidence; route/draft flags are
+true while execution remains false; cancel by client_order_id.
 Concrete risk-proof record readbacks at `GET /api/v1/futures/risk-proofs` use
 read-only resolver evidence. `POST /api/v1/futures/risk-proofs` records
 append-only local proof evidence only; it does not accept proofs, satisfy
-readiness, create command drafts, call Coinbase, execute reconciliation, mutate
-futures/order/exchange state, or grant browser/BFF authority. Exact safe latest
+readiness, make route-bound command drafts executable, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+authority. Exact safe latest
 records may be displayed, while missing or stale/invalid records fail closed.
 Resolver evidence and runtime evidence do not satisfy validator input schemas, satisfy validator output
 schemas, register input/output schemas, register validator contracts, register
 validators, execute disabled service methods, make validation gates ready,
 make semantic contract definitions ready, register semantic contracts, satisfy risk proof
-requirements, register futures command routes, create command drafts, call
-Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant
-browser/BFF authority.
+requirements, make route-bound futures command drafts executable, call Coinbase,
+execute reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+authority.
 
 `place_futures_order`, `close_or_reduce_futures_position`,
 `cancel_futures_order`, and `reconcile_futures_position` are named disabled
@@ -155,45 +163,43 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6321-6340",
+  "approved_phase_range": "6341-6360",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
   "executable_command_count": 0,
-  "command_route_count": 0,
-  "command_draft_allowed_count": 0,
-  "command_enablement_blocker_summary_count": 7,
-  "command_enablement_blocker_summary_blocking_count": 7,
+  "command_route_count": 4,
+  "command_draft_allowed_count": 4,
+  "command_enablement_blocker_summary_count": 6,
+  "command_enablement_blocker_summary_blocking_count": 6,
   "command_enablement_blocker_summaries": [
     {"blocker": "unresolved_prerequisites", "status": "blocked"},
     {"blocker": "request_payload_contracts", "status": "blocked"},
     {"blocker": "semantic_guard_evidence", "status": "blocked"},
     {"blocker": "risk_proof_acceptance", "status": "blocked"},
-    {"blocker": "admin_command_route", "status": "blocked"},
     {"blocker": "live_service_adapter", "status": "blocked"},
     {"blocker": "contextless_review_gate", "status": "blocked"}
   ],
-  "command_enablement_sequence_step_count": 6,
-  "command_enablement_sequence_step_blocking_count": 6,
+  "command_enablement_sequence_step_count": 5,
+  "command_enablement_sequence_step_blocking_count": 5,
   "command_enablement_sequence_steps": [
     {"step": "resolve_prerequisite_contracts", "status": "blocked"},
     {"step": "define_request_payload_contract", "status": "blocked"},
     {"step": "bind_semantic_guard_evidence", "status": "blocked"},
-    {"step": "register_admin_command_route", "status": "blocked"},
     {"step": "bind_live_service_adapter", "status": "blocked"},
     {"step": "run_contextless_review_gate", "status": "blocked"}
   ],
-  "command_enablement_sequence_command_trace_count": 24,
-  "command_enablement_sequence_command_trace_blocking_count": 24,
+  "command_enablement_sequence_command_trace_count": 20,
+  "command_enablement_sequence_command_trace_blocking_count": 20,
   "command_enablement_sequence_command_traces": [
     {
-      "trace_id": "register_admin_command_route::futures_place",
-      "step": "register_admin_command_route",
-      "sequence": 4,
+      "trace_id": "resolve_prerequisite_contracts::futures_place",
+      "step": "resolve_prerequisite_contracts",
+      "sequence": 1,
       "command": "futures_place",
-      "command_step_sequence": 4,
+      "command_step_sequence": 1,
       "status": "blocked",
-      "source_blockers": ["admin_command_route"],
+      "source_blockers": ["unresolved_prerequisites"],
       "reconciliation_execution_allowed": false,
       "futures_state_mutation_allowed": false
     }
@@ -580,7 +586,7 @@ Expected response posture:
       "command": "futures_place",
       "status": "blocked",
       "action_class": "live_exchange_place",
-      "route": null,
+      "route": "/api/v1/futures/orders",
       "service_method": "place_futures_order",
       "identity_key": "product_id",
       "required_backend_contracts": [
@@ -706,8 +712,8 @@ Expected response posture:
         "evidence_route_count": 6,
         "first_blocker": "prerequisite:product_scope",
         "next_required_backend_contract": null,
-        "command_route_registered": false,
-        "command_draft_allowed": false,
+        "command_route_registered": true,
+        "command_draft_allowed": true,
         "execution_allowed": false,
         "backend_owned": true,
         "read_only": true,
@@ -724,8 +730,8 @@ Expected response posture:
           "status": "blocked",
           "blocking": true,
           "required_evidence_refs": ["product_scope"],
-          "command_route_registered": false,
-          "command_draft_allowed": false,
+          "command_route_registered": true,
+          "command_draft_allowed": true,
           "execution_allowed": false,
           "proof_writer_enabled": false,
           "backend_owned": true,
@@ -855,8 +861,8 @@ Expected response posture:
               "contract_registered": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -900,8 +906,8 @@ Expected response posture:
               "validation_ready": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -951,8 +957,8 @@ Expected response posture:
               "definition_ready": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1013,8 +1019,8 @@ Expected response posture:
               "definition_ready": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1086,8 +1092,8 @@ Expected response posture:
               "definition_ready": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1144,8 +1150,8 @@ Expected response posture:
               "definition_ready": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1209,8 +1215,8 @@ Expected response posture:
               "definition_ready": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1423,8 +1429,8 @@ Expected response posture:
               "remediation_ready": false,
               "remediation_performed": false,
               "proof_record_accepted": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1503,8 +1509,8 @@ Expected response posture:
               "remediation_performed": false,
               "record_validation_ready": false,
               "proof_record_accepted": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1566,8 +1572,8 @@ Expected response posture:
               "remediation_performed": false,
               "record_validation_ready": false,
               "proof_record_accepted": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1629,8 +1635,8 @@ Expected response posture:
               "remediation_performed": false,
               "record_validation_ready": false,
               "proof_record_accepted": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1683,8 +1689,8 @@ Expected response posture:
               "negative_check": false,
               "accepted": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1797,8 +1803,8 @@ Expected response posture:
               "contract_registered": false,
               "acceptance_ready": false,
               "satisfies_risk_proof": false,
-              "command_route_registered": false,
-              "command_draft_allowed": false,
+              "command_route_registered": true,
+              "command_draft_allowed": true,
               "execution_allowed": false,
               "proof_route_registered": false,
               "proof_writer_enabled": false,
@@ -1844,15 +1850,15 @@ Expected response posture:
           "bff_authority": "forward_only_no_execution"
         }
       ],
-      "command_route_registered": false,
-      "command_draft_allowed": false,
+      "command_route_registered": true,
+      "command_draft_allowed": true,
       "execution_allowed": false
     },
     {
       "command": "futures_close_reduce",
       "status": "blocked",
-      "action_class": "live_exchange_place",
-      "route": null,
+      "action_class": "live_exchange_cancel",
+      "route": "/api/v1/futures/positions/{position_key}/close-reduce",
       "service_method": "close_or_reduce_futures_position",
       "identity_key": "position_key",
       "required_backend_contracts": [
@@ -1876,8 +1882,8 @@ Expected response posture:
         "blocker_count": 29,
         "missing_backend_contract_count": 0,
         "next_required_backend_contract": null,
-        "command_route_registered": false,
-        "command_draft_allowed": false,
+        "command_route_registered": true,
+        "command_draft_allowed": true,
         "execution_allowed": false
       },
       "readiness_closure_step_count": 6,
@@ -1892,15 +1898,15 @@ Expected response posture:
           "spot_rule_authority": false
         }
       ],
-      "command_route_registered": false,
-      "command_draft_allowed": false,
+      "command_route_registered": true,
+      "command_draft_allowed": true,
       "execution_allowed": false
     },
     {
       "command": "futures_cancel",
       "status": "blocked",
       "action_class": "live_exchange_cancel",
-      "route": null,
+      "route": "/api/v1/futures/orders/{client_order_id}/cancel",
       "service_method": "cancel_futures_order",
       "identity_key": "client_order_id",
       "required_backend_contracts": [
@@ -1958,8 +1964,8 @@ Expected response posture:
         "blocker_count": 15,
         "missing_backend_contract_count": 0,
         "next_required_backend_contract": null,
-        "command_route_registered": false,
-        "command_draft_allowed": false,
+        "command_route_registered": true,
+        "command_draft_allowed": true,
         "execution_allowed": false
       },
       "readiness_closure_step_count": 6,
@@ -1974,15 +1980,15 @@ Expected response posture:
           "spot_rule_authority": false
         }
       ],
-      "command_route_registered": false,
-      "command_draft_allowed": false,
+      "command_route_registered": true,
+      "command_draft_allowed": true,
       "execution_allowed": false
     },
     {
       "command": "futures_reconcile",
       "status": "blocked",
       "action_class": "local_state_mutation",
-      "route": null,
+      "route": "/api/v1/futures/positions/{position_key}/reconciliation",
       "service_method": "reconcile_futures_position",
       "identity_key": "position_key",
       "required_backend_contracts": [
@@ -2006,8 +2012,8 @@ Expected response posture:
         "blocker_count": 22,
         "missing_backend_contract_count": 0,
         "next_required_backend_contract": null,
-        "command_route_registered": false,
-        "command_draft_allowed": false,
+        "command_route_registered": true,
+        "command_draft_allowed": true,
         "execution_allowed": false
       },
       "readiness_closure_step_count": 6,
@@ -2022,8 +2028,8 @@ Expected response posture:
           "spot_rule_authority": false
         }
       ],
-      "command_route_registered": false,
-      "command_draft_allowed": false,
+      "command_route_registered": true,
+      "command_draft_allowed": true,
       "execution_allowed": false
     }
   ],
@@ -2038,9 +2044,9 @@ Expected response posture:
 
 Spot wallet, no-shorting, USDC, cost-basis, and inventory-lot rules are forbidden
 as futures/perpetual command authority. Readiness decisions report blocker
-counts and the next missing backend contract; they do not make any command
-ready while `command_route_registered=false`, `command_draft_allowed=false`,
-and `execution_allowed=false`.
+counts and the next missing backend contract. Route/draft flags are true for
+the four draft routes, but commands remain non-executable while
+`execution_allowed=false`.
 
 ## Account Evidence
 
@@ -2208,9 +2214,9 @@ Content-Type: application/json
 The accepted response is a backend command response with
 `live_exchange_submitted=false`, `submitted_notional_usdc="0"`, and
 `executed_notional_usdc="0"`. It persists proof evidence only; it does not
-accept proof requirements, register futures command routes, create command
-drafts, execute reconciliation, call Coinbase, mutate futures/order/exchange
-state, or grant browser/BFF authority.
+accept proof requirements, make route-bound futures command drafts executable,
+execute reconciliation, call Coinbase, mutate futures/order/exchange state, or
+grant browser/BFF authority.
 
 ## Operator Rules
 

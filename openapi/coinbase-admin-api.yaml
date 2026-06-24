@@ -3034,6 +3034,460 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/orders:
+    post:
+      tags:
+      - futures
+      summary: Create a futures or perpetual order draft through the shared command
+        service
+      description: Route-bound no-live futures/perpetual placement command draft.
+      operationId: place_futures_order_api_v1_futures_orders_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuturesPlaceOrderRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/positions/{position_key}/close-reduce:
+    post:
+      tags:
+      - futures
+      summary: Create a futures or perpetual close/reduce draft
+      description: Route-bound no-live futures/perpetual close/reduce command draft.
+      operationId: close_or_reduce_futures_position_api_v1_futures_positions__position_key__close_reduce_post
+      parameters:
+      - name: position_key
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Position Key
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuturesCloseReduceRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/orders/{client_order_id}/cancel:
+    post:
+      tags:
+      - futures
+      summary: Create a futures or perpetual cancel draft by client_order_id
+      description: Route-bound no-live futures/perpetual cancel command draft.
+      operationId: cancel_futures_order_api_v1_futures_orders__client_order_id__cancel_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuturesCancelOrderRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/positions/{position_key}/reconciliation:
+    post:
+      tags:
+      - futures
+      summary: Create a futures or perpetual reconciliation draft
+      description: Route-bound no-live futures/perpetual reconciliation command draft.
+      operationId: reconcile_futures_position_api_v1_futures_positions__position_key__reconciliation_post
+      parameters:
+      - name: position_key
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Position Key
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuturesReconciliationRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/account:
     get:
       tags:
@@ -67028,6 +67482,281 @@ components:
       type: object
       title: CancelOrderRequest
       description: Cancel request body keyed by path ``client_order_id``.
+    FuturesCancelOrderRequest:
+      properties:
+        product_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Product Id
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Approval Snapshot Id
+        admission_audit_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cap Guard Decision Id
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reconciliation Plan Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      title: FuturesCancelOrderRequest
+      description: Futures/perpetual cancel draft request keyed by ``client_order_id``.
+    FuturesCloseReduceRequest:
+      properties:
+        order_type:
+          $ref: '#/components/schemas/OrderType'
+          default: MARKET
+        size:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Size
+        limit_price:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Limit Price
+        time_in_force:
+          anyOf:
+          - $ref: '#/components/schemas/TimeInForce'
+          - type: 'null'
+        reduce_only:
+          type: boolean
+          title: Reduce Only
+          default: true
+        close_only:
+          type: boolean
+          title: Close Only
+          default: false
+        expected_position_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Position State
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Approval Snapshot Id
+        admission_audit_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cap Guard Decision Id
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reconciliation Plan Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      title: FuturesCloseReduceRequest
+      description: Futures/perpetual close/reduce draft request keyed by ``position_key``.
+    FuturesPlaceOrderRequest:
+      properties:
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+          examples:
+          - BTC-PERP-INTX
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        order_type:
+          $ref: '#/components/schemas/OrderType'
+        size:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Size
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        limit_price:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Limit Price
+        time_in_force:
+          anyOf:
+          - $ref: '#/components/schemas/TimeInForce'
+          - type: 'null'
+          default: GOOD_UNTIL_CANCELLED
+        reduce_only:
+          type: boolean
+          title: Reduce Only
+          default: false
+        close_only:
+          type: boolean
+          title: Close Only
+          default: false
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Approval Snapshot Id
+        admission_audit_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cap Guard Decision Id
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reconciliation Plan Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - side
+      - order_type
+      - size
+      title: FuturesPlaceOrderRequest
+      description: Futures/perpetual placement draft request keyed by ``product_id``.
+    FuturesReconciliationRequest:
+      properties:
+        reconciliation_reason:
+          type: string
+          minLength: 1
+          title: Reconciliation Reason
+        expected_position_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Position State
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Approval Snapshot Id
+        admission_audit_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cap Guard Decision Id
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reconciliation Plan Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - reconciliation_reason
+      title: FuturesReconciliationRequest
+      description: Futures/perpetual reconciliation draft request keyed by ``position_key``.
     FuturesRiskProofDetailResponse:
       properties:
         type:

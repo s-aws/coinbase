@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import gc
 import gzip
@@ -26957,7 +26957,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27184,7 +27184,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27424,7 +27424,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27683,7 +27683,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -27908,7 +27908,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -28813,7 +28813,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -32026,7 +32026,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -32241,7 +32241,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "6321-6340"
+    assert readback_payload["approved_phase_range"] == "6341-6360"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -35561,7 +35561,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "6321-6340"
+    assert payload["approved_phase_range"] == "6341-6360"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -42635,7 +42635,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "6321-6340"
+    assert live_payload["approved_phase_range"] == "6341-6360"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -42648,35 +42648,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 64
-    assert live_payload["blocking_preflight_check_count"] == 32
-    assert live_payload["passed_preflight_check_count"] == 32
-    assert live_payload["approval_snapshot_required_count"] == 8
+    assert live_payload["preflight_check_count"] == 88
+    assert live_payload["blocking_preflight_check_count"] == 44
+    assert live_payload["passed_preflight_check_count"] == 44
+    assert live_payload["approval_snapshot_required_count"] == 11
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 8
-    assert live_payload["approval_snapshot_required_field_count"] == 120
-    assert live_payload["approval_snapshot_missing_field_count"] == 120
-    assert live_payload["approval_store_required_count"] == 8
-    assert live_payload["approval_store_configured_count"] == 8
+    assert live_payload["approval_snapshot_missing_count"] == 11
+    assert live_payload["approval_snapshot_required_field_count"] == 165
+    assert live_payload["approval_snapshot_missing_field_count"] == 165
+    assert live_payload["approval_store_required_count"] == 11
+    assert live_payload["approval_store_configured_count"] == 11
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 96
+    assert live_payload["approval_store_requirement_count"] == 132
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 8
+    assert live_payload["admission_audit_required_count"] == 11
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 8
-    assert live_payload["admission_audit_fact_count"] == 80
-    assert live_payload["admission_audit_missing_fact_count"] == 72
-    assert live_payload["cap_guard_required_count"] == 8
+    assert live_payload["admission_audit_missing_count"] == 11
+    assert live_payload["admission_audit_fact_count"] == 110
+    assert live_payload["admission_audit_missing_fact_count"] == 99
+    assert live_payload["cap_guard_required_count"] == 11
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 8
-    assert live_payload["cap_guard_requirement_count"] == 112
-    assert live_payload["cap_guard_missing_requirement_count"] == 112
-    assert live_payload["live_execution_adapter_required_count"] == 8
+    assert live_payload["cap_guard_missing_count"] == 11
+    assert live_payload["cap_guard_requirement_count"] == 154
+    assert live_payload["cap_guard_missing_requirement_count"] == 154
+    assert live_payload["live_execution_adapter_required_count"] == 11
     assert live_payload["live_execution_adapter_configured_count"] == 2
-    assert live_payload["live_execution_adapter_missing_count"] == 6
-    assert live_payload["readiness_precondition_count"] == 72
-    assert live_payload["blocking_readiness_precondition_count"] == 45
-    assert live_payload["passed_readiness_precondition_count"] == 27
+    assert live_payload["live_execution_adapter_missing_count"] == 9
+    assert live_payload["readiness_precondition_count"] == 99
+    assert live_payload["blocking_readiness_precondition_count"] == 63
+    assert live_payload["passed_readiness_precondition_count"] == 36
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -42688,8 +42688,24 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
         in live_routes
     )
+    assert "/api/v1/futures/orders" in live_routes
+    assert "/api/v1/futures/positions/{position_key}/close-reduce" in live_routes
+    assert "/api/v1/futures/orders/{client_order_id}/cancel" in live_routes
     assert "/api/v1/spot/campaign/executions" in live_routes
     assert "/api/v1/spot/sweep/automation-runs" in live_routes
+    assert live_routes["/api/v1/futures/orders"]["identity_key"] == "product_id"
+    assert (
+        live_routes["/api/v1/futures/positions/{position_key}/close-reduce"][
+            "identity_key"
+        ]
+        == "position_key"
+    )
+    assert (
+        live_routes["/api/v1/futures/orders/{client_order_id}/cancel"][
+            "identity_key"
+        ]
+        == "client_order_id"
+    )
     assert (
         live_routes["/api/v1/spot/sweep/automation-runs"]["identity_key"]
         == "sweep_config_id"
@@ -43293,7 +43309,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "6321-6340"
+    assert enterprise_payload["approved_phase_range"] == "6341-6360"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -43322,7 +43338,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert enterprise_payload["mutation_taxonomy_count"] >= 10
     assert enterprise_payload["route_bound_mutation_taxonomy_count"] >= 8
     assert enterprise_payload["live_disabled_mutation_count"] >= 5
-    assert enterprise_payload["backend_contract_required_mutation_count"] >= 2
+    assert enterprise_payload["backend_contract_required_mutation_count"] >= 1
     assert enterprise_payload["compatibility_mutation_count"] >= 3
     inventory_by_id = {
         item["workflow_id"]: item
@@ -43387,7 +43403,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "movement.repricing_reads",
         "movement.reprice_command_draft",
         "futures.read_models",
-        "futures.commands_not_modeled",
+        "futures.command_drafts_live_disabled",
         "guard_risk.policy_evidence",
         "audit.recovery_and_repair_evidence",
         "audit.fill_ledger_repair_contract_required",
@@ -43647,15 +43663,26 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "must not construct adapters" in (
         live_adapter_decision_inventory["frontend_boundary"]
     )
-    futures_command_inventory = inventory_by_id["futures.commands_not_modeled"]
+    futures_command_inventory = inventory_by_id["futures.command_drafts_live_disabled"]
     assert futures_command_inventory["exposure_status"] == (
-        AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
     )
     assert futures_command_inventory["support_status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
-    assert futures_command_inventory["admin_api_exposed"] is False
-    assert futures_command_inventory["frontend_exposed"] is False
+    assert futures_command_inventory["admin_api_exposed"] is True
+    assert futures_command_inventory["frontend_exposed"] is True
+    assert futures_command_inventory["command_capable"] is True
+    assert futures_command_inventory["live_designated"] is True
+    assert futures_command_inventory["live_enabled"] is False
+    assert futures_command_inventory["command_routes"] == [
+        "POST /api/v1/futures/orders",
+        "POST /api/v1/futures/positions/{position_key}/close-reduce",
+        "POST /api/v1/futures/orders/{client_order_id}/cancel",
+        "POST /api/v1/futures/positions/{position_key}/reconciliation",
+    ]
+    assert "client_order_id" in futures_command_inventory["identity_keys"]
+    assert "position_key" in futures_command_inventory["identity_keys"]
     assert "Spot rules are forbidden" in futures_command_inventory[
         "spot_rule_boundary"
     ]
@@ -43832,13 +43859,28 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
     assert futures_taxonomy["exposure_status"] == (
-        AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
     )
+    assert futures_taxonomy["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert futures_taxonomy["workflow_id"] == "futures.command_drafts_live_disabled"
     assert futures_taxonomy["command_surfaces"] == [
-        "POST /api/v1/futures/risk-proofs"
+        "POST /api/v1/futures/orders",
+        "POST /api/v1/futures/positions/{position_key}/close-reduce",
+        "POST /api/v1/futures/orders/{client_order_id}/cancel",
+        "POST /api/v1/futures/positions/{position_key}/reconciliation",
+        "POST /api/v1/futures/risk-proofs",
     ]
-    assert futures_taxonomy["action_classes"] == ["local_state_mutation"]
+    assert futures_taxonomy["action_classes"] == [
+        "live_exchange_place",
+        "live_exchange_cancel",
+        "local_state_mutation",
+    ]
     assert futures_taxonomy["required_permissions"] == [
+        "order:create",
+        "order:cancel",
+        "reconciliation:record",
         "futures_risk_proof:record"
     ]
     assert futures_taxonomy["idempotency_required"] is True
@@ -43848,7 +43890,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert futures_taxonomy["reconciliation_required"] is False
     assert futures_taxonomy["live_adapter_required"] is False
     assert futures_taxonomy["route_local_execution_allowed"] is False
-    assert "backend futures command contract missing" in futures_taxonomy["blockers"]
+    assert "client_order_id" in futures_taxonomy["identity_keys"]
+    assert "position_key" in futures_taxonomy["identity_keys"]
+    assert "live_execution_disabled" in futures_taxonomy["blockers"]
+    assert "futures live adapter contract missing" in futures_taxonomy["blockers"]
+    assert "futures reconciliation execution missing" in futures_taxonomy["blockers"]
     assert "Spot rules are forbidden" in futures_taxonomy["spot_rule_boundary"]
     repair_taxonomy = taxonomy_by_id["audit.fill_ledger_repair_contract_required"]
     assert repair_taxonomy["mutation_family"] == (
@@ -43912,7 +43958,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert module_statuses["Futures / Perpetuals"] == (
-        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert module_statuses["Legacy Dashboard WebSocket"] == (
         AdminApiModuleSupportStatus.UNSUPPORTED.value
@@ -44002,22 +44048,48 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "forbidden" in futures_module["spot_rule_boundary"]
     assert "margin" in futures_module["spot_rule_boundary"]
     assert "README.futures-perpetuals.md" in futures_module["documentation_refs"]
+    assert "GET /api/v1/futures/command-suite" in futures_module["read_routes"]
+    assert "GET /api/v1/futures/risk-proofs" in futures_module["read_routes"]
+    assert "POST /api/v1/futures/orders" in futures_module["command_routes"]
+    assert (
+        "POST /api/v1/futures/positions/{position_key}/close-reduce"
+        in futures_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/futures/orders/{client_order_id}/cancel"
+        in futures_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/futures/positions/{position_key}/reconciliation"
+        in futures_module["command_routes"]
+    )
+    assert "POST /api/v1/futures/risk-proofs" in futures_module["command_routes"]
+    assert futures_module["action_posture"]["read_route_count"] == 6
+    assert futures_module["action_posture"]["command_route_count"] == 5
+    assert futures_module["action_posture"]["live_route_count"] == 3
+    assert futures_module["action_posture"]["command_gap_count"] == 3
     futures_gaps = {
         item["action"]: item for item in futures_module["command_gaps"]
     }
-    assert futures_gaps["frontend futures placement"] == {
-        "action": "frontend futures placement",
-        "status": AdminApiModuleSupportStatus.NOT_MODELED.value,
-        "reason": "Futures/perpetual placement needs backend-owned margin, leverage, liquidation, reduce-only, collateral, and approval contracts before UI drafting.",
-        "required_backend_contract": "POST futures/perpetual placement contract with margin, leverage, liquidation, reduce-only, cap, approval, audit, and reconciliation evidence.",
-        "frontend_boundary": "Do not add a futures/perpetual placement draft, dry-submit, or BFF route until the backend contract and capability row exist.",
+    assert futures_gaps["futures live placement execution"] == {
+        "action": "futures live placement execution",
+        "status": AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value,
+        "reason": "Futures/perpetual placement now has a route-bound Admin API command draft, but live execution remains disabled until margin, leverage, liquidation, collateral, approval, cap, audit, adapter, and reconciliation contracts are wired.",
+        "required_backend_contract": "Backend live placement executor with durable approval, cap/guard, audit, live adapter, Coinbase submission, and post-submit reconciliation evidence.",
+        "frontend_boundary": "Display and forward the disabled draft only; do not submit futures orders, call Coinbase, or create browser/BFF execution authority.",
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0",
     }
-    assert futures_gaps["frontend futures cancel/close/reduce"]["status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+    assert futures_gaps["futures live cancel close reduce execution"]["status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
-    assert futures_gaps["frontend futures cancel/close/reduce"]["notional_usdc"] == "0"
+    assert (
+        futures_gaps["futures live cancel close reduce execution"]["notional_usdc"]
+        == "0"
+    )
+    assert "client_order_id" in futures_gaps[
+        "futures live cancel close reduce execution"
+    ]["frontend_boundary"]
     assert "spot inventory" in futures_gaps["spot inventory rules in futures workflows"][
         "frontend_boundary"
     ]
@@ -44079,7 +44151,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "6321-6340"
+    assert recovery_preview_payload["approved_phase_range"] == "6341-6360"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -44165,10 +44237,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "6321-6340"
+    assert futures_command_suite_fixture["approved_phase_range"] == "6341-6360"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
-    assert futures_command_suite_fixture["command_route_count"] == 0
-    assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
+    assert futures_command_suite_fixture["command_route_count"] == 4
+    assert futures_command_suite_fixture["command_draft_allowed_count"] == 4
     assert futures_command_suite_fixture["executable_command_count"] == 0
     assert futures_command_suite_fixture["live_coinbase_orders_ran"] is False
     assert any(
@@ -47437,13 +47509,13 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "6321-6340",
+            "approved_phase_range": "6341-6360",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
             "executable_command_count": 0,
-            "command_route_count": 0,
-            "command_draft_allowed_count": 0,
+            "command_route_count": 1,
+            "command_draft_allowed_count": 1,
             "prerequisite_count": 2,
             "blocking_prerequisite_count": 1,
             "request_field_count": 2,
@@ -47461,8 +47533,8 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                     "mutation_family": "futures_contract_required",
                     "status": "blocked",
                     "action_class": "live_exchange_place",
-                    "route": None,
-                    "method": None,
+                    "route": "/api/v1/futures/orders",
+                    "method": "POST",
                     "service_method": "place_futures_order",
                     "identity_key": "product_id",
                     "required_permission": "order:create",
@@ -47643,8 +47715,8 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                         "evidence_route_count": 3,
                         "first_blocker": "prerequisite:margin",
                         "next_required_backend_contract": None,
-                        "command_route_registered": False,
-                        "command_draft_allowed": False,
+                        "command_route_registered": True,
+                        "command_draft_allowed": True,
                         "execution_allowed": False,
                         "backend_owned": True,
                         "read_only": True,
@@ -47653,8 +47725,8 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                         "bff_authority": "forward_only_no_execution",
                         "detail": "Futures placement remains backend-blocked evidence.",
                     },
-                    "command_route_registered": False,
-                    "command_draft_allowed": False,
+                    "command_route_registered": True,
+                    "command_draft_allowed": True,
                     "execution_allowed": False,
                     "live_coinbase_orders_ran": False,
                     "submitted_notional_usdc": "0",
@@ -47768,9 +47840,9 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "6321-6340"
-    assert command_suite["command_route_count"] == 0
-    assert command_suite["command_draft_allowed_count"] == 0
+    assert command_suite["approved_phase_range"] == "6341-6360"
+    assert command_suite["command_route_count"] == 1
+    assert command_suite["command_draft_allowed_count"] == 1
     assert command_suite["request_field_count"] == 2
     assert command_suite["blocking_request_field_count"] == 2
     assert command_suite["semantic_guard_count"] == 2
@@ -47782,6 +47854,10 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert command_suite["spot_rule_authority"] is False
     assert command_suite["live_coinbase_orders_ran"] is False
     assert command_suite["commands"][0]["command"] == "futures_place"
+    assert command_suite["commands"][0]["route"] == "/api/v1/futures/orders"
+    assert command_suite["commands"][0]["method"] == "POST"
+    assert command_suite["commands"][0]["command_route_registered"] is True
+    assert command_suite["commands"][0]["command_draft_allowed"] is True
     assert command_suite["commands"][0]["execution_allowed"] is False
     assert command_suite["commands"][0]["readiness_decision"]["decision"] == (
         "blocked_backend_contracts_required"
@@ -47924,12 +48000,12 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "6321-6340"
+    assert command_suite.approved_phase_range == "6341-6360"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
-    assert command_suite.command_route_count == 0
-    assert command_suite.command_draft_allowed_count == 0
+    assert command_suite.command_route_count == 4
+    assert command_suite.command_draft_allowed_count == 4
     assert command_suite.request_field_count == 22
     assert command_suite.required_request_field_count == 22
     assert command_suite.blocking_request_field_count == 22
@@ -47939,8 +48015,8 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.readiness_decision_count == 4
     assert command_suite.blocked_readiness_decision_count == 4
     assert command_suite.ready_readiness_decision_count == 0
-    assert command_suite.readiness_closure_step_count == 24
-    assert command_suite.blocking_readiness_closure_step_count == 24
+    assert command_suite.readiness_closure_step_count == 20
+    assert command_suite.blocking_readiness_closure_step_count == 20
     assert command_suite.risk_proof_requirement_count == 20
     assert command_suite.blocking_risk_proof_requirement_count == 20
     assert command_suite.risk_proof_record_resolver_count == 20
@@ -52178,15 +52254,17 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             assert item.acceptance_criteria[3].negative_check is True
             assert item.acceptance_criteria[4].negative_check is True
     place = commands_by_id["futures_place"]
-    assert place.command_route_registered is False
-    assert place.command_draft_allowed is False
+    assert place.route == "/api/v1/futures/orders"
+    assert place.method == "POST"
+    assert place.command_route_registered is True
+    assert place.command_draft_allowed is True
     assert place.execution_allowed is False
     assert place.readiness_decision.ready is False
     assert place.readiness_decision.decision.value == (
         "blocked_backend_contracts_required"
     )
-    assert place.readiness_decision.command_route_registered is False
-    assert place.readiness_decision.command_draft_allowed is False
+    assert place.readiness_decision.command_route_registered is True
+    assert place.readiness_decision.command_draft_allowed is True
     assert place.readiness_decision.execution_allowed is False
     assert place.readiness_decision.spot_rule_authority is False
     assert place.readiness_decision.first_blocker is not None
@@ -52199,17 +52277,17 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert backend_service_prerequisite.status.value == "passed"
     assert backend_service_prerequisite.resolved is True
     assert backend_service_prerequisite.blocking is False
-    assert place.readiness_closure_step_count == 6
-    assert place.blocking_readiness_closure_step_count == 6
+    assert place.readiness_closure_step_count == 5
+    assert place.blocking_readiness_closure_step_count == 5
     assert [item.sequence for item in place.readiness_closure_steps] == list(
-        range(1, 7)
+        range(1, 6)
     )
     assert place.readiness_closure_steps[0].step.value == (
         "resolve_prerequisite_contracts"
     )
     assert place.readiness_closure_steps[0].blocking is True
-    assert place.readiness_closure_steps[0].command_route_registered is False
-    assert place.readiness_closure_steps[0].command_draft_allowed is False
+    assert place.readiness_closure_steps[0].command_route_registered is True
+    assert place.readiness_closure_steps[0].command_draft_allowed is True
     assert place.readiness_closure_steps[0].execution_allowed is False
     assert place.readiness_closure_steps[0].proof_writer_enabled is False
     assert place.readiness_closure_steps[0].spot_rule_authority is False
@@ -53527,3 +53605,4 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
         in schema_http_surfaces
     )
     assert schema_http_surfaces == inventory_http_surfaces
+

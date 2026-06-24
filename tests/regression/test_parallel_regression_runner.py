@@ -7,6 +7,7 @@ from tools.run_parallel_regression import (
     DEFAULT_MAX_COMMIT_GB,
     MEMORY_ABORT_EXIT_CODE,
     PYTEST_TRACEBACK_STYLE,
+    PYTEST_OUTPUT_MODE,
     SERIAL_SAFE_COMMENT,
     SUMMARY_PREFIX,
     MemorySnapshot,
@@ -130,6 +131,7 @@ def test_parallel_regression_runner_defaults_to_split_lanes():
         "--dist",
         "loadfile",
         "--max-worker-restart=0",
+        PYTEST_OUTPUT_MODE,
         f"--tb={PYTEST_TRACEBACK_STYLE}",
     )
     assert commands[1].command == (
@@ -139,6 +141,7 @@ def test_parallel_regression_runner_defaults_to_split_lanes():
         "tests/regression",
         "-m",
         "serial",
+        PYTEST_OUTPUT_MODE,
         f"--tb={PYTEST_TRACEBACK_STYLE}",
     )
 
@@ -150,8 +153,9 @@ def test_parallel_regression_runner_lane_switches():
     assert [command.name for command in build_commands(parallel_args, python="py")] == [
         "parallel_safe_regression",
     ]
-    assert build_commands(parallel_args, python="py")[0].command[-2:] == (
+    assert build_commands(parallel_args, python="py")[0].command[-3:] == (
         "--max-worker-restart=0",
+        PYTEST_OUTPUT_MODE,
         f"--tb={PYTEST_TRACEBACK_STYLE}",
     )
     assert [command.name for command in build_commands(serial_args, python="py")] == [

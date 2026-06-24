@@ -18,6 +18,10 @@ Current routes:
 - `GET /api/v1/futures/positions/{position_key}`
 - `GET /api/v1/futures/risk-proofs`
 - `GET /api/v1/futures/risk-proofs/{futures_risk_proof_id}`
+- `POST /api/v1/futures/orders`
+- `POST /api/v1/futures/positions/{position_key}/close-reduce`
+- `POST /api/v1/futures/orders/{client_order_id}/cancel`
+- `POST /api/v1/futures/positions/{position_key}/reconciliation`
 - `POST /api/v1/futures/risk-proofs`
 
 Read routes require Admin API auth/RBAC and `analytics:read`. The
@@ -25,13 +29,13 @@ Read routes require Admin API auth/RBAC and `analytics:read`. The
 `futures_risk_proof:record`, idempotency, approval, cap/guard, and audit
 evidence through the shared Admin API command service. It persists
 append-only local proof evidence only; it does not verify the proof
-requirement, register futures command routes, create command drafts, call
-Coinbase, execute reconciliation, mutate futures/order/exchange state, or
-grant browser/BFF authority. Account and position routes return
+requirement, satisfy command readiness, call Coinbase, execute reconciliation,
+mutate futures/order/exchange state, or grant browser/BFF authority. Account
+and position routes return
 `read_only=true`, `command_routes_mode="not_modeled"`, and
 `live_coinbase_orders_ran=false`; the command-suite route exposes the same
-blocked/no-live posture through its disabled route, draft, execution,
-browser, BFF, and notional evidence fields.
+blocked/no-live posture through route-bound draft, execution, browser, BFF,
+and notional evidence fields.
 
 ## Key Concepts
 
@@ -46,9 +50,10 @@ browser, BFF, and notional evidence fields.
 - Close/reduce order sides are backend-derived from observed position side.
   They are not exchange-observed reduce-only or close-only order flags.
 - `GET /api/v1/futures/command-suite` reports blocked M57 command-contract
-  evidence for placement, close/reduce, cancel, and reconciliation. It does
-  not register futures command routes, create command drafts, call Coinbase,
-  mutate state, or grant browser/BFF authority.
+  evidence for placement, close/reduce, cancel, and reconciliation. It now
+  registers route-bound no-live command drafts for those four families, but
+  does not call Coinbase, execute reconciliation, mutate state, or grant
+  browser/BFF authority.
 - The command-suite route also exposes request-field contract metadata for
   each planned command family. These fields are blocked backend contract
   evidence only; they are not accepted payloads and do not create executable
@@ -62,13 +67,13 @@ browser, BFF, and notional evidence fields.
   posture so a contextless operator can see what still blocks that guard.
 - Each command row also exposes a backend-owned readiness decision with blocker
   counts, first blocker, next required backend contract, and explicit
-  route/draft/execution false flags. The decision summarizes existing blocked
-  evidence; it does not create a command route or approval.
+  route/draft true and execution false flags. The decision summarizes existing
+  blocked evidence; it does not create approval or execution authority.
 - Each command row also exposes ordered backend-owned readiness closure steps
-  for the remaining prerequisite, payload, semantic-guard, command-service,
-  route, live-adapter, and contextless-review work. These steps are planning
-  evidence only; they do not register a route, write proofs, call Coinbase, or
-  make the browser an execution authority.
+  for the remaining prerequisite, payload, semantic-guard, live-adapter, and
+  contextless-review work. These steps are planning evidence only; they do not
+  write proofs, call Coinbase, execute reconciliation, or make the browser an
+  execution authority.
 - The command-suite route also aggregates those closure steps into
   backend-owned `command_enablement_sequence_steps` with sequence counts,
   source blockers, affected commands, required backend contracts, and required
@@ -82,8 +87,8 @@ browser, BFF, and notional evidence fields.
   `reconciliation_execution_allowed`, and
   `futures_state_mutation_allowed` fields. Trace rows map each aggregate
   sequence step back to exact per-command readiness closure evidence. They are
-  backend-owned read-only evidence and do not register futures command routes,
-  create command drafts, call Coinbase, execute reconciliation, mutate
+  backend-owned read-only evidence and do not create execution authority, bind
+  live adapters, call Coinbase, execute reconciliation, mutate
   futures/order/exchange state, or grant browser, BFF, or spot-rule authority.
 - The `futures_reconcile` command-suite row reports
   `service_method="reconcile_futures_position"` as a disabled shared
@@ -91,9 +96,8 @@ browser, BFF, and notional evidence fields.
   `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`
   in `required_backend_contracts` as the separate reconciliation-plan
   contract. The bridge is backend-owned read-only evidence and does not
-  execute reconciliation, register command routes, create drafts, call
-  Coinbase, mutate futures/order/exchange state, or grant browser/BFF
-  authority.
+  execute reconciliation, call Coinbase, mutate futures/order/exchange state,
+  or grant browser/BFF authority.
 - Each command row also exposes backend-owned risk proof requirements for
   product scope, position scope, margin, collateral, liquidation buffer,
   funding fee, reduce-only, close-only, cap guard, and reconciliation-plan
@@ -124,9 +128,9 @@ browser, BFF, and notional evidence fields.
   `definition_ready=false`, `validation_ready=false`,
   `acceptance_ready=false`, and
   `runtime_evidence_satisfies_definition=false`; observed runtime evidence
-  does not register a semantic contract, satisfy proof acceptance, create
-  command drafts, register futures routes, call Coinbase, execute
-  reconciliation, mutate state, or grant browser/BFF authority.
+  does not register a semantic contract, satisfy proof acceptance, make
+  route-bound command drafts executable, call Coinbase, execute reconciliation,
+  mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned semantic contract
   validation gate rows through `semantic_contract_validation_gates` and
   validation gate counts such as
@@ -137,7 +141,7 @@ browser, BFF, and notional evidence fields.
   `validation_ready=false`, `definition_ready=false`, and
   `runtime_evidence_satisfies_validation=false`; observed runtime evidence
   does not register validators, make definitions ready, satisfy proof
-  acceptance, create command drafts, register futures routes, call Coinbase,
+  acceptance, make route-bound command drafts executable, call Coinbase,
   execute reconciliation, mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned semantic validator
   contract rows through `semantic_contract_validator_contracts` and validator
@@ -151,9 +155,9 @@ browser, BFF, and notional evidence fields.
   `validation_ready=false`, and
   `runtime_evidence_satisfies_validator_contract=false`; observed runtime
   evidence does not register validator contracts, register schemas, register
-  validators, make validation gates ready, satisfy proof acceptance, create
-  command drafts, register futures routes, call Coinbase, execute
-  reconciliation, mutate state, or grant browser/BFF authority.
+  validators, make validation gates ready, satisfy proof acceptance, make
+  route-bound command drafts executable, call Coinbase, execute reconciliation,
+  mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned semantic validator
   input schema rows through `semantic_validator_input_schemas` and input schema
   counts such as `risk_proof_semantic_validator_input_schema_count`. These rows
@@ -165,7 +169,7 @@ browser, BFF, and notional evidence fields.
   `runtime_evidence_satisfies_input_schema=false`; observed runtime evidence
   does not satisfy input schemas, register schemas, register validator
   contracts, register validators, make validation gates ready, satisfy proof
-  acceptance, create command drafts, register futures routes, call Coinbase,
+  acceptance, make route-bound command drafts executable, call Coinbase,
   execute reconciliation, mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned semantic validator
   output schema rows through `semantic_validator_output_schemas` and output
@@ -179,7 +183,7 @@ browser, BFF, and notional evidence fields.
   `runtime_evidence_satisfies_output_schema=false`; observed runtime evidence
   does not satisfy output schemas, register schemas, register validator
   contracts, register validators, make validation gates ready, satisfy proof
-  acceptance, create command drafts, register futures routes, call Coinbase,
+  acceptance, make route-bound command drafts executable, call Coinbase,
   execute reconciliation, mutate state, or grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned semantic validator
   registration rows through `semantic_validator_registrations` and registration
@@ -192,9 +196,9 @@ browser, BFF, and notional evidence fields.
   `validation_ready=false`, and
   `runtime_evidence_satisfies_validator_registration=false`; observed runtime
   evidence does not satisfy validator registration, register validators, make
-  validation gates ready, satisfy proof acceptance, create command drafts,
-  register futures routes, call Coinbase, execute reconciliation, mutate state,
-  or grant browser/BFF authority.
+  validation gates ready, satisfy proof acceptance, make route-bound command
+  drafts executable, call Coinbase, execute reconciliation, mutate state, or
+  grant browser/BFF authority.
 - Each risk proof requirement also exposes backend-owned proof record/store
   contract rows, blocked record-validation rows, and blocked
   record-validation remediation rows. These rows name required store refs,
@@ -284,9 +288,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
 
 - Do not import Spot wallet, no-shorting, cost-basis, known-profitable
   inventory, or average-cost rules into this module.
-- Do not add futures command routes until backend guard/risk policy evidence,
-  command contracts, approval/cap/audit gates, and contextless review are in
-  place.
+- Do not enable futures command routes for execution until backend guard/risk
+  policy evidence, command contracts, approval/cap/audit gates, live adapter
+  contracts, reconciliation gates, and contextless review are in place.
 - Do not treat command-suite request fields as browser-side form authority.
   The backend must own validation, audit, idempotency, risk checks, and future
   service mapping before any command can become executable.
@@ -335,9 +339,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   `futures_place_margin_collateral_payload_command_validated`. These rows keep
   `payload_field_present=false` and `validation_registered=false`; they must
   not validate submitted proof payloads, register validators, accept proof
-  records, create proof writers, create command drafts, call Coinbase, execute
-  reconciliation, mutate futures/order/exchange state, or grant browser/BFF
-  authority.
+  records, create proof writers, make route-bound command drafts executable,
+  call Coinbase, execute reconciliation, mutate futures/order/exchange state,
+  or grant browser/BFF authority.
 - Do not treat disabled risk-guard methods as executable proof acceptance.
   M57 phases 6001-6020 define
   `evaluate_futures_margin_collateral_liquidation` as disabled backend
@@ -351,13 +355,14 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   `record_futures_reconciliation_plan` as disabled backend contract evidence
   only. The method must not reconcile positions, read or write Coinbase,
   mutate futures/order/exchange state, satisfy proof acceptance, register
-  command routes, create drafts, or grant browser/BFF authority. Route
-  registration was the next missing backend contract gap through 6021-6040.
-- Do not treat disabled route-registration contract metadata as a registered
-  command route. M57 phases 6041-6060 define
+  live adapters, or grant browser/BFF authority. Route registration was the
+  next missing backend contract gap through 6021-6040.
+- Do not treat disabled route-registration contract metadata by itself as
+  execution authority. M57 phases 6041-6060 define
   `api/v1/routes/futures.py::*_route_contract` refs as required/present
-  disabled backend evidence only. Command route count, command draft count, and
-  executable command count stay zero.
+  disabled backend evidence only. Current phases 6341-6360 register
+  route-bound no-live drafts for the four command families, but executable
+  command count stays zero.
 - Do not treat disabled live-adapter contract metadata as adapter construction
   or invocation. M57 phases 6061-6080 define
   `application/admin_api/live_execution.py::*_adapter_contract` refs as
@@ -398,9 +403,9 @@ retains a futures balance summary snapshot. Funding-rate evidence is
   browser authority, and BFF execution authority disabled.
 - Do not treat futures risk-proof records as proof acceptance or command
   readiness. They are append-only local evidence records and remain
-  insufficient to create command drafts, satisfy risk proof requirements,
-  execute reconciliation, call Coinbase, or mutate futures/order/exchange
-  state.
+  insufficient to make route-bound command drafts executable, satisfy risk
+  proof requirements, execute reconciliation, call Coinbase, or mutate
+  futures/order/exchange state.
 - Do not treat risk proof acceptance criteria as completed proof reviews.
   They are blocked acceptance checks that name what a later backend-owned
   proof route and proof writer must satisfy; they do not enable routes,

@@ -44,12 +44,15 @@ policy and the runner tests. The regression suite is process-parallel, so each
 worker imports project and test state independently; unbounded worker fan-out
 can multiply memory use even when individual tests are not leaking.
 
-The runner also uses short pytest tracebacks and a Windows memory-pressure
-guard by default. It samples every `5` seconds and aborts the active pytest lane
-when committed memory reaches `96 GiB`, committed memory reaches `85%`,
-physical memory use reaches `75%`, or available physical memory drops below
-`24 GiB`. The summary includes per-lane peak memory samples when the guard is
-active; preserve that JSON line as closeout evidence. The summary also includes
+The runner also uses quiet pytest output, short pytest tracebacks, and a Windows
+memory-pressure guard by default. Keep the quiet output mode enabled for normal
+closeout runs so terminal renderers and agent UIs do not retain thousands of
+test-result lines while long suites are running. It samples every `5` seconds
+and aborts the active pytest lane when committed memory reaches `96 GiB`,
+committed memory reaches `85%`, physical memory use reaches `75%`, or available
+physical memory drops below `24 GiB`. The summary includes per-lane peak memory
+samples when the guard is active; preserve that JSON line as closeout evidence.
+The summary also includes
 `process_memory_snapshots` with the largest private-memory processes captured
 at each lane's observed commit-memory peak. When the guard aborts a lane, those
 rows are refreshed immediately before terminating the pytest tree. Use that

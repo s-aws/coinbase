@@ -1,4 +1,4 @@
-"""Disabled futures/perpetual route-registration contract metadata.
+"""Futures/perpetual route-registration contract metadata.
 
 This module is the single source for futures/perpetual command route contract
 refs. The FastAPI route module re-exports these constants under the documented
@@ -26,13 +26,15 @@ from .live_execution import (
 
 @dataclass(frozen=True)
 class FuturesRouteContract:
-    """One disabled route-registration contract for a futures command."""
+    """One route-registration contract for a futures command draft."""
 
     command: AdminFuturesCommandAction
     contract_name: str
     contract_ref: str
-    route_registered: bool = False
-    command_draft_allowed: bool = False
+    route_template: str
+    method: str = "POST"
+    route_registered: bool = True
+    command_draft_allowed: bool = True
     live_adapter_bound: bool = False
     execution_allowed: bool = False
     reconciliation_execution_enabled: bool = False
@@ -45,29 +47,35 @@ class FuturesRouteContract:
 def _route_contract(
     command: AdminFuturesCommandAction,
     contract_name: str,
+    route_template: str,
 ) -> FuturesRouteContract:
     return FuturesRouteContract(
         command=command,
         contract_name=contract_name,
         contract_ref=f"api/v1/routes/futures.py::{contract_name}",
+        route_template=route_template,
     )
 
 
 FUTURES_PLACE_ROUTE_CONTRACT = _route_contract(
     AdminFuturesCommandAction.PLACE,
     "futures_place_route_contract",
+    "/api/v1/futures/orders",
 )
 FUTURES_CLOSE_REDUCE_ROUTE_CONTRACT = _route_contract(
     AdminFuturesCommandAction.CLOSE_REDUCE,
     "futures_close_reduce_route_contract",
+    "/api/v1/futures/positions/{position_key}/close-reduce",
 )
 FUTURES_CANCEL_ROUTE_CONTRACT = _route_contract(
     AdminFuturesCommandAction.CANCEL,
     "futures_cancel_route_contract",
+    "/api/v1/futures/orders/{client_order_id}/cancel",
 )
 FUTURES_RECONCILE_ROUTE_CONTRACT = _route_contract(
     AdminFuturesCommandAction.RECONCILE,
     "futures_reconcile_route_contract",
+    "/api/v1/futures/positions/{position_key}/reconciliation",
 )
 
 FUTURES_ROUTE_CONTRACTS: dict[AdminFuturesCommandAction, FuturesRouteContract] = {

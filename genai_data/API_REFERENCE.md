@@ -425,9 +425,10 @@ Current behavior:
   The command-suite response keeps `registered_proof_route_count=0` and
   `enabled_proof_writer_count=0`. These rows do not register futures command
   routes, register proof routes, create proof writers, accept proof records,
-  create command drafts, call Coinbase, execute reconciliation, mutate
-  futures/order/exchange state, or grant browser, BFF, or spot-rule authority
-  Current M57 `6321-6340` evidence reports futures proof payload-field
+  make route-bound command drafts executable, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser, BFF,
+  or spot-rule authority
+  Completed M57 `6321-6340` evidence reports futures proof payload-field
   contract registry evidence through `FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS`
   and `iter_futures_proof_payload_field_contracts`, including
   `proof_payload.command`, `proof_payload.validation.status`, and
@@ -435,17 +436,31 @@ Current behavior:
   command-suite response keeps `payload_field_present=false` and
   `validation_registered=false`. These rows do not validate submitted proof
   payloads, register validators, accept proof records, create proof writers,
-  create command drafts, call Coinbase, execute reconciliation, mutate
-  futures/order/exchange state, or grant browser, BFF, or spot-rule authority
-- Machine-check evidence: proof payload-field contract registry evidence.
-- Machine-check evidence: validate submitted proof payloads is forbidden for
-  the active disabled payload-field registry.
+  make route-bound command drafts executable, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser, BFF,
+  or spot-rule authority
+  Current M57 `6341-6360` evidence reports futures route-bound command draft
+  evidence for `POST /api/v1/futures/orders`,
+  `POST /api/v1/futures/positions/{position_key}/close-reduce`,
+  `POST /api/v1/futures/orders/{client_order_id}/cancel`, and
+  `POST /api/v1/futures/positions/{position_key}/reconciliation`. The
+  command-suite response keeps route/draft flags true while execution remains
+  false. Cancel route evidence uses `client_order_id`. These drafts do not bind
+  live adapters, submit or cancel Coinbase orders, acknowledge exchange orders,
+  execute reconciliation, mutate futures/order/exchange state, accept proof
+  records as readiness, or grant browser/BFF authority.
+- Machine-check evidence: futures route-bound command draft evidence.
+- Machine-check evidence: route/draft flags are true while execution remains
+  false.
+- Historical machine-check evidence: proof payload-field contract registry evidence.
+- Historical machine-check evidence: validate submitted proof payloads remains
+  forbidden for the completed disabled payload-field registry.
 - `GET /api/v1/futures/account`, `GET /api/v1/futures/positions`, and
   `GET /api/v1/futures/positions/{position_key}` expose read-only
   futures/perpetual account, risk, and position evidence; `position_key` is
   the read identity, configured product scope is separate from observed
   position scope, close/reduce sides are backend-derived from observed
-  position side, and no futures/perpetual live command route is modeled yet
+  position side, and futures/perpetual command draft routes remain no-live
 - `GET /api/v1/admin/guard-risk-policy` exposes backend-owned guard/risk
   policy evidence: action-condition policy, configured cap rules, live gate
   posture, product capability policy, profitability-validator posture,

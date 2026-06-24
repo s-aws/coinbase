@@ -770,6 +770,71 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/orders",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures placement admission and margin/risk controls",
+        audit="required",
+        shared_method="place_futures_order",
+        parity_test=(
+            "product_id identity; route-bound draft only with no live adapter, "
+            "Coinbase submission, reconciliation execution, state mutation, "
+            "browser authority, BFF authority, or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/positions/{position_key}/close-reduce",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures close/reduce admission and position controls",
+        audit="required",
+        shared_method="close_or_reduce_futures_position",
+        parity_test=(
+            "position_key identity; route-bound draft only with no live adapter, "
+            "Coinbase submission, reconciliation execution, state mutation, "
+            "browser authority, BFF authority, or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/orders/{client_order_id}/cancel",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures cancel admission and exchange-reality controls",
+        audit="required",
+        shared_method="cancel_futures_order",
+        parity_test=(
+            "client_order_id identity; route-bound draft only with no live "
+            "adapter, Coinbase cancellation, reconciliation execution, state "
+            "mutation, browser authority, BFF authority, or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/positions/{position_key}/reconciliation",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.RECONCILIATION_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures reconciliation admission controls",
+        audit="required",
+        shared_method="reconcile_futures_position",
+        parity_test=(
+            "position_key identity; route-bound draft only with no "
+            "reconciliation execution, futures/order/exchange mutation, "
+            "live adapter, Coinbase call, browser authority, BFF authority, "
+            "or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="GET /api/v1/futures/account",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

@@ -25,6 +25,7 @@ SUMMARY_PREFIX = "PARALLEL_REGRESSION_RUNNER_SUMMARY "
 SERIAL_SAFE_COMMENT = "parallel-regression: serial-safe"
 MAX_PARALLEL_WORKERS = 4
 PYTEST_TRACEBACK_STYLE = "short"
+PYTEST_OUTPUT_MODE = "-q"
 DEFAULT_MEMORY_SAMPLE_SECONDS = 5
 DEFAULT_MAX_COMMIT_GB = 96.0
 DEFAULT_MAX_COMMIT_PERCENT = 85.0
@@ -386,6 +387,7 @@ def build_parallel_command(
                 "--dist",
                 "loadfile",
                 "--max-worker-restart=0",
+                PYTEST_OUTPUT_MODE,
                 f"--tb={PYTEST_TRACEBACK_STYLE}",
             ),
             basetemp=basetemp,
@@ -408,6 +410,7 @@ def build_serial_command(
                 "tests/regression",
                 "-m",
                 "serial",
+                PYTEST_OUTPUT_MODE,
                 f"--tb={PYTEST_TRACEBACK_STYLE}",
             ),
             basetemp=basetemp,

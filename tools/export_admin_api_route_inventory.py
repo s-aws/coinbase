@@ -14,8 +14,10 @@ ROUTE_INVENTORY_EXPORT_PATH = ROOT / "openapi" / "coinbase-admin-api-route-inven
 ROUTE_INVENTORY_EXPORT_SCHEMA_VERSION = "0.1.0"
 HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ROOT_STR = str(ROOT)
+if ROOT_STR in sys.path:
+    sys.path.remove(ROOT_STR)
+sys.path.insert(0, ROOT_STR)
 
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import AdminApiActionClass

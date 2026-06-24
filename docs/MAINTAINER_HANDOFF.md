@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6301-6320` under M57.
-- Active autonomous range: `6321-6340` under M57.
+- Latest completed autonomous range: `6321-6340` under M57.
+- Active autonomous range: `6341-6360` under M57.
 - Completed 3421-3440 work consumes backend-owned stealth state-mutation
   policy proof/readback evidence as exact-command resolver evidence. Safe
   exact proof rows may resolve the `state_mutation_policy` prerequisite row,
@@ -779,8 +779,8 @@ notional, retained inventory, reconciliation result, and audit ids.
   registration field refs, required evidence refs, and no-execution authority.
   Completed 5981-6000 work adds disabled backend futures command service
   contract evidence for placement, close/reduce, and cancel. Runtime-observed
-  evidence remains display-only; those service-contract rows do not register
-  command routes, create command drafts, bind live adapters, call Coinbase,
+  evidence remains display-only; those service-contract rows do not make
+  route-bound command drafts executable, bind live adapters, call Coinbase,
   execute reconciliation, mutate state, satisfy proof acceptance, use spot
   wallet/no-shorting/cost-basis authority, or grant browser/BFF authority.
   Completed 6001-6020 work adds disabled backend futures risk-guard contract
@@ -818,8 +818,8 @@ notional, retained inventory, reconciliation result, and audit ids.
   evidence. Completed 6221-6240 work adds aggregate futures command
   enablement blocker summaries to the read-only command-suite response so
   operators can see why unresolved prerequisites, request payload contracts,
-  semantic guards, risk proof acceptance, admin command routes, live service
-  adapters, and contextless review still block command authority. Completed
+  semantic guards, risk proof acceptance, live service adapters, and
+  contextless review still block command execution. Completed
   6241-6260 work adds backend-owned futures command enablement sequence steps
   derived from `readiness_closure_steps` so the ordered path to future command
   eligibility is visible without adding authority. Completed 6261-6280 work adds
@@ -835,17 +835,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   `application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`
   and
   `application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`.
-  Active 6321-6340 work adds disabled futures proof payload-field contract
+  Completed 6321-6340 work adds disabled futures proof payload-field contract
   registry evidence through `FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS` and
   `iter_futures_proof_payload_field_contracts`, including
   `proof_payload.command`, `proof_payload.validation.status`,
   `futures_place_margin_collateral_payload_command_validated`,
   `payload_field_present=false`, and `validation_registered=false`.
-  Coinbase order submission, exchange acknowledgement, proof route
-  registration, proof writer enablement, proof payload validation, validation
-  registration, proof acceptance, post-exchange reconciliation execution,
-  futures state mutation, browser authority, BFF authority, and spot-rule
-  authority remain blocked.
+  Active 6341-6360 work adds route-bound no-live futures/perpetual command
+  draft evidence for placement, close/reduce, cancel by `client_order_id`, and
+  reconciliation. Route/draft flags are true while execution remains false.
+  Coinbase order submission, exchange acknowledgement, proof acceptance,
+  post-exchange reconciliation execution, futures state mutation, browser
+  authority, BFF authority, and spot-rule authority remain blocked.
 - The long claim-trace clearance-step review-input, review-input
   store-requirement, store record-contract, and store record-validation detail
   arrays are intentionally capped representative readbacks. Use the aggregate

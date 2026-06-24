@@ -99,6 +99,9 @@ from core.enums import (
     AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesRiskProofEvidenceSource,
+    OrderSide,
+    OrderType,
+    TimeInForce,
 )
 
 # This file imports the full FastAPI app/route graph. Keep it in the serial
@@ -361,7 +364,7 @@ def test_futures_reconciliation_contract_is_disabled() -> None:
     assert "Coinbase calls" in message
 
 
-def test_futures_route_contracts_are_disabled_metadata_only() -> None:
+def test_futures_route_contracts_register_no_live_command_drafts() -> None:
     expected_refs = {
         AdminFuturesCommandAction.PLACE: (
             "api/v1/routes/futures.py::futures_place_route_contract"
@@ -374,6 +377,18 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
         ),
         AdminFuturesCommandAction.RECONCILE: (
             "api/v1/routes/futures.py::futures_reconcile_route_contract"
+        ),
+    }
+    expected_routes = {
+        AdminFuturesCommandAction.PLACE: "/api/v1/futures/orders",
+        AdminFuturesCommandAction.CLOSE_REDUCE: (
+            "/api/v1/futures/positions/{position_key}/close-reduce"
+        ),
+        AdminFuturesCommandAction.CANCEL: (
+            "/api/v1/futures/orders/{client_order_id}/cancel"
+        ),
+        AdminFuturesCommandAction.RECONCILE: (
+            "/api/v1/futures/positions/{position_key}/reconciliation"
         ),
     }
 
@@ -393,8 +408,10 @@ def test_futures_route_contracts_are_disabled_metadata_only() -> None:
 
     for command, contract in FUTURES_ROUTE_CONTRACTS.items():
         assert contract.contract_ref == expected_refs[command]
-        assert contract.route_registered is False
-        assert contract.command_draft_allowed is False
+        assert contract.route_template == expected_routes[command]
+        assert contract.method == "POST"
+        assert contract.route_registered is True
+        assert contract.command_draft_allowed is True
         assert contract.live_adapter_bound is False
         assert contract.execution_allowed is False
         assert contract.reconciliation_execution_enabled is False
@@ -1175,10 +1192,190 @@ def test_futures_risk_proof_post_route_records_through_shared_admission(
     assert idempotency_store.get_record(idempotency_key) is not None
 
 
+def test_futures_command_draft_routes_are_registered_and_live_disabled(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    idempotency_store = FileIdempotencyStore(tmp_path / "idempotency.jsonl")
+    audit_store = FileAdminApiAuditStore(tmp_path / "audit.jsonl")
+    approval_store = FileAdminApiApprovalStore(tmp_path / "approvals.jsonl")
+    cap_guard_store = FileAdminApiCapGuardStore(tmp_path / "cap_guard.jsonl")
+    reconciliation_store = FileAdminApiReconciliationStore(
+        tmp_path / "reconciliation.jsonl"
+    )
+    app = create_app()
+    app.dependency_overrides[futures_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[futures_routes.get_audit_store] = lambda: audit_store
+    app.dependency_overrides[futures_routes.get_approval_store] = (
+        lambda: approval_store
+    )
+    app.dependency_overrides[futures_routes.get_cap_guard_store] = (
+        lambda: cap_guard_store
+    )
+    app.dependency_overrides[futures_routes.get_reconciliation_store] = (
+        lambda: reconciliation_store
+    )
+    app.dependency_overrides[futures_routes.get_live_execution_service] = (
+        get_disabled_live_execution_service
+    )
+
+    client = TestClient(app)
+    cases = [
+        {
+            "path": "/api/v1/futures/orders",
+            "idempotency_key": "futures-place-draft-idem",
+            "operator_intent": "draft disabled futures placement",
+            "service_method": "place_futures_order",
+            "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            "required_permission": AdminApiPermission.ORDER_CREATE,
+            "command": AdminFuturesCommandAction.PLACE,
+            "identity_key": "product_id",
+            "identity_value": "BIT-20DEC30-CDE",
+            "payload": {
+                "product_id": "BIT-20DEC30-CDE",
+                "side": OrderSide.BUY.value,
+                "order_type": OrderType.LIMIT.value,
+                "size": "1",
+                "limit_price": "1",
+                "time_in_force": TimeInForce.GOOD_UNTIL_CANCELLED.value,
+                "operator_reason": "focused no-live route smoke",
+            },
+        },
+        {
+            "path": "/api/v1/futures/positions/BIT-20DEC30-CDE:long/close-reduce",
+            "idempotency_key": "futures-close-reduce-draft-idem",
+            "operator_intent": "draft disabled futures close reduce",
+            "service_method": "close_or_reduce_futures_position",
+            "action_class": AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            "required_permission": AdminApiPermission.ORDER_CANCEL,
+            "command": AdminFuturesCommandAction.CLOSE_REDUCE,
+            "identity_key": "position_key",
+            "identity_value": "BIT-20DEC30-CDE:long",
+            "payload": {
+                "order_type": OrderType.MARKET.value,
+                "size": "1",
+                "operator_reason": "focused no-live route smoke",
+            },
+        },
+        {
+            "path": "/api/v1/futures/orders/client-order-futures-001/cancel",
+            "idempotency_key": "futures-cancel-draft-idem",
+            "operator_intent": "draft disabled futures cancel",
+            "service_method": "cancel_futures_order",
+            "action_class": AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            "required_permission": AdminApiPermission.ORDER_CANCEL,
+            "command": AdminFuturesCommandAction.CANCEL,
+            "identity_key": "client_order_id",
+            "identity_value": "client-order-futures-001",
+            "payload": {
+                "product_id": "BIT-20DEC30-CDE",
+                "operator_reason": "focused no-live route smoke",
+            },
+        },
+        {
+            "path": "/api/v1/futures/positions/BIT-20DEC30-CDE:long/reconciliation",
+            "idempotency_key": "futures-reconcile-draft-idem",
+            "operator_intent": "draft disabled futures reconciliation",
+            "service_method": "reconcile_futures_position",
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION,
+            "required_permission": AdminApiPermission.RECONCILIATION_RECORD,
+            "command": AdminFuturesCommandAction.RECONCILE,
+            "identity_key": "position_key",
+            "identity_value": "BIT-20DEC30-CDE:long",
+            "payload": {
+                "reconciliation_reason": "focused no-live route smoke",
+                "expected_position_state": "not provided by fixture",
+                "operator_reason": "focused no-live route smoke",
+            },
+        },
+    ]
+
+    for case in cases:
+        response = client.post(
+            str(case["path"]),
+            headers=_command_headers(
+                idempotency_key=str(case["idempotency_key"]),
+                operator_intent=str(case["operator_intent"]),
+            ),
+            json=case["payload"],
+        )
+
+        assert response.status_code == 501, response.json()
+        payload = response.json()
+        assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+        assert payload["service_method"] == case["service_method"]
+        assert payload["action_class"] == case["action_class"].value
+        assert payload["required_permission"] == case["required_permission"].value
+        assert payload["failure_stage"] == "approval"
+        assert payload["live_exchange_submitted"] is False
+        if case["identity_key"] == "client_order_id":
+            assert payload["client_order_id"] == case["identity_value"]
+        else:
+            assert payload["client_order_id"] is None
+        admission = payload["guard"]["admission_decision"]
+        assert admission["allowed"] is False
+        assert admission["live_exchange_submitted"] is False
+        assert admission["module_id"] == "futures_perpetuals"
+        assert admission["identity_key"] == case["identity_key"]
+        assert admission["identity_value"] == case["identity_value"]
+        data = payload["data"]
+        assert data["command"] == case["command"].value
+        assert data["identity_key"] == case["identity_key"]
+        assert data["identity_value"] == case["identity_value"]
+        assert data["coinbase_order_submitted"] is False
+        assert data["coinbase_cancel_submitted"] is False
+        assert data["reconciliation_executed"] is False
+        assert data["futures_state_mutated"] is False
+        assert data["order_state_mutated"] is False
+        assert data["exchange_state_mutated"] is False
+        assert data["live_adapter_invoked"] is False
+        assert data["browser_authority"] == "display_only"
+        assert data["bff_authority"] == "forward_only_no_execution"
+        assert data["spot_rule_authority"] is False
+        assert idempotency_store.get_record(str(case["idempotency_key"])) is not None
+
+
 def test_futures_risk_proof_routes_are_inventory_and_openapi_bound(
     monkeypatch,
 ) -> None:
     surfaces = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
+    command_surfaces = {
+        "POST /api/v1/futures/orders": (
+            AdminApiPermission.ORDER_CREATE,
+            "place_futures_order",
+            AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        ),
+        "POST /api/v1/futures/positions/{position_key}/close-reduce": (
+            AdminApiPermission.ORDER_CANCEL,
+            "close_or_reduce_futures_position",
+            AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        ),
+        "POST /api/v1/futures/orders/{client_order_id}/cancel": (
+            AdminApiPermission.ORDER_CANCEL,
+            "cancel_futures_order",
+            AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        ),
+        "POST /api/v1/futures/positions/{position_key}/reconciliation": (
+            AdminApiPermission.RECONCILIATION_RECORD,
+            "reconcile_futures_position",
+            AdminApiActionClass.LOCAL_STATE_MUTATION,
+        ),
+    }
+    for surface, (
+        required_permission,
+        shared_method,
+        action_class,
+    ) in command_surfaces.items():
+        assert surfaces[surface].permission == required_permission
+        assert surfaces[surface].shared_method == shared_method
+        assert surfaces[surface].action_class == action_class
+        assert surfaces[surface].idempotency == "required"
+        assert surfaces[surface].audit == "required"
+        assert "route-bound draft only" in surfaces[surface].parity_test
+
     post_surface = "POST /api/v1/futures/risk-proofs"
     assert surfaces[post_surface].permission == (
         AdminApiPermission.FUTURES_RISK_PROOF_RECORD
@@ -1197,6 +1394,33 @@ def test_futures_risk_proof_routes_are_inventory_and_openapi_bound(
     assert "/api/v1/futures/risk-proofs" in schema["paths"]
     assert "post" in schema["paths"]["/api/v1/futures/risk-proofs"]
     assert "get" in schema["paths"]["/api/v1/futures/risk-proofs"]
+    assert "/api/v1/futures/orders" in schema["paths"]
+    assert "post" in schema["paths"]["/api/v1/futures/orders"]
+    assert "/api/v1/futures/orders/{client_order_id}/cancel" in schema["paths"]
+    assert (
+        "post"
+        in schema["paths"]["/api/v1/futures/orders/{client_order_id}/cancel"]
+    )
+    assert (
+        "/api/v1/futures/positions/{position_key}/close-reduce"
+        in schema["paths"]
+    )
+    assert (
+        "post"
+        in schema["paths"][
+            "/api/v1/futures/positions/{position_key}/close-reduce"
+        ]
+    )
+    assert (
+        "/api/v1/futures/positions/{position_key}/reconciliation"
+        in schema["paths"]
+    )
+    assert (
+        "post"
+        in schema["paths"][
+            "/api/v1/futures/positions/{position_key}/reconciliation"
+        ]
+    )
     assert (
         "/api/v1/futures/risk-proofs/{futures_risk_proof_id}"
         in schema["paths"]
@@ -1211,37 +1435,37 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
 
     assert command_suite.missing_backend_contracts == []
     assert all(not item.missing_backend_contracts for item in command_suite.commands)
-    assert command_suite.command_enablement_blocker_summary_count == 7
-    assert command_suite.command_enablement_blocker_summary_blocking_count == 7
-    assert command_suite.command_enablement_sequence_step_count == 6
-    assert command_suite.command_enablement_sequence_step_blocking_count == 6
-    assert command_suite.command_enablement_sequence_command_trace_count == 24
-    assert command_suite.command_enablement_sequence_command_trace_blocking_count == 24
+    assert command_suite.command_enablement_blocker_summary_count == 6
+    assert command_suite.command_enablement_blocker_summary_blocking_count == 6
+    assert command_suite.command_enablement_sequence_step_count == 5
+    assert command_suite.command_enablement_sequence_step_blocking_count == 5
+    assert command_suite.command_enablement_sequence_command_trace_count == 20
+    assert command_suite.command_enablement_sequence_command_trace_blocking_count == 20
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
         AdminFuturesCommandEnablementBlocker.SEMANTIC_GUARD_EVIDENCE,
         AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE,
-        AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE,
         AdminFuturesCommandEnablementBlocker.LIVE_SERVICE_ADAPTER,
         AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE,
     }
+    affected_commands = [
+        AdminFuturesCommandAction.PLACE,
+        AdminFuturesCommandAction.CLOSE_REDUCE,
+        AdminFuturesCommandAction.CANCEL,
+        AdminFuturesCommandAction.RECONCILE,
+    ]
 
-    for summary in summaries_by_blocker.values():
+    for blocker, summary in summaries_by_blocker.items():
         assert summary.status == AdminApiGateStatus.BLOCKED
         assert summary.blocking is True
         assert summary.command_count == 4
-        assert summary.affected_commands == [
-            AdminFuturesCommandAction.PLACE,
-            AdminFuturesCommandAction.CLOSE_REDUCE,
-            AdminFuturesCommandAction.CANCEL,
-            AdminFuturesCommandAction.RECONCILE,
-        ]
-        assert summary.evidence_ref_count == len(summary.required_evidence_refs)
+        assert summary.affected_commands == affected_commands
         assert summary.required_evidence_refs
         assert summary.required_backend_contracts
-        assert summary.command_route_registered is False
-        assert summary.command_draft_allowed is False
+        assert summary.evidence_ref_count == len(summary.required_evidence_refs)
+        assert summary.command_route_registered is True
+        assert summary.command_draft_allowed is True
         assert summary.execution_allowed is False
         assert summary.live_coinbase_orders_ran is False
         assert summary.backend_owned is True
@@ -1258,11 +1482,10 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     )
     assert "grant command authority" in risk_summary.detail
 
-    route_summary = summaries_by_blocker[
+    assert (
         AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE
-    ]
-    assert "futures_place_admin_command_route" in route_summary.required_evidence_refs
-    assert "No futures/perpetual Admin API command route" in route_summary.detail
+        not in summaries_by_blocker
+    )
 
     contextless_summary = summaries_by_blocker[
         AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE
@@ -1278,7 +1501,6 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS,
         AdminFuturesCommandReadinessClosureStep.DEFINE_REQUEST_PAYLOAD_CONTRACT,
         AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE,
-        AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE,
         AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER,
         AdminFuturesCommandReadinessClosureStep.RUN_CONTEXTLESS_REVIEW_GATE,
     ]
@@ -1290,15 +1512,10 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         assert sequence_step.status == AdminApiGateStatus.BLOCKED
         assert sequence_step.blocking is True
         assert sequence_step.command_count == 4
-        assert sequence_step.affected_commands == [
-            AdminFuturesCommandAction.PLACE,
-            AdminFuturesCommandAction.CLOSE_REDUCE,
-            AdminFuturesCommandAction.CANCEL,
-            AdminFuturesCommandAction.RECONCILE,
-        ]
+        assert sequence_step.affected_commands == affected_commands
         assert sequence_step.source_blockers
-        assert sequence_step.command_route_registered is False
-        assert sequence_step.command_draft_allowed is False
+        assert sequence_step.command_route_registered is True
+        assert sequence_step.command_draft_allowed is True
         assert sequence_step.execution_allowed is False
         assert sequence_step.live_coinbase_orders_ran is False
         assert sequence_step.backend_owned is True
@@ -1312,12 +1529,6 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     ]
     assert AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE in (
         semantic_step.source_blockers
-    )
-    route_step = sequence_steps_by_step[
-        AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE
-    ]
-    assert "api/v1/routes/futures.py::futures_place_route_contract" in (
-        route_step.required_backend_contracts
     )
     adapter_step = sequence_steps_by_step[
         AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER
@@ -1336,8 +1547,8 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         assert trace.blocking is True
         assert trace.source_blockers == sequence_steps_by_step[trace.step].source_blockers
         assert trace.required_evidence_ref_count == len(trace.required_evidence_refs)
-        assert trace.command_route_registered is False
-        assert trace.command_draft_allowed is False
+        assert trace.command_route_registered is True
+        assert trace.command_draft_allowed is True
         assert trace.execution_allowed is False
         assert trace.reconciliation_execution_allowed is False
         assert trace.futures_state_mutation_allowed is False
@@ -1367,18 +1578,6 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert first_trace.command_sequence == 1
     assert first_trace.command_step_sequence == 1
     assert first_trace.required_evidence_refs
-
-    route_trace = next(
-        trace
-        for trace in command_suite.command_enablement_sequence_command_traces
-        if trace.step
-        == AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE
-        and trace.command == AdminFuturesCommandAction.PLACE
-    )
-    assert (
-        route_trace.required_backend_contract
-        == "api/v1/routes/futures.py::futures_place_route_contract"
-    )
 
     assert command_suite.live_coinbase_orders_ran is False
     assert command_suite.submitted_notional_usdc == "0"

@@ -594,7 +594,13 @@ payload-field contract registry evidence through
 validate submitted proof payloads, register validators, accept proof records,
 create proof writers, create command drafts, call Coinbase, execute
 reconciliation, mutate futures/order/exchange state, or grant browser/BFF
-authority.
+authority. M57 phases 6341-6360 add route-bound no-live futures/perpetual
+command drafts for placement, close/reduce, cancel by `client_order_id`, and
+reconciliation through the shared Admin API command service. These routes
+return disabled command responses and do not bind live adapters, submit or
+cancel Coinbase orders, acknowledge exchange orders, execute reconciliation,
+mutate futures/order/exchange state, accept proof records as command
+readiness, or grant browser/BFF authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot

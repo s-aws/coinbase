@@ -166,7 +166,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "6321-6340",
+  "approved_phase_range": "6341-6360",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -178,35 +178,35 @@ Expected current live-enablement posture:
   "reconciliation_required": true,
   "live_enabled_path_count": 0,
   "live_eligible_path_count": 0,
-  "preflight_check_count": 64,
-  "blocking_preflight_check_count": 32,
-  "passed_preflight_check_count": 32,
-  "approval_snapshot_required_count": 8,
+  "preflight_check_count": 88,
+  "blocking_preflight_check_count": 44,
+  "passed_preflight_check_count": 44,
+  "approval_snapshot_required_count": 11,
   "approval_snapshot_present_count": 0,
-  "approval_snapshot_missing_count": 8,
-  "approval_snapshot_required_field_count": 120,
-  "approval_snapshot_missing_field_count": 120,
-  "approval_store_required_count": 8,
-  "approval_store_configured_count": 8,
+  "approval_snapshot_missing_count": 11,
+  "approval_snapshot_required_field_count": 165,
+  "approval_snapshot_missing_field_count": 165,
+  "approval_store_required_count": 11,
+  "approval_store_configured_count": 11,
   "approval_store_missing_count": 0,
-  "approval_store_requirement_count": 96,
+  "approval_store_requirement_count": 132,
   "approval_store_missing_requirement_count": 0,
-  "admission_audit_required_count": 8,
+  "admission_audit_required_count": 11,
   "admission_audit_configured_count": 0,
-  "admission_audit_missing_count": 8,
-  "admission_audit_fact_count": 80,
-  "admission_audit_missing_fact_count": 72,
-  "cap_guard_required_count": 8,
+  "admission_audit_missing_count": 11,
+  "admission_audit_fact_count": 110,
+  "admission_audit_missing_fact_count": 99,
+  "cap_guard_required_count": 11,
   "cap_guard_configured_count": 0,
-  "cap_guard_missing_count": 8,
-  "cap_guard_requirement_count": 112,
-  "cap_guard_missing_requirement_count": 112,
-  "live_execution_adapter_required_count": 8,
+  "cap_guard_missing_count": 11,
+  "cap_guard_requirement_count": 154,
+  "cap_guard_missing_requirement_count": 154,
+  "live_execution_adapter_required_count": 11,
   "live_execution_adapter_configured_count": 2,
-  "live_execution_adapter_missing_count": 6,
-  "readiness_precondition_count": 72,
-  "blocking_readiness_precondition_count": 45,
-  "passed_readiness_precondition_count": 27,
+  "live_execution_adapter_missing_count": 9,
+  "readiness_precondition_count": 99,
+  "blocking_readiness_precondition_count": 63,
+  "passed_readiness_precondition_count": 36,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -860,7 +860,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6321-6340",
+  "approved_phase_range": "6341-6360",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -868,17 +868,17 @@ Expected current enterprise readiness posture:
   "module_registry_count": 8,
   "module_action_posture_count": 8,
   "functionality_inventory_count": 25,
-  "backend_supported_workflow_count": 24,
-  "admin_exposed_workflow_count": 22,
+  "backend_supported_workflow_count": 25,
+  "admin_exposed_workflow_count": 23,
   "command_workflow_count": 17,
-  "live_designated_workflow_count": 7,
+  "live_designated_workflow_count": 8,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
   "mutation_taxonomy_count": 44,
-  "route_bound_mutation_taxonomy_count": 42,
+  "route_bound_mutation_taxonomy_count": 43,
   "live_disabled_mutation_count": 33,
-  "backend_contract_required_mutation_count": 2,
+  "backend_contract_required_mutation_count": 1,
   "compatibility_mutation_count": 3,
   "functionality_inventory": [
     {
@@ -1864,20 +1864,15 @@ evidence. They are not command routes. They do not place, close, reduce,
 cancel, or liquidate positions.
 
 Futures/perpetual command-suite reads expose backend-owned M57 contract
-evidence for future placement, close/reduce, cancel, and reconciliation
-commands, including blocked request-field rows, semantic guard rows, evidence
-routes, command-level readiness decisions, ordered closure steps, risk proof
-requirements, and risk proof acceptance criteria. The readiness decisions,
-risk proof requirements, proof route/writer contracts, proof payload field
-contracts, risk proof record/store contracts, record-validation rows, and
-acceptance criteria
-are derived from existing backend evidence and missing contracts. The response
-is still read-only: it registers no command routes, allows no command drafts,
-enables no proof writers, registers no proof routes, registers no proof
-record stores, registers no record validators, performs no remediation,
-creates no remediation work items, creates no dependency work items, creates
-or resolves no claim traces, performs no reconciliation execution, calls no
-Coinbase reads or writes, and grants no browser/BFF execution authority.
+evidence for route-bound placement, close/reduce, cancel, and reconciliation
+command drafts, including blocked request-field rows, semantic guard rows,
+evidence routes, command-level readiness decisions, ordered closure steps, risk
+proof requirements, and risk proof acceptance criteria. The route-bound drafts
+register Admin API routes, but route/draft flags are true while execution
+remains false. Cancel route evidence is keyed by `client_order_id`. The
+response does not enable proof writers, accept proof records as readiness,
+execute reconciliation, call Coinbase reads or writes, mutate
+futures/order/exchange state, or grant browser/BFF execution authority.
 
 ```http
 GET /api/v1/futures/command-suite
@@ -1892,21 +1887,20 @@ Expected command-suite posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6321-6340",
+  "approved_phase_range": "6341-6360",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
   "executable_command_count": 0,
-  "command_route_count": 0,
-  "command_draft_allowed_count": 0,
-  "command_enablement_blocker_summary_count": 7,
-  "command_enablement_blocker_summary_blocking_count": 7,
+  "command_route_count": 4,
+  "command_draft_allowed_count": 4,
+  "command_enablement_blocker_summary_count": 6,
+  "command_enablement_blocker_summary_blocking_count": 6,
   "command_enablement_blocker_summaries": [
     {"blocker": "unresolved_prerequisites", "status": "blocked"},
     {"blocker": "request_payload_contracts", "status": "blocked"},
     {"blocker": "semantic_guard_evidence", "status": "blocked"},
     {"blocker": "risk_proof_acceptance", "status": "blocked"},
-    {"blocker": "admin_command_route", "status": "blocked"},
     {"blocker": "live_service_adapter", "status": "blocked"},
     {"blocker": "contextless_review_gate", "status": "blocked"}
   ],
@@ -2309,17 +2303,16 @@ disabled post-exchange-submission reconciliation metadata only:
 refs are required/present disabled evidence and are no longer listed in
 `missing_backend_contracts`. Completed 6221-6240 work adds aggregate command
 enablement blocker summaries for unresolved prerequisites, request payload
-contracts, semantic guard evidence, risk proof acceptance, admin command routes,
-live service adapters, and contextless review. Completed 6241-6260 work adds
+contracts, semantic guard evidence, risk proof acceptance, live service
+adapters, and contextless review. Completed 6241-6260 work adds
 backend-owned `command_enablement_sequence_steps`,
 `command_enablement_sequence_step_count`, and
 `command_enablement_sequence_step_blocking_count` derived from
 `readiness_closure_steps` for `resolve_prerequisite_contracts`,
 `define_request_payload_contract`, `bind_semantic_guard_evidence`,
-`register_admin_command_route`, `bind_live_service_adapter`, and
-`run_contextless_review_gate`. These rows do not register
-command routes, create drafts, configure or construct adapters, invoke adapters,
-execute adapters, submit Coinbase orders, validate
+`bind_live_service_adapter`, and `run_contextless_review_gate`. These rows do
+not configure or construct adapters, invoke adapters, execute adapters, submit
+Coinbase orders, validate
 payloads, write proofs, enable writers, resolve dependencies, create
 remediation or dependency work items, claim work items, create or resolve claim
 traces, create or execute clearance plans, execute clearance steps, complete
@@ -2368,9 +2361,9 @@ evidence in `risk_proof_requirements[*].payload_fields`, including
 `"futures_place_margin_collateral_payload_command_validated"`,
 `"payload_field_present": false`, and `"validation_registered": false`.
 These rows do not validate submitted proof payloads, register validators,
-accept proof records, create proof writers, create command drafts, call
-Coinbase, execute reconciliation, mutate futures state, or grant browser/BFF
-authority.
+accept proof records, create proof writers, make route-bound command drafts
+executable, call Coinbase, execute reconciliation, mutate futures state, or
+grant browser/BFF authority.
 
 ```http
 GET /api/v1/futures/account

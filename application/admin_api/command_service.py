@@ -45,6 +45,10 @@ from .models import (
     AdminApiCommandResponse,
     CampaignExecutionCommand,
     CancelOrderCommand,
+    FuturesCancelOrderCommand,
+    FuturesCloseReduceCommand,
+    FuturesPlaceOrderCommand,
+    FuturesReconciliationCommand,
     FuturesRiskProofRecordCommand,
     ManualOrderCommand,
     MovementRepriceCommand,
@@ -2092,6 +2096,196 @@ class AdminApiCommandService:
                 "sweep_runner_invoked": False,
             },
             failure_stage="approval",
+        )
+
+    def _disabled_futures_command_response(
+        self,
+        *,
+        command: (
+            FuturesPlaceOrderCommand
+            | FuturesCloseReduceCommand
+            | FuturesCancelOrderCommand
+            | FuturesReconciliationCommand
+        ),
+        service_method: str,
+        action_class: AdminApiActionClass,
+        required_permission: AdminApiPermission,
+        message: str,
+        identity_key: str,
+        identity_value: str,
+        command_name: str,
+        data: dict[str, Any],
+    ) -> AdminApiCommandResponse:
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        request = command.request
+        data.update(
+            {
+                "command": command_name,
+                "identity_key": identity_key,
+                "identity_value": identity_value,
+                "approval_snapshot_id": request.approval_snapshot_id,
+                "admission_audit_id": request.admission_audit_id,
+                "cap_guard_decision_id": request.cap_guard_decision_id,
+                "reconciliation_plan_id": request.reconciliation_plan_id,
+                "dry_run": request.dry_run,
+                "operator_reason": request.operator_reason,
+                "manual_live_acknowledgement": (
+                    request.manual_live_acknowledgement
+                ),
+                "coinbase_order_submitted": False,
+                "coinbase_cancel_submitted": False,
+                "reconciliation_executed": False,
+                "futures_state_mutated": False,
+                "order_state_mutated": False,
+                "exchange_state_mutated": False,
+                "live_adapter_invoked": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "spot_rule_authority": False,
+            }
+        )
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=action_class,
+            required_permission=required_permission,
+            service_method=service_method,
+            message=message,
+            client_order_id=(
+                identity_value if identity_key == "client_order_id" else None
+            ),
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            admission_decision=command.admission_decision,
+            guard=gate.model_dump(),
+            data=data,
+            failure_stage="approval",
+        )
+
+    def place_futures_order(
+        self,
+        command: FuturesPlaceOrderCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a disabled futures/perpetual placement draft."""
+
+        request = command.request
+        return self._disabled_futures_command_response(
+            command=command,
+            service_method="place_futures_order",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            message=(
+                "Futures/perpetual placement command drafts are route-bound "
+                "but live-disabled until backend approval, cap/guard, "
+                "admission audit, reconciliation, and adapter gates pass."
+            ),
+            identity_key="product_id",
+            identity_value=request.product_id,
+            command_name="futures_place",
+            data={
+                "product_id": request.product_id,
+                "side": request.side.value,
+                "order_type": request.order_type.value,
+                "size": request.size,
+                "limit_price": request.limit_price,
+                "time_in_force": (
+                    request.time_in_force.value
+                    if request.time_in_force is not None
+                    else None
+                ),
+                "reduce_only": request.reduce_only,
+                "close_only": request.close_only,
+            },
+        )
+
+    def close_or_reduce_futures_position(
+        self,
+        command: FuturesCloseReduceCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a disabled futures/perpetual close/reduce draft."""
+
+        request = command.request
+        return self._disabled_futures_command_response(
+            command=command,
+            service_method="close_or_reduce_futures_position",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            message=(
+                "Futures/perpetual close/reduce command drafts are "
+                "route-bound but live-disabled until backend position, "
+                "reduce-only/close-only, approval, cap/guard, audit, "
+                "reconciliation, and adapter gates pass."
+            ),
+            identity_key="position_key",
+            identity_value=command.position_key,
+            command_name="futures_close_reduce",
+            data={
+                "position_key": command.position_key,
+                "order_type": request.order_type.value,
+                "size": request.size,
+                "limit_price": request.limit_price,
+                "time_in_force": (
+                    request.time_in_force.value
+                    if request.time_in_force is not None
+                    else None
+                ),
+                "reduce_only": request.reduce_only,
+                "close_only": request.close_only,
+                "expected_position_state": request.expected_position_state,
+            },
+        )
+
+    def cancel_futures_order(
+        self,
+        command: FuturesCancelOrderCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a disabled futures/perpetual cancel draft."""
+
+        request = command.request
+        return self._disabled_futures_command_response(
+            command=command,
+            service_method="cancel_futures_order",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            message=(
+                "Futures/perpetual cancel command drafts are route-bound "
+                "by client_order_id but live-disabled until backend approval, "
+                "cap/guard, audit, reconciliation, and adapter gates pass."
+            ),
+            identity_key="client_order_id",
+            identity_value=command.client_order_id,
+            command_name="futures_cancel",
+            data={
+                "client_order_id": command.client_order_id,
+                "product_id": request.product_id,
+            },
+        )
+
+    def reconcile_futures_position(
+        self,
+        command: FuturesReconciliationCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a disabled futures/perpetual reconciliation draft."""
+
+        request = command.request
+        return self._disabled_futures_command_response(
+            command=command,
+            service_method="reconcile_futures_position",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.RECONCILIATION_RECORD,
+            message=(
+                "Futures/perpetual reconciliation command drafts are "
+                "route-bound but live-disabled until backend reconciliation "
+                "proof, approval, cap/guard, audit, and adapter gates pass."
+            ),
+            identity_key="position_key",
+            identity_value=command.position_key,
+            command_name="futures_reconcile",
+            data={
+                "position_key": command.position_key,
+                "reconciliation_reason": request.reconciliation_reason,
+                "expected_position_state": request.expected_position_state,
+            },
         )
 
     def _disabled_spot_recovery_response(

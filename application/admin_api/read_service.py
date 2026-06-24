@@ -418,7 +418,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "6321-6340"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "6341-6360"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -582,6 +582,10 @@ def _enterprise_module_identity_key(module_id: str, route: str) -> str:
     if module_id == "movement_repricing":
         return "stealth_order_id"
     if module_id == "futures_perpetuals":
+        if route == "/api/v1/futures/orders":
+            return "product_id"
+        if route == "/api/v1/futures/orders/{client_order_id}/cancel":
+            return "client_order_id"
         return "position_key"
     if "spot/sweep/automation-runs" in route:
         return "sweep_config_id"
@@ -5273,48 +5277,54 @@ class AdminApiReadService:
                 module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
                 primary_owner="admin_api_contract",
-                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 unsupported_actions=[
-                    "frontend futures placement",
-                    "frontend futures cancel/close/reduce",
+                    "frontend futures live execution",
+                    "frontend futures state mutation",
                     "spot inventory rules in futures workflows",
                 ],
                 command_gaps=[
                     command_gap(
-                        action="frontend futures placement",
-                        status=AdminApiModuleSupportStatus.NOT_MODELED,
+                        action="futures live placement execution",
+                        status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                         reason=(
-                            "Futures/perpetual placement needs backend-owned margin, "
-                            "leverage, liquidation, reduce-only, collateral, and "
-                            "approval contracts before UI drafting."
+                            "Futures/perpetual placement now has a route-bound "
+                            "Admin API command draft, but live execution remains "
+                            "disabled until margin, leverage, liquidation, "
+                            "collateral, approval, cap, audit, adapter, and "
+                            "reconciliation contracts are wired."
                         ),
                         required_backend_contract=(
-                            "POST futures/perpetual placement contract with margin, "
-                            "leverage, liquidation, reduce-only, cap, approval, audit, "
-                            "and reconciliation evidence."
+                            "Backend live placement executor with durable approval, "
+                            "cap/guard, audit, live adapter, Coinbase submission, "
+                            "and post-submit reconciliation evidence."
                         ),
                         frontend_boundary=(
-                            "Do not add a futures/perpetual placement draft, "
-                            "dry-submit, or BFF route until the backend contract and "
-                            "capability row exist."
+                            "Display and forward the disabled draft only; do not "
+                            "submit futures orders, call Coinbase, or create browser/"
+                            "BFF execution authority."
                         ),
                     ),
                     command_gap(
-                        action="frontend futures cancel/close/reduce",
-                        status=AdminApiModuleSupportStatus.NOT_MODELED,
+                        action="futures live cancel close reduce execution",
+                        status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                         reason=(
-                            "Futures close/reduce behavior must be derived from backend "
-                            "position side, margin, liquidation, and exchange contract "
-                            "semantics before a command route exists."
+                            "Futures close/reduce, cancel by client_order_id, and "
+                            "reconciliation now have route-bound drafts, but cannot "
+                            "execute until backend position-side, exchange-reality, "
+                            "adapter, audit, cap, approval, and reconciliation "
+                            "execution contracts are complete."
                         ),
                         required_backend_contract=(
-                            "POST futures/perpetual close or reduce contract keyed by "
-                            "position identity with reduce-only, close-only, margin, "
-                            "approval, cap, audit, and reconciliation evidence."
+                            "Backend live cancel/close/reduce/reconciliation executor "
+                            "keyed by position_key and client_order_id with reduce-only, "
+                            "close-only, margin, approval, cap, audit, adapter, and "
+                            "post-action reconciliation evidence."
                         ),
                         frontend_boundary=(
-                            "Do not add futures cancel, close, or reduce controls from "
-                            "spot cancel patterns or exchange order id evidence."
+                            "Do not execute futures cancel, close, reduce, or "
+                            "reconciliation from browser/BFF code; cancel remains "
+                            "keyed by client_order_id through the backend draft."
                         ),
                     ),
                     command_gap(
@@ -6841,32 +6851,56 @@ class AdminApiReadService:
                 ),
             ),
             functionality_item(
-                workflow_id="futures.commands_not_modeled",
+                workflow_id="futures.command_drafts_live_disabled",
                 module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
                 workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
-                summary=(
-                    "Futures placement, close, reduce, cancel, and funding workflows "
-                    "are not modeled as Admin API commands yet."
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
                 ),
-                backend_supported=False,
-                admin_api_exposed=False,
-                frontend_exposed=False,
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "Futures placement, close, reduce, cancel, and reconciliation "
+                    "workflows are exposed as route-bound Admin API drafts with "
+                    "live execution disabled."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
                 command_capable=True,
-                identity_keys=["position_key"],
+                live_designated=True,
+                command_routes=[
+                    "POST /api/v1/futures/orders",
+                    "POST /api/v1/futures/positions/{position_key}/close-reduce",
+                    "POST /api/v1/futures/orders/{client_order_id}/cancel",
+                    "POST /api/v1/futures/positions/{position_key}/reconciliation",
+                ],
+                identity_keys=["position_key", "product_id", "client_order_id"],
                 required_next_contract=(
                     "Backend command contracts over position side, margin, leverage, "
                     "liquidation, reduce-only, close-only, funding, cap, approval, audit, "
                     "and reconciliation evidence."
                 ),
-                blockers=["backend futures command contract missing"],
-                backend_contract_refs=["api/v1/routes/futures.py"],
+                blockers=[
+                    "live_execution_disabled",
+                    "futures live adapter contract missing",
+                    "futures reconciliation execution missing",
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py",
+                    "application/admin_api/command_service.py::place_futures_order",
+                    "application/admin_api/command_service.py::close_or_reduce_futures_position",
+                    "application/admin_api/command_service.py::cancel_futures_order",
+                    "application/admin_api/command_service.py::reconcile_futures_position",
+                ],
                 frontend_contract_refs=["src/features/admin-shell/AdminShell.tsx"],
                 documentation_refs=["README.futures-perpetuals.md"],
                 frontend_boundary=(
-                    "Do not add futures command drafts from spot order/cancel patterns."
+                    "Display and forward disabled futures command drafts only; do "
+                    "not submit, cancel, reconcile, or mutate futures state from "
+                    "the browser or BFF."
                 ),
                 spot_rule_boundary="Spot rules are forbidden in futures command authority.",
             ),
@@ -9518,25 +9552,46 @@ class AdminApiReadService:
             mutation_taxonomy_item(
                 mutation_id="futures.commands_contract_required",
                 mutation_family=AdminApiMutationFamilyType.FUTURES_CONTRACT_REQUIRED,
-                workflow_id="futures.commands_not_modeled",
+                workflow_id="futures.command_drafts_live_disabled",
                 module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
                 summary=(
                     "Futures placement, close, reduce-only, close-only, cancel, "
                     "funding, and collateral commands require backend-specific "
-                    "contracts before any route or UI exists."
+                    "contracts before any execution authority exists. Current "
+                    "Admin API routes are route-bound drafts only."
                 ),
-                command_surfaces=["POST /api/v1/futures/risk-proofs"],
+                command_surfaces=[
+                    "POST /api/v1/futures/orders",
+                    "POST /api/v1/futures/positions/{position_key}/close-reduce",
+                    "POST /api/v1/futures/orders/{client_order_id}/cancel",
+                    "POST /api/v1/futures/positions/{position_key}/reconciliation",
+                    "POST /api/v1/futures/risk-proofs",
+                ],
                 identity_keys=[
                     "position_key",
                     "product_id",
+                    "client_order_id",
                     "portfolio_id",
                     "proof_kind",
                 ],
-                action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
-                required_permissions=[AdminApiPermission.FUTURES_RISK_PROOF_RECORD],
+                action_classes=[
+                    AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                    AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                    AdminApiActionClass.LOCAL_STATE_MUTATION,
+                ],
+                required_permissions=[
+                    AdminApiPermission.ORDER_CREATE,
+                    AdminApiPermission.ORDER_CANCEL,
+                    AdminApiPermission.RECONCILIATION_RECORD,
+                    AdminApiPermission.FUTURES_RISK_PROOF_RECORD,
+                ],
                 payload_binding_fields=[
                     "command",
                     "proof_kind",
@@ -9558,12 +9613,26 @@ class AdminApiReadService:
                 admission_audit_contract="backend futures admission audit contract missing",
                 reconciliation_contract="backend futures reconciliation contract missing",
                 owning_backend_service=(
-                    "application/admin_api/futures_risk_proof_service.py::"
-                    "record_futures_risk_proof"
+                    "application/admin_api/command_service.py::"
+                    "AdminApiCommandService futures draft methods"
                 ),
-                route_inventory_refs=["POST /api/v1/futures/risk-proofs"],
+                route_inventory_refs=[
+                    "POST /api/v1/futures/orders",
+                    "POST /api/v1/futures/positions/{position_key}/close-reduce",
+                    "POST /api/v1/futures/orders/{client_order_id}/cancel",
+                    "POST /api/v1/futures/positions/{position_key}/reconciliation",
+                    "POST /api/v1/futures/risk-proofs",
+                ],
                 backend_contract_refs=[
+                    "api/v1/routes/futures.py::place_futures_order",
+                    "api/v1/routes/futures.py::close_or_reduce_futures_position",
+                    "api/v1/routes/futures.py::cancel_futures_order",
+                    "api/v1/routes/futures.py::reconcile_futures_position",
                     "api/v1/routes/futures.py::record_futures_risk_proof",
+                    "application/admin_api/command_service.py::place_futures_order",
+                    "application/admin_api/command_service.py::close_or_reduce_futures_position",
+                    "application/admin_api/command_service.py::cancel_futures_order",
+                    "application/admin_api/command_service.py::reconcile_futures_position",
                     "application/admin_api/futures_risk_proof_service.py::record_futures_risk_proof",
                     "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
                 ],
@@ -9574,7 +9643,11 @@ class AdminApiReadService:
                     "collateral, liquidation, reduce-only, close-only, funding, "
                     "order, cancel, and reconciliation semantics."
                 ),
-                blockers=["backend futures command contract missing"],
+                blockers=[
+                    "live_execution_disabled",
+                    "futures live adapter contract missing",
+                    "futures reconciliation execution missing",
+                ],
                 frontend_boundary=(
                     "Do not create futures command drafts by copying spot order, "
                     "wallet, no-shorting, or cost-basis behavior."
@@ -21146,6 +21219,7 @@ class AdminApiReadService:
                 if ready
                 else AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
             )
+            route_contract = FUTURES_ROUTE_CONTRACTS[command_id]
             return AdminFuturesCommandReadinessDecisionItem(
                 decision=decision,
                 status=(
@@ -21167,11 +21241,14 @@ class AdminApiReadService:
                     if missing_backend_contracts
                     else None
                 ),
+                command_route_registered=route_contract.route_registered,
+                command_draft_allowed=route_contract.command_draft_allowed,
+                execution_allowed=route_contract.execution_allowed,
                 detail=(
                     f"{command_id.value} remains backend-blocked readiness "
-                    "evidence only. The decision does not create a route, "
-                    "command draft, live adapter, Coinbase call, browser "
-                    "authority, or BFF execution authority."
+                    "evidence only. The route-bound draft does not enable a "
+                    "live adapter, Coinbase call, browser authority, or BFF "
+                    "execution authority."
                 ),
             )
 
@@ -21203,6 +21280,7 @@ class AdminApiReadService:
                     for evidence_ref in guard.missing_evidence_refs
                 }
             )
+            route_contract = FUTURES_ROUTE_CONTRACTS[command_id]
             rows: list[AdminFuturesCommandReadinessClosureStepItem] = []
 
             def add_step(
@@ -21220,6 +21298,9 @@ class AdminApiReadService:
                         required_backend_contract=required_backend_contract,
                         required_evidence_refs=refs,
                         required_evidence_count=len(refs),
+                        command_route_registered=route_contract.route_registered,
+                        command_draft_allowed=route_contract.command_draft_allowed,
+                        execution_allowed=route_contract.execution_allowed,
                         detail=detail,
                     )
                 )
@@ -21233,7 +21314,7 @@ class AdminApiReadService:
                     detail=(
                         f"{command_id.value} must resolve futures/perpetual "
                         "prerequisite contracts through backend evidence before "
-                        "any route or draft exists."
+                        "its route-bound draft can advance toward execution."
                     ),
                 )
             if blocking_request_fields:
@@ -21244,8 +21325,8 @@ class AdminApiReadService:
                     ],
                     detail=(
                         f"{command_id.value} must define backend-owned request "
-                        "payload fields; the browser cannot turn these evidence "
-                        "fields into accepted command payloads."
+                        "payload fields; the browser cannot turn these route "
+                        "draft fields into executable command payloads."
                     ),
                 )
             if blocking_semantic_guards or missing_evidence_refs:
@@ -21271,17 +21352,18 @@ class AdminApiReadService:
                         "implementation."
                     ),
                 )
-            add_step(
-                AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE,
-                required_backend_contract=(
-                    futures_command_route_contract_refs[command_id]
-                ),
-                detail=(
-                    f"{command_id.value} has no Admin API command route. A route "
-                    "can be registered only after backend service, guard, audit, "
-                    "and reconciliation contracts exist."
-                ),
-            )
+            if not route_contract.route_registered:
+                add_step(
+                    AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE,
+                    required_backend_contract=(
+                        futures_command_route_contract_refs[command_id]
+                    ),
+                    detail=(
+                        f"{command_id.value} has no Admin API command route. A route "
+                        "can be registered only after backend service, guard, audit, "
+                        "and reconciliation contracts exist."
+                    ),
+                )
             add_step(
                 AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER,
                 required_backend_contract=(
@@ -29190,6 +29272,7 @@ class AdminApiReadService:
             missing_backend_contracts = list(
                 command_missing_backend_contracts[command_id]
             )
+            route_contract = FUTURES_ROUTE_CONTRACTS[command_id]
             closure_steps = readiness_closure_steps(
                 command_id,
                 prerequisites=prerequisites,
@@ -29206,8 +29289,8 @@ class AdminApiReadService:
             return AdminFuturesCommandContractItem(
                 command=command_id,
                 action_class=action_class,
-                route=None,
-                method=None,
+                route=route_contract.route_template,
+                method=route_contract.method,
                 service_method=service_method,
                 identity_key=identity_key,
                 required_permission=permission,
@@ -29770,6 +29853,9 @@ class AdminApiReadService:
                     for item in proof_requirements
                 ),
                 risk_proof_requirements=proof_requirements,
+                command_route_registered=route_contract.route_registered,
+                command_draft_allowed=route_contract.command_draft_allowed,
+                execution_allowed=route_contract.execution_allowed,
                 detail=detail,
             )
 
@@ -29785,20 +29871,29 @@ class AdminApiReadService:
                 prerequisites=placement_prerequisites,
                 request_fields=placement_request_fields,
                 semantic_guards=placement_semantic_guards,
-                detail="Futures placement requires futures-specific risk contracts before any command route or draft exists.",
+                detail=(
+                    "Futures placement has a route-bound command draft, but "
+                    "futures-specific risk contracts must pass before any live "
+                    "placement adapter or Coinbase submission can exist."
+                ),
             ),
             command(
                 AdminFuturesCommandAction.CLOSE_REDUCE,
-                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
                 service_method=FUTURES_COMMAND_SERVICE_CONTRACTS[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ].method_name,
                 identity_key="position_key",
-                permission=AdminApiPermission.ORDER_CREATE,
+                permission=AdminApiPermission.ORDER_CANCEL,
                 prerequisites=close_reduce_prerequisites,
                 request_fields=close_reduce_request_fields,
                 semantic_guards=close_reduce_semantic_guards,
-                detail="Futures close/reduce must derive sides from backend position evidence and reduce-only/close-only contracts.",
+                detail=(
+                    "Futures close/reduce has a route-bound command draft, "
+                    "but must derive sides from backend position evidence and "
+                    "reduce-only/close-only contracts before any live adapter "
+                    "or Coinbase submission can exist."
+                ),
             ),
             command(
                 AdminFuturesCommandAction.CANCEL,
@@ -29812,9 +29907,11 @@ class AdminApiReadService:
                 request_fields=cancel_request_fields,
                 semantic_guards=cancel_semantic_guards,
                 detail=(
-                    "Futures cancel requires backend-owned client_order_id "
-                    "discipline and exchange-reality reconciliation before a "
-                    "route exists."
+                    "Futures cancel has a route-bound command draft keyed by "
+                    "client_order_id. The client_order_id discipline remains "
+                    "mandatory, and backend-owned exchange-reality "
+                    "reconciliation is still required before any live adapter "
+                    "or Coinbase cancellation can exist."
                 ),
             ),
             command(
@@ -29828,7 +29925,12 @@ class AdminApiReadService:
                 prerequisites=reconciliation_prerequisites,
                 request_fields=reconciliation_request_fields,
                 semantic_guards=reconciliation_semantic_guards,
-                detail="Futures reconciliation must be position, margin, collateral, funding, and liquidation aware before any executor exists.",
+                detail=(
+                    "Futures reconciliation has a route-bound command draft, "
+                    "but must remain position, margin, collateral, funding, "
+                    "and liquidation aware before any reconciliation executor "
+                    "can exist."
+                ),
             ),
         ]
         suite_missing_backend_contracts = sorted(
@@ -29862,8 +29964,15 @@ class AdminApiReadService:
             required_backend_contracts: list[str] | None = None,
         ) -> AdminFuturesCommandEnablementBlockerSummaryItem:
             evidence_refs = unique_strings(required_evidence_refs)
+            is_blocking = bool(affected)
             return AdminFuturesCommandEnablementBlockerSummaryItem(
                 blocker=blocker,
+                status=(
+                    AdminApiGateStatus.BLOCKED
+                    if is_blocking
+                    else AdminApiGateStatus.PASSED
+                ),
+                blocking=is_blocking,
                 command_count=len(affected),
                 affected_commands=[item.command for item in affected],
                 evidence_ref_count=len(evidence_refs),
@@ -29872,6 +29981,21 @@ class AdminApiReadService:
                     required_backend_contracts
                     if required_backend_contracts is not None
                     else command_contract_refs(affected)
+                ),
+                command_route_registered=(
+                    all(item.command_route_registered for item in affected)
+                    if affected
+                    else True
+                ),
+                command_draft_allowed=(
+                    all(item.command_draft_allowed for item in affected)
+                    if affected
+                    else True
+                ),
+                execution_allowed=(
+                    all(item.execution_allowed for item in affected)
+                    if affected
+                    else False
                 ),
                 detail=detail,
             )
@@ -29896,11 +30020,6 @@ class AdminApiReadService:
             for command_item in commands
             if command_item.risk_proof_acceptance_blocker_count
             or command_item.blocking_risk_proof_acceptance_criterion_count
-        ]
-        route_blocked_commands = [
-            command_item
-            for command_item in commands
-            if not command_item.command_route_registered
         ]
         adapter_blocked_commands = [
             command_item
@@ -29988,20 +30107,6 @@ class AdminApiReadService:
                 ),
             ),
             blocker_summary(
-                AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE,
-                affected=route_blocked_commands,
-                required_evidence_refs=[
-                    f"{command_item.command.value}_admin_command_route"
-                    for command_item in route_blocked_commands
-                ],
-                detail=(
-                    "No futures/perpetual Admin API command route is "
-                    "registered. The current surface is read-only command-suite "
-                    "evidence and cannot create drafts, accept payloads, or "
-                    "call command services."
-                ),
-            ),
-            blocker_summary(
                 AdminFuturesCommandEnablementBlocker.LIVE_SERVICE_ADAPTER,
                 affected=adapter_blocked_commands,
                 required_evidence_refs=[
@@ -30068,8 +30173,8 @@ class AdminApiReadService:
             details = {
                 AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS: (
                     "Resolve futures/perpetual prerequisite contracts through "
-                    "backend-owned evidence before any command route or draft "
-                    "exists."
+                    "backend-owned evidence before any route-bound command draft "
+                    "can become executable."
                 ),
                 AdminFuturesCommandReadinessClosureStep.DEFINE_REQUEST_PAYLOAD_CONTRACT: (
                     "Define backend-owned request payload contracts; browser "
@@ -30104,9 +30209,9 @@ class AdminApiReadService:
             return (
                 details[step]
                 + " This aggregate sequence row is read-only evidence and "
-                "does not create a route, command draft, Coinbase call, "
-                "reconciliation execution, state mutation, browser authority, "
-                "BFF execution authority, or spot-rule authority."
+                "does not create execution authority, a live adapter, Coinbase "
+                "activity, reconciliation execution, state mutation, browser "
+                "authority, BFF execution authority, or spot-rule authority."
             )
 
         def enablement_sequence_steps(
@@ -30154,6 +30259,15 @@ class AdminApiReadService:
                         required_backend_contracts=required_backend_contracts,
                         required_evidence_refs=required_evidence_refs,
                         required_evidence_ref_count=len(required_evidence_refs),
+                        command_route_registered=all(
+                            item.command_route_registered for item in closure_rows
+                        ),
+                        command_draft_allowed=all(
+                            item.command_draft_allowed for item in closure_rows
+                        ),
+                        execution_allowed=all(
+                            item.execution_allowed for item in closure_rows
+                        ),
                         detail=step_detail(step),
                     )
                 )
@@ -30212,11 +30326,11 @@ class AdminApiReadService:
                                 f"{closure_step.step.value} in the aggregate "
                                 "futures/perpetual command enablement sequence. "
                                 f"{closure_step.detail} This trace row is "
-                                "read-only evidence and does not create a "
-                                "route, command draft, Coinbase call, "
-                                "reconciliation execution, futures state "
-                                "mutation, browser authority, BFF execution "
-                                "authority, or spot-rule authority."
+                                "read-only evidence and does not create "
+                                "execution authority, a live adapter, Coinbase "
+                                "activity, reconciliation execution, futures "
+                                "state mutation, browser authority, BFF "
+                                "execution authority, or spot-rule authority."
                             ),
                         )
                     )
@@ -30235,8 +30349,12 @@ class AdminApiReadService:
             command_count=len(commands),
             blocked_command_count=len(commands),
             executable_command_count=0,
-            command_route_count=0,
-            command_draft_allowed_count=0,
+            command_route_count=sum(
+                1 for command in commands if command.command_route_registered
+            ),
+            command_draft_allowed_count=sum(
+                1 for command in commands if command.command_draft_allowed
+            ),
             prerequisite_count=sum(command.prerequisite_count for command in commands),
             blocking_prerequisite_count=sum(
                 command.blocking_prerequisite_count for command in commands
@@ -30823,8 +30941,10 @@ class AdminApiReadService:
             forbidden_spot_assumptions=forbidden_spot_assumptions,
             message=(
                 "Futures/perpetual command contracts are M57 readiness evidence "
-                "only. No futures command route, command draft, live adapter, "
-                "Coinbase call, browser authority, or BFF execution authority exists."
+                "only. Route-bound command drafts are registered for placement, "
+                "close/reduce, cancel, and reconciliation, but no live adapter, "
+                "Coinbase call, reconciliation execution, state mutation, browser "
+                "authority, or BFF execution authority exists."
             ),
         )
 

@@ -1043,6 +1043,80 @@ class FuturesRiskProofRecordRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class FuturesPlaceOrderRequest(BaseModel):
+    """Futures/perpetual placement draft request keyed by ``product_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(min_length=1, examples=["BTC-PERP-INTX"])
+    side: OrderSide
+    order_type: OrderType
+    size: DecimalString
+    limit_price: DecimalString | None = None
+    time_in_force: TimeInForce | None = TimeInForce.GOOD_UNTIL_CANCELLED
+    reduce_only: bool = False
+    close_only: bool = False
+    approval_snapshot_id: str | None = Field(default=None, min_length=1)
+    admission_audit_id: str | None = Field(default=None, min_length=1)
+    cap_guard_decision_id: str | None = Field(default=None, min_length=1)
+    reconciliation_plan_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class FuturesCloseReduceRequest(BaseModel):
+    """Futures/perpetual close/reduce draft request keyed by ``position_key``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    order_type: OrderType = OrderType.MARKET
+    size: DecimalString | None = None
+    limit_price: DecimalString | None = None
+    time_in_force: TimeInForce | None = None
+    reduce_only: bool = True
+    close_only: bool = False
+    expected_position_state: str | None = None
+    approval_snapshot_id: str | None = Field(default=None, min_length=1)
+    admission_audit_id: str | None = Field(default=None, min_length=1)
+    cap_guard_decision_id: str | None = Field(default=None, min_length=1)
+    reconciliation_plan_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class FuturesCancelOrderRequest(BaseModel):
+    """Futures/perpetual cancel draft request keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str | None = Field(default=None, min_length=1)
+    approval_snapshot_id: str | None = Field(default=None, min_length=1)
+    admission_audit_id: str | None = Field(default=None, min_length=1)
+    cap_guard_decision_id: str | None = Field(default=None, min_length=1)
+    reconciliation_plan_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class FuturesReconciliationRequest(BaseModel):
+    """Futures/perpetual reconciliation draft request keyed by ``position_key``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reconciliation_reason: str = Field(min_length=1)
+    expected_position_state: str | None = None
+    approval_snapshot_id: str | None = Field(default=None, min_length=1)
+    admission_audit_id: str | None = Field(default=None, min_length=1)
+    cap_guard_decision_id: str | None = Field(default=None, min_length=1)
+    reconciliation_plan_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class ManualOrderCommand(BaseModel):
     """Shared service command for manual placement."""
 
@@ -1415,6 +1489,53 @@ class FuturesRiskProofRecordCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: FuturesRiskProofRecordRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class FuturesPlaceOrderCommand(BaseModel):
+    """Shared service command for disabled futures/perpetual placement drafts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: FuturesPlaceOrderRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class FuturesCloseReduceCommand(BaseModel):
+    """Shared service command for disabled futures close/reduce drafts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    position_key: str = Field(min_length=1)
+    request: FuturesCloseReduceRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class FuturesCancelOrderCommand(BaseModel):
+    """Shared service command for disabled futures cancel drafts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    client_order_id: str = Field(min_length=1)
+    request: FuturesCancelOrderRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class FuturesReconciliationCommand(BaseModel):
+    """Shared service command for disabled futures reconciliation drafts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    position_key: str = Field(min_length=1)
+    request: FuturesReconciliationRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
