@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6501-6520**.
+- Approved phase range: **6521-6540**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6481-6500`.
+- Previous completed range: `6501-6520`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6500`.
+- `current_phase`: `6520`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,162 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6501-6520
+## Active Phases 6521-6540
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Schema Evidence.
+
+These phases continue M57 after completed `6501-6520` exposed disabled futures
+request payload validation evidence record contracts. The next concrete gap is
+that contextless agents can inspect the validation-record contract, store,
+writer, and replay guard refs, but cannot inspect the backend-owned durable
+record schema and append-only log contract that would be required before those
+records could ever be written or replay-protected. Active `6521-6540` adds
+`application/admin_api/futures_request_payload_validation_record_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_schemas` as disabled evidence
+only, derived from
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence_records`. The command suite
+carries forward request field, validator-contract, input-schema, output-schema,
+validator-registration, validation-evidence, and validation-record counts, then
+emits `request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`ready_request_payload_validation_record_schema_count`,
+`registered_request_payload_validation_record_schema_count`,
+`runtime_observed_request_payload_validation_record_schema_count`, and
+`request_payload_validation_record_schemas`. Each row exposes
+`validation_record_schema_ref`, `validation_record_append_only_log_ref`,
+`validation_record_schema_field_refs`,
+`validation_record_schema_field_count`, `required_evidence_refs`,
+`missing_evidence_refs`,
+`runtime_evidence_satisfies_validation_record_schema=false`,
+`validation_record_schema_ready=false`,
+`validation_record_schema_registered=false`,
+`validation_record_append_only_log_ready=false`,
+`validation_record_contract_ready=false`,
+`validation_record_store_ready=false`,
+`validation_record_writer_enabled=false`,
+`validation_record_replay_guard_ready=false`,
+`validation_recorded=false`, `append_only_validation_record=false`,
+`validation_record_idempotency_bound=false`, and
+`request_payload_validated=false`. Route/draft flags remain true while
+execution remains false. This range must not implement validators, validate
+submitted command payloads, create record schemas, create append-only logs,
+write validation records, register record stores, bind live adapters, submit or
+cancel Coinbase orders, acknowledge exchange orders, execute reconciliation,
+mutate futures/order/exchange state, accept risk proofs as command readiness,
+or grant browser/BFF execution authority. Spot wallet, no-shorting, USDC,
+cost-basis, average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority.
+
+### Phase 6521 - Prior Range Closure
+
+- Record completed phases `6501-6520` as historical validation-evidence record
+  rows and move active metadata to `6521-6540`.
+
+### Phase 6522 - Validation Record Schema Registry
+
+- Add a backend-owned disabled validation-record schema registry derived from
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`.
+
+### Phase 6523 - Validation Record Schema Field Refs
+
+- Emit deterministic disabled `validation_record_schema_field_refs` for every
+  futures request payload validation-record schema row.
+
+### Phase 6524 - Validation Record Schema Field Counts
+
+- Emit `validation_record_schema_field_count` for every disabled validation
+  record schema row.
+
+### Phase 6525 - Append-Only Log Refs
+
+- Emit `validation_record_append_only_log_ref` for every disabled validation
+  record schema row.
+
+### Phase 6526 - Validation Record Schema Evidence Refs
+
+- Emit `required_evidence_refs`, `required_evidence_count`,
+  `missing_evidence_refs`, and `missing_evidence_count` for every schema row.
+
+### Phase 6527 - Validation Record Schema Readiness Flags
+
+- Keep `runtime_evidence_satisfies_validation_record_schema=false`,
+  `validation_record_schema_ready=false`,
+  `validation_record_schema_registered=false`,
+  `validation_record_append_only_log_ready=false`,
+  `validation_record_replay_guard_ready=false`,
+  `append_only_validation_record=false`,
+  `validation_record_idempotency_bound=false`, and
+  `request_payload_validated=false`.
+
+### Phase 6528 - Command-Level Validation Record Schema Counts
+
+- Add per-command validation-record schema counts and blocked/ready/
+  registered/runtime aggregate counts to `AdminFuturesCommandContractItem`.
+
+### Phase 6529 - Suite-Level Validation Record Schema Counts
+
+- Add futures command-suite aggregate validation-record schema counts across
+  place, close/reduce, cancel, and reconciliation command drafts.
+
+### Phase 6530 - Required Backend Contract Refs
+
+- Include disabled validation-record schema refs in each command's
+  `required_backend_contracts` without marking them executable.
+
+### Phase 6531 - OpenAPI Schema Sync
+
+- Regenerate backend-owned OpenAPI for the validation-record schema item and
+  aggregate count fields.
+
+### Phase 6532 - Frontend Generated Schema Sync
+
+- Regenerate the frontend API schema from backend OpenAPI without hand-editing
+  generated files.
+
+### Phase 6533 - Frontend Mock Data Sync
+
+- Update frontend mocks/fixtures with validation-record schema rows, counts,
+  field refs, evidence refs, append-only log refs, and false readiness flags.
+
+### Phase 6534 - Frontend Adapter Mapping
+
+- Map validation-record schema rows into typed futures/perpetual read-model
+  view data.
+
+### Phase 6535 - Frontend Display Evidence
+
+- Display validation-record schema contracts as read-only futures/perpetual
+  command-suite data with browser authority remaining display-only.
+
+### Phase 6536 - Backend Focused Tests
+
+- Add focused backend coverage proving validation-record schemas are disabled,
+  backend-owned, no-live, and not validation or record-write authority.
+
+### Phase 6537 - Frontend Focused Tests
+
+- Add focused frontend coverage proving validation-record schemas are displayed
+  and not treated as execution, validation, or record-write authority.
+
+### Phase 6538 - Docs And Examples
+
+- Update Admin API, futures/perpetual docs, examples, maintainer handoff,
+  agent state, and API references for validation-record schema contracts.
+
+### Phase 6539 - Contextless Review And Subagent Sweep
+
+- Run fresh blind/contextless backend and frontend reviews, remediate blocking
+  ambiguity, then close phase-scoped, stale, or previously unused subagents.
+
+### Phase 6540 - No-Live Commit And Push
+
+- Record submitted notional `0` USDC, executed notional `0` USDC, no Coinbase
+  calls, no reconciliation execution, no futures state mutation, then commit
+  and push backend and frontend work separately.
+
+## Historical Plan - Phases 6501-6520
 
 Batch label: Futures/Perpetuals Request Payload Validation Evidence Record Contract Evidence.
 

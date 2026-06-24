@@ -524,7 +524,7 @@ Current behavior:
   `validation_evidence_field_refs`, `validation_evidence_field_count`,
   runtime_evidence_satisfies_validation_evidence=false,
   validation_evidence_ready=false, and validation_evidence_recorded=false.
-  Current M57 `6501-6520` evidence adds disabled futures request payload
+  Completed M57 `6501-6520` evidence adds disabled futures request payload
   validation evidence record contract evidence through
   `application/admin_api/futures_request_payload_validation_evidence_records.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
@@ -544,6 +544,25 @@ Current behavior:
   validation_record_replay_guard_ready=false,
   validation_recorded=false, append_only_validation_record=false, and
   validation_record_idempotency_bound=false.
+  Current M57 `6521-6540` evidence adds disabled futures request payload
+  validation record schema and append-only log evidence through
+  `application/admin_api/futures_request_payload_validation_record_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_schemas`. The command-suite
+  response exposes `request_payload_validation_record_schema_count`,
+  `blocking_request_payload_validation_record_schema_count`,
+  `ready_request_payload_validation_record_schema_count`,
+  `registered_request_payload_validation_record_schema_count`,
+  `runtime_observed_request_payload_validation_record_schema_count`,
+  `request_payload_validation_record_schemas`,
+  `validation_record_schema_ref`,
+  `validation_record_append_only_log_ref`,
+  `validation_record_schema_field_refs`,
+  `validation_record_schema_field_count`,
+  runtime_evidence_satisfies_validation_record_schema=false,
+  validation_record_schema_ready=false,
+  validation_record_schema_registered=false, and
+  validation_record_append_only_log_ready=false.
 - Machine-check evidence: futures request payload contract registry evidence.
 - Machine-check evidence: futures request payload validation gate evidence.
 - Machine-check evidence: futures request payload validator contract registry evidence.
@@ -1433,9 +1452,9 @@ Inflight categories used by callers include:
 
 Last updated: 2026-06-24
 
-## Current M57 Futures Request Payload Validation Record Evidence
+## Current M57 Futures Request Payload Validation Record Schema Evidence
 
-`GET /api/v1/futures/command-suite` active `6501-6520` evidence includes
+`GET /api/v1/futures/command-suite` completed `6501-6520` evidence includes
 futures request payload validation evidence record contract evidence through
 disabled rows from
 `application/admin_api/futures_request_payload_validation_evidence_records.py`,
@@ -1480,3 +1499,25 @@ true while execution remains false. Carried-forward validator-registration
 rows still expose `validator_registration_ready=false` and
 `runtime_evidence_satisfies_validator_registration=false`; carried-forward
 output-schema rows still expose `output_schema_registered=false`.
+
+Active `6521-6540` evidence adds futures request payload validation record
+schema and append-only log evidence through disabled rows from
+`application/admin_api/futures_request_payload_validation_record_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_schemas`. The response now
+also includes `request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`ready_request_payload_validation_record_schema_count`,
+`registered_request_payload_validation_record_schema_count`,
+`runtime_observed_request_payload_validation_record_schema_count`,
+`request_payload_validation_record_schemas`,
+`validation_record_schema_ref`, `validation_record_append_only_log_ref`,
+`validation_record_schema_field_refs`, `validation_record_schema_field_count`,
+`runtime_evidence_satisfies_validation_record_schema=false`,
+`validation_record_schema_ready=false`,
+`validation_record_schema_registered=false`, and
+`validation_record_append_only_log_ready=false`. These rows are evidence only;
+they do not register schemas, write append-only validation logs, validate
+command request payloads, write validation records, call Coinbase, execute
+reconciliation, mutate futures/order or exchange state, or grant browser/BFF/
+spot-rule authority.

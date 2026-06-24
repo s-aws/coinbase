@@ -61,6 +61,10 @@ from application.admin_api.futures_request_payload_validation_evidence_records i
     FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS,
     iter_futures_request_payload_validation_evidence_records,
 )
+from application.admin_api.futures_request_payload_validation_record_schemas import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS,
+    iter_futures_request_payload_validation_record_schemas,
+)
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -605,6 +609,54 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         and contract.bff_authority == "forward_only_no_execution"
         for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS
     )
+    assert all(
+        contract.required is True
+        and contract.blocking is True
+        and contract.status == AdminApiGateStatus.BLOCKED
+        and contract.source == AdminFuturesEvidenceSource.BACKEND_CONTRACT
+        and contract.backend_owned is True
+        and contract.read_only is True
+        and contract.spot_rule_authority is False
+        and contract.runtime_evidence_observed is False
+        and contract.runtime_evidence_satisfies_validation_record_schema is False
+        and contract.validation_record_schema_ready is False
+        and contract.validation_record_schema_registered is False
+        and contract.validation_record_append_only_log_ready is False
+        and contract.validation_record_contract_ready is False
+        and contract.validation_record_store_ready is False
+        and contract.validation_record_writer_enabled is False
+        and contract.validation_record_replay_guard_ready is False
+        and contract.validation_evidence_ready is False
+        and contract.validation_evidence_recorded is False
+        and contract.validation_recorded is False
+        and contract.append_only_validation_record is False
+        and contract.validation_record_idempotency_bound is False
+        and contract.request_payload_validated is False
+        and contract.validator_registered is False
+        and contract.command_route_registered is True
+        and contract.command_draft_allowed is True
+        and contract.execution_allowed is False
+        and contract.live_coinbase_orders_ran is False
+        and contract.validation_record_schema_ref.endswith(
+            "_request_payload_validation_record_schema"
+        )
+        and contract.validation_record_schema_ref.startswith(
+            "application/admin_api/futures_request_payload_validation_record_schemas.py::"
+        )
+        and contract.validation_record_append_only_log_ref.endswith(
+            "_request_payload_validation_record_schema_append_only_log"
+        )
+        and len(contract.validation_record_schema_field_refs) == 10
+        and all(
+            field_ref.startswith(contract.validation_record_schema_ref)
+            for field_ref in contract.validation_record_schema_field_refs
+        )
+        and len(contract.required_evidence_refs) == 10
+        and contract.missing_evidence_refs == contract.required_evidence_refs
+        and contract.browser_authority == "display_only"
+        and contract.bff_authority == "forward_only_no_execution"
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS
+    )
 
     emitted_count = 0
     validator_emitted_count = 0
@@ -613,6 +665,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     registration_emitted_count = 0
     validation_evidence_emitted_count = 0
     validation_evidence_record_emitted_count = 0
+    validation_record_schema_emitted_count = 0
     for command in command_suite.commands:
         registry_rows = list(iter_futures_request_payload_contracts(command.command))
         validator_registry_rows = list(
@@ -633,6 +686,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         validation_evidence_record_registry_rows = list(
             iter_futures_request_payload_validation_evidence_records(command.command)
         )
+        validation_record_schema_registry_rows = list(
+            iter_futures_request_payload_validation_record_schemas(command.command)
+        )
         emitted_count += len(command.request_fields)
         validator_emitted_count += len(command.request_payload_validator_contracts)
         input_schema_emitted_count += len(
@@ -649,6 +705,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         validation_evidence_record_emitted_count += len(
             command.request_payload_validation_evidence_records
+        )
+        validation_record_schema_emitted_count += len(
+            command.request_payload_validation_record_schemas
         )
         assert command.request_field_count == len(registry_rows)
         assert command.required_request_field_count == len(registry_rows)
@@ -711,6 +770,18 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.runtime_observed_request_payload_validation_evidence_record_count
             == 0
         )
+        assert command.request_payload_validation_record_schema_count == len(
+            validation_record_schema_registry_rows
+        )
+        assert command.blocking_request_payload_validation_record_schema_count == len(
+            validation_record_schema_registry_rows
+        )
+        assert command.ready_request_payload_validation_record_schema_count == 0
+        assert command.registered_request_payload_validation_record_schema_count == 0
+        assert (
+            command.runtime_observed_request_payload_validation_record_schema_count
+            == 0
+        )
         assert all(
             contract.contract_ref in command.required_backend_contracts
             for contract in registry_rows
@@ -739,6 +810,10 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         assert all(
             contract.validation_record_contract_ref in command.required_backend_contracts
             for contract in validation_evidence_record_registry_rows
+        )
+        assert all(
+            contract.validation_record_schema_ref in command.required_backend_contracts
+            for contract in validation_record_schema_registry_rows
         )
         for emitted, contract in zip(
             command.request_fields,
@@ -1146,6 +1221,111 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert emitted.bff_authority == contract.bff_authority
             assert emitted.detail == contract.detail
 
+        for emitted, contract in zip(
+            command.request_payload_validation_record_schemas,
+            validation_record_schema_registry_rows,
+            strict=True,
+        ):
+            assert emitted.field == contract.field
+            assert emitted.status == contract.status
+            assert emitted.source == contract.source
+            assert emitted.required == contract.required
+            assert emitted.blocking == contract.blocking
+            assert (
+                emitted.request_payload_contract_ref
+                == contract.request_payload_contract_ref
+            )
+            assert emitted.validation_gate_ref == contract.validation_gate_ref
+            assert emitted.validation_evidence_ref == contract.validation_evidence_ref
+            assert (
+                emitted.validation_evidence_contract_ref
+                == contract.validation_evidence_contract_ref
+            )
+            assert emitted.validator_contract_ref == contract.validator_contract_ref
+            assert (
+                emitted.validator_input_schema_ref
+                == contract.validator_input_schema_ref
+            )
+            assert (
+                emitted.validator_output_schema_ref
+                == contract.validator_output_schema_ref
+            )
+            assert (
+                emitted.validator_registration_ref
+                == contract.validator_registration_ref
+            )
+            assert (
+                emitted.validation_record_contract_ref
+                == contract.validation_record_contract_ref
+            )
+            assert (
+                emitted.validation_record_store_ref
+                == contract.validation_record_store_ref
+            )
+            assert (
+                emitted.validation_record_writer_ref
+                == contract.validation_record_writer_ref
+            )
+            assert (
+                emitted.validation_record_replay_guard_ref
+                == contract.validation_record_replay_guard_ref
+            )
+            assert (
+                emitted.validation_record_schema_ref
+                == contract.validation_record_schema_ref
+            )
+            assert (
+                emitted.validation_record_append_only_log_ref
+                == contract.validation_record_append_only_log_ref
+            )
+            assert emitted.required_backend_contract == contract.required_backend_contract
+            assert emitted.missing_backend_contract == contract.missing_backend_contract
+            assert emitted.validation_record_schema_field_refs == list(
+                contract.validation_record_schema_field_refs
+            )
+            assert emitted.validation_record_schema_field_count == len(
+                contract.validation_record_schema_field_refs
+            )
+            assert emitted.required_evidence_refs == list(
+                contract.required_evidence_refs
+            )
+            assert emitted.required_evidence_count == len(
+                contract.required_evidence_refs
+            )
+            assert emitted.missing_evidence_refs == list(contract.missing_evidence_refs)
+            assert emitted.missing_evidence_count == len(
+                contract.missing_evidence_refs
+            )
+            assert emitted.runtime_evidence_observed is False
+            assert (
+                emitted.runtime_evidence_satisfies_validation_record_schema
+                is False
+            )
+            assert emitted.validation_record_schema_ready is False
+            assert emitted.validation_record_schema_registered is False
+            assert emitted.validation_record_append_only_log_ready is False
+            assert emitted.validation_record_contract_ready is False
+            assert emitted.validation_record_store_ready is False
+            assert emitted.validation_record_writer_enabled is False
+            assert emitted.validation_record_replay_guard_ready is False
+            assert emitted.validation_evidence_ready is False
+            assert emitted.validation_evidence_recorded is False
+            assert emitted.validation_recorded is False
+            assert emitted.append_only_validation_record is False
+            assert emitted.validation_record_idempotency_bound is False
+            assert emitted.request_payload_validated is False
+            assert emitted.validator_registered is False
+            assert emitted.command_route_registered is True
+            assert emitted.command_draft_allowed is True
+            assert emitted.execution_allowed is False
+            assert emitted.live_coinbase_orders_ran is False
+            assert emitted.backend_owned == contract.backend_owned
+            assert emitted.read_only == contract.read_only
+            assert emitted.spot_rule_authority == contract.spot_rule_authority
+            assert emitted.browser_authority == contract.browser_authority
+            assert emitted.bff_authority == contract.bff_authority
+            assert emitted.detail == contract.detail
+
     assert emitted_count == len(FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS)
     assert validator_emitted_count == len(FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS)
     assert input_schema_emitted_count == len(
@@ -1162,6 +1342,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert validation_evidence_record_emitted_count == len(
         FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS
+    )
+    assert validation_record_schema_emitted_count == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS
     )
     assert command_suite.request_field_count == len(
         FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
@@ -1227,6 +1410,18 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     assert command_suite.stored_request_payload_validation_evidence_record_count == 0
     assert (
         command_suite.runtime_observed_request_payload_validation_evidence_record_count
+        == 0
+    )
+    assert command_suite.request_payload_validation_record_schema_count == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS
+    )
+    assert command_suite.blocking_request_payload_validation_record_schema_count == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS
+    )
+    assert command_suite.ready_request_payload_validation_record_schema_count == 0
+    assert command_suite.registered_request_payload_validation_record_schema_count == 0
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_schema_count
         == 0
     )
 

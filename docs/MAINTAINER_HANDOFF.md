@@ -123,23 +123,24 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6481-6500` under M57.
-- Active autonomous range: `6501-6520` under M57.
-- Active range adds disabled futures request payload validation-evidence record
-  contract evidence through
-  `application/admin_api/futures_request_payload_validation_evidence_records.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
-  `iter_futures_request_payload_validation_evidence_records`, including
-  `request_payload_validation_evidence_record_count`,
-  `blocking_request_payload_validation_evidence_record_count`,
-  `request_payload_validation_evidence_records`,
-  `validation_record_contract_ref`, `validation_record_store_ref`,
-  `validation_record_writer_ref`, `validation_record_replay_guard_ref`,
-  `validation_record_field_refs`, `validation_record_field_count`,
-  `runtime_evidence_satisfies_validation_record=false`,
-  `validation_record_contract_ready=false`,
-  `validation_record_store_ready=false`,
-  `validation_record_writer_enabled=false`,
+- Latest completed autonomous range: `6501-6520` under M57.
+- Active autonomous range: `6521-6540` under M57.
+- Active range adds disabled futures request payload validation-record schema
+  evidence through
+  `application/admin_api/futures_request_payload_validation_record_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_schemas`, including
+  `request_payload_validation_record_schema_count`,
+  `blocking_request_payload_validation_record_schema_count`,
+  `request_payload_validation_record_schemas`,
+  `validation_record_schema_ref`,
+  `validation_record_append_only_log_ref`,
+  `validation_record_schema_field_refs`,
+  `validation_record_schema_field_count`,
+  `runtime_evidence_satisfies_validation_record_schema=false`,
+  `validation_record_schema_ready=false`,
+  `validation_record_schema_registered=false`,
+  `validation_record_append_only_log_ready=false`,
   `validation_record_replay_guard_ready=false`,
   `validation_recorded=false`, `append_only_validation_record=false`,
   `validation_record_idempotency_bound=false`, and

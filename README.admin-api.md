@@ -670,7 +670,7 @@ Rows expose `validation_evidence_contract_ref`,
 recording, no payload validation, no Coinbase calls, no reconciliation
 execution, no futures/order/exchange state mutation, and no browser/BFF or
 spot-rule authority.
-Current M57 phases 6501-6520 add disabled futures request payload validation
+Completed M57 phases 6501-6520 add disabled futures request payload validation
 evidence record contract evidence through
 `application/admin_api/futures_request_payload_validation_evidence_records.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
@@ -696,6 +696,27 @@ evidence. Rows expose `validation_record_contract_ref`,
 writing, no payload validation, no Coinbase calls, no reconciliation execution,
 no futures/order/exchange state mutation, and no browser/BFF or spot-rule
 authority.
+Current M57 phases 6521-6540 add disabled futures request payload validation
+record schema and append-only log evidence through
+`application/admin_api/futures_request_payload_validation_record_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_schemas`; command-suite
+`request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`ready_request_payload_validation_record_schema_count`,
+`registered_request_payload_validation_record_schema_count`,
+`runtime_observed_request_payload_validation_record_schema_count`, and
+`request_payload_validation_record_schemas` remain backend-owned display
+evidence. Rows expose `validation_record_schema_ref`,
+`validation_record_append_only_log_ref`,
+`validation_record_schema_field_refs`, `validation_record_schema_field_count`,
+`runtime_evidence_satisfies_validation_record_schema=false`,
+`validation_record_schema_ready=false`,
+`validation_record_schema_registered=false`, and
+`validation_record_append_only_log_ready=false` while preserving no schema
+registration, no append-only log writing, no payload validation, no Coinbase
+calls, no reconciliation execution, no futures/order/exchange state mutation,
+and no browser/BFF or spot-rule authority.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
@@ -1787,9 +1808,9 @@ and rotation policy without disclosing a token value.
 - [Order ID Handling](genai_data/ORDER_ID_HANDLING.md)
 - [Documentation Index](docs/README.md)
 
-## Current M57 Validation Record Evidence
+## Current M57 Validation Record Schema Evidence
 
-Current phases `6501-6520` add disabled futures request payload validation
+Completed phases `6501-6520` add disabled futures request payload validation
 evidence record contract evidence through
 `application/admin_api/futures_request_payload_validation_evidence_records.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
@@ -1817,3 +1838,26 @@ display evidence only; they do not validate command request payloads, write
 validation records, register record stores, call Coinbase, execute
 reconciliation, mutate futures/order/exchange state, or grant browser/BFF
 authority.
+
+Current phases `6521-6540` add disabled futures request payload validation
+record schema and append-only log evidence through
+`application/admin_api/futures_request_payload_validation_record_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_schemas`. The command suite
+continues to expose validation-evidence record rows and now also exposes
+`request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`ready_request_payload_validation_record_schema_count`,
+`registered_request_payload_validation_record_schema_count`,
+`runtime_observed_request_payload_validation_record_schema_count`,
+`request_payload_validation_record_schemas`,
+`validation_record_schema_ref`, `validation_record_append_only_log_ref`,
+`validation_record_schema_field_refs`, `validation_record_schema_field_count`,
+`runtime_evidence_satisfies_validation_record_schema=false`,
+`validation_record_schema_ready=false`,
+`validation_record_schema_registered=false`, and
+`validation_record_append_only_log_ready=false`. These rows are backend-owned
+display evidence only; they do not register schemas, write append-only
+validation logs, validate command request payloads, write validation records,
+call Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+grant browser/BFF authority.

@@ -4463,6 +4463,66 @@ class AdminFuturesCommandRequestPayloadValidationEvidenceRecordItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidationRecordSchemaItem(BaseModel):
+    """One disabled validation-record schema row for a futures request payload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    request_payload_contract_ref: str
+    validation_gate_ref: str
+    validation_evidence_ref: str
+    validation_evidence_contract_ref: str
+    validator_contract_ref: str
+    validator_input_schema_ref: str
+    validator_output_schema_ref: str
+    validator_registration_ref: str
+    validation_record_contract_ref: str
+    validation_record_store_ref: str
+    validation_record_writer_ref: str
+    validation_record_replay_guard_ref: str
+    validation_record_schema_ref: str
+    validation_record_append_only_log_ref: str
+    required_backend_contract: str
+    missing_backend_contract: str
+    validation_record_schema_field_refs: list[str] = Field(default_factory=list)
+    validation_record_schema_field_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_validation_record_schema: bool = False
+    validation_record_schema_ready: bool = False
+    validation_record_schema_registered: bool = False
+    validation_record_append_only_log_ready: bool = False
+    validation_record_contract_ready: bool = False
+    validation_record_store_ready: bool = False
+    validation_record_writer_enabled: bool = False
+    validation_record_replay_guard_ready: bool = False
+    validation_evidence_ready: bool = False
+    validation_evidence_recorded: bool = False
+    validation_recorded: bool = False
+    append_only_validation_record: bool = False
+    validation_record_idempotency_bound: bool = False
+    request_payload_validated: bool = False
+    validator_registered: bool = False
+    command_route_registered: bool = True
+    command_draft_allowed: bool = True
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandSemanticGuardItem(BaseModel):
     """One backend-owned futures/perpetual command semantic guard row."""
 
@@ -8877,6 +8937,26 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_evidence_records: list[
         AdminFuturesCommandRequestPayloadValidationEvidenceRecordItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_schema_count: int = Field(default=0, ge=0)
+    blocking_request_payload_validation_record_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    registered_request_payload_validation_record_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_schemas: list[
+        AdminFuturesCommandRequestPayloadValidationRecordSchemaItem
+    ] = Field(default_factory=list)
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
@@ -9463,6 +9543,23 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     runtime_observed_request_payload_validation_evidence_record_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_schema_count: int = Field(default=0, ge=0)
+    blocking_request_payload_validation_record_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    registered_request_payload_validation_record_schema_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_schema_count: int = Field(
         default=0,
         ge=0,
     )

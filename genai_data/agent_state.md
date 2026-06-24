@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6501-6520`.
+- Commit (optional): current active range is `6521-6540`.
 
 ## Current Objective
 
@@ -56,21 +56,27 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6481-6500`.
-- Active autonomous range: `6501-6520`.
-- Active `6501-6520` adds disabled futures request payload validation
-  evidence record contract evidence through
-  `application/admin_api/futures_request_payload_validation_evidence_records.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
-  `iter_futures_request_payload_validation_evidence_records`. The command
-  suite must expose `request_payload_validation_evidence_record_count`,
-  `blocking_request_payload_validation_evidence_record_count`,
-  `ready_request_payload_validation_evidence_record_count`,
-  `stored_request_payload_validation_evidence_record_count`,
-  `runtime_observed_request_payload_validation_evidence_record_count`,
-  `request_payload_validation_evidence_records`,
+- Latest completed autonomous range before current work: `6501-6520`.
+- Active autonomous range: `6521-6540`.
+- Active `6521-6540` adds disabled futures request payload validation-record
+  schema evidence through
+  `application/admin_api/futures_request_payload_validation_record_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_schemas`. The command suite
+  must expose `request_payload_validation_record_schema_count`,
+  `blocking_request_payload_validation_record_schema_count`,
+  `ready_request_payload_validation_record_schema_count`,
+  `registered_request_payload_validation_record_schema_count`,
+  `runtime_observed_request_payload_validation_record_schema_count`,
+  `request_payload_validation_record_schemas`,
+  `validation_record_schema_ref`,
+  `validation_record_append_only_log_ref`,
+  `validation_record_schema_field_refs`,
+  `validation_record_schema_field_count`,
   `request_payload_validation_evidence_count`,
   `blocking_request_payload_validation_evidence_count`,
+  `request_payload_validation_evidence_record_count`,
+  `blocking_request_payload_validation_evidence_record_count`,
   `request_payload_validator_input_schema_count`,
   `blocking_request_payload_validator_input_schema_count`,
   `request_payload_validator_output_schema_count`,
@@ -89,6 +95,10 @@ Keep it short. Keep it factual.
   `runtime_evidence_satisfies_validation_evidence=false`,
   `validation_evidence_ready=false`, `validation_evidence_recorded=false`,
   `runtime_evidence_satisfies_validation_record=false`,
+  `runtime_evidence_satisfies_validation_record_schema=false`,
+  `validation_record_schema_ready=false`,
+  `validation_record_schema_registered=false`,
+  `validation_record_append_only_log_ready=false`,
   `validation_record_contract_ready=false`,
   `validation_record_store_ready=false`,
   `validation_record_writer_enabled=false`,
@@ -105,15 +115,16 @@ Keep it short. Keep it factual.
   route/draft flags are true while execution remains false. Cancel remains by
   `client_order_id`; no Coinbase activity, reconciliation execution, futures
   state mutation, browser/BFF authority, proof acceptance, payload validation,
-  validation evidence recording, validation record writing, validator
+  validation evidence recording, validation record writing, validation record
+  schema creation, append-only log creation, validator
   registration, or spot-rule authority is allowed.
-- Current direction: complete phases `6501-6520` with futures request payload
-  validation evidence record contract evidence, frontend display, focused
+- Current direction: complete phases `6521-6540` with futures request payload
+  validation-record schema evidence, frontend display, focused
   checks, blind/contextless review, phase-end subagent sweep, and no-live
   commit/push.
-- One-line current evidence phrase: futures request payload validation evidence record contract evidence.
-- Carried-forward machine-check phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence.
-- Carried-forward registries: `application/admin_api/futures_request_payload_contracts.py`, `application/admin_api/futures_request_payload_validators.py`, `application/admin_api/futures_request_payload_validator_input_schemas.py`, `application/admin_api/futures_request_payload_validator_output_schemas.py`, `application/admin_api/futures_request_payload_validator_registrations.py`, `application/admin_api/futures_request_payload_validation_evidence.py`, `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, `iter_futures_request_payload_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, `iter_futures_request_payload_validator_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_input_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_output_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, `iter_futures_request_payload_validator_registrations`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and `iter_futures_request_payload_validation_evidence`.
+- One-line current evidence phrase: futures request payload validation record schema evidence.
+- Carried-forward machine-check phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence.
+- Carried-forward registries: `application/admin_api/futures_request_payload_contracts.py`, `application/admin_api/futures_request_payload_validators.py`, `application/admin_api/futures_request_payload_validator_input_schemas.py`, `application/admin_api/futures_request_payload_validator_output_schemas.py`, `application/admin_api/futures_request_payload_validator_registrations.py`, `application/admin_api/futures_request_payload_validation_evidence.py`, `application/admin_api/futures_request_payload_validation_evidence_records.py`, `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, `iter_futures_request_payload_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, `iter_futures_request_payload_validator_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_input_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_output_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, `iter_futures_request_payload_validator_registrations`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, `iter_futures_request_payload_validation_evidence`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and `iter_futures_request_payload_validation_evidence_records`.
 - Completed `6281-6300` added disabled futures reconciliation command-service
   parity evidence to the M57 futures/perpetual command suite. The
   `futures_reconcile` row reports

@@ -11,7 +11,7 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6501-6520 range targets explicit M57 futures/perpetual request
+The active 6521-6540 range targets explicit M57 futures/perpetual request
 payload validation evidence record contract evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Completed 6221-6240 work added aggregate
@@ -128,11 +128,11 @@ through `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
 `"validation_evidence_ready": false`, and
 `"validation_evidence_recorded": false`.
 Machine-check evidence: futures request payload validation evidence.
-The active 6501-6520 range reports futures request payload validation evidence
+The active 6521-6540 range reports futures request payload validation evidence
 record contract evidence through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS` and
 `iter_futures_request_payload_validation_evidence_records`, with
-`"approved_phase_range": "6501-6520"`,
+`"approved_phase_range": "6521-6540"`,
 `"request_payload_validation_evidence_record_count": 22`,
 `"blocking_request_payload_validation_evidence_record_count": 22`,
 `"ready_request_payload_validation_evidence_record_count": 0`,
@@ -151,6 +151,27 @@ record contract evidence through
 `"append_only_validation_record": false`, and
 `"validation_record_idempotency_bound": false`.
 Machine-check evidence: futures request payload validation evidence record contract evidence.
+The active 6521-6540 range also reports futures request payload validation
+record schema evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validation_record_schemas`, with
+`"approved_phase_range": "6521-6540"`,
+`"request_payload_validation_record_schema_count": 22`,
+`"blocking_request_payload_validation_record_schema_count": 22`,
+`"ready_request_payload_validation_record_schema_count": 0`,
+`"registered_request_payload_validation_record_schema_count": 0`,
+`"runtime_observed_request_payload_validation_record_schema_count": 0`,
+`"request_payload_validation_record_schemas"`,
+`"validation_record_schema_ref"`,
+`"validation_record_append_only_log_ref"`,
+`"validation_record_schema_field_refs"`,
+`"validation_record_schema_field_count"`,
+`"runtime_evidence_satisfies_validation_record_schema": false`,
+`"validation_record_schema_ready": false`,
+`"validation_record_schema_registered": false`, and
+`"validation_record_append_only_log_ready": false`.
+Machine-check evidence: futures request payload validation record schema
+evidence.
 Route/draft flags are true while execution remains false; the registries do
 not validate command request payloads, record validation evidence, write
 append-only validation records, register payload validators, call Coinbase,
@@ -269,7 +290,7 @@ Expected response posture:
 {
   "type": "admin_futures_command_suite",
   "module_id": "futures_perpetuals",
-  "approved_phase_range": "6501-6520",
+  "approved_phase_range": "6521-6540",
   "status": "blocked",
   "command_count": 4,
   "blocked_command_count": 4,
@@ -2411,12 +2432,12 @@ grant browser/BFF authority.
 
 ## Current Validation Record Example Evidence
 
-The active 6501-6520 range reports futures request payload validation evidence
+The active 6521-6540 range reports futures request payload validation evidence
 record contract evidence in `GET /api/v1/futures/command-suite`. This carries
 forward completed futures request payload validation evidence and adds disabled
 validation-record contract rows.
 One-line evidence phrase: futures request payload validation evidence record contract evidence.
-`"approved_phase_range": "6501-6520"`,
+`"approved_phase_range": "6521-6540"`,
 `"request_payload_validation_evidence_count": 22`,
 `"blocking_request_payload_validation_evidence_count": 22`,
 `"ready_request_payload_validation_evidence_count": 0`,
