@@ -59,6 +59,46 @@ and notional evidence fields.
   evidence only; they are not accepted payloads and do not create executable
   routes.
 - The command-suite route also exposes request-payload validation record
+  execution-eligibility evidence through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_execution_eligibilities`,
+  `request_payload_validation_record_execution_eligibility_count`,
+  `blocking_request_payload_validation_record_execution_eligibility_count`,
+  `ready_request_payload_validation_record_execution_eligibility_count`,
+  `execution_eligible_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_execution_eligibility_count`,
+  and `request_payload_validation_record_execution_eligibilities`. Rows expose
+  `validation_record_execution_eligibility_contract_ref`,
+  `validation_record_position_semantics_ref`,
+  `validation_record_margin_semantics_ref`,
+  `validation_record_collateral_semantics_ref`,
+  `validation_record_liquidation_semantics_ref`,
+  `validation_record_reduce_only_semantics_ref`,
+  `validation_record_close_only_semantics_ref`,
+  `validation_record_funding_semantics_ref`,
+  `validation_record_order_semantics_ref`,
+  `validation_record_cancel_semantics_ref`,
+  `validation_record_reconciliation_semantics_ref`,
+  `validation_record_execution_eligibility_field_refs`,
+  `validation_record_execution_eligibility_field_count`,
+  `runtime_evidence_satisfies_validation_record_execution_eligibility=false`,
+  `validation_record_execution_eligibility_contract_ready=false`, and
+  `validation_record_execution_eligible=false`. Semantic flags remain
+  validation_record_position_semantics_ready=false,
+  validation_record_margin_semantics_ready=false,
+  validation_record_collateral_semantics_ready=false,
+  validation_record_liquidation_semantics_ready=false,
+  validation_record_reduce_only_semantics_ready=false,
+  validation_record_close_only_semantics_ready=false,
+  validation_record_funding_semantics_ready=false,
+  validation_record_order_semantics_ready=false,
+  validation_record_cancel_semantics_ready=false, and
+  validation_record_reconciliation_semantics_ready=false. This evidence is disabled and
+  does not make admitted futures/perpetual validation records executable,
+  encode futures position/margin/collateral/liquidation/reduce-only/close-only/
+  funding/order/cancel/reconciliation semantics, call Coinbase, mutate futures
+  state, or grant browser/BFF or spot-rule authority.
+- The command-suite route also exposes request-payload validation record
   admission-link evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`,
   `iter_futures_request_payload_validation_record_admission_links`,
@@ -90,7 +130,9 @@ and notional evidence fields.
   state, or grant browser/BFF or spot-rule authority. Completed M57
   `6561-6580` audit-link evidence remains visible for contextless review and
   display parity.
-  Active M57 `6581-6600` evidence adds disabled futures request payload
+  Active M57 `6601-6620` evidence adds disabled futures request payload
+  validation record execution-eligibility evidence while completed M57
+  `6581-6600` carries forward disabled futures request payload
   validation record admission-link evidence while carrying forward futures
   request payload validation record audit-link evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
@@ -113,7 +155,7 @@ and notional evidence fields.
   validation_record_correlation_bound=false,
   validation_record_admission_audit_bound=false, and
   validation_record_audit_recorded=false.
-  Literal machine-check phrases: futures request payload validation record admission-link evidence; futures request payload validation record audit-link evidence.
+  Literal machine-check phrases: futures request payload validation record execution-eligibility evidence; futures request payload validation record admission-link evidence; futures request payload validation record audit-link evidence.
 - The command-suite route exposes semantic guard metadata for each planned
   command family. These rows identify identity, risk, audit, reconciliation,
   and live-boundary blockers; they are not browser validation authority and do

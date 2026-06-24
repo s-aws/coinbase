@@ -13,8 +13,9 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6581-6600"`. Futures/perpetual command-suite reads
-expose backend-owned disabled admission-link evidence only:
+`"approved_phase_range": "6601-6620"`. Futures/perpetual command-suite reads
+expose backend-owned disabled execution-eligibility evidence while carrying
+forward earlier admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -35,8 +36,10 @@ expose backend-owned disabled admission-link evidence only:
 `iter_futures_request_payload_validation_record_replay_guards`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
 `iter_futures_request_payload_validation_record_audit_links`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_admission_links`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_admission_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_execution_eligibilities`.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,
@@ -75,6 +78,12 @@ Representative no-live response keys include
 `"admission_bound_request_payload_validation_record_count"`,
 `"runtime_observed_request_payload_validation_record_admission_link_count"`,
 `"request_payload_validation_record_admission_links"`,
+`"request_payload_validation_record_execution_eligibility_count"`,
+`"blocking_request_payload_validation_record_execution_eligibility_count"`,
+`"ready_request_payload_validation_record_execution_eligibility_count"`,
+`"execution_eligible_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_execution_eligibility_count"`,
+`"request_payload_validation_record_execution_eligibilities"`,
 `"request_payload_validation_record_audit_link_count"`,
 `"blocking_request_payload_validation_record_audit_link_count"`,
 `"ready_request_payload_validation_record_audit_link_count"`,
@@ -117,6 +126,12 @@ Machine-check replay guard count keys:
 `admission_bound_request_payload_validation_record_count`,
 `runtime_observed_request_payload_validation_record_admission_link_count`,
 `request_payload_validation_record_admission_links`,
+`request_payload_validation_record_execution_eligibility_count`,
+`blocking_request_payload_validation_record_execution_eligibility_count`,
+`ready_request_payload_validation_record_execution_eligibility_count`,
+`execution_eligible_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_execution_eligibility_count`,
+`request_payload_validation_record_execution_eligibilities`,
 `request_payload_validation_record_audit_link_count`,
 `blocking_request_payload_validation_record_audit_link_count`,
 `ready_request_payload_validation_record_audit_link_count`,
@@ -149,8 +164,20 @@ Row evidence includes `"validation_gate_ref"`, `"validation_evidence_ref"`,
 `"validation_record_correlation_ref"`,
 `"validation_record_admission_audit_ref"`,
 `"validation_record_audit_record_ref"`,
-`"validation_record_audit_link_field_refs"`, and
-`"validation_record_audit_link_field_count"`.
+`"validation_record_audit_link_field_refs"`,
+`"validation_record_audit_link_field_count"`,
+`"validation_record_execution_eligibility_contract_ref"`,
+`"validation_record_position_semantics_ref"`,
+`"validation_record_margin_semantics_ref"`,
+`"validation_record_collateral_semantics_ref"`,
+`"validation_record_liquidation_semantics_ref"`,
+`"validation_record_reduce_only_semantics_ref"`,
+`"validation_record_close_only_semantics_ref"`,
+`"validation_record_funding_semantics_ref"`,
+`"validation_record_order_semantics_ref"`,
+`"validation_record_cancel_semantics_ref"`,
+`"validation_record_reconciliation_semantics_ref"`, and
+`"validation_record_execution_eligibility_field_refs"`.
 
 False authority flags remain `"validation_gate_ready": false`,
 `"validation_gate_passed": false`, `"validator_contract_registered": false`,
@@ -180,6 +207,9 @@ False authority flags remain `"validation_gate_ready": false`,
 `"validation_record_correlation_bound": false`,
 `"validation_record_admission_audit_bound": false`,
 `"validation_record_audit_recorded": false`,
+`"runtime_evidence_satisfies_validation_record_execution_eligibility": false`,
+`"validation_record_execution_eligibility_contract_ready": false`,
+`"validation_record_execution_eligible": false`,
 append_only_validation_record=false,
 validation_record_idempotency_bound=false, request_payload_validated=false.
 Machine-check evidence: futures request payload contract registry evidence;
@@ -190,7 +220,9 @@ futures request payload validator registration evidence; futures request
 payload validation evidence; futures request payload validation evidence record
 contract evidence; futures request payload validation record schema evidence;
 futures request payload validation record replay guard evidence; futures
-request payload validation record audit-link evidence. The rows keep
+request payload validation record audit-link evidence; futures request payload
+validation record admission-link evidence; futures request payload validation
+record execution-eligibility evidence. The rows keep
 route/draft true and execution false flags; they do not validate command
 request payloads, register payload validators, register proof routes, create
 proof writers, call Coinbase, execute reconciliation, mutate

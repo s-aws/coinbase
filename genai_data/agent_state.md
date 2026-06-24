@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6581-6600`.
+- Commit (optional): current active range is `6601-6620`.
 
 ## Current Objective
 
@@ -56,10 +56,15 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6561-6580`.
-- Active autonomous range: `6581-6600`.
-- Active `6581-6600` adds disabled futures request payload validation record
-  admission-link evidence through
+- Latest completed autonomous range before current work: `6581-6600`.
+- Active autonomous range: `6601-6620`.
+- Active `6601-6620` adds disabled futures request payload validation record
+  execution-eligibility evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_execution_eligibilities`.
+  Completed `6581-6600` carries forward futures request payload validation
+  record admission-link evidence through
   `application/admin_api/futures_request_payload_validation_record_admission_links.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
   `iter_futures_request_payload_validation_record_admission_links`. Completed
@@ -87,6 +92,25 @@ Keep it short. Keep it factual.
   `validation_record_command_admission_ref`,
   `validation_record_admission_link_field_refs`,
   `validation_record_admission_link_field_count`,
+  `request_payload_validation_record_execution_eligibility_count`,
+  `blocking_request_payload_validation_record_execution_eligibility_count`,
+  `ready_request_payload_validation_record_execution_eligibility_count`,
+  `execution_eligible_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_execution_eligibility_count`,
+  `request_payload_validation_record_execution_eligibilities`,
+  `validation_record_execution_eligibility_contract_ref`,
+  `validation_record_position_semantics_ref`,
+  `validation_record_margin_semantics_ref`,
+  `validation_record_collateral_semantics_ref`,
+  `validation_record_liquidation_semantics_ref`,
+  `validation_record_reduce_only_semantics_ref`,
+  `validation_record_close_only_semantics_ref`,
+  `validation_record_funding_semantics_ref`,
+  `validation_record_order_semantics_ref`,
+  `validation_record_cancel_semantics_ref`,
+  `validation_record_reconciliation_semantics_ref`,
+  `validation_record_execution_eligibility_field_refs`,
+  `validation_record_execution_eligibility_field_count`,
   `request_payload_validation_record_replay_guard_count`,
   `blocking_request_payload_validation_record_replay_guard_count`,
   `ready_request_payload_validation_record_replay_guard_count`,
@@ -149,6 +173,19 @@ Keep it short. Keep it factual.
   `validation_record_live_intent_bound=false`,
   `validation_record_command_admission_bound=false`,
   `validation_record_admitted=false`,
+  `runtime_evidence_satisfies_validation_record_execution_eligibility=false`,
+  `validation_record_execution_eligibility_contract_ready=false`,
+  `validation_record_execution_eligible=false`,
+  `validation_record_position_semantics_ready=false`,
+  `validation_record_margin_semantics_ready=false`,
+  `validation_record_collateral_semantics_ready=false`,
+  `validation_record_liquidation_semantics_ready=false`,
+  `validation_record_reduce_only_semantics_ready=false`,
+  `validation_record_close_only_semantics_ready=false`,
+  `validation_record_funding_semantics_ready=false`,
+  `validation_record_order_semantics_ready=false`,
+  `validation_record_cancel_semantics_ready=false`,
+  `validation_record_reconciliation_semantics_ready=false`,
   `validation_record_schema_ready=false`,
   `validation_record_schema_registered=false`,
   `validation_record_append_only_log_ready=false`,
@@ -174,11 +211,11 @@ Keep it short. Keep it factual.
   binding, correlation binding, admission-audit append, approval binding, cap
   decision binding, reconciliation execution, live intent, command admission,
   or spot-rule authority is allowed.
-- Current direction: complete phases `6581-6600` with futures request payload
-  validation record admission-link evidence, frontend display, focused
+- Current direction: complete phases `6601-6620` with futures request payload
+  validation record execution-eligibility evidence, frontend display, focused
   checks, blind/contextless review, phase-end subagent sweep, and no-live
   commit/push.
-- One-line current evidence phrase: futures request payload validation record admission-link evidence.
+- One-line current evidence phrase: futures request payload validation record execution-eligibility evidence.
 - Carried-forward machine-check phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence.
 - Carried-forward registries: `application/admin_api/futures_request_payload_contracts.py`, `application/admin_api/futures_request_payload_validators.py`, `application/admin_api/futures_request_payload_validator_input_schemas.py`, `application/admin_api/futures_request_payload_validator_output_schemas.py`, `application/admin_api/futures_request_payload_validator_registrations.py`, `application/admin_api/futures_request_payload_validation_evidence.py`, `application/admin_api/futures_request_payload_validation_evidence_records.py`, `application/admin_api/futures_request_payload_validation_record_schemas.py`, `application/admin_api/futures_request_payload_validation_record_replay_guards.py`, `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`, `iter_futures_request_payload_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, `iter_futures_request_payload_validator_contracts`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_input_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validator_output_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, `iter_futures_request_payload_validator_registrations`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, `iter_futures_request_payload_validation_evidence`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, `iter_futures_request_payload_validation_evidence_records`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, `iter_futures_request_payload_validation_record_schemas`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and `iter_futures_request_payload_validation_record_replay_guards`.
 - Completed `6281-6300` added disabled futures reconciliation command-service

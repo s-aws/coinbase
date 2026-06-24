@@ -123,37 +123,39 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6561-6580` under M57.
-- Active autonomous range: `6581-6600` under M57.
+- Latest completed autonomous range: `6581-6600` under M57.
+- Active autonomous range: `6601-6620` under M57.
 - Active range adds disabled futures request payload validation record
-  admission-link evidence through
-  `application/admin_api/futures_request_payload_validation_record_admission_links.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
-  `iter_futures_request_payload_validation_record_admission_links`, including
-  `request_payload_validation_record_admission_link_count`,
-  `blocking_request_payload_validation_record_admission_link_count`,
-  `ready_request_payload_validation_record_admission_link_count`,
-  `admission_bound_request_payload_validation_record_count`,
-  `runtime_observed_request_payload_validation_record_admission_link_count`,
-  `request_payload_validation_record_admission_links`,
-  `validation_record_admission_link_contract_ref`,
-  `validation_record_approval_snapshot_ref`,
-  `validation_record_cap_guard_decision_ref`,
-  `validation_record_reconciliation_plan_ref`,
-  `validation_record_live_intent_ref`,
-  `validation_record_command_admission_ref`,
-  `validation_record_admission_link_field_refs`,
-  `validation_record_admission_link_field_count`,
-  `runtime_evidence_satisfies_validation_record_admission_link=false`,
-  `validation_record_admission_link_contract_ready=false`,
-  `validation_record_admission_link_ready=false`,
-  `validation_record_approval_snapshot_bound=false`,
-  `validation_record_cap_guard_decision_bound=false`,
-  `validation_record_reconciliation_plan_bound=false`,
-  `validation_record_live_intent_bound=false`,
-  `validation_record_command_admission_bound=false`, and
-  `validation_record_admitted=false`. Completed `6561-6580` carries forward
-  disabled audit-link evidence through
+  execution-eligibility evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_execution_eligibilities`,
+  including `request_payload_validation_record_execution_eligibility_count`,
+  `blocking_request_payload_validation_record_execution_eligibility_count`,
+  `ready_request_payload_validation_record_execution_eligibility_count`,
+  `execution_eligible_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_execution_eligibility_count`,
+  `request_payload_validation_record_execution_eligibilities`,
+  `validation_record_execution_eligibility_contract_ref`,
+  `validation_record_position_semantics_ref`,
+  `validation_record_margin_semantics_ref`,
+  `validation_record_collateral_semantics_ref`,
+  `validation_record_liquidation_semantics_ref`,
+  `validation_record_reduce_only_semantics_ref`,
+  `validation_record_close_only_semantics_ref`,
+  `validation_record_funding_semantics_ref`,
+  `validation_record_order_semantics_ref`,
+  `validation_record_cancel_semantics_ref`,
+  `validation_record_reconciliation_semantics_ref`,
+  `validation_record_execution_eligibility_field_refs`,
+  `validation_record_execution_eligibility_field_count`,
+  `runtime_evidence_satisfies_validation_record_execution_eligibility=false`,
+  `validation_record_execution_eligibility_contract_ready=false`, and
+  `validation_record_execution_eligible=false`. Completed `6581-6600` carries
+  forward disabled admission-link evidence through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS` and
+  `iter_futures_request_payload_validation_record_admission_links`. Completed
+  `6561-6580` carries forward disabled audit-link evidence through
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
   `iter_futures_request_payload_validation_record_audit_links`,
   `request_payload_validation_record_audit_link_count`,

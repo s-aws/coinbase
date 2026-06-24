@@ -4766,6 +4766,137 @@ class AdminFuturesCommandRequestPayloadValidationRecordAdmissionLinkItem(BaseMod
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem(
+    BaseModel
+):
+    """One disabled validation-record execution-eligibility row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    request_payload_contract_ref: str
+    validation_gate_ref: str
+    validation_evidence_ref: str
+    validation_evidence_contract_ref: str
+    validator_contract_ref: str
+    validator_input_schema_ref: str
+    validator_output_schema_ref: str
+    validator_registration_ref: str
+    validation_record_contract_ref: str
+    validation_record_store_ref: str
+    validation_record_writer_ref: str
+    validation_record_replay_guard_ref: str
+    validation_record_schema_ref: str
+    validation_record_append_only_log_ref: str
+    validation_record_replay_guard_contract_ref: str
+    validation_record_idempotency_contract_ref: str
+    validation_record_replay_window_ref: str
+    validation_record_duplicate_policy_ref: str
+    validation_record_audit_link_contract_ref: str
+    validation_record_actor_ref: str
+    validation_record_operator_intent_ref: str
+    validation_record_correlation_ref: str
+    validation_record_admission_audit_ref: str
+    validation_record_audit_record_ref: str
+    validation_record_admission_link_contract_ref: str
+    validation_record_approval_snapshot_ref: str
+    validation_record_cap_guard_decision_ref: str
+    validation_record_reconciliation_plan_ref: str
+    validation_record_live_intent_ref: str
+    validation_record_command_admission_ref: str
+    validation_record_admission_link_field_refs: list[str] = Field(
+        default_factory=list
+    )
+    validation_record_admission_link_field_count: int = Field(default=0, ge=0)
+    validation_record_execution_eligibility_contract_ref: str
+    validation_record_position_semantics_ref: str
+    validation_record_margin_semantics_ref: str
+    validation_record_collateral_semantics_ref: str
+    validation_record_liquidation_semantics_ref: str
+    validation_record_reduce_only_semantics_ref: str
+    validation_record_close_only_semantics_ref: str
+    validation_record_funding_semantics_ref: str
+    validation_record_order_semantics_ref: str
+    validation_record_cancel_semantics_ref: str
+    validation_record_reconciliation_semantics_ref: str
+    required_backend_contract: str
+    missing_backend_contract: str
+    validation_record_execution_eligibility_field_refs: list[str] = Field(
+        default_factory=list
+    )
+    validation_record_execution_eligibility_field_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_validation_record_admission_link: bool = False
+    runtime_evidence_satisfies_validation_record_execution_eligibility: bool = (
+        False
+    )
+    validation_record_execution_eligibility_contract_ready: bool = False
+    validation_record_execution_eligible: bool = False
+    validation_record_position_semantics_ready: bool = False
+    validation_record_margin_semantics_ready: bool = False
+    validation_record_collateral_semantics_ready: bool = False
+    validation_record_liquidation_semantics_ready: bool = False
+    validation_record_reduce_only_semantics_ready: bool = False
+    validation_record_close_only_semantics_ready: bool = False
+    validation_record_funding_semantics_ready: bool = False
+    validation_record_order_semantics_ready: bool = False
+    validation_record_cancel_semantics_ready: bool = False
+    validation_record_reconciliation_semantics_ready: bool = False
+    validation_record_admission_link_contract_ready: bool = False
+    validation_record_admission_link_ready: bool = False
+    validation_record_approval_snapshot_bound: bool = False
+    validation_record_cap_guard_decision_bound: bool = False
+    validation_record_reconciliation_plan_bound: bool = False
+    validation_record_live_intent_bound: bool = False
+    validation_record_command_admission_bound: bool = False
+    validation_record_admitted: bool = False
+    validation_record_audit_link_contract_ready: bool = False
+    validation_record_audit_link_ready: bool = False
+    validation_record_actor_bound: bool = False
+    validation_record_operator_intent_bound: bool = False
+    validation_record_correlation_bound: bool = False
+    validation_record_admission_audit_bound: bool = False
+    validation_record_audit_recorded: bool = False
+    validation_record_replay_guard_contract_ready: bool = False
+    validation_record_replay_guard_ready: bool = False
+    validation_record_idempotency_contract_ready: bool = False
+    validation_record_idempotency_bound: bool = False
+    validation_record_replay_protected: bool = False
+    validation_record_schema_ready: bool = False
+    validation_record_schema_registered: bool = False
+    validation_record_append_only_log_ready: bool = False
+    validation_record_contract_ready: bool = False
+    validation_record_store_ready: bool = False
+    validation_record_writer_enabled: bool = False
+    validation_evidence_ready: bool = False
+    validation_evidence_recorded: bool = False
+    validation_recorded: bool = False
+    append_only_validation_record: bool = False
+    request_payload_validated: bool = False
+    validator_registered: bool = False
+    command_route_registered: bool = True
+    command_draft_allowed: bool = True
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandSemanticGuardItem(BaseModel):
     """One backend-owned futures/perpetual command semantic guard row."""
 
@@ -9266,6 +9397,27 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_admission_links: list[
         AdminFuturesCommandRequestPayloadValidationRecordAdmissionLinkItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_count: int = (
+        Field(default=0, ge=0)
+    )
+    ready_request_payload_validation_record_execution_eligibility_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    execution_eligible_request_payload_validation_record_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_execution_eligibility_count: int = (
+        Field(default=0, ge=0)
+    )
+    request_payload_validation_record_execution_eligibilities: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem
+    ] = Field(default_factory=list)
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
@@ -9927,6 +10079,24 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     runtime_observed_request_payload_validation_record_admission_link_count: int = (
+        Field(default=0, ge=0)
+    )
+    request_payload_validation_record_execution_eligibility_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_count: int = (
+        Field(default=0, ge=0)
+    )
+    ready_request_payload_validation_record_execution_eligibility_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    execution_eligible_request_payload_validation_record_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_execution_eligibility_count: int = (
         Field(default=0, ge=0)
     )
     semantic_guard_count: int = Field(default=0, ge=0)

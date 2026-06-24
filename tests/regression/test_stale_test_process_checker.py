@@ -27,6 +27,7 @@ def _process(
         process_id=process_id,
         parent_process_id=10,
         age_seconds=age_seconds,
+        private_mb=0.0,
         working_set_mb=512.0,
         command_line=command_line,
     )
@@ -100,6 +101,30 @@ def test_stale_checker_matches_backend_relative_regression_commands():
     ) == [relative_regression]
 
 
+def test_stale_checker_matches_young_high_memory_backend_regression_process():
+    repo = Path("C:/coinbase")
+    high_memory_pytest = ProcessInfo(
+        name="python.exe",
+        process_id=105,
+        parent_process_id=10,
+        age_seconds=120,
+        private_mb=50_000.0,
+        working_set_mb=35_000.0,
+        command_line=(
+            "C:/Python314/python.exe -m pytest "
+            r"tests\regression\test_admin_api_contract.py -q --tb=short "
+            r"--basetemp genai_tools\memory-investigation\current\basetemp"
+        ),
+    )
+
+    assert find_stale_test_processes(
+        [high_memory_pytest],
+        roots=[repo],
+        min_age_seconds=900,
+        max_memory_mb=8192.0,
+    ) == [high_memory_pytest]
+
+
 def test_parse_process_json_accepts_single_or_list_payload():
     single = parse_process_json(
         json.dumps(
@@ -108,6 +133,7 @@ def test_parse_process_json_accepts_single_or_list_payload():
                 "ProcessId": 123,
                 "ParentProcessId": 12,
                 "AgeSeconds": 1200,
+                "PrivateMB": 63.5,
                 "WorkingSetMB": 64.5,
                 "CommandLine": "python -m pytest C:/coinbase/tests/regression",
             }
@@ -121,6 +147,7 @@ def test_parse_process_json_accepts_single_or_list_payload():
                     "ProcessId": 124,
                     "ParentProcessId": 12,
                     "AgeSeconds": None,
+                    "PrivateMB": 127.5,
                     "WorkingSetMB": 128,
                     "CommandLine": "node C:/coinbase-frontend/node_modules/vitest/vitest.mjs",
                 }
@@ -129,6 +156,7 @@ def test_parse_process_json_accepts_single_or_list_payload():
     )
 
     assert single[0].process_id == 123
+    assert single[0].private_mb == 63.5
     assert single[0].working_set_mb == 64.5
     assert multiple[0].age_seconds is None
     assert multiple[0].process_id == 124

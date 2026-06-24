@@ -57,7 +57,9 @@ summary JSON because it includes per-lane peak memory samples and top-process
 `process_memory_snapshots` captured at each lane's observed peak. If the
 summary status is `memory_guard_aborted`, the closeout gate failed. Run the
 stale-process checker, preserve the evidence, and reduce or split the offending
-regression file before retrying. Do not disable the guard for normal milestone
+regression file before retrying. The checker also reports matched repo-owned
+test workers above the default high-memory threshold before they reach the
+normal stale age threshold. Do not disable the guard for normal milestone
 closeout.
 
 ```powershell

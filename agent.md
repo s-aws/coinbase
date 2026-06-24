@@ -170,7 +170,8 @@ Before full closeout gates and after any interrupted or timed-out backend or
 frontend test command, run the stale process checker:
 `python tools/check_stale_test_processes.py --include-sibling-frontend`.
 The checker is report-only by default; use `--kill` only when the matched
-repo-owned test worker is stale and not part of active validation.
+repo-owned test worker is stale, or over the default high-memory threshold,
+and not part of active validation.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell

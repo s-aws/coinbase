@@ -99,8 +99,9 @@ test commands, run:
 python tools/check_stale_test_processes.py --include-sibling-frontend
 ```
 
-Use `--kill` only for matched repo-owned test command lines that are stale and
-not part of active validation. Do not terminate generic `node.exe`,
+Use `--kill` only for matched repo-owned test command lines that are stale or
+above the default high-memory threshold and not part of active validation. Do
+not terminate generic `node.exe`,
 `python.exe`, Codex, VS Code, or browser processes by name alone.
 
 After a memory-guard abort or unexplained memory spike, also run:

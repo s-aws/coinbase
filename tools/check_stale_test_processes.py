@@ -16,6 +16,7 @@ from typing import Any, Iterable
 
 
 SUMMARY_PREFIX = "STALE_TEST_PROCESS_SUMMARY "
+DEFAULT_MAX_TEST_PROCESS_MEMORY_MB = 8192.0
 
 TEST_PROCESS_NAMES = {
     "cmd.exe",
@@ -56,6 +57,7 @@ class ProcessInfo:
     process_id: int
     parent_process_id: int | None
     age_seconds: int | None
+    private_mb: float
     working_set_mb: float
     command_line: str
 
@@ -108,6 +110,7 @@ def find_stale_test_processes(
     *,
     roots: Iterable[Path],
     min_age_seconds: int,
+    max_memory_mb: float | None = DEFAULT_MAX_TEST_PROCESS_MEMORY_MB,
 ) -> list[ProcessInfo]:
     """Filter process rows down to stale test workers for the configured roots."""
 
@@ -115,7 +118,15 @@ def find_stale_test_processes(
     for process in processes:
         if not is_test_process(process, roots):
             continue
-        if process.age_seconds is None or process.age_seconds >= min_age_seconds:
+        memory_mb = max(process.private_mb, process.working_set_mb)
+        over_memory_threshold = (
+            max_memory_mb is not None and memory_mb >= max_memory_mb
+        )
+        if (
+            process.age_seconds is None
+            or process.age_seconds >= min_age_seconds
+            or over_memory_threshold
+        ):
             stale.append(process)
     return stale
 
@@ -128,6 +139,7 @@ def _coerce_process_row(row: dict[str, Any]) -> ProcessInfo:
             int(row["ParentProcessId"]) if row.get("ParentProcessId") is not None else None
         ),
         age_seconds=(int(row["AgeSeconds"]) if row.get("AgeSeconds") is not None else None),
+        private_mb=float(row.get("PrivateMB") or 0.0),
         working_set_mb=float(row.get("WorkingSetMB") or 0.0),
         command_line=str(row.get("CommandLine") or ""),
     )
@@ -152,6 +164,7 @@ $now = Get-Date
 Get-CimInstance Win32_Process |
   Select-Object Name,ProcessId,ParentProcessId,
     @{n='AgeSeconds';e={if ($_.CreationDate) {[int]($now - $_.CreationDate).TotalSeconds} else {$null}}},
+    @{n='PrivateMB';e={[math]::Round(($_.PrivatePageCount / 1MB), 1)}},
     @{n='WorkingSetMB';e={[math]::Round(($_.WorkingSetSize / 1MB), 1)}},
     CommandLine |
   ConvertTo-Json -Depth 3
@@ -213,6 +226,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Minimum process age to report as stale. Defaults to 900 seconds.",
     )
     parser.add_argument(
+        "--max-memory-mb",
+        type=float,
+        default=DEFAULT_MAX_TEST_PROCESS_MEMORY_MB,
+        help=(
+            "Report matching repo-owned test workers at or above this private/"
+            "working-set memory size even before the age threshold. Defaults "
+            "to 8192 MB. Use 0 to disable the memory threshold."
+        ),
+    )
+    parser.add_argument(
         "--kill",
         action="store_true",
         help="Terminate matching stale process trees. Default is report-only.",
@@ -267,12 +290,16 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.min_age_seconds < 0:
         raise SystemExit("--min-age-seconds must be non-negative")
+    if args.max_memory_mb < 0:
+        raise SystemExit("--max-memory-mb must be non-negative")
 
     roots = resolve_roots(args)
+    max_memory_mb = args.max_memory_mb if args.max_memory_mb > 0 else None
     stale = find_stale_test_processes(
         query_windows_processes(),
         roots=roots,
         min_age_seconds=args.min_age_seconds,
+        max_memory_mb=max_memory_mb,
     )
 
     killed: list[int] = []
@@ -292,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     f"- pid={process.process_id} ppid={process.parent_process_id} "
                     f"age_seconds={process.age_seconds} "
+                    f"private_mb={process.private_mb:.1f} "
                     f"working_set_mb={process.working_set_mb:.1f} "
                     f"name={process.name} command={process.command_line}"
                 )

@@ -663,7 +663,35 @@ Current behavior:
   validation_record_replay_guard_contract_ready=false,
   validation_record_idempotency_contract_ready=false, and
   validation_record_replay_protected=false.
-- Active M57 `6581-6600` evidence adds disabled futures request payload
+- Active M57 `6601-6620` evidence adds disabled futures request payload
+  validation record execution-eligibility evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_execution_eligibilities`.
+  The command-suite response exposes
+  `request_payload_validation_record_execution_eligibility_count`,
+  `blocking_request_payload_validation_record_execution_eligibility_count`,
+  `ready_request_payload_validation_record_execution_eligibility_count`,
+  `execution_eligible_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_execution_eligibility_count`,
+  `request_payload_validation_record_execution_eligibilities`,
+  `validation_record_execution_eligibility_contract_ref`,
+  `validation_record_position_semantics_ref`,
+  `validation_record_margin_semantics_ref`,
+  `validation_record_collateral_semantics_ref`,
+  `validation_record_liquidation_semantics_ref`,
+  `validation_record_reduce_only_semantics_ref`,
+  `validation_record_close_only_semantics_ref`,
+  `validation_record_funding_semantics_ref`,
+  `validation_record_order_semantics_ref`,
+  `validation_record_cancel_semantics_ref`,
+  `validation_record_reconciliation_semantics_ref`,
+  `validation_record_execution_eligibility_field_refs`,
+  `validation_record_execution_eligibility_field_count`,
+  runtime_evidence_satisfies_validation_record_execution_eligibility=false,
+  validation_record_execution_eligibility_contract_ready=false, and
+  validation_record_execution_eligible=false. Completed `6581-6600` evidence
+  carries forward disabled futures request payload
   validation record admission-link evidence through
   `application/admin_api/futures_request_payload_validation_record_admission_links.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
@@ -701,6 +729,7 @@ Current behavior:
 - Machine-check evidence: futures request payload validator output-schema evidence.
 - Machine-check evidence: futures request payload validator registration evidence.
 - Machine-check evidence: futures request payload validation evidence.
+- Machine-check evidence: futures request payload validation record execution-eligibility evidence.
 - Machine-check evidence:
   `application/admin_api/futures_request_payload_contracts.py`.
 - Machine-check evidence:

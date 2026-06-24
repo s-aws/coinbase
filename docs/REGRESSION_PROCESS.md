@@ -77,7 +77,10 @@ Known memory-sensitive surface: `tests/regression/test_admin_api_contract.py`
 is intentionally broad, and `--dist loadfile` keeps that file in one xdist
 worker. If that file grows or starts retaining large failure payloads, split
 domain-specific assertions into smaller `test_admin_api_*.py` files instead of
-raising worker or memory limits.
+raising worker or memory limits. When diagnosing failures in this file, start
+with `-x`/`--maxfail=1` or a focused single-test selector. Letting a broken
+contract run continue through many large response assertions can retain huge
+pytest failure payloads and distort memory attribution.
 
 Regression files that import the full FastAPI app factory
 (`from api.v1.app import create_app`) are app/route-graph-heavy and must be
@@ -109,9 +112,13 @@ that include this repository or the sibling `coinbase-frontend` path. Backend
 pytest regression commands launched from the repo root with relative
 `tests/regression` paths are also treated as repo-owned, because those children
 can survive an interrupted parent shell without retaining the absolute
-`C:\coinbase` path in their command line. If the checker reports stale workers
-that are no longer part of an active validation run, terminate only those
-matched process trees explicitly:
+`C:\coinbase` path in their command line. The checker also reports matching
+repo-owned test workers above `8192 MB` private or working-set memory even
+before they reach the age threshold; a failing pytest process retaining huge
+failure payloads is operationally stale once it is no longer part of active
+validation. If the checker reports stale or high-memory workers that are no
+longer part of an active validation run, terminate only those matched process
+trees explicitly:
 
 ```powershell
 python tools/check_stale_test_processes.py --include-sibling-frontend --kill

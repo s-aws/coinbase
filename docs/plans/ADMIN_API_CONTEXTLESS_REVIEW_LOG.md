@@ -1,3 +1,326 @@
+## M57 Futures/Perpetual Request Payload Validation Record Execution Eligibility Evidence - Phases 6601-6620
+
+Result: PASS after remediation. Scope: phases `6601-6620`, after completed
+history `6581-6600`, adds backend-owned futures request payload validation
+record execution-eligibility evidence to the read-only futures/perpetual
+command suite. Frontend association phrase: futures request payload validation
+record execution-eligibility display. No live Coinbase execution is planned, no
+live Coinbase execution was run, and actual submitted/executed notional remains
+`0` USDC.
+
+Contract evidence: active `6601-6620` adds disabled execution-eligibility rows
+through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_execution_eligibilities`.
+Rows remain derived from completed admission-link rows and expose position,
+margin, collateral, liquidation, reduce-only, close-only, funding, order,
+cancel, and reconciliation semantic refs. All execution-eligibility,
+semantic-ready, execution, live Coinbase, browser authority, BFF authority, and
+spot-rule authority flags remain blocked or false.
+
+Carried-forward evidence for completed history: futures request payload
+contract registry evidence; futures request payload validation gate evidence;
+futures request payload validator contract registry evidence; futures request
+payload validator input-schema evidence; futures request payload validator
+output-schema evidence; futures request payload validator registration
+evidence; futures request payload validation evidence; futures request payload
+validation evidence record contract evidence; futures request payload
+validation record schema evidence. Source refs remain
+application/admin_api/futures_request_payload_contracts.py,
+application/admin_api/futures_request_payload_validators.py,
+application/admin_api/futures_request_payload_validator_input_schemas.py,
+application/admin_api/futures_request_payload_validator_output_schemas.py,
+application/admin_api/futures_request_payload_validator_registrations.py,
+application/admin_api/futures_request_payload_validation_evidence.py,
+application/admin_api/futures_request_payload_validation_evidence_records.py,
+application/admin_api/futures_request_payload_validation_record_schemas.py,
+FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS,
+iter_futures_request_payload_contracts,
+FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS,
+iter_futures_request_payload_validator_contracts,
+FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS,
+iter_futures_request_payload_validator_input_schemas,
+FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS,
+iter_futures_request_payload_validator_output_schemas,
+FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS,
+iter_futures_request_payload_validator_registrations,
+FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS,
+iter_futures_request_payload_validation_evidence,
+FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS,
+iter_futures_request_payload_validation_evidence_records,
+FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS, and
+iter_futures_request_payload_validation_record_schemas. Count and row refs
+remain request_field_count, blocking_request_field_count,
+request_payload_validator_contract_count,
+blocking_request_payload_validator_contract_count,
+request_payload_validator_input_schema_count,
+blocking_request_payload_validator_input_schema_count,
+request_payload_validator_output_schema_count,
+blocking_request_payload_validator_output_schema_count,
+request_payload_validator_registration_count,
+blocking_request_payload_validator_registration_count,
+request_payload_validation_evidence_count,
+blocking_request_payload_validation_evidence_count,
+request_payload_validation_evidence_record_count,
+blocking_request_payload_validation_evidence_record_count,
+request_payload_validation_record_schema_count,
+blocking_request_payload_validation_record_schema_count, validation_gate_ref,
+validation_evidence_ref, validator_contract_ref, validator_input_schema_ref,
+validator_output_schema_ref, output_schema_field_refs,
+output_schema_field_count, validator_registration_ref,
+validator_registration_field_refs, validator_registration_field_count,
+validation_evidence_contract_ref, validation_evidence_field_refs,
+validation_evidence_field_count, validation_record_contract_ref,
+validation_record_store_ref, validation_record_writer_ref,
+validation_record_replay_guard_ref, validation_record_field_refs,
+validation_record_field_count, validation_record_schema_ref,
+validation_record_append_only_log_ref,
+validation_record_replay_guard_contract_ref,
+validation_record_idempotency_contract_ref, validation_record_replay_window_ref,
+validation_record_duplicate_policy_ref, validation_record_schema_field_refs,
+validation_record_schema_field_count, validation_record_replay_guard_field_refs,
+and validation_record_replay_guard_field_count. Disabled flags remain
+output_schema_registered=false, validator_registration_ready=false,
+runtime_evidence_satisfies_validator_registration=false,
+runtime_evidence_satisfies_validation_evidence=false,
+validation_evidence_ready=false, validation_evidence_recorded=false,
+runtime_evidence_satisfies_validation_record=false,
+validation_record_contract_ready=false, validation_record_store_ready=false,
+validation_record_writer_enabled=false, validation_record_replay_guard_ready=false,
+runtime_evidence_satisfies_validation_record_schema=false,
+runtime_evidence_satisfies_validation_record_replay_guard=false,
+validation_record_schema_ready=false, validation_record_schema_registered=false,
+validation_record_replay_guard_contract_ready=false,
+validation_record_idempotency_contract_ready=false,
+validation_record_replay_protected=false,
+validation_record_append_only_log_ready=false, validation_recorded=false,
+append_only_validation_record=false, validation_record_idempotency_bound=false,
+validation_gate_ready=false, validation_gate_passed=false, and
+request_payload_validated=false. Command-route evidence remains route/draft
+flags remain true while execution remains false for /api/v1/futures/orders,
+/api/v1/futures/positions/{position_key}/close-reduce,
+/api/v1/futures/orders/{client_order_id}/cancel, and
+/api/v1/futures/positions/{position_key}/reconciliation; cancel by
+client_order_id; required_backend_contracts; /api/v1/futures/risk-proofs;
+GET /api/v1/futures/risk-proofs readbacks use read-only resolver evidence;
+POST /api/v1/futures/risk-proofs records append-only local proof evidence
+only; no proof acceptance; post-exchange-submission reconciliation refs are
+required/present disabled evidence; backend_futures_risk_proof_store_read_only_no_execution;
+backend_futures_semantics_no_execution; no Coinbase activity; no
+reconciliation execution; no futures state mutation; forbidden spot
+assumptions. Fresh blind/contextless backend re-review and Fresh
+blind/contextless frontend re-review completed after remediation. Phase-end
+stale-subagent sweep completed; no phase-scoped subagents remain open.
+
+Exact machine-check phrases: futures request payload contract registry evidence.
+Exact machine-check phrases: futures request payload validator input-schema evidence.
+Exact machine-check phrases: futures request payload validator output-schema evidence.
+Exact machine-check phrases: futures request payload validator registration evidence.
+Exact machine-check phrases: futures request payload validation evidence record contract evidence.
+Exact machine-check phrases: futures request payload validation record schema evidence.
+Exact machine-check phrases: route/draft flags remain true while execution remains false.
+Exact machine-check phrases: cancel by client_order_id.
+Exact machine-check phrases: POST /api/v1/futures/risk-proofs records append-only local proof evidence only.
+Exact machine-check phrases: post-exchange-submission reconciliation refs are required/present disabled evidence.
+Exact machine-check phrases: no reconciliation execution.
+Exact machine-check phrases: forbidden spot assumptions.
+Exact machine-check phrases: Fresh blind/contextless frontend re-review.
+Exact machine-check phrases: Phase-end stale-subagent sweep completed.
+
+Exact autonomous review-log phrase coverage:
+- 6581-6600
+- completed history
+- No live Coinbase execution is planned
+- futures request payload validation gate display
+- futures request payload validator contract registry display
+- futures request payload validator input-schema display
+- futures request payload validator output-schema display
+- futures request payload validator registration display
+- futures request payload validation evidence display
+- futures request payload validation evidence record display
+- futures request payload validation-record schema display
+- futures request payload validation record replay guard display
+- futures request payload validation record audit-link display
+- futures request payload validation record admission-link display
+- application/admin_api/futures_request_payload_validators.py
+- application/admin_api/futures_request_payload_validator_input_schemas.py
+- application/admin_api/futures_request_payload_validator_output_schemas.py
+- application/admin_api/futures_request_payload_validator_registrations.py
+- application/admin_api/futures_request_payload_validation_evidence.py
+- application/admin_api/futures_request_payload_validation_evidence_records.py
+- application/admin_api/futures_request_payload_validation_record_schemas.py
+- application/admin_api/futures_request_payload_validation_record_replay_guards.py
+- application/admin_api/futures_request_payload_validation_record_audit_links.py
+- application/admin_api/futures_request_payload_validation_record_admission_links.py
+- FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS
+- iter_futures_request_payload_validator_contracts
+- FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS
+- iter_futures_request_payload_validator_input_schemas
+- FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS
+- iter_futures_request_payload_validator_output_schemas
+- FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS
+- iter_futures_request_payload_validator_registrations
+- FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS
+- iter_futures_request_payload_validation_evidence
+- FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS
+- iter_futures_request_payload_validation_evidence_records
+- FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS
+- iter_futures_request_payload_validation_record_schemas
+- FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS
+- iter_futures_request_payload_validation_record_replay_guards
+- FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS
+- iter_futures_request_payload_validation_record_audit_links
+- FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS
+- iter_futures_request_payload_validation_record_admission_links
+- request_field_count
+- blocking_request_field_count
+- requestPayloadValidatorContractCount
+- blockingRequestPayloadValidatorContractCount
+- requestPayloadValidatorInputSchemaCount
+- blockingRequestPayloadValidatorInputSchemaCount
+- requestPayloadValidatorInputSchemas
+- requestPayloadValidatorOutputSchemaCount
+- blockingRequestPayloadValidatorOutputSchemaCount
+- requestPayloadValidatorOutputSchemas
+- requestPayloadValidatorRegistrationCount
+- blockingRequestPayloadValidatorRegistrationCount
+- requestPayloadValidatorRegistrations
+- requestPayloadValidationEvidenceCount
+- blockingRequestPayloadValidationEvidenceCount
+- requestPayloadValidationEvidence
+- requestPayloadValidationEvidenceRecordCount
+- blockingRequestPayloadValidationEvidenceRecordCount
+- requestPayloadValidationEvidenceRecords
+- requestPayloadValidationRecordSchemaCount
+- blockingRequestPayloadValidationRecordSchemaCount
+- requestPayloadValidationRecordSchemas
+- requestPayloadValidationRecordReplayGuardCount
+- blockingRequestPayloadValidationRecordReplayGuardCount
+- requestPayloadValidationRecordReplayGuards
+- requestPayloadValidationRecordAuditLinkCount
+- blockingRequestPayloadValidationRecordAuditLinkCount
+- requestPayloadValidationRecordAuditLinks
+- requestPayloadValidationRecordAdmissionLinkCount
+- blockingRequestPayloadValidationRecordAdmissionLinkCount
+- requestPayloadValidationRecordAdmissionLinks
+- validatorInputSchemaRef
+- validatorOutputSchemaRef
+- inputSchemaFieldRefs
+- inputSchemaFieldCount
+- outputSchemaFieldRefs
+- outputSchemaFieldCount
+- validatorRegistrationFieldRefs
+- validatorRegistrationFieldCount
+- validationEvidenceContractRef
+- validationEvidenceFieldRefs
+- validationEvidenceFieldCount
+- validationRecordContractRef
+- validationRecordStoreRef
+- validationRecordWriterRef
+- validationRecordReplayGuardRef
+- validationRecordFieldRefs
+- validationRecordFieldCount
+- validationRecordSchemaRef
+- validationRecordAppendOnlyLogRef
+- validationRecordReplayGuardContractRef
+- validationRecordIdempotencyContractRef
+- validationRecordReplayWindowRef
+- validationRecordDuplicatePolicyRef
+- validationRecordSchemaFieldRefs
+- validationRecordSchemaFieldCount
+- validationRecordReplayGuardFieldRefs
+- validationRecordReplayGuardFieldCount
+- validationRecordAuditLinkContractRef
+- validationRecordActorRef
+- validationRecordOperatorIntentRef
+- validationRecordCorrelationRef
+- validationRecordAdmissionAuditRef
+- validationRecordAuditRecordRef
+- validationRecordAuditLinkFieldRefs
+- validationRecordAuditLinkFieldCount
+- validationRecordAdmissionLinkContractRef
+- validationRecordApprovalSnapshotRef
+- validationRecordCapGuardDecisionRef
+- validationRecordReconciliationPlanRef
+- validationRecordLiveIntentRef
+- validationRecordCommandAdmissionRef
+- validationRecordAdmissionLinkFieldRefs
+- validationRecordAdmissionLinkFieldCount
+- runtimeEvidenceSatisfiesValidationEvidence=false
+- runtimeEvidenceSatisfiesValidationRecord=false
+- runtimeEvidenceSatisfiesValidationRecordSchema=false
+- runtimeEvidenceSatisfiesValidationRecordReplayGuard=false
+- runtimeEvidenceSatisfiesValidationRecordAuditLink=false
+- runtimeEvidenceSatisfiesValidationRecordAdmissionLink=false
+- validationEvidenceReady=false
+- validationEvidenceRecorded=false
+- validationRecordContractReady=false
+- validationRecordStoreReady=false
+- validationRecordWriterEnabled=false
+- validationRecordReplayGuardReady=false
+- validationRecordSchemaReady=false
+- validationRecordSchemaRegistered=false
+- validationRecordReplayGuardContractReady=false
+- validationRecordIdempotencyContractReady=false
+- validationRecordReplayProtected=false
+- validationRecordAuditLinkContractReady=false
+- validationRecordAuditLinkReady=false
+- validationRecordAdmissionLinkContractReady=false
+- validationRecordAdmissionLinkReady=false
+- validationRecordActorBound=false
+- validationRecordOperatorIntentBound=false
+- validationRecordCorrelationBound=false
+- validationRecordAdmissionAuditBound=false
+- validationRecordAuditRecorded=false
+- validationRecordApprovalSnapshotBound=false
+- validationRecordCapGuardDecisionBound=false
+- validationRecordReconciliationPlanBound=false
+- validationRecordLiveIntentBound=false
+- validationRecordCommandAdmissionBound=false
+- validationRecordAdmitted=false
+- validationRecordAppendOnlyLogReady=false
+- validationRecorded=false
+- appendOnlyValidationRecord=false
+- validationRecordIdempotencyBound=false
+- inputSchemaRegistered=false
+- outputSchemaRegistered=false
+- validatorRegistrationReady=false
+- validatorInputSchemaRegistered=false
+- validatorOutputSchemaRegistered=false
+- validatorContractRegistered=false
+- validatorRegistered=false
+- requestPayloadValidated=false
+- /api/v1/futures/orders
+- /api/v1/futures/positions/{position_key}/close-reduce
+- /api/v1/futures/orders/{client_order_id}/cancel
+- /api/v1/futures/positions/{position_key}/reconciliation
+- route/draft flags remain true while execution remains false
+- cancel by client_order_id
+- requiredBackendContracts
+- /api/v1/futures/command-suite
+- no proof acceptance
+- no Coinbase activity
+- no reconciliation execution
+- no futures state mutation
+- forbidden spot assumptions
+- Fresh blind/contextless backend re-review
+- Fresh blind/contextless frontend re-review
+- Phase-end stale-subagent sweep completed
+Focused validation evidence: `python -m py_compile
+application\admin_api\futures_request_payload_validation_record_execution_eligibilities.py
+application\admin_api\models.py application\admin_api\read_service.py
+tests\regression\test_admin_api_futures_risk_proofs.py
+tests\regression\test_admin_api_contract.py`; `python -m pytest
+tests\regression\test_admin_api_futures_risk_proofs.py::test_futures_request_payload_field_contracts_are_disabled
+tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract
+-q --tb=short`; and `python -m pytest
+tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules
+-q --tb=short` passed. Full backend regression was not run because this is
+ordinary phase work, not durable milestone closeout, and the runtime-artifact
+preflight currently blocks on known preserved historical artifacts pending
+explicit cleanup approval.
+
 ## M57 Futures/Perpetual Request Payload Validation Record Admission Link Evidence - Phases 6581-6600
 
 Result: PASS after remediation. Scope: phases `6581-6600`, after completed history `6561-6580`, adds backend-owned futures request payload validation record admission-link evidence to the read-only futures/perpetual command suite. Frontend association phrase: futures request payload validation record admission-link display. Prior carried-forward phrases remain futures request payload validation gate display, futures request payload validator contract registry display, futures request payload validator input-schema display, futures request payload validator output-schema display, futures request payload validator registration display, futures request payload validation evidence display, futures request payload validation evidence record display, futures request payload validation-record schema display, futures request payload validation record replay guard display, and futures request payload validation record audit-link display. No live Coinbase execution is planned, no live Coinbase execution was run, and actual submitted/executed notional remains `0` USDC.
