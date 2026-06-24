@@ -27,6 +27,17 @@ operator routes. Live-shaped trading command HTTP routes still return
 `not_implemented` after auth, permission, idempotency, and audit handling;
 they do not submit orders, cancel orders, or call Coinbase.
 
+`POST /api/v1/orders` is the enterprise manual Spot order command contract, but
+today it is a dry-submit/review path only. The route requires backend auth,
+RBAC, idempotency, correlation, and operator-intent headers, may derive a
+backend-owned `client_order_id` before admission when the request omits one,
+and then returns live-disabled evidence. It does not reach the live branch that
+checks Spot wallet inventory, no-short sell authority, product capability,
+event-stream audit, or REST submission unless a future HTTP live-execution gate
+explicitly passes `allow_live_execution=true`. The UI label "operator" names a
+human workflow role; backend order creation still requires `trader` or `admin`
+RBAC authority.
+
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
 The current runtime still returns `501` for create, order cancel, stealth

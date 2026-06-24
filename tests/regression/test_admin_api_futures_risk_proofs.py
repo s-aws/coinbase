@@ -94,6 +94,10 @@ from application.admin_api.futures_request_payload_validation_record_semantic_ar
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifact_definitions,
 )
+from application.admin_api.futures_request_payload_validation_record_semantic_artifact_definition_reviews import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS,
+    iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews,
+)
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -1161,6 +1165,65 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS
     )
 
+    assert len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS
+    ) == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS
+    )
+    semantic_artifact_definition_contract_refs = {
+        contract.semantic_artifact_definition_contract_ref
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS
+    }
+    assert all(
+        contract.semantic_artifact_definition_contract_ref
+        in semantic_artifact_definition_contract_refs
+        and contract.status == AdminApiGateStatus.BLOCKED
+        and contract.source == AdminFuturesEvidenceSource.BACKEND_CONTRACT
+        and contract.required is True
+        and contract.blocking is True
+        and contract.backend_owned is True
+        and contract.read_only is True
+        and contract.contextless_review_required is True
+        and contract.spot_rule_authority is False
+        and contract.semantic_artifact_definition_available is False
+        and contract.semantic_artifact_definition_review_available is False
+        and contract.semantic_artifact_definition_reviewed is False
+        and contract.semantic_artifact_definition_review_passed is False
+        and contract.semantic_artifact_runtime_evidence_bound is False
+        and contract.runtime_evidence_observed is False
+        and contract.runtime_evidence_satisfies_semantic_artifact_definition is False
+        and contract.semantic_artifact_defined is False
+        and contract.semantic_artifact_reviewed is False
+        and contract.execution_eligibility_blocker_resolved is False
+        and contract.validation_record_execution_eligible is False
+        and contract.execution_allowed is False
+        and contract.live_coinbase_orders_ran is False
+        and contract.semantic_artifact_definition_review_contract_ref.startswith(
+            "application/admin_api/"
+            "futures_request_payload_validation_record_semantic_artifact_definition_reviews.py::"
+        )
+        and contract.semantic_artifact_definition_review_ref.endswith(
+            "_contextless_review"
+        )
+        and contract.semantic_artifact_definition_review_input_ref.endswith(
+            "_input"
+        )
+        and contract.semantic_artifact_definition_review_output_ref.endswith(
+            "_output"
+        )
+        and contract.required_backend_contract
+        == contract.semantic_artifact_definition_review_contract_ref
+        and contract.missing_backend_contract
+        == contract.semantic_artifact_definition_review_ref
+        and len(contract.forbidden_execution_claims) == 14
+        and "spot_rule_authority" in contract.forbidden_execution_claims
+        and len(contract.required_evidence_refs) == 14
+        and contract.missing_evidence_refs == contract.required_evidence_refs
+        and contract.browser_authority == "display_only"
+        and contract.bff_authority == "forward_only_no_execution"
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS
+    )
+
     emitted_count = 0
     validator_emitted_count = 0
     input_schema_emitted_count = 0
@@ -1176,6 +1239,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     validation_record_execution_eligibility_blocker_emitted_count = 0
     validation_record_semantic_artifact_emitted_count = 0
     validation_record_semantic_artifact_definition_emitted_count = 0
+    validation_record_semantic_artifact_definition_review_emitted_count = 0
     for command in command_suite.commands:
         registry_rows = list(iter_futures_request_payload_contracts(command.command))
         validator_registry_rows = list(
@@ -1234,6 +1298,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 command.command
             )
         )
+        validation_record_semantic_artifact_definition_review_registry_rows = list(
+            iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews(
+                command.command
+            )
+        )
         emitted_count += len(command.request_fields)
         validator_emitted_count += len(command.request_payload_validator_contracts)
         input_schema_emitted_count += len(
@@ -1274,6 +1343,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         validation_record_semantic_artifact_definition_emitted_count += len(
             command.request_payload_validation_record_semantic_artifact_definitions
+        )
+        validation_record_semantic_artifact_definition_review_emitted_count += len(
+            command.request_payload_validation_record_semantic_artifact_definition_reviews
         )
         assert command.request_field_count == len(registry_rows)
         assert command.required_request_field_count == len(registry_rows)
@@ -1454,6 +1526,22 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.runtime_observed_request_payload_validation_record_semantic_artifact_definition_count
             == 0
         )
+        assert (
+            command.request_payload_validation_record_semantic_artifact_definition_review_count
+            == len(validation_record_semantic_artifact_definition_review_registry_rows)
+        )
+        assert (
+            command.blocking_request_payload_validation_record_semantic_artifact_definition_review_count
+            == len(validation_record_semantic_artifact_definition_review_registry_rows)
+        )
+        assert (
+            command.ready_request_payload_validation_record_semantic_artifact_definition_review_count
+            == 0
+        )
+        assert (
+            command.runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count
+            == 0
+        )
         assert all(
             contract.contract_ref in command.required_backend_contracts
             for contract in registry_rows
@@ -1520,6 +1608,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             contract.semantic_artifact_definition_contract_ref
             in command.required_backend_contracts
             for contract in validation_record_semantic_artifact_definition_registry_rows
+        )
+        assert all(
+            contract.semantic_artifact_definition_review_contract_ref
+            in command.required_backend_contracts
+            for contract in validation_record_semantic_artifact_definition_review_registry_rows
         )
         for emitted, contract in zip(
             command.request_fields,
@@ -2845,6 +2938,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     assert validation_record_semantic_artifact_definition_emitted_count == len(
         FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS
     )
+    assert validation_record_semantic_artifact_definition_review_emitted_count == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS
+    )
     assert command_suite.request_field_count == len(
         FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
     )
@@ -3033,6 +3129,26 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert (
         command_suite.runtime_observed_request_payload_validation_record_semantic_artifact_definition_count
+        == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_semantic_artifact_definition_review_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_semantic_artifact_definition_review_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.ready_request_payload_validation_record_semantic_artifact_definition_review_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count
         == 0
     )
 

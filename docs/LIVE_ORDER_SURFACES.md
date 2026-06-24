@@ -32,6 +32,13 @@ execution as not run with notional `$0`.
 - Admin HTTP mutating routes currently fail closed after auth/RBAC,
   idempotency, approval-gate, and audit handling. They do not submit or cancel
   Coinbase orders yet.
+- Admin HTTP `POST /api/v1/orders` is a manual Spot order dry-submit/review
+  route, not a live order route. It may accept command-shaped evidence and
+  derive `client_order_id`, but the route does not pass
+  `allow_live_execution=true`, so the shared command service exits before the
+  Spot inventory/no-short/product-capability/event-stream/REST submission
+  branch. Backend `trader` or `admin` authority is required for the command
+  route; a human "operator" label in the frontend is not enough RBAC authority.
 - Admin HTTP read-only spot routes can report readiness, sweep status, P/L,
   cost-basis status, campaign status, and direct-order audit evidence.
 - The enterprise frontend must use the HTTP Admin API contract. It must not

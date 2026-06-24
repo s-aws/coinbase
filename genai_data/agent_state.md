@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6661-6680`.
+- Commit (optional): current active range is `6681-6700`.
 
 ## Current Objective
 
@@ -56,62 +56,72 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6641-6660`.
-- Active autonomous range: `6661-6680`.
-- Active `6661-6680` adds disabled futures request payload validation record
-  semantic artifact definition evidence through
+- Latest completed autonomous range before current work: `6661-6680`.
+- Active autonomous range: `6681-6700`.
+- Active `6681-6700` adds disabled futures request payload validation record
+  semantic artifact definition review evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_reviews.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`.
+  Each row exposes `semantic_artifact_definition_review_ref`,
+  `semantic_artifact_definition_review_contract_ref`,
+  `semantic_artifact_definition_review_input_ref`,
+  `semantic_artifact_definition_review_output_ref`,
+  `contextless_review_required=true`,
+  `semantic_artifact_definition_available=false`,
+  `semantic_artifact_definition_review_available=false`,
+  `semantic_artifact_definition_reviewed=false`,
+  `semantic_artifact_definition_review_passed=false`,
+  `semantic_artifact_runtime_evidence_bound=false`,
+  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`, and
+  `execution_eligibility_blocker_resolved=false`. Completed `6661-6680`
+  carries forward disabled futures request payload validation record semantic
+  artifact definition evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
   and `iter_futures_request_payload_validation_record_semantic_artifact_definitions`.
-  Each row exposes `semantic_artifact_definition_ref`,
-  `semantic_artifact_definition_contract_ref`,
-  `semantic_artifact_definition_available=false`,
-  `semantic_artifact_definition_reviewed=false`,
-  `semantic_artifact_runtime_evidence_bound=false`,
-  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`, and
-  `execution_eligibility_blocker_resolved=false`. Completed `6641-6660`
-  carries forward disabled futures request payload validation record semantic
-  artifact evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_semantic_artifacts`.
-  Completed `6621-6640` carries forward disabled futures request payload
-  validation record execution-eligibility blocker evidence.
 ## Active Scope
 
-- Active autonomous range: `6661-6680`.
+- Active autonomous range: `6681-6700`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `6661-6680` with backend-owned futures
-  request payload validation record semantic artifact definition evidence and
-  matching frontend display.
+- Current direction: complete phases `6681-6700` with backend-owned futures
+  request payload validation record semantic artifact definition review evidence
+  and matching frontend display.
 - Backend active source:
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`.
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_reviews.py`.
 - Backend active registry:
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`
-  and `iter_futures_request_payload_validation_record_semantic_artifact_definitions`.
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`.
 - Active command-suite evidence fields:
-  `request_payload_validation_record_semantic_artifact_definition_count`,
-  `blocking_request_payload_validation_record_semantic_artifact_definition_count`,
-  `ready_request_payload_validation_record_semantic_artifact_definition_count`,
-  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
-  and `request_payload_validation_record_semantic_artifact_definitions`.
+  `request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  and `request_payload_validation_record_semantic_artifact_definition_reviews`.
 - Active row evidence fields:
-  `semantic_artifact_definition_ref`,
-  `semantic_artifact_definition_contract_ref`,
   `semantic_artifact_definition_review_ref`,
+  `semantic_artifact_definition_review_contract_ref`,
+  `semantic_artifact_definition_review_input_ref`,
+  `semantic_artifact_definition_review_output_ref`,
   `semantic_artifact_runtime_evidence_ref`,
+  `contextless_review_required=true`,
   `semantic_artifact_definition_available=false`,
+  `semantic_artifact_definition_review_available=false`,
   `semantic_artifact_definition_reviewed=false`,
+  `semantic_artifact_definition_review_passed=false`,
   `semantic_artifact_runtime_evidence_bound=false`,
   `runtime_evidence_satisfies_semantic_artifact_definition=false`,
   `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
   `execution_eligibility_blocker_resolved=false`,
   `validation_record_execution_eligible=false`, `execution_allowed=false`,
   and `live_coinbase_orders_ran=false`.
-- Boundary: this active range does not validate command payloads, admit
-  commands, accept risk proofs as command readiness, call Coinbase, execute
-  reconciliation, mutate futures/order/exchange state, grant browser/BFF
-  authority, or import spot-only rules into futures/perpetuals.
+- Boundary: this active range does not validate command payloads, pass
+  contextless reviews, admit commands, accept risk proofs as command readiness,
+  call Coinbase, execute reconciliation, mutate futures/order/exchange state,
+  grant browser/BFF authority, or import spot-only rules into
+  futures/perpetuals.
 - Cancel command identity remains `client_order_id`.
 ## Decisions (Durable)
 
@@ -408,17 +418,17 @@ Keep it short. Keep it factual.
 
 ## Active M57 Machine-Check Evidence Terms
 
-Current direction: complete phases `6661-6680` with futures request payload semantic artifact definition evidence.
+Current direction: complete phases `6681-6700` with futures request payload semantic artifact definition review evidence.
 
-Active evidence phrases: futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition display.
+Active evidence phrases: futures request payload validation record semantic artifact definition review evidence; futures request payload validation record semantic artifact definition review display.
 
-Active backend files and constants: application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS; iter_futures_request_payload_validation_record_semantic_artifact_definitions.
+Active backend files and constants: application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_reviews.py; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS; iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews.
 
-Active command-suite fields: request_payload_validation_record_semantic_artifact_definition_count; blocking_request_payload_validation_record_semantic_artifact_definition_count; ready_request_payload_validation_record_semantic_artifact_definition_count; runtime_observed_request_payload_validation_record_semantic_artifact_definition_count; request_payload_validation_record_semantic_artifact_definitions; semantic_artifact_definition_ref; semantic_artifact_definition_contract_ref; semantic_artifact_definition_review_ref; semantic_artifact_runtime_evidence_ref.
+Active command-suite fields: request_payload_validation_record_semantic_artifact_definition_review_count; blocking_request_payload_validation_record_semantic_artifact_definition_review_count; ready_request_payload_validation_record_semantic_artifact_definition_review_count; runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count; request_payload_validation_record_semantic_artifact_definition_reviews; semantic_artifact_definition_review_ref; semantic_artifact_definition_review_contract_ref; semantic_artifact_definition_review_input_ref; semantic_artifact_definition_review_output_ref; semantic_artifact_runtime_evidence_ref.
 
-Active false flags: semantic_artifact_definition_available=false; semantic_artifact_definition_reviewed=false; semantic_artifact_runtime_evidence_bound=false; runtime_evidence_satisfies_semantic_artifact_definition=false; semantic_artifact_defined=false; semantic_artifact_reviewed=false; execution_eligibility_blocker_resolved=false; validation_record_execution_eligible=false; execution_allowed=false; live_coinbase_orders_ran=false.
+Active false flags: contextless_review_required=true; semantic_artifact_definition_available=false; semantic_artifact_definition_review_available=false; semantic_artifact_definition_reviewed=false; semantic_artifact_definition_review_passed=false; semantic_artifact_runtime_evidence_bound=false; runtime_evidence_satisfies_semantic_artifact_definition=false; semantic_artifact_defined=false; semantic_artifact_reviewed=false; execution_eligibility_blocker_resolved=false; validation_record_execution_eligible=false; execution_allowed=false; live_coinbase_orders_ran=false.
 
-Carried-forward evidence phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence.
+Carried-forward evidence phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence.
 
 Carried-forward backend files: application/admin_api/futures_request_payload_contracts.py; application/admin_api/futures_request_payload_validators.py; application/admin_api/futures_request_payload_validator_input_schemas.py; application/admin_api/futures_request_payload_validator_output_schemas.py; application/admin_api/futures_request_payload_validator_registrations.py; application/admin_api/futures_request_payload_validation_evidence.py; application/admin_api/futures_request_payload_validation_evidence_records.py; application/admin_api/futures_request_payload_validation_record_schemas.py; application/admin_api/futures_request_payload_validation_record_replay_guards.py; application/admin_api/futures_request_payload_validation_record_audit_links.py; application/admin_api/futures_request_payload_validation_record_admission_links.py.
 
@@ -449,13 +459,13 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
 
 ## Next 3 Actions
 
-1. Commit and push the backend and frontend phase `6661-6680` work after final diff review.
+1. Commit and push the backend and frontend phase `6681-6700` work after final diff review.
 2. Continue only milestone-linked admin API/frontend gaps under the durable enterprise admin objective.
 3. Keep broad regression/release gates for milestone closeout or explicit request, and keep ordinary phase validation focused.
 
 ## Handoff Notes
 
-- Phase `6661-6680` adds backend-owned semantic artifact definition evidence and frontend display only.
+- Phase `6681-6700` adds backend-owned semantic artifact definition review evidence and frontend display only.
 - The backend remains authoritative for trading behavior, guard checks, live execution, reconciliation, and Coinbase calls.
 - The frontend consumes generated OpenAPI/backend contracts and remains display-only for this evidence surface.
 - No spot-only wallet/no-shorting/cost-basis rules are imported into futures/perpetual command readiness.

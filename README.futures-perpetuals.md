@@ -99,7 +99,34 @@ and notional evidence fields.
   funding/order/cancel/reconciliation semantics, call Coinbase, mutate futures
   state, or grant browser/BFF or spot-rule authority.
 - The command-suite route also exposes request-payload validation record
-  semantic artifact definition evidence through
+  semantic artifact definition review evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_reviews.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`,
+  `request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  and `request_payload_validation_record_semantic_artifact_definition_reviews`.
+  Rows expose `semantic_artifact_definition_review_ref`,
+  `semantic_artifact_definition_review_contract_ref`,
+  `semantic_artifact_definition_review_input_ref`,
+  `semantic_artifact_definition_review_output_ref`,
+  `semantic_artifact_definition_ref`,
+  `semantic_artifact_definition_contract_ref`,
+  `contextless_review_required=true`,
+  `semantic_artifact_definition_available=false`,
+  `semantic_artifact_definition_review_available=false`,
+  `semantic_artifact_definition_reviewed=false`,
+  `semantic_artifact_definition_review_passed=false`,
+  `semantic_artifact_runtime_evidence_bound=false`,
+  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
+  `runtime_evidence_satisfies_semantic_artifact_definition=false`, and
+  `execution_eligibility_blocker_resolved=false`. Active M57 `6681-6700`
+  evidence adds disabled futures request payload validation record semantic
+  artifact definition review evidence while completed M57 `6661-6680` carries
+  forward disabled futures request payload validation record semantic artifact
+  definition evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
   `iter_futures_request_payload_validation_record_semantic_artifact_definitions`,
@@ -107,24 +134,13 @@ and notional evidence fields.
   `blocking_request_payload_validation_record_semantic_artifact_definition_count`,
   `ready_request_payload_validation_record_semantic_artifact_definition_count`,
   `runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
-  and `request_payload_validation_record_semantic_artifact_definitions`. Rows
-  expose `semantic_artifact_definition_ref`,
-  `semantic_artifact_definition_contract_ref`,
-  `semantic_artifact_definition_available=false`,
-  `semantic_artifact_definition_reviewed=false`,
-  `semantic_artifact_runtime_evidence_bound=false`,
-  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
-  `runtime_evidence_satisfies_semantic_artifact_definition=false`, and
-  `execution_eligibility_blocker_resolved=false`. Active M57 `6661-6680`
-  evidence adds disabled futures request payload validation record semantic
-  artifact definition evidence while completed M57 `6641-6660` carries
-  forward disabled futures request payload validation record semantic artifact
-  evidence. This evidence does not define futures semantics, validate payloads,
-  resolve blockers, admit commands, call Coinbase, execute reconciliation,
-  mutate futures/order/exchange state, or grant browser/BFF or spot-rule
-  authority.
-  Exact autonomous phrase: Active M57 `6661-6680` evidence adds disabled futures request payload validation record semantic artifact definition evidence while completed M57 `6641-6660` carries forward disabled futures request payload validation record semantic artifact evidence.
-  Literal machine-check phrase: futures request payload validation record semantic artifact definition evidence.
+  and `request_payload_validation_record_semantic_artifact_definitions`. This
+  evidence does not define futures semantics, pass contextless reviews, validate
+  payloads, resolve blockers, admit commands, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser/BFF or
+  spot-rule authority.
+  Exact autonomous phrase: Active M57 `6681-6700` evidence adds disabled futures request payload validation record semantic artifact definition review evidence while completed M57 `6661-6680` carries forward disabled futures request payload validation record semantic artifact definition evidence.
+  Literal machine-check phrase: futures request payload validation record semantic artifact definition review evidence.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,

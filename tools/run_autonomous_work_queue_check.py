@@ -62,9 +62,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6661-6680"
-APPROVED_PHASES = tuple(range(6661, 6681))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6641-6660"
+APPROVED_PHASE_RANGE = "6681-6700"
+APPROVED_PHASES = tuple(range(6681, 6701))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6661-6680"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -473,6 +473,8 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "`iter_futures_request_payload_validation_record_semantic_artifacts`",
             "`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`",
             "`iter_futures_request_payload_validation_record_semantic_artifact_definitions`",
+            "`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`",
+            "`iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`",
             "futures request payload contract registry evidence",
             "futures request payload validator contract registry evidence",
             "futures request payload validator input-schema evidence",
@@ -484,7 +486,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `6661-6680` evidence adds disabled futures request payload validation record semantic artifact definition evidence while completed M57 `6641-6660` carries forward disabled futures request payload validation record semantic artifact evidence.",
+            "Active M57 `6681-6700` evidence adds disabled futures request payload validation record semantic artifact definition review evidence while completed M57 `6661-6680` carries forward disabled futures request payload validation record semantic artifact definition evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -525,12 +527,24 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "`ready_request_payload_validation_record_semantic_artifact_definition_count`",
             "`runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`",
             "`request_payload_validation_record_semantic_artifact_definitions`",
+            "`request_payload_validation_record_semantic_artifact_definition_review_count`",
+            "`blocking_request_payload_validation_record_semantic_artifact_definition_review_count`",
+            "`ready_request_payload_validation_record_semantic_artifact_definition_review_count`",
+            "`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count`",
+            "`request_payload_validation_record_semantic_artifact_definition_reviews`",
             "`semantic_artifact_ref`",
             "`semantic_artifact_contract_ref`",
             "`semantic_artifact_definition_ref`",
             "`semantic_artifact_definition_contract_ref`",
+            "`semantic_artifact_definition_review_ref`",
+            "`semantic_artifact_definition_review_contract_ref`",
+            "`semantic_artifact_definition_review_input_ref`",
+            "`semantic_artifact_definition_review_output_ref`",
+            "`contextless_review_required=true`",
             "`semantic_artifact_definition_available=false`",
+            "`semantic_artifact_definition_review_available=false`",
             "`semantic_artifact_definition_reviewed=false`",
+            "`semantic_artifact_definition_review_passed=false`",
             "`semantic_artifact_runtime_evidence_bound=false`",
             "`semantic_artifact_defined=false`",
             "`semantic_artifact_reviewed=false`",

@@ -123,29 +123,43 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6641-6660` under M57.
-- Active autonomous range: `6661-6680` under M57.
+- Latest completed autonomous range: `6661-6680` under M57.
+- Active autonomous range: `6681-6700` under M57.
+- Current enterprise manual Spot order path is dry-submit/review only:
+  `POST /api/v1/orders` remains live-disabled, may derive backend-owned
+  `client_order_id`, and exits before Spot wallet, no-short sell authority,
+  product capability, event-stream audit, or REST submission checks unless a
+  future HTTP live-execution gate explicitly passes
+  `allow_live_execution=true`. Backend `trader` or `admin` RBAC authority is
+  required for order-create command tests; a frontend human "operator" label is
+  not enough backend authority.
 - Active range adds disabled futures request payload validation record
-  semantic artifact definition evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_semantic_artifact_definitions`,
-  including `request_payload_validation_record_semantic_artifact_definition_count`,
-  `blocking_request_payload_validation_record_semantic_artifact_definition_count`,
-  `ready_request_payload_validation_record_semantic_artifact_definition_count`,
-  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
-  `request_payload_validation_record_semantic_artifact_definitions`,
-  `semantic_artifact_definition_ref`,
-  `semantic_artifact_definition_contract_ref`,
+  semantic artifact definition review evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_reviews.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`,
+  including `request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count`,
+  `request_payload_validation_record_semantic_artifact_definition_reviews`,
+  `semantic_artifact_definition_review_ref`,
+  `semantic_artifact_definition_review_contract_ref`,
+  `semantic_artifact_definition_review_input_ref`,
+  `semantic_artifact_definition_review_output_ref`,
+  `contextless_review_required=true`,
   `semantic_artifact_definition_available=false`,
+  `semantic_artifact_definition_review_available=false`,
   `semantic_artifact_definition_reviewed=false`,
+  `semantic_artifact_definition_review_passed=false`,
   `semantic_artifact_runtime_evidence_bound=false`,
   `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`, and
-  `execution_eligibility_blocker_resolved=false`. Completed `6641-6660`
+  `execution_eligibility_blocker_resolved=false`. Completed `6661-6680`
   carries forward disabled futures request payload validation record semantic
-  artifact evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_semantic_artifacts`.
-  Completed `6621-6640` carries forward disabled futures request payload
-  validation record execution-eligibility blocker evidence.
+  artifact definition evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_semantic_artifact_definitions`.
+  Completed `6641-6660` carries forward disabled futures request payload
+  validation record semantic artifact evidence.
