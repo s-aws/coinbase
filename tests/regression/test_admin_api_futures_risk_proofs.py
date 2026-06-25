@@ -150,6 +150,10 @@ from application.admin_api.futures_request_payload_validation_record_order_seman
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS,
     iter_futures_request_payload_validation_record_order_semantics,
 )
+from application.admin_api.futures_request_payload_validation_record_cancel_semantics import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS,
+    iter_futures_request_payload_validation_record_cancel_semantics,
+)
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -5342,6 +5346,156 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     assert (
         command_suite.runtime_observed_request_payload_validation_record_order_semantic_count
         == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_cancel_semantic_count
+        == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS)
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_cancel_semantic_count
+        == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS)
+    )
+    assert (
+        command_suite.ready_request_payload_validation_record_cancel_semantic_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_cancel_semantic_count
+        == 0
+    )
+
+
+def test_futures_request_payload_validation_record_cancel_semantics_are_disabled() -> None:
+    command_suite = AdminApiReadService().build_futures_command_suite()
+
+    assert len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS
+    ) == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS)
+    cancel_runtime_evidence_acceptance_contract_refs = {
+        contract.semantic_artifact_runtime_evidence_acceptance_contract_ref
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS
+        if contract.semantic_artifact
+        == AdminFuturesCommandSemanticArtifact.CANCEL_SEMANTICS
+    }
+    assert all(
+        contract.semantic_artifact
+        == AdminFuturesCommandSemanticArtifact.CANCEL_SEMANTICS
+        and contract.blocker
+        == AdminFuturesCommandExecutionEligibilityBlocker.CANCEL_SEMANTICS_MISSING
+        and contract.semantic_artifact_runtime_evidence_acceptance_contract_ref
+        in cancel_runtime_evidence_acceptance_contract_refs
+        and contract.status == AdminApiGateStatus.BLOCKED
+        and contract.source == AdminFuturesEvidenceSource.BACKEND_CONTRACT
+        and contract.required is True
+        and contract.blocking is True
+        and contract.backend_owned is True
+        and contract.read_only is True
+        and contract.contextless_review_required is True
+        and contract.spot_rule_authority is False
+        and contract.cancel_semantics_contract_available is False
+        and contract.cancel_semantics_contract_ready is False
+        and contract.cancel_identity_bound is False
+        and contract.cancel_client_order_id_bound is False
+        and contract.cancel_order_wrapper_bound is False
+        and contract.cancel_active_placement_bound is False
+        and contract.cancel_audit_bound is False
+        and contract.runtime_cancel_evidence_observed is False
+        and contract.runtime_evidence_satisfies_cancel_semantics is False
+        and contract.validation_record_cancel_semantics_ready is False
+        and contract.validation_record_execution_eligible is False
+        and contract.execution_allowed is False
+        and contract.live_coinbase_orders_ran is False
+        and contract.cancel_semantics_ref == contract.semantic_ref
+        and contract.cancel_semantics_contract_ref.startswith(
+            "application/admin_api/"
+            "futures_request_payload_validation_record_cancel_semantics.py::"
+        )
+        and contract.required_backend_contract
+        == contract.cancel_semantics_contract_ref
+        and contract.missing_backend_contract == contract.cancel_semantics_ref
+        and len(contract.evidence_routes) == 2
+        and AdminFuturesCommandEvidenceRoute.ADMIN_ADMISSION_AUDITS
+        in contract.evidence_routes
+        and AdminFuturesCommandEvidenceRoute.ADMIN_RECONCILIATION_PLANS
+        in contract.evidence_routes
+        and len(contract.forbidden_execution_claims) == 18
+        and "spot_rule_authority" in contract.forbidden_execution_claims
+        and "cancel_client_order_id_bound" in contract.forbidden_execution_claims
+        and len(contract.required_evidence_refs) >= 30
+        and f"{contract.cancel_semantics_contract_ref}.client_order_id"
+        in contract.required_evidence_refs
+        and (
+            f"{contract.cancel_semantics_contract_ref}."
+            "cancel_order_client_order_id_wrapper"
+        )
+        in contract.required_evidence_refs
+        and "/api/v1/futures/orders/{client_order_id}/cancel"
+        in contract.required_evidence_refs
+        and contract.missing_evidence_refs == contract.required_evidence_refs
+        and contract.browser_authority == "display_only"
+        and contract.bff_authority == "forward_only_no_execution"
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS
+    )
+
+    emitted_count = 0
+    for command in command_suite.commands:
+        registry_rows = list(
+            iter_futures_request_payload_validation_record_cancel_semantics(
+                command.command
+            )
+        )
+        emitted_count += len(command.request_payload_validation_record_cancel_semantics)
+        assert command.request_payload_validation_record_cancel_semantic_count == len(
+            registry_rows
+        )
+        assert (
+            command.blocking_request_payload_validation_record_cancel_semantic_count
+            == len(registry_rows)
+        )
+        assert command.ready_request_payload_validation_record_cancel_semantic_count == 0
+        assert (
+            command.runtime_observed_request_payload_validation_record_cancel_semantic_count
+            == 0
+        )
+        assert all(
+            contract.cancel_semantics_contract_ref in command.required_backend_contracts
+            for contract in registry_rows
+        )
+        for emitted, contract in zip(
+            command.request_payload_validation_record_cancel_semantics,
+            registry_rows,
+            strict=True,
+        ):
+            assert emitted.field == contract.field
+            assert emitted.blocker == contract.blocker
+            assert emitted.semantic_artifact == contract.semantic_artifact
+            assert emitted.cancel_semantics_ref == contract.cancel_semantics_ref
+            assert (
+                emitted.cancel_semantics_contract_ref
+                == contract.cancel_semantics_contract_ref
+            )
+            assert emitted.evidence_routes == list(contract.evidence_routes)
+            assert emitted.required_backend_contract == (
+                contract.required_backend_contract
+            )
+            assert emitted.missing_backend_contract == (
+                contract.missing_backend_contract
+            )
+            assert emitted.cancel_semantics_contract_available is False
+            assert emitted.cancel_semantics_contract_ready is False
+            assert emitted.cancel_identity_bound is False
+            assert emitted.cancel_client_order_id_bound is False
+            assert emitted.cancel_order_wrapper_bound is False
+            assert emitted.cancel_active_placement_bound is False
+            assert emitted.cancel_audit_bound is False
+            assert emitted.runtime_cancel_evidence_observed is False
+            assert emitted.runtime_evidence_satisfies_cancel_semantics is False
+            assert emitted.validation_record_cancel_semantics_ready is False
+            assert emitted.live_coinbase_orders_ran is False
+            assert emitted.spot_rule_authority is False
+
+    assert emitted_count == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS
     )
 
 

@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-25
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6941-6960`.
+- Commit (optional): current active range is `6961-6980`.
 
 ## Current Objective
 
@@ -24,12 +24,36 @@ Keep it short. Keep it factual.
 
 ## Current Phase Override
 
-- Latest completed autonomous range before current work: `6921-6940`.
-- Active autonomous range: `6941-6960`.
-- Current direction: complete phases `6941-6960` with futures request payload
-  validation record order semantics.
-- Exact active evidence phrase: futures request payload validation record order semantics.
-- Active `6941-6960` adds disabled futures request payload validation record
+- Latest completed autonomous range before current work: `6941-6960`.
+- Active autonomous range: `6961-6980`.
+- Current direction: complete phases `6961-6980` with futures request payload
+  validation record cancel semantics.
+- Exact active evidence phrase: futures request payload validation record cancel semantics.
+- Active `6961-6980` adds disabled futures request payload validation record
+  cancel semantics through
+  `application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_cancel_semantics`.
+  It exposes `request_payload_validation_record_cancel_semantic_count`,
+  `blocking_request_payload_validation_record_cancel_semantic_count`,
+  `ready_request_payload_validation_record_cancel_semantic_count`,
+  `runtime_observed_request_payload_validation_record_cancel_semantic_count`,
+  `request_payload_validation_record_cancel_semantics`,
+  `cancel_semantics_ref`, `cancel_semantics_contract_ref`,
+  `evidence_routes`, `cancel_semantics_contract_available`,
+  `cancel_semantics_contract_ready`, `cancel_identity_bound`,
+  `cancel_client_order_id_bound`, `cancel_order_wrapper_bound`,
+  `cancel_active_placement_bound`, `cancel_audit_bound`,
+  `runtime_cancel_evidence_observed`,
+  `runtime_evidence_satisfies_cancel_semantics`, and
+  `validation_record_cancel_semantics_ready`; every readiness,
+  execution, live Coinbase, browser, BFF, and spot-rule authority flag remains
+  false or display-only. Active M57 `6961-6980` evidence adds disabled futures
+  request payload validation record cancel semantics while completed M57
+  `6941-6960` carries forward disabled futures request payload validation
+  record order semantics.
+- Completed `6941-6960` carries forward disabled futures request payload validation record
   order semantics through
   `application/admin_api/futures_request_payload_validation_record_order_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
@@ -712,13 +736,14 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
 
 ## Validation Status
 
-- Current `6941-6960` validation: passed focused backend, frontend,
+- Current `6961-6980` validation: passed focused backend, frontend,
   autonomous, ownership, security, release-readiness, contextless review,
   stale-process, runtime-artifact report, and diff checks for ordinary phase
   closeout. Backend commands run:
-  `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py application\admin_api\futures_request_payload_validation_record_order_semantics.py tools\run_autonomous_work_queue_check.py`;
+  `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py application\admin_api\futures_request_payload_validation_record_cancel_semantics.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py tools\run_autonomous_work_queue_check.py`;
   `pytest tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules tests\regression\test_admin_api_contract.py::test_admin_api_frontend_fixtures_are_bounded_and_offline_safe -q --tb=short --maxfail=1`
-  (`22` passed, `1` warning); `python tools\run_autonomous_work_queue_check.py --summary-only`
+  (`23` passed, `1` warning); `python tools\generate_admin_api_openapi.py`;
+  `python tools\run_autonomous_work_queue_check.py --summary-only`
   (passed); `python tools\check_ownership.py` (passed);
   `python tools\check_stale_test_processes.py --include-sibling-frontend`
   (passed); `python tools\check_runtime_artifacts.py` (report-only
@@ -726,8 +751,9 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
   no files deleted); `git diff --check` (passed with line-ending warnings
   only). Frontend commands run: `npm run typecheck`; `npm run lint`;
   `npx vitest run tests/unit/backendApiClient.test.ts tests/unit/backendRuntime.test.ts tests/unit/mockBackend.test.ts tests/unit/FuturesPerpetualsReadModel.test.tsx tests/unit/qualityGates.test.tsx --reporter=dot`
-  (`119` passed); `npm run api:check`; `npm run autonomous:check`;
-  `npm run security:commands`; `npm run release:check`; `npm run test:processes`;
+  (`120` passed); `npm run api:generate`; `npm run api:check`;
+  `npm run autonomous:check`; `npm run security:commands`;
+  `npm run release:check`; `npm run test:processes`; `npm run build`;
   `git diff --check` (passed with line-ending warnings only).
 - Previous `6921-6940` validation: passed focused backend, frontend,
   autonomous, ownership, security, release-readiness, contextless review, and
@@ -743,22 +769,16 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
   (`74` passed); `npm run api:check`; `npm run autonomous:check`;
   `npm run security:commands`; `npm run release:check`; `npm run test:processes`;
   `git diff --check` (passed with line-ending warnings only).
-- Current blind/contextless review: Schrodinger
-  (`019efe56-c884-75e1-9598-083927b1ec46`) failed on stale current-state text
-  only. It confirmed the order-semantics implementation, backend models/read
-  service, frontend generated schema/adapter/mock/UI, no spot-only authority
-  leak, no live Coinbase authority leak, cancel-by-`client_order_id`
-  invariant, durable subagent hygiene policy, and both autonomous checks. The
-  stale funding-semantics current-review sentence was remediated here. Fresh
-  blind/contextless re-review Feynman
-  (`019efe5a-5480-7491-9b5c-26b602931fae`) passed after remediation,
-  confirmed active `6941-6960` order-semantics evidence across backend and
-  frontend, confirmed older `6921-6940` text is completed funding history only,
-  and found no spot-only authority leak, live Coinbase authority leak,
-  cancellation-key drift, missing order-semantics terms, or missing
-  phase-end stale-subagent cleanup instructions. Phase-end subagent sweep
-  closed Schrodinger and Feynman after consuming findings; no completed,
-  failed, superseded, stale, or unused phase-scoped subagent remains
+- Current blind/contextless review: Maxwell
+  (`019efea5-df2e-76b3-987c-00bca93a372f`) passed after inspecting local files
+  without chat history. It confirmed active `6961-6980` cancel-semantics
+  evidence is backend-owned disabled/read-only evidence, cancellation identity
+  remains `client_order_id` through `cancel_order(client_order_id)`, frontend
+  display adds no browser/BFF/live execution authority, spot-only
+  wallet/cost-basis/sell-guard rules are not imported into futures/perpetuals,
+  and docs/capability matrices/review logs give a clear contextless starting
+  point. Phase-end subagent sweep closed Maxwell after consuming findings; no
+  completed, failed, superseded, stale, or unused phase-scoped subagent remains
   intentionally open.
 - Full backend regression was not rerun for this ordinary phase. It remains a
   durable milestone closeout gate and is currently blocked before pytest by

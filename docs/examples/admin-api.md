@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6941-6960"`. Futures/perpetual command-suite reads
-expose backend-owned disabled order semantics while
+`"approved_phase_range": "6961-6980"`. Futures/perpetual command-suite reads
+expose backend-owned disabled cancel semantics while
 carrying forward earlier semantic artifact runtime evidence binding,
 semantic artifact definition review output acceptance,
 semantic artifact definition review output, semantic artifact definition
@@ -78,9 +78,30 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
 `iter_futures_request_payload_validation_record_funding_semantics`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_order_semantics`.
+`iter_futures_request_payload_validation_record_order_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_cancel_semantics`.
 
-Active order-semantics rows expose
+Active cancel-semantics rows expose
+`request_payload_validation_record_cancel_semantic_count`,
+`blocking_request_payload_validation_record_cancel_semantic_count`,
+`ready_request_payload_validation_record_cancel_semantic_count`,
+`runtime_observed_request_payload_validation_record_cancel_semantic_count`,
+`request_payload_validation_record_cancel_semantics`,
+`cancel_semantics_ref`, `cancel_semantics_contract_ref`,
+`evidence_routes`, `cancel_semantics_contract_available=false`,
+`cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
+`cancel_client_order_id_bound=false`,
+`cancel_order_wrapper_bound=false`,
+`cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
+`runtime_cancel_evidence_observed=false`,
+`runtime_evidence_satisfies_cancel_semantics=false`, and
+`validation_record_cancel_semantics_ready=false`. Active M57 `6961-6980`
+evidence adds disabled futures request payload validation record cancel
+semantics while completed M57 `6941-6960` carries forward disabled futures
+request payload validation record order semantics.
+
+Completed order-semantics rows expose
 `request_payload_validation_record_order_semantic_count`,
 `blocking_request_payload_validation_record_order_semantic_count`,
 `ready_request_payload_validation_record_order_semantic_count`,

@@ -49,39 +49,39 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 6941-6960
+## Current Active Phases 6961-6980
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Order Semantics.
+Batch label: Futures/Perpetuals Request Payload Validation Record Cancel Semantics.
 
-Current M57 work adds disabled futures request payload validation record order
-semantics after completed `6921-6940` funding semantics. The backend-owned
+Current M57 work adds disabled futures request payload validation record cancel
+semantics after completed `6941-6960` order semantics. The backend-owned
 contract is
-`application/admin_api/futures_request_payload_validation_record_order_semantics.py`
+`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`
 with
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS` and
-`iter_futures_request_payload_validation_record_order_semantics`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS` and
+`iter_futures_request_payload_validation_record_cancel_semantics`.
 The command suite must expose
-`request_payload_validation_record_order_semantic_count`,
-`blocking_request_payload_validation_record_order_semantic_count`,
-`ready_request_payload_validation_record_order_semantic_count`,
-`runtime_observed_request_payload_validation_record_order_semantic_count`,
-and `request_payload_validation_record_order_semantics`.
+`request_payload_validation_record_cancel_semantic_count`,
+`blocking_request_payload_validation_record_cancel_semantic_count`,
+`ready_request_payload_validation_record_cancel_semantic_count`,
+`runtime_observed_request_payload_validation_record_cancel_semantic_count`,
+and `request_payload_validation_record_cancel_semantics`.
 
 The rows are no-live display evidence only. They keep
-`order_semantics_contract_available=false`,
-`order_semantics_contract_ready=false`, `order_identity_bound=false`,
-`order_side_bound=false`, `order_size_bound=false`,
-`order_price_bound=false`, `order_type_bound=false`,
-`runtime_order_evidence_observed=false`,
-`runtime_evidence_satisfies_order_semantics=false`, and
-`validation_record_order_semantics_ready=false`. Completed funding evidence
-from `6921-6940` remains carried forward through
-`application/admin_api/futures_request_payload_validation_record_funding_semantics.py`.
+`cancel_semantics_contract_available=false`,
+`cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
+`cancel_client_order_id_bound=false`, `cancel_order_wrapper_bound=false`,
+`cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
+`runtime_cancel_evidence_observed=false`,
+`runtime_evidence_satisfies_cancel_semantics=false`, and
+`validation_record_cancel_semantics_ready=false`. Completed order evidence
+from `6941-6960` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_order_semantics.py`.
 This work must not validate command payloads, accept runtime evidence, admit
-commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
-state, or grant browser/BFF or spot-rule authority.
+commands, call Coinbase, submit cancellation, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `6941-6960` evidence adds disabled futures request payload validation record order semantics while completed M57 `6921-6940` carries forward disabled futures request payload validation record funding semantics.
+Exact autonomous phrase: Active M57 `6961-6980` evidence adds disabled futures request payload validation record cancel semantics while completed M57 `6941-6960` carries forward disabled futures request payload validation record order semantics.
 
 ## Historical Phases 5601-5620
 

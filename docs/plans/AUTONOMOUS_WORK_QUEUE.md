@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6941-6960**.
+- Approved phase range: **6961-6980**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6921-6940`.
+- Previous completed range: `6941-6960`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6940`.
+- `current_phase`: `6960`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,156 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6941-6960
+## Active Phases 6961-6980
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Cancel Semantics.
+
+These phases continue M57 after completed `6941-6960` exposed disabled futures
+request payload validation record order semantics. The next concrete gap is
+that contextless agents can see order semantics are present, but still need
+backend-owned futures/perpetual cancel semantics rows before any future
+validation-record execution eligibility can reason about cancel identity,
+`client_order_id`, the project Coinbase wrapper `cancel_order(client_order_id)`,
+active placement evidence, admission audit evidence, or reconciliation-plan
+evidence. Active M57 `6961-6980` evidence adds disabled futures request payload
+validation record cancel semantics while completed M57 `6941-6960` carries
+forward disabled futures request payload validation record order semantics.
+
+Active `6961-6980` cancel-semantics evidence is implemented through
+`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_cancel_semantics`.
+It emits:
+`request_payload_validation_record_cancel_semantic_count`,
+`blocking_request_payload_validation_record_cancel_semantic_count`,
+`ready_request_payload_validation_record_cancel_semantic_count`,
+`runtime_observed_request_payload_validation_record_cancel_semantic_count`,
+and `request_payload_validation_record_cancel_semantics`.
+Rows expose `cancel_semantics_ref`, `cancel_semantics_contract_ref`,
+`evidence_routes`, `required_backend_contract`, `missing_backend_contract`,
+and carried-forward validation-record semantic artifact runtime-evidence
+acceptance refs. They keep `cancel_semantics_contract_available=false`,
+`cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
+`cancel_client_order_id_bound=false`, `cancel_order_wrapper_bound=false`,
+`cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
+`runtime_cancel_evidence_observed=false`,
+`runtime_evidence_satisfies_cancel_semantics=false`,
+`validation_record_cancel_semantics_ready=false`,
+`validation_record_execution_eligible=false`, `execution_allowed=false`,
+`live_coinbase_orders_ran=false`, `spot_rule_authority=false`, browser
+authority display-only, and BFF authority forward-only/no-execution.
+
+This range must not implement cancel validators, validate submitted command
+payloads, pass contextless reviews as execution authority, admit commands,
+accept runtime evidence, accept cancel semantics, bind live active placement
+evidence, submit or cancel Coinbase orders, execute reconciliation, mutate
+futures/order/exchange state, accept risk proofs as command readiness, or grant
+browser/BFF execution authority. Spot wallet, no-shorting, USDC, cost-basis,
+average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority.
+
+Exact autonomous phrase: Active M57 `6961-6980` evidence adds disabled futures request payload validation record cancel semantics while completed M57 `6941-6960` carries forward disabled futures request payload validation record order semantics.
+
+### Phase 6961 - Prior Range Closure
+
+- Record completed phases `6941-6960` as historical order-semantics evidence
+  and move active metadata to `6961-6980`.
+
+### Phase 6962 - Cancel Semantics Registry
+
+- Add a backend-owned disabled validation-record cancel-semantics registry
+  derived from runtime-evidence-acceptance contracts.
+
+### Phase 6963 - Cancel Semantics References
+
+- Expose cancel-semantics and cancel-semantics-contract refs for each futures
+  validation-record semantic artifact row.
+
+### Phase 6964 - Cancel Evidence Routes
+
+- Bind cancel semantics to read-only admission-audit and reconciliation-plan
+  evidence routes without adding command execution authority.
+
+### Phase 6965 - Cancel False Flags
+
+- Keep cancel identity, client-order-id, wrapper, active-placement, audit,
+  runtime observation, execution, live Coinbase, browser, BFF, and spot-rule
+  authority false or display-only for every row.
+
+### Phase 6966 - Command Suite Cancel Counts
+
+- Add command-level cancel-semantics counts, blocking counts, ready counts,
+  runtime-observed counts, and rows.
+
+### Phase 6967 - Suite Aggregate Cancel Counts
+
+- Add suite-level aggregate counts for cancel-semantics rows without changing
+  command execution readiness.
+
+### Phase 6968 - Backend Contract References
+
+- Add cancel-semantics contract refs to required backend contracts for every
+  disabled futures command.
+
+### Phase 6969 - OpenAPI And Generated Schema
+
+- Regenerate the Admin API OpenAPI schema and frontend generated client schema
+  from backend-owned models.
+
+### Phase 6970 - Frontend Adapter Mapping
+
+- Map cancel-semantics rows into the futures/perpetuals read-model adapter
+  without inventing browser trading logic.
+
+### Phase 6971 - Frontend Display
+
+- Display cancel-semantics evidence as read-only blocked rows with explicit
+  no-live, no-BFF, no-browser, and no-spot authority flags.
+
+### Phase 6972 - Mock Backend Fixture
+
+- Update frontend mock backend fixtures to emit the same cancel-semantics
+  contract shape as the backend.
+
+### Phase 6973 - Backend Tests
+
+- Add focused backend coverage proving cancel semantics are disabled,
+  backend-owned, `client_order_id` aware, and not live authority.
+
+### Phase 6974 - Frontend Tests
+
+- Add focused frontend coverage proving cancel semantics are mapped and
+  rendered as disabled backend evidence.
+
+### Phase 6975 - Autonomous Queue Gates
+
+- Update backend and frontend autonomous queue validators to require current
+  `6961-6980` cancel-semantics evidence.
+
+### Phase 6976 - Documentation
+
+- Update Admin API, futures/perpetuals, examples, capability matrix, handoff,
+  roadmap, and agent-state docs for current cancel-semantics scope.
+
+### Phase 6977 - Contextless Review
+
+- Run blind/contextless review and remediate any ambiguity before proceeding.
+
+### Phase 6978 - Focused Validation
+
+- Run focused backend/frontend tests and validators for the changed contracts.
+
+### Phase 6979 - Phase-End Hygiene
+
+- Run stale-process/runtime-artifact checks, record no-live notional evidence,
+  and close phase-scoped or stale unused subagents.
+
+### Phase 6980 - Commit And Push
+
+- Commit and push backend/frontend phase work after validation and review
+  evidence is recorded.
+
+## Completed Phases 6941-6960
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Order Semantics.
 

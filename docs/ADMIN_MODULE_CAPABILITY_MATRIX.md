@@ -4,14 +4,15 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `6941-6960` adds request payload
-validation record order semantics on top of completed `6921-6940`
-funding semantics, completed `6901-6920` close-only semantics,
+Current futures/perpetual M57 scope: `6961-6980` adds request payload
+validation record cancel semantics on top of completed `6941-6960`
+order semantics, completed `6921-6940` funding semantics, completed `6901-6920` close-only semantics,
 completed `6881-6900` reduce-only semantics, completed `6861-6880`
 liquidation semantics, completed `6841-6860` collateral semantics, completed
 `6821-6840` margin semantics, and completed `6801-6820` position semantics.
 These rows are backend-owned, display-only, no-live, and do not accept
-order semantics, bind live account/order evidence, accept
+cancel semantics, bind live active-placement or audit evidence, submit
+Coinbase cancellation, accept order semantics, bind live account/order evidence, accept
 funding semantics, bind live account/funding evidence, accept
 close-only semantics, bind live account/close-only evidence, accept
 reduce-only semantics, bind live account/reduce-only evidence, accept

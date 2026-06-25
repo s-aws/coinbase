@@ -54,9 +54,11 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `6941-6960` evidence adds disabled futures request payload
-  validation record order semantics while completed M57 `6921-6940`
-  carries forward disabled futures request payload validation record funding
+- Active M57 `6961-6980` evidence adds disabled futures request payload
+  validation record cancel semantics while completed M57 `6941-6960`
+  carries forward disabled futures request payload validation record order
+  semantics and completed M57 `6921-6940` carries forward disabled futures
+  request payload validation record funding
   semantics, completed M57 `6881-6900` carries forward disabled futures request
   payload validation record reduce-only semantics, completed M57 `6861-6880`
   carries forward disabled futures request payload validation record liquidation
@@ -175,8 +177,27 @@ and notional evidence fields.
   `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
   `semantic_artifact_runtime_evidence_acceptance_available=false`, and
   `semantic_artifact_runtime_evidence_acceptance_accepted=false`.
-  Active M57 `6941-6960` adds disabled futures request payload validation
-  record order semantics through
+  Active M57 `6961-6980` adds disabled futures request payload validation
+  record cancel semantics through
+  `application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_cancel_semantics`,
+  `request_payload_validation_record_cancel_semantic_count`,
+  `blocking_request_payload_validation_record_cancel_semantic_count`,
+  `ready_request_payload_validation_record_cancel_semantic_count`,
+  `runtime_observed_request_payload_validation_record_cancel_semantic_count`,
+  and `request_payload_validation_record_cancel_semantics`. Rows expose
+  `cancel_semantics_ref`, `cancel_semantics_contract_ref`,
+  `evidence_routes`, `cancel_semantics_contract_available=false`,
+  `cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
+  `cancel_client_order_id_bound=false`,
+  `cancel_order_wrapper_bound=false`,
+  `cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
+  `runtime_cancel_evidence_observed=false`,
+  `runtime_evidence_satisfies_cancel_semantics=false`, and
+  `validation_record_cancel_semantics_ready=false`.
+  Completed M57 `6941-6960` carries forward disabled futures request payload
+  validation record order semantics through
   `application/admin_api/futures_request_payload_validation_record_order_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
   `iter_futures_request_payload_validation_record_order_semantics`,
@@ -354,8 +375,8 @@ and notional evidence fields.
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Exact autonomous phrase: Active M57 `6941-6960` evidence adds disabled futures request payload validation record order semantics while completed M57 `6921-6940` carries forward disabled futures request payload validation record funding semantics.
-  Literal machine-check phrase: futures request payload validation record order semantics.
+  Exact autonomous phrase: Active M57 `6961-6980` evidence adds disabled futures request payload validation record cancel semantics while completed M57 `6941-6960` carries forward disabled futures request payload validation record order semantics.
+  Literal machine-check phrase: futures request payload validation record cancel semantics.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,

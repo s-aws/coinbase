@@ -11,20 +11,27 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6941-6960 range targets explicit M57 futures/perpetual request
-payload validation record order semantics for
+The active 6961-6980 range targets explicit M57 futures/perpetual request
+payload validation record cancel semantics for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6941-6960"` and no-live order-semantics counts
+`"approved_phase_range": "6961-6980"` and no-live cancel-semantics counts
 such as
+`"request_payload_validation_record_cancel_semantic_count"`,
+`"blocking_request_payload_validation_record_cancel_semantic_count"`,
+`"ready_request_payload_validation_record_cancel_semantic_count"`,
+`"runtime_observed_request_payload_validation_record_cancel_semantic_count"`,
+and `"request_payload_validation_record_cancel_semantics"`.
+The active 6961-6980 range is display-only and does not admit futures
+commands, bind live active-placement or audit evidence, call Coinbase, submit
+cancellation, execute reconciliation, or grant browser/BFF authority.
+Completed 6941-6960 order semantics remain visible through counts such as
 `"request_payload_validation_record_order_semantic_count"`,
 `"blocking_request_payload_validation_record_order_semantic_count"`,
 `"ready_request_payload_validation_record_order_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_order_semantic_count"`,
 and `"request_payload_validation_record_order_semantics"`.
-The active 6941-6960 range is display-only and does not admit futures
-commands, bind live order evidence, call Coinbase, execute reconciliation,
-or grant browser/BFF authority. Completed 6921-6940 funding semantics remain
+Completed 6921-6940 funding semantics remain
 visible through counts such as
 `"request_payload_validation_record_funding_semantic_count"`,
 `"blocking_request_payload_validation_record_funding_semantic_count"`,
