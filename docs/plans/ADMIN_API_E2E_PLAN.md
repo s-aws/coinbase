@@ -49,39 +49,41 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 6881-6900
+## Current Active Phases 6901-6920
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Reduce-Only Semantics.
+Batch label: Futures/Perpetuals Request Payload Validation Record Close-Only Semantics.
 
 Current M57 work adds disabled futures request payload validation record
-reduce-only semantics after completed `6861-6880` liquidation semantics. The
+close-only semantics after completed `6881-6900` reduce-only semantics. The
 backend-owned contract is
-`application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`
+`application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`
 with
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS` and
-`iter_futures_request_payload_validation_record_reduce_only_semantics`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS` and
+`iter_futures_request_payload_validation_record_close_only_semantics`.
 The command suite must expose
-`request_payload_validation_record_reduce_only_semantic_count`,
-`blocking_request_payload_validation_record_reduce_only_semantic_count`,
-`ready_request_payload_validation_record_reduce_only_semantic_count`,
-`runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
-and `request_payload_validation_record_reduce_only_semantics`.
+`request_payload_validation_record_close_only_semantic_count`,
+`blocking_request_payload_validation_record_close_only_semantic_count`,
+`ready_request_payload_validation_record_close_only_semantic_count`,
+`runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+and `request_payload_validation_record_close_only_semantics`.
 
 The rows are no-live display evidence only. They keep
-`reduce_only_semantics_contract_available=false`,
-`reduce_only_semantics_contract_ready=false`,
-`reduce_only_flag_bound=false`,
-`reduce_only_position_side_bound=false`,
-`reduce_only_position_size_bound=false`,
-`reduce_only_order_side_bound=false`,
-`runtime_reduce_only_evidence_observed=false`,
-`runtime_evidence_satisfies_reduce_only_semantics=false`, and
-`validation_record_reduce_only_semantics_ready=false`. This work must not
-validate command payloads, accept runtime evidence, admit commands, call
-Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant
-browser/BFF or spot-rule authority.
+`close_only_semantics_contract_available=false`,
+`close_only_semantics_contract_ready=false`,
+`close_only_flag_bound=false`,
+`close_only_position_side_bound=false`,
+`close_only_position_size_bound=false`,
+`close_only_order_side_bound=false`,
+`runtime_close_only_evidence_observed=false`,
+`runtime_evidence_satisfies_close_only_semantics=false`, and
+`validation_record_close_only_semantics_ready=false`. Completed reduce-only
+evidence from `6881-6900` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`.
+This work must not validate command payloads, accept runtime evidence, admit
+commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `6881-6900` evidence adds disabled futures request payload validation record reduce-only semantics while completed M57 `6861-6880` carries forward disabled futures request payload validation record liquidation semantics.
+Exact autonomous phrase: Active M57 `6901-6920` evidence adds disabled futures request payload validation record close-only semantics while completed M57 `6881-6900` carries forward disabled futures request payload validation record reduce-only semantics.
 
 ## Historical Phases 5601-5620
 

@@ -11,20 +11,27 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6881-6900 range targets explicit M57 futures/perpetual request
-payload validation record reduce-only semantics for
+The active 6901-6920 range targets explicit M57 futures/perpetual request
+payload validation record close-only semantics for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6881-6900"` and no-live reduce-only-semantics counts
+`"approved_phase_range": "6901-6920"` and no-live close-only-semantics counts
 such as
+`"request_payload_validation_record_close_only_semantic_count"`,
+`"blocking_request_payload_validation_record_close_only_semantic_count"`,
+`"ready_request_payload_validation_record_close_only_semantic_count"`,
+`"runtime_observed_request_payload_validation_record_close_only_semantic_count"`,
+and `"request_payload_validation_record_close_only_semantics"`.
+The active 6901-6920 range is display-only and does not admit futures
+commands, bind live close-only evidence, call Coinbase, execute
+reconciliation, or grant browser/BFF authority. Completed 6881-6900
+reduce-only semantics remain visible through counts such as
 `"request_payload_validation_record_reduce_only_semantic_count"`,
 `"blocking_request_payload_validation_record_reduce_only_semantic_count"`,
 `"ready_request_payload_validation_record_reduce_only_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reduce_only_semantic_count"`,
 and `"request_payload_validation_record_reduce_only_semantics"`.
-The active 6881-6900 range is display-only and does not admit futures
-commands, bind live reduce-only evidence, call Coinbase, execute
-reconciliation, or grant browser/BFF authority. Completed 6861-6880
+Completed 6861-6880
 liquidation semantics remain visible through counts such as
 `"request_payload_validation_record_liquidation_semantic_count"`,
 `"blocking_request_payload_validation_record_liquidation_semantic_count"`,

@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6861-6880` under M57.
-- Active autonomous range: `6881-6900` under M57.
+- Latest completed autonomous range: `6881-6900` under M57.
+- Active autonomous range: `6901-6920` under M57.
 - Current range validation: backend focused validation passed on 2026-06-25
   with `python -m pytest tests\regression\test_admin_api_futures_risk_proofs.py -q --tb=short`
   plus OpenAPI freshness subset
@@ -146,23 +146,28 @@ notional, retained inventory, reconciliation result, and audit ids.
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
 - Active range adds disabled futures request payload validation record
-  reduce-only semantics through
+  close-only semantics through
+  `application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_close_only_semantics`,
+  including `request_payload_validation_record_close_only_semantic_count`,
+  `blocking_request_payload_validation_record_close_only_semantic_count`,
+  `ready_request_payload_validation_record_close_only_semantic_count`,
+  `runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+  `request_payload_validation_record_close_only_semantics`,
+  `close_only_semantics_ref`, `close_only_semantics_contract_ref`,
+  `evidence_routes`, `close_only_semantics_contract_available=false`,
+  `close_only_semantics_contract_ready=false`,
+  `close_only_flag_bound=false`, `close_only_position_side_bound=false`,
+  `close_only_position_size_bound=false`, `close_only_order_side_bound=false`,
+  `runtime_close_only_evidence_observed=false`,
+  `runtime_evidence_satisfies_close_only_semantics=false`, and
+  `validation_record_close_only_semantics_ready=false`.
+  Completed `6881-6900` carries forward disabled futures request payload
+  validation record reduce-only semantics through
   `application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_reduce_only_semantics`,
-  including `request_payload_validation_record_reduce_only_semantic_count`,
-  `blocking_request_payload_validation_record_reduce_only_semantic_count`,
-  `ready_request_payload_validation_record_reduce_only_semantic_count`,
-  `runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
-  `request_payload_validation_record_reduce_only_semantics`,
-  `reduce_only_semantics_ref`, `reduce_only_semantics_contract_ref`,
-  `evidence_routes`, `reduce_only_semantics_contract_available=false`,
-  `reduce_only_semantics_contract_ready=false`,
-  `reduce_only_flag_bound=false`, `reduce_only_position_side_bound=false`,
-  `reduce_only_position_size_bound=false`, `reduce_only_order_side_bound=false`,
-  `runtime_reduce_only_evidence_observed=false`,
-  `runtime_evidence_satisfies_reduce_only_semantics=false`, and
-  `validation_record_reduce_only_semantics_ready=false`.
+  and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
   Completed `6861-6880` carries forward disabled futures request payload
   validation record liquidation semantics through
   `application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,

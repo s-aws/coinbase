@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6881-6900**.
+- Approved phase range: **6901-6920**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6861-6880`.
+- Previous completed range: `6881-6900`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6880`.
+- `current_phase`: `6900`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,39 +81,32 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6881-6900
+## Active Phases 6901-6920
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Reduce-Only Semantics.
+Batch label: Futures/Perpetuals Request Payload Validation Record Close-Only Semantics.
 
-These phases continue M57 after completed `6861-6880` exposed disabled futures
-request payload validation record liquidation semantics. The next concrete gap
-is that contextless agents can see liquidation semantics are missing, but still
-need backend-owned futures/perpetual reduce-only semantics rows before any
-future validation-record execution eligibility can reason about reduce-only
+These phases continue M57 after completed `6881-6900` exposed disabled futures
+request payload validation record reduce-only semantics. The next concrete gap
+is that contextless agents can see reduce-only semantics are missing, but still
+need backend-owned futures/perpetual close-only semantics rows before any
+future validation-record execution eligibility can reason about close-only
 flags, position side, position size, order side, or risk-proof evidence.
-Active M57 `6881-6900` evidence adds disabled futures request payload
-validation record reduce-only semantics through
-`application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`, and
-`iter_futures_request_payload_validation_record_reduce_only_semantics`.
+Active M57 `6901-6920` evidence adds disabled futures request payload
+validation record close-only semantics through
+`application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_close_only_semantics`.
 It emits:
-`request_payload_validation_record_reduce_only_semantic_count`,
-`blocking_request_payload_validation_record_reduce_only_semantic_count`,
-`ready_request_payload_validation_record_reduce_only_semantic_count`,
-`runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
-and `request_payload_validation_record_reduce_only_semantics`.
-Rows expose `reduce_only_semantics_ref`,
-`reduce_only_semantics_contract_ref`, `evidence_routes`, and carried-forward
-liquidation, collateral, margin, position, and semantic-artifact
+`request_payload_validation_record_close_only_semantic_count`,
+`blocking_request_payload_validation_record_close_only_semantic_count`,
+`ready_request_payload_validation_record_close_only_semantic_count`,
+`runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+and `request_payload_validation_record_close_only_semantics`.
+Rows expose `close_only_semantics_ref`,
+`close_only_semantics_contract_ref`, `evidence_routes`, and carried-forward
+reduce-only, liquidation, collateral, margin, position, and semantic-artifact
 runtime-evidence acceptance refs. They keep
-`liquidation_semantics_ref`, `liquidation_semantics_contract_ref`,
-`liquidation_semantics_contract_available=false`,
-`liquidation_semantics_contract_ready=false`,
-`liquidation_buffer_bound=false`, `liquidation_price_bound=false`,
-`liquidation_distance_bound=false`, `liquidation_threshold_bound=false`,
-`runtime_liquidation_evidence_observed=false`,
-`runtime_evidence_satisfies_liquidation_semantics=false`,
-`validation_record_liquidation_semantics_ready=false`,
+`reduce_only_semantics_ref`, `reduce_only_semantics_contract_ref`,
 `reduce_only_semantics_contract_available=false`,
 `reduce_only_semantics_contract_ready=false`,
 `reduce_only_flag_bound=false`,
@@ -123,122 +116,156 @@ runtime-evidence acceptance refs. They keep
 `runtime_reduce_only_evidence_observed=false`,
 `runtime_evidence_satisfies_reduce_only_semantics=false`,
 `validation_record_reduce_only_semantics_ready=false`,
+`liquidation_semantics_ref`, `liquidation_semantics_contract_ref`,
+`liquidation_semantics_contract_available=false`,
+`liquidation_semantics_contract_ready=false`,
+`liquidation_buffer_bound=false`, `liquidation_price_bound=false`,
+`liquidation_distance_bound=false`, `liquidation_threshold_bound=false`,
+`runtime_liquidation_evidence_observed=false`,
+`runtime_evidence_satisfies_liquidation_semantics=false`,
+`validation_record_liquidation_semantics_ready=false`,
+`close_only_semantics_contract_available=false`,
+`close_only_semantics_contract_ready=false`,
+`close_only_flag_bound=false`,
+`close_only_position_side_bound=false`,
+`close_only_position_size_bound=false`,
+`close_only_order_side_bound=false`,
+`runtime_close_only_evidence_observed=false`,
+`runtime_evidence_satisfies_close_only_semantics=false`,
+`validation_record_close_only_semantics_ready=false`,
 `validation_record_execution_eligible=false`, `execution_allowed=false`,
 `live_coinbase_orders_ran=false`, `spot_rule_authority=false`, browser
 authority display-only, and BFF authority forward-only/no-execution.
 
-This range must not implement reduce-only validators, validate submitted
-command payloads, pass contextless reviews as execution authority, admit
-commands, accept runtime evidence, accept reduce-only semantics, bind live
-account/risk evidence, submit or cancel Coinbase orders, execute
-reconciliation, mutate futures/order/exchange state, accept risk proofs as
-command readiness, or grant browser/BFF execution authority. Spot wallet,
-no-shorting, USDC, cost-basis, average-cost, and inventory-lot assumptions
-remain forbidden as futures/perpetual authority.
+This range must not implement close-only validators, validate submitted command
+payloads, pass contextless reviews as execution authority, admit commands,
+accept runtime evidence, accept close-only semantics, bind live account/risk
+evidence, submit or cancel Coinbase orders, execute reconciliation, mutate
+futures/order/exchange state, accept risk proofs as command readiness, or grant
+browser/BFF execution authority. Spot wallet, no-shorting, USDC, cost-basis,
+average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority.
 
-Exact autonomous phrase: Active M57 `6881-6900` evidence adds disabled futures request payload validation record reduce-only semantics while completed M57 `6861-6880` carries forward disabled futures request payload validation record liquidation semantics.
+Exact autonomous phrase: Active M57 `6901-6920` evidence adds disabled futures request payload validation record close-only semantics while completed M57 `6881-6900` carries forward disabled futures request payload validation record reduce-only semantics.
 
-### Phase 6881 - Prior Range Closure
+### Phase 6901 - Prior Range Closure
 
-- Record completed phases `6861-6880` as historical liquidation-semantics
-  evidence and move active metadata to `6881-6900`.
+- Record completed phases `6881-6900` as historical reduce-only-semantics
+  evidence and move active metadata to `6901-6920`.
 
-### Phase 6882 - Reduce-Only Semantics Registry
+### Phase 6902 - Close-Only Semantics Registry
 
-- Add a backend-owned disabled validation-record reduce-only-semantics registry
+- Add a backend-owned disabled validation-record close-only-semantics registry
   derived from runtime-evidence-acceptance contracts.
 
-### Phase 6883 - Reduce-Only Semantics References
+### Phase 6903 - Close-Only Semantics References
 
-- Expose reduce-only-semantics and reduce-only-semantics-contract refs for each
+- Expose close-only-semantics and close-only-semantics-contract refs for each
   futures validation-record semantic artifact row.
 
-### Phase 6884 - Reduce-Only Evidence Routes
+### Phase 6904 - Close-Only Evidence Routes
 
-- Bind reduce-only semantics to read-only futures account and risk-proof
+- Bind close-only semantics to read-only futures account and risk-proof
   evidence routes without adding command execution authority.
 
-### Phase 6885 - Reduce-Only False Flags
+### Phase 6905 - Close-Only False Flags
 
-- Keep reduce-only flag, position side, position size, order side, runtime
+- Keep close-only flag, position side, position size, order side, runtime
   observation, execution, live Coinbase, browser, BFF, and spot-rule authority
   false or display-only for every row.
 
-### Phase 6886 - Command Suite Reduce-Only Counts
+### Phase 6906 - Command Suite Close-Only Counts
 
-- Add command-level reduce-only-semantics counts, blocking counts, ready counts,
+- Add command-level close-only-semantics counts, blocking counts, ready counts,
   runtime-observed counts, and rows.
 
-### Phase 6887 - Suite Aggregate Reduce-Only Counts
+### Phase 6907 - Suite Aggregate Close-Only Counts
 
-- Add suite-level aggregate counts for reduce-only-semantics rows without
+- Add suite-level aggregate counts for close-only-semantics rows without
   changing command execution readiness.
 
-### Phase 6888 - Backend Contract References
+### Phase 6908 - Backend Contract References
 
-- Add reduce-only-semantics contract refs to required backend contracts for
+- Add close-only-semantics contract refs to required backend contracts for
   every disabled futures command.
 
-### Phase 6889 - Compact Serializer
+### Phase 6909 - Compact Serializer
 
 - Keep public command-suite payload bounded while preserving
-  reduce-only-semantics summary counts and omitting full evidence-ref arrays.
+  close-only-semantics summary counts and omitting full evidence-ref arrays.
 
-### Phase 6890 - OpenAPI Contract
+### Phase 6910 - OpenAPI Contract
 
 - Regenerate and validate OpenAPI so generated clients expose
-  reduce-only-semantics fields from backend-owned models.
+  close-only-semantics fields from backend-owned models.
 
-### Phase 6891 - Frontend Generated Client Sync
+### Phase 6911 - Frontend Generated Client Sync
 
-- Regenerate the frontend API schema and map reduce-only-semantics counts and
+- Regenerate the frontend API schema and map close-only-semantics counts and
   rows into futures/perpetual view models.
 
-### Phase 6892 - Frontend Read Model Display
+### Phase 6912 - Frontend Read Model Display
 
-- Render reduce-only-semantics summary counts and rows as display-only
-  backend evidence.
+- Render close-only-semantics summary counts and rows as display-only backend
+  evidence.
 
-### Phase 6893 - Frontend Mock Backend
+### Phase 6913 - Frontend Mock Backend
 
 - Update mock backend command-suite fixtures and contract lists for
-  reduce-only-semantics rows.
+  close-only-semantics rows.
 
-### Phase 6894 - Focused Backend Tests
+### Phase 6914 - Focused Backend Tests
 
-- Extend focused futures risk-proof/admin API tests for reduce-only-semantics
+- Extend focused futures risk-proof/admin API tests for close-only-semantics
   registry invariants, API fields, and compact serialization.
 
-### Phase 6895 - Focused Frontend Tests
+### Phase 6915 - Focused Frontend Tests
 
 - Extend focused frontend adapter, read-model, and mock-backend tests for
-  reduce-only-semantics display.
+  close-only-semantics display.
 
-### Phase 6896 - Docs And Examples
+### Phase 6916 - Docs And Examples
 
 - Update current-facing admin API, futures/perpetuals, examples, capability
-  matrix, and handoff docs with reduce-only-semantics evidence.
+  matrix, and handoff docs with close-only-semantics evidence.
 
-### Phase 6897 - Contextless Review Evidence
+### Phase 6917 - Contextless Review Evidence
 
 - Record backend and frontend blind/contextless review evidence that the new
-  reduce-only rows are understandable and non-executable.
+  close-only rows are understandable and non-executable.
 
-### Phase 6898 - Autonomous Metadata
+### Phase 6918 - Autonomous Metadata
 
 - Update durable autonomous validators and artifact metadata to require
-  `6881-6900` reduce-only evidence and completed `6861-6880` liquidation
+  `6901-6920` close-only evidence and completed `6881-6900` reduce-only
   history.
 
-### Phase 6899 - Focused Validation
+### Phase 6919 - Focused Validation
 
 - Run focused backend/frontend checks that cover changed behavior, plus stale
   process hygiene. Full regression remains a milestone closeout gate only.
 
-### Phase 6900 - Commit And Push
+### Phase 6920 - Commit And Push
 
 - Record no-live notional `0` USDC, stale-subagent sweep result, focused
   validation evidence, commits, pushes, and next milestone-linked work.
+
+## Completed Phases 6881-6900
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Reduce-Only Semantics.
+
+Completed M57 `6881-6900` carries forward disabled futures request payload
+validation record reduce-only semantics through
+`application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_reduce_only_semantics`.
+It exposed
+`request_payload_validation_record_reduce_only_semantic_count`,
+`blocking_request_payload_validation_record_reduce_only_semantic_count`,
+`ready_request_payload_validation_record_reduce_only_semantic_count`,
+`runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
+and `request_payload_validation_record_reduce_only_semantics` as disabled,
+backend-owned display evidence with no live Coinbase execution.
 
 ## Completed Phases 6861-6880
 

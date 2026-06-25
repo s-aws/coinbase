@@ -1,14 +1,16 @@
-## M57 Futures/Perpetual Request Payload Validation Record Reduce-Only Semantics - Phases 6881-6900
+## M57 Futures/Perpetual Request Payload Validation Record Close-Only Semantics - Phases 6901-6920
 
-Result: PASS after phase-close verification. Scope: phases `6881-6900`,
-after completed history `6861-6880`, adds disabled backend-owned futures
-request payload validation record reduce-only semantics to the read-only
+Result: PASS after phase-close verification. Scope: phases `6901-6920`,
+after completed history `6881-6900`, adds disabled backend-owned futures
+request payload validation record close-only semantics to the read-only
 futures command suite. No live Coinbase execution is planned.
 
-Contract evidence: Active M57 `6881-6900` evidence adds disabled futures
-request payload validation record reduce-only semantics while completed M57
-`6861-6880` carries forward disabled futures request payload validation record
-liquidation semantics.
+Contract evidence: Active M57 `6901-6920` evidence adds disabled futures
+request payload validation record close-only semantics while completed M57
+`6881-6900` carries forward disabled futures request payload validation record
+reduce-only semantics.
+
+Machine-check close-only extension: futures request payload validation record close-only semantics; application/admin_api/futures_request_payload_validation_record_close_only_semantics.py; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS; iter_futures_request_payload_validation_record_close_only_semantics; request_payload_validation_record_close_only_semantic_count; blocking_request_payload_validation_record_close_only_semantic_count; ready_request_payload_validation_record_close_only_semantic_count; runtime_observed_request_payload_validation_record_close_only_semantic_count; request_payload_validation_record_close_only_semantics; close_only_semantics_ref; close_only_semantics_contract_ref; close_only_semantics_contract_available=false; close_only_semantics_contract_ready=false; close_only_flag_bound=false; close_only_position_side_bound=false; close_only_position_size_bound=false; close_only_order_side_bound=false; runtime_close_only_evidence_observed=false; runtime_evidence_satisfies_close_only_semantics=false; validation_record_close_only_semantics_ready=false.
 
 Machine-check backend evidence phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record position semantics; futures request payload validation record margin semantics; futures request payload validation record collateral semantics; futures request payload validation record liquidation semantics; futures request payload validation record reduce-only semantics.
 
@@ -43,7 +45,7 @@ Machine-check frontend parity fields: requestPayloadValidatorContractCount; bloc
 
 Machine-check route and authority evidence: route/draft flags remain true while execution remains false; /api/v1/futures/orders; /api/v1/futures/positions/{position_key}/close-reduce; /api/v1/futures/orders/{client_order_id}/cancel; /api/v1/futures/positions/{position_key}/reconciliation; cancel by client_order_id; required_backend_contracts; requiredBackendContracts; /api/v1/futures/command-suite; /api/v1/futures/risk-proofs; GET /api/v1/futures/risk-proofs readbacks use read-only resolver evidence; POST /api/v1/futures/risk-proofs records append-only local proof evidence only; no proof acceptance; post-exchange-submission reconciliation refs are required/present disabled evidence; backend_futures_risk_proof_store_read_only_no_execution; backend_futures_semantics_no_execution; no Coinbase activity; no reconciliation execution; no futures state mutation; forbidden spot assumptions.
 
-Boundary evidence: all rows are backend-owned, read-only, and no-live. They do not validate command request payloads, register payload validators, bind or accept runtime evidence, make route-bound command drafts executable, register proof routes, create proof writers, accept proof records, accept reduce-only semantics, accept risk proofs as command readiness, admit commands, call Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant browser/BFF/spot-rule authority.
+Boundary evidence: all rows are backend-owned, read-only, and no-live. They do not validate command request payloads, register payload validators, bind or accept runtime evidence, make route-bound command drafts executable, register proof routes, create proof writers, accept proof records, accept close-only semantics, accept reduce-only semantics, accept risk proofs as command readiness, admit commands, call Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant browser/BFF/spot-rule authority.
 
 Blind/contextless review evidence: Initial backend blind review failed only
 because the reviewer checked committed `HEAD` before this working-tree phase was

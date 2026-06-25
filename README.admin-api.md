@@ -735,30 +735,35 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6881-6900 add disabled futures request payload validation
-record reduce-only semantics through
-`application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
+Current M57 phases 6901-6920 add disabled futures request payload validation
+record close-only semantics through
+`application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_close_only_semantics`.
 Command-suite
-`request_payload_validation_record_reduce_only_semantic_count`,
-`blocking_request_payload_validation_record_reduce_only_semantic_count`,
-`ready_request_payload_validation_record_reduce_only_semantic_count`,
-`runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
-and `request_payload_validation_record_reduce_only_semantics` remain
-backend-owned display evidence. Rows expose `reduce_only_semantics_ref`,
-`reduce_only_semantics_contract_ref`, `evidence_routes`,
-`reduce_only_semantics_contract_available=false`,
-`reduce_only_semantics_contract_ready=false`,
-`reduce_only_flag_bound=false`, `reduce_only_position_side_bound=false`,
-`reduce_only_position_size_bound=false`, `reduce_only_order_side_bound=false`,
-`runtime_reduce_only_evidence_observed=false`,
-`runtime_evidence_satisfies_reduce_only_semantics=false`, and
-`validation_record_reduce_only_semantics_ready=false` while preserving no
-payload validation, no reduce-only semantics acceptance, no live account/risk
+`request_payload_validation_record_close_only_semantic_count`,
+`blocking_request_payload_validation_record_close_only_semantic_count`,
+`ready_request_payload_validation_record_close_only_semantic_count`,
+`runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+and `request_payload_validation_record_close_only_semantics` remain
+backend-owned display evidence. Rows expose `close_only_semantics_ref`,
+`close_only_semantics_contract_ref`, `evidence_routes`,
+`close_only_semantics_contract_available=false`,
+`close_only_semantics_contract_ready=false`,
+`close_only_flag_bound=false`, `close_only_position_side_bound=false`,
+`close_only_position_size_bound=false`, `close_only_order_side_bound=false`,
+`runtime_close_only_evidence_observed=false`,
+`runtime_evidence_satisfies_close_only_semantics=false`, and
+`validation_record_close_only_semantics_ready=false` while preserving no
+payload validation, no close-only semantics acceptance, no live account/risk
 evidence binding, no contextless review authority, no command admission, no
 Coinbase calls, no reconciliation execution, no futures/order/exchange state
 mutation, and no browser/BFF or spot-rule authority.
+Completed M57 phases 6881-6900 carry forward disabled futures request payload
+validation record reduce-only semantics through
+`application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
 Completed M57 phases 6861-6880 carry forward disabled futures request payload
 validation record liquidation semantics through
 `application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,

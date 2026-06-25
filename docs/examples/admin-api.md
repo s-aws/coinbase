@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6881-6900"`. Futures/perpetual command-suite reads
-expose backend-owned disabled reduce-only semantics while
+`"approved_phase_range": "6901-6920"`. Futures/perpetual command-suite reads
+expose backend-owned disabled close-only semantics while
 carrying forward earlier semantic artifact runtime evidence binding,
 semantic artifact definition review output acceptance,
 semantic artifact definition review output, semantic artifact definition
@@ -72,9 +72,25 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
 `iter_futures_request_payload_validation_record_liquidation_semantics`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
+`iter_futures_request_payload_validation_record_reduce_only_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_close_only_semantics`.
 
-Active reduce-only-semantics rows expose
+Active close-only-semantics rows expose
+`request_payload_validation_record_close_only_semantic_count`,
+`blocking_request_payload_validation_record_close_only_semantic_count`,
+`ready_request_payload_validation_record_close_only_semantic_count`,
+`runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+`request_payload_validation_record_close_only_semantics`,
+`close_only_semantics_ref`, `close_only_semantics_contract_ref`,
+`evidence_routes`, `close_only_semantics_contract_available=false`,
+`close_only_semantics_contract_ready=false`,
+`close_only_flag_bound=false`, `close_only_position_side_bound=false`,
+`close_only_position_size_bound=false`, `close_only_order_side_bound=false`,
+`runtime_close_only_evidence_observed=false`,
+`runtime_evidence_satisfies_close_only_semantics=false`, and
+`validation_record_close_only_semantics_ready=false`. Completed
+reduce-only-semantics rows expose
 `request_payload_validation_record_reduce_only_semantic_count`,
 `blocking_request_payload_validation_record_reduce_only_semantic_count`,
 `ready_request_payload_validation_record_reduce_only_semantic_count`,

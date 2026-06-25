@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-25
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6881-6900`.
+- Commit (optional): current active range is `6901-6920`.
 
 ## Current Objective
 
@@ -24,13 +24,33 @@ Keep it short. Keep it factual.
 
 ## Current Phase Override
 
-- Latest completed autonomous range before current work: `6861-6880`.
-- Active autonomous range: `6881-6900`.
-- Current direction: complete phases `6881-6900` with futures request payload
-  validation record reduce-only semantics.
-- Exact active evidence phrase: futures request payload validation record reduce-only semantics.
-- Active `6881-6900` adds disabled futures request payload validation record
-  reduce-only semantics through
+- Latest completed autonomous range before current work: `6881-6900`.
+- Active autonomous range: `6901-6920`.
+- Current direction: complete phases `6901-6920` with futures request payload
+  validation record close-only semantics.
+- Exact active evidence phrase: futures request payload validation record close-only semantics.
+- Active `6901-6920` adds disabled futures request payload validation record
+  close-only semantics through
+  `application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_close_only_semantics`.
+  It exposes `request_payload_validation_record_close_only_semantic_count`,
+  `blocking_request_payload_validation_record_close_only_semantic_count`,
+  `ready_request_payload_validation_record_close_only_semantic_count`,
+  `runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+  `request_payload_validation_record_close_only_semantics`,
+  `close_only_semantics_ref`, `close_only_semantics_contract_ref`,
+  `evidence_routes`, `close_only_semantics_contract_available`,
+  `close_only_semantics_contract_ready`, `close_only_flag_bound`,
+  `close_only_position_side_bound`, `close_only_position_size_bound`,
+  `close_only_order_side_bound`, `runtime_close_only_evidence_observed`,
+  `runtime_evidence_satisfies_close_only_semantics`, and
+  `validation_record_close_only_semantics_ready`; every readiness,
+  execution, live Coinbase, browser, BFF, and spot-rule authority flag remains
+  false or display-only.
+- Completed `6881-6900` carries forward disabled futures request payload
+  validation record reduce-only semantics through
   `application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
   and
@@ -41,14 +61,12 @@ Keep it short. Keep it factual.
   `runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
   `request_payload_validation_record_reduce_only_semantics`,
   `reduce_only_semantics_ref`, `reduce_only_semantics_contract_ref`,
-  `evidence_routes`, `reduce_only_semantics_contract_available`,
+  `reduce_only_semantics_contract_available`,
   `reduce_only_semantics_contract_ready`, `reduce_only_flag_bound`,
   `reduce_only_position_side_bound`, `reduce_only_position_size_bound`,
   `reduce_only_order_side_bound`, `runtime_reduce_only_evidence_observed`,
   `runtime_evidence_satisfies_reduce_only_semantics`, and
-  `validation_record_reduce_only_semantics_ready`; every readiness,
-  execution, live Coinbase, browser, BFF, and spot-rule authority flag remains
-  false or display-only.
+  `validation_record_reduce_only_semantics_ready` as disabled evidence.
 - Completed `6861-6880` carries forward disabled futures request payload
   validation record liquidation semantics through
   `application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,
@@ -120,7 +138,12 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6861-6880`.
+- Latest completed autonomous range before current work: `6881-6900`.
+- Completed `6881-6900` added disabled futures request payload validation
+  record reduce-only semantics through
+  `application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
 - Completed `6861-6880` added disabled futures request payload validation
   record liquidation semantics through
   `application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,
@@ -176,24 +199,25 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6881-6900`.
+- Active autonomous range: `6901-6920`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `6881-6900` with backend-owned futures
-  request payload validation record reduce-only semantics and matching frontend
+- Current direction: complete phases `6901-6920` with backend-owned futures
+  request payload validation record close-only semantics and matching frontend
   display.
 - Backend active source:
-  `application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`.
+  `application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`.
 - Backend active registry:
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`
-  and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`
+  and `iter_futures_request_payload_validation_record_close_only_semantics`.
 - Active command-suite evidence fields:
-- `request_payload_validation_record_reduce_only_semantic_count`,
-  `blocking_request_payload_validation_record_reduce_only_semantic_count`,
-  `ready_request_payload_validation_record_reduce_only_semantic_count`,
-  `runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
-  and `request_payload_validation_record_reduce_only_semantics`.
-- Active evidence phrase: futures request payload validation record reduce-only semantics.
-- Active display phrase: futures request payload validation record reduce-only semantics.
+- `request_payload_validation_record_close_only_semantic_count`,
+  `blocking_request_payload_validation_record_close_only_semantic_count`,
+  `ready_request_payload_validation_record_close_only_semantic_count`,
+  `runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+  and `request_payload_validation_record_close_only_semantics`.
+- Active evidence phrase: futures request payload validation record close-only semantics.
+- Active display phrase: futures request payload validation record close-only semantics.
+- Carried-forward reduce-only phrase: futures request payload validation record reduce-only semantics.
 - Carried-forward liquidation phrase: futures request payload validation record liquidation semantics.
 - Carried-forward collateral phrase: futures request payload validation record collateral semantics.
 - Carried-forward margin phrase: futures request payload validation record margin semantics.
@@ -222,6 +246,8 @@ Keep it short. Keep it factual.
   `liquidation_semantics_contract_ref`,
   `reduce_only_semantics_ref`,
   `reduce_only_semantics_contract_ref`,
+  `close_only_semantics_ref`,
+  `close_only_semantics_contract_ref`,
   `evidence_routes`,
   `position_semantics_contract_available=false`,
   `position_semantics_contract_ready=false`,
@@ -233,6 +259,8 @@ Keep it short. Keep it factual.
   `liquidation_semantics_contract_ready=false`,
   `reduce_only_semantics_contract_available=false`,
   `reduce_only_semantics_contract_ready=false`,
+  `close_only_semantics_contract_available=false`,
+  `close_only_semantics_contract_ready=false`,
   `position_identity_bound=false`,
   `position_scope_bound=false`,
   `position_side_derivation_bound=false`,
@@ -254,21 +282,28 @@ Keep it short. Keep it factual.
   `reduce_only_position_side_bound=false`,
   `reduce_only_position_size_bound=false`,
   `reduce_only_order_side_bound=false`,
+  `close_only_flag_bound=false`,
+  `close_only_position_side_bound=false`,
+  `close_only_position_size_bound=false`,
+  `close_only_order_side_bound=false`,
   `runtime_position_evidence_observed=false`,
   `runtime_margin_evidence_observed=false`,
   `runtime_collateral_evidence_observed=false`,
   `runtime_liquidation_evidence_observed=false`,
   `runtime_reduce_only_evidence_observed=false`,
+  `runtime_close_only_evidence_observed=false`,
   `runtime_evidence_satisfies_position_semantics=false`,
   `runtime_evidence_satisfies_margin_semantics=false`,
   `runtime_evidence_satisfies_collateral_semantics=false`,
   `runtime_evidence_satisfies_liquidation_semantics=false`,
   `runtime_evidence_satisfies_reduce_only_semantics=false`,
+  `runtime_evidence_satisfies_close_only_semantics=false`,
   `validation_record_position_semantics_ready=false`,
   `validation_record_margin_semantics_ready=false`,
   `validation_record_collateral_semantics_ready=false`,
   `validation_record_liquidation_semantics_ready=false`,
   `validation_record_reduce_only_semantics_ready=false`,
+  `validation_record_close_only_semantics_ready=false`,
   `contextless_review_required=true`,
   `semantic_artifact_definition_available=false`,
   `semantic_artifact_definition_review_available=false`,
@@ -291,8 +326,8 @@ Keep it short. Keep it factual.
   `validation_record_execution_eligible=false`, `execution_allowed=false`,
   and `live_coinbase_orders_ran=false`.
 - Boundary: this active range does not validate command payloads, pass
-  contextless reviews as execution authority, accept reduce-only semantics,
-  bind live account/risk evidence, accept review inputs, accept review
+  contextless reviews as execution authority, accept close-only semantics,
+  bind live account/risk evidence, accept reduce-only semantics, accept review inputs, accept review
   outputs, accept review-output acceptances, accept or bind runtime evidence,
   admit commands, accept risk proofs as command readiness, call Coinbase,
   execute reconciliation, mutate futures/order/exchange state, grant
