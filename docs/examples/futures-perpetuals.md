@@ -11,20 +11,26 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6961-6980 range targets explicit M57 futures/perpetual request
-payload validation record cancel semantics for
+The active 6981-7000 range targets explicit M57 futures/perpetual request
+payload validation record reconciliation semantics for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6961-6980"` and no-live cancel-semantics counts
+`"approved_phase_range": "6981-7000"` and no-live reconciliation-semantics counts
 such as
+`"request_payload_validation_record_reconciliation_semantic_count"`,
+`"blocking_request_payload_validation_record_reconciliation_semantic_count"`,
+`"ready_request_payload_validation_record_reconciliation_semantic_count"`,
+`"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
+and `"request_payload_validation_record_reconciliation_semantics"`.
+The active 6981-7000 range is display-only and does not admit futures
+commands, bind live reconciliation or audit evidence, call Coinbase, execute
+reconciliation, mutate futures state, or grant browser/BFF authority.
+Completed 6961-6980 cancel semantics remain visible through counts such as
 `"request_payload_validation_record_cancel_semantic_count"`,
 `"blocking_request_payload_validation_record_cancel_semantic_count"`,
 `"ready_request_payload_validation_record_cancel_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_cancel_semantic_count"`,
 and `"request_payload_validation_record_cancel_semantics"`.
-The active 6961-6980 range is display-only and does not admit futures
-commands, bind live active-placement or audit evidence, call Coinbase, submit
-cancellation, execute reconciliation, or grant browser/BFF authority.
 Completed 6941-6960 order semantics remain visible through counts such as
 `"request_payload_validation_record_order_semantic_count"`,
 `"blocking_request_payload_validation_record_order_semantic_count"`,

@@ -123,9 +123,13 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6941-6960` under M57.
-- Active autonomous range: `6961-6980` under M57.
-- Current range validation: backend focused validation passed on 2026-06-25
+- Latest completed autonomous range: `6961-6980` under M57.
+- Active autonomous range: `6981-7000` under M57.
+- Current range validation: in progress for reconciliation-semantics evidence.
+  No live Coinbase execution is planned; submitted/executed notional remains
+  `0` USDC until validation says otherwise.
+- Completed `6961-6980` validation: backend focused validation passed on
+  2026-06-25
   with py-compile and
   `pytest tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules tests\regression\test_admin_api_contract.py::test_admin_api_frontend_fixtures_are_bounded_and_offline_safe -q --tb=short --maxfail=1`
   (`23` passed, `1` warning), plus frontend association checks
@@ -139,7 +143,7 @@ notional, retained inventory, reconciliation result, and audit ids.
   preserved oversized `runtime_state/test_admin_api_contract` artifact until
   cleanup/archive is explicitly approved. No live Coinbase execution was run;
   submitted/executed notional remains `0` USDC.
-- Current range blind/contextless review: Maxwell
+- Completed `6961-6980` blind/contextless review: Maxwell
   (`019efea5-df2e-76b3-987c-00bca93a372f`) passed and confirmed the
   `6961-6980` cancel-semantics surface is backend-owned disabled/read-only
   evidence, futures cancellation remains keyed by `client_order_id` through
@@ -158,27 +162,36 @@ notional, retained inventory, reconciliation result, and audit ids.
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
 - Active range adds disabled futures request payload validation record
-  cancel semantics through
+  reconciliation semantics through
+  `application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_reconciliation_semantics`,
+  including `request_payload_validation_record_reconciliation_semantic_count`,
+  `blocking_request_payload_validation_record_reconciliation_semantic_count`,
+  `ready_request_payload_validation_record_reconciliation_semantic_count`,
+  `runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
+  `request_payload_validation_record_reconciliation_semantics`,
+  `reconciliation_semantics_ref`,
+  `reconciliation_semantics_contract_ref`, `evidence_routes`,
+  `reconciliation_semantics_contract_available=false`,
+  `reconciliation_semantics_contract_ready=false`,
+  `reconciliation_identity_bound=false`,
+  `reconciliation_position_key_bound=false`,
+  `reconciliation_plan_bound=false`, `reconciliation_reason_bound=false`,
+  `post_exchange_reconciliation_bound=false`,
+  `reconciliation_audit_bound=false`,
+  `runtime_reconciliation_evidence_observed=false`,
+  `runtime_evidence_satisfies_reconciliation_semantics=false`, and
+  `validation_record_reconciliation_semantics_ready=false`. Active M57
+  `6981-7000` evidence adds disabled futures request payload validation record
+  reconciliation semantics while completed M57 `6961-6980` carries forward
+  disabled futures request payload validation record cancel semantics.
+- Completed `6961-6980` carries forward disabled futures request payload
+  validation record cancel semantics through
   `application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_cancel_semantics`,
-  including `request_payload_validation_record_cancel_semantic_count`,
-  `blocking_request_payload_validation_record_cancel_semantic_count`,
-  `ready_request_payload_validation_record_cancel_semantic_count`,
-  `runtime_observed_request_payload_validation_record_cancel_semantic_count`,
-  `request_payload_validation_record_cancel_semantics`,
-  `cancel_semantics_ref`, `cancel_semantics_contract_ref`,
-  `evidence_routes`, `cancel_semantics_contract_available=false`,
-  `cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
-  `cancel_client_order_id_bound=false`,
-  `cancel_order_wrapper_bound=false`,
-  `cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
-  `runtime_cancel_evidence_observed=false`,
-  `runtime_evidence_satisfies_cancel_semantics=false`, and
-  `validation_record_cancel_semantics_ready=false`. Active M57 `6961-6980`
-  evidence adds disabled futures request payload validation record cancel
-  semantics while completed M57 `6941-6960` carries forward disabled futures
-  request payload validation record order semantics.
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_cancel_semantics`.
 - Completed `6941-6960` carries forward disabled futures request payload validation record
   order semantics through
   `application/admin_api/futures_request_payload_validation_record_order_semantics.py`,

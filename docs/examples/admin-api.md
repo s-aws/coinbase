@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6961-6980"`. Futures/perpetual command-suite reads
-expose backend-owned disabled cancel semantics while
+`"approved_phase_range": "6981-7000"`. Futures/perpetual command-suite reads
+expose backend-owned disabled reconciliation semantics while
 carrying forward earlier semantic artifact runtime evidence binding,
 semantic artifact definition review output acceptance,
 semantic artifact definition review output, semantic artifact definition
@@ -80,9 +80,32 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
 `iter_futures_request_payload_validation_record_order_semantics`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_cancel_semantics`.
+`iter_futures_request_payload_validation_record_cancel_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
 
-Active cancel-semantics rows expose
+Active reconciliation-semantics rows expose
+`request_payload_validation_record_reconciliation_semantic_count`,
+`blocking_request_payload_validation_record_reconciliation_semantic_count`,
+`ready_request_payload_validation_record_reconciliation_semantic_count`,
+`runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
+`request_payload_validation_record_reconciliation_semantics`,
+`reconciliation_semantics_ref`, `reconciliation_semantics_contract_ref`,
+`evidence_routes`, `reconciliation_semantics_contract_available=false`,
+`reconciliation_semantics_contract_ready=false`,
+`reconciliation_identity_bound=false`,
+`reconciliation_position_key_bound=false`,
+`reconciliation_plan_bound=false`, `reconciliation_reason_bound=false`,
+`post_exchange_reconciliation_bound=false`,
+`reconciliation_audit_bound=false`,
+`runtime_reconciliation_evidence_observed=false`,
+`runtime_evidence_satisfies_reconciliation_semantics=false`, and
+`validation_record_reconciliation_semantics_ready=false`. Active M57
+`6981-7000` evidence adds disabled futures request payload validation record
+reconciliation semantics while completed M57 `6961-6980` carries forward
+disabled futures request payload validation record cancel semantics.
+
+Completed cancel-semantics rows expose
 `request_payload_validation_record_cancel_semantic_count`,
 `blocking_request_payload_validation_record_cancel_semantic_count`,
 `ready_request_payload_validation_record_cancel_semantic_count`,
@@ -96,10 +119,7 @@ Active cancel-semantics rows expose
 `cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
 `runtime_cancel_evidence_observed=false`,
 `runtime_evidence_satisfies_cancel_semantics=false`, and
-`validation_record_cancel_semantics_ready=false`. Active M57 `6961-6980`
-evidence adds disabled futures request payload validation record cancel
-semantics while completed M57 `6941-6960` carries forward disabled futures
-request payload validation record order semantics.
+`validation_record_cancel_semantics_ready=false`.
 
 Completed order-semantics rows expose
 `request_payload_validation_record_order_semantic_count`,

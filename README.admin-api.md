@@ -735,33 +735,40 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6961-6980 add disabled futures request payload validation
-record cancel semantics through
-`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_cancel_semantics`.
+Current M57 phases 6981-7000 add disabled futures request payload validation
+record reconciliation semantics through
+`application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
 Command-suite
-`request_payload_validation_record_cancel_semantic_count`,
-`blocking_request_payload_validation_record_cancel_semantic_count`,
-`ready_request_payload_validation_record_cancel_semantic_count`,
-`runtime_observed_request_payload_validation_record_cancel_semantic_count`,
-and `request_payload_validation_record_cancel_semantics` remain backend-owned
-display evidence. Rows expose `cancel_semantics_ref`,
-`cancel_semantics_contract_ref`, `evidence_routes`,
-`cancel_semantics_contract_available=false`,
-`cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
-`cancel_client_order_id_bound=false`,
-`cancel_order_wrapper_bound=false`,
-`cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
-`runtime_cancel_evidence_observed=false`,
-`runtime_evidence_satisfies_cancel_semantics=false`, and
-`validation_record_cancel_semantics_ready=false` while preserving no payload
-validation, no cancel semantics acceptance, no active placement or audit
-evidence binding, no contextless review authority, no command admission, no
-Coinbase calls, no reconciliation execution, no futures/order/exchange state
-mutation, and no browser/BFF or spot-rule authority. Completed M57
-`6941-6960` carries forward disabled futures request payload validation record
-order semantics through
+`request_payload_validation_record_reconciliation_semantic_count`,
+`blocking_request_payload_validation_record_reconciliation_semantic_count`,
+`ready_request_payload_validation_record_reconciliation_semantic_count`,
+`runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
+and `request_payload_validation_record_reconciliation_semantics` remain
+backend-owned display evidence. Rows expose `reconciliation_semantics_ref`,
+`reconciliation_semantics_contract_ref`, `evidence_routes`,
+`reconciliation_semantics_contract_available=false`,
+`reconciliation_semantics_contract_ready=false`,
+`reconciliation_identity_bound=false`,
+`reconciliation_position_key_bound=false`,
+`reconciliation_plan_bound=false`, `reconciliation_reason_bound=false`,
+`post_exchange_reconciliation_bound=false`,
+`reconciliation_audit_bound=false`,
+`runtime_reconciliation_evidence_observed=false`,
+`runtime_evidence_satisfies_reconciliation_semantics=false`, and
+`validation_record_reconciliation_semantics_ready=false` while preserving no
+payload validation, no reconciliation semantics acceptance, no reconciliation
+or audit evidence binding, no contextless review authority, no command
+admission, no Coinbase calls, no reconciliation execution, no
+futures/order/exchange state mutation, and no browser/BFF or spot-rule
+authority. Completed M57 `6961-6980` carries forward disabled futures request
+payload validation record cancel semantics through
+`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_cancel_semantics`.
+Completed M57 `6941-6960` carries forward disabled futures request payload
+validation record order semantics through
 `application/admin_api/futures_request_payload_validation_record_order_semantics.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`, and
 `iter_futures_request_payload_validation_record_order_semantics`.

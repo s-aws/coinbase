@@ -54,10 +54,12 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `6961-6980` evidence adds disabled futures request payload
-  validation record cancel semantics while completed M57 `6941-6960`
-  carries forward disabled futures request payload validation record order
-  semantics and completed M57 `6921-6940` carries forward disabled futures
+- Active M57 `6981-7000` evidence adds disabled futures request payload
+  validation record reconciliation semantics while completed M57 `6961-6980`
+  carries forward disabled futures request payload validation record cancel
+  semantics, completed M57 `6941-6960` carries forward disabled futures request
+  payload validation record order semantics, and completed M57 `6921-6940`
+  carries forward disabled futures
   request payload validation record funding
   semantics, completed M57 `6881-6900` carries forward disabled futures request
   payload validation record reduce-only semantics, completed M57 `6861-6880`
@@ -177,8 +179,8 @@ and notional evidence fields.
   `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
   `semantic_artifact_runtime_evidence_acceptance_available=false`, and
   `semantic_artifact_runtime_evidence_acceptance_accepted=false`.
-  Active M57 `6961-6980` adds disabled futures request payload validation
-  record cancel semantics through
+  Completed M57 `6961-6980` carries forward disabled futures request payload
+  validation record cancel semantics through
   `application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
   `iter_futures_request_payload_validation_record_cancel_semantics`,
@@ -375,8 +377,8 @@ and notional evidence fields.
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Exact autonomous phrase: Active M57 `6961-6980` evidence adds disabled futures request payload validation record cancel semantics while completed M57 `6941-6960` carries forward disabled futures request payload validation record order semantics.
-  Literal machine-check phrase: futures request payload validation record cancel semantics.
+  Exact autonomous phrase: Active M57 `6981-7000` evidence adds disabled futures request payload validation record reconciliation semantics while completed M57 `6961-6980` carries forward disabled futures request payload validation record cancel semantics.
+  Literal machine-check phrase: futures request payload validation record reconciliation semantics.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,

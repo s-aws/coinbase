@@ -49,39 +49,42 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 6961-6980
+## Current Active Phases 6981-7000
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Cancel Semantics.
+Batch label: Futures/Perpetuals Request Payload Validation Record Reconciliation Semantics.
 
-Current M57 work adds disabled futures request payload validation record cancel
-semantics after completed `6941-6960` order semantics. The backend-owned
-contract is
-`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`
+Current M57 work adds disabled futures request payload validation record
+reconciliation semantics after completed `6961-6980` cancel semantics. The
+backend-owned contract is
+`application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`
 with
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS` and
-`iter_futures_request_payload_validation_record_cancel_semantics`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`
+and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
 The command suite must expose
-`request_payload_validation_record_cancel_semantic_count`,
-`blocking_request_payload_validation_record_cancel_semantic_count`,
-`ready_request_payload_validation_record_cancel_semantic_count`,
-`runtime_observed_request_payload_validation_record_cancel_semantic_count`,
-and `request_payload_validation_record_cancel_semantics`.
+`request_payload_validation_record_reconciliation_semantic_count`,
+`blocking_request_payload_validation_record_reconciliation_semantic_count`,
+`ready_request_payload_validation_record_reconciliation_semantic_count`,
+`runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
+and `request_payload_validation_record_reconciliation_semantics`.
 
 The rows are no-live display evidence only. They keep
-`cancel_semantics_contract_available=false`,
-`cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
-`cancel_client_order_id_bound=false`, `cancel_order_wrapper_bound=false`,
-`cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
-`runtime_cancel_evidence_observed=false`,
-`runtime_evidence_satisfies_cancel_semantics=false`, and
-`validation_record_cancel_semantics_ready=false`. Completed order evidence
-from `6941-6960` remains carried forward through
-`application/admin_api/futures_request_payload_validation_record_order_semantics.py`.
+`reconciliation_semantics_contract_available=false`,
+`reconciliation_semantics_contract_ready=false`,
+`reconciliation_identity_bound=false`,
+`reconciliation_position_key_bound=false`, `reconciliation_plan_bound=false`,
+`reconciliation_reason_bound=false`,
+`post_exchange_reconciliation_bound=false`,
+`reconciliation_audit_bound=false`,
+`runtime_reconciliation_evidence_observed=false`,
+`runtime_evidence_satisfies_reconciliation_semantics=false`, and
+`validation_record_reconciliation_semantics_ready=false`. Completed cancel
+evidence from `6961-6980` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`.
 This work must not validate command payloads, accept runtime evidence, admit
-commands, call Coinbase, submit cancellation, execute reconciliation, mutate
-futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `6961-6980` evidence adds disabled futures request payload validation record cancel semantics while completed M57 `6941-6960` carries forward disabled futures request payload validation record order semantics.
+Exact autonomous phrase: Active M57 `6981-7000` evidence adds disabled futures request payload validation record reconciliation semantics while completed M57 `6961-6980` carries forward disabled futures request payload validation record cancel semantics.
 
 ## Historical Phases 5601-5620
 
