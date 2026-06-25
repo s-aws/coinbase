@@ -148,6 +148,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidationRecordSchemaItem,
     AdminFuturesCommandRequestPayloadValidationRecordCollateralSemanticItem,
     AdminFuturesCommandRequestPayloadValidationRecordLiquidationSemanticItem,
+    AdminFuturesCommandRequestPayloadValidationRecordReduceOnlySemanticItem,
     AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactDefinitionItem,
     AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactDefinitionReviewInputItem,
     AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactDefinitionReviewItem,
@@ -406,6 +407,9 @@ from .futures_request_payload_validation_record_collateral_semantics import (
 from .futures_request_payload_validation_record_liquidation_semantics import (
     iter_futures_request_payload_validation_record_liquidation_semantics,
 )
+from .futures_request_payload_validation_record_reduce_only_semantics import (
+    iter_futures_request_payload_validation_record_reduce_only_semantics,
+)
 from .futures_proof_writer import get_futures_proof_writer_contract
 from .futures_reconciliation import FUTURES_RECONCILIATION_CONTRACT
 from .futures_route_contracts import (
@@ -644,6 +648,7 @@ FUTURES_COMMAND_SUITE_API_DETAIL_COMPACT_ARRAYS = frozenset(
         "request_payload_validation_record_margin_semantics",
         "request_payload_validation_record_collateral_semantics",
         "request_payload_validation_record_liquidation_semantics",
+        "request_payload_validation_record_reduce_only_semantics",
     }
 )
 
@@ -20589,6 +20594,15 @@ class AdminApiReadService:
             ]
             for command in AdminFuturesCommandAction
         }
+        futures_request_payload_validation_record_reduce_only_semantic_refs = {
+            command: [
+                contract.reduce_only_semantics_contract_ref
+                for contract in iter_futures_request_payload_validation_record_reduce_only_semantics(
+                    command
+                )
+            ]
+            for command in AdminFuturesCommandAction
+        }
         backend_contracts = [
             futures_command_service_contract_refs[AdminFuturesCommandAction.PLACE],
             futures_command_service_contract_refs[
@@ -20755,6 +20769,9 @@ class AdminApiReadService:
             *futures_request_payload_validation_record_liquidation_semantic_refs[
                 AdminFuturesCommandAction.PLACE
             ],
+            *futures_request_payload_validation_record_reduce_only_semantic_refs[
+                AdminFuturesCommandAction.PLACE
+            ],
             *futures_request_payload_contract_refs[
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
@@ -20828,6 +20845,9 @@ class AdminApiReadService:
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
             *futures_request_payload_validation_record_liquidation_semantic_refs[
+                AdminFuturesCommandAction.CLOSE_REDUCE
+            ],
+            *futures_request_payload_validation_record_reduce_only_semantic_refs[
                 AdminFuturesCommandAction.CLOSE_REDUCE
             ],
             *futures_request_payload_contract_refs[AdminFuturesCommandAction.CANCEL],
@@ -20903,6 +20923,9 @@ class AdminApiReadService:
             *futures_request_payload_validation_record_liquidation_semantic_refs[
                 AdminFuturesCommandAction.CANCEL
             ],
+            *futures_request_payload_validation_record_reduce_only_semantic_refs[
+                AdminFuturesCommandAction.CANCEL
+            ],
             *futures_request_payload_contract_refs[
                 AdminFuturesCommandAction.RECONCILE
             ],
@@ -20976,6 +20999,9 @@ class AdminApiReadService:
                 AdminFuturesCommandAction.RECONCILE
             ],
             *futures_request_payload_validation_record_liquidation_semantic_refs[
+                AdminFuturesCommandAction.RECONCILE
+            ],
+            *futures_request_payload_validation_record_reduce_only_semantic_refs[
                 AdminFuturesCommandAction.RECONCILE
             ],
         ]
@@ -21053,6 +21079,9 @@ class AdminApiReadService:
                     AdminFuturesCommandAction.PLACE
                 ],
                 *futures_request_payload_validation_record_liquidation_semantic_refs[
+                    AdminFuturesCommandAction.PLACE
+                ],
+                *futures_request_payload_validation_record_reduce_only_semantic_refs[
                     AdminFuturesCommandAction.PLACE
                 ],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
@@ -21160,6 +21189,9 @@ class AdminApiReadService:
                 *futures_request_payload_validation_record_liquidation_semantic_refs[
                     AdminFuturesCommandAction.CLOSE_REDUCE
                 ],
+                *futures_request_payload_validation_record_reduce_only_semantic_refs[
+                    AdminFuturesCommandAction.CLOSE_REDUCE
+                ],
                 FUTURES_RISK_GUARD_CONTRACT.contract_ref,
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[
@@ -21265,6 +21297,9 @@ class AdminApiReadService:
                 *futures_request_payload_validation_record_liquidation_semantic_refs[
                     AdminFuturesCommandAction.CANCEL
                 ],
+                *futures_request_payload_validation_record_reduce_only_semantic_refs[
+                    AdminFuturesCommandAction.CANCEL
+                ],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
                 futures_command_route_contract_refs[AdminFuturesCommandAction.CANCEL],
                 futures_live_adapter_contract_refs[AdminFuturesCommandAction.CANCEL],
@@ -21367,6 +21402,9 @@ class AdminApiReadService:
                     AdminFuturesCommandAction.RECONCILE
                 ],
                 *futures_request_payload_validation_record_liquidation_semantic_refs[
+                    AdminFuturesCommandAction.RECONCILE
+                ],
+                *futures_request_payload_validation_record_reduce_only_semantic_refs[
                     AdminFuturesCommandAction.RECONCILE
                 ],
                 FUTURES_RECONCILIATION_CONTRACT.contract_ref,
@@ -24225,6 +24263,125 @@ class AdminApiReadService:
                     detail=contract.detail,
                 )
                 for contract in iter_futures_request_payload_validation_record_liquidation_semantics(
+                    command_id
+                )
+            ]
+
+        def request_payload_validation_record_reduce_only_semantics_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> list[
+            AdminFuturesCommandRequestPayloadValidationRecordReduceOnlySemanticItem
+        ]:
+            return [
+                AdminFuturesCommandRequestPayloadValidationRecordReduceOnlySemanticItem(
+                    field=contract.field,
+                    blocker=contract.blocker,
+                    semantic_artifact=contract.semantic_artifact,
+                    status=contract.status,
+                    source=contract.source,
+                    required=contract.required,
+                    blocking=contract.blocking,
+                    validation_record_execution_eligibility_contract_ref=(
+                        contract.validation_record_execution_eligibility_contract_ref
+                    ),
+                    validation_record_execution_eligibility_blocker_ref=(
+                        contract.validation_record_execution_eligibility_blocker_ref
+                    ),
+                    semantic_ref=contract.semantic_ref,
+                    semantic_artifact_ref=contract.semantic_artifact_ref,
+                    semantic_artifact_contract_ref=(
+                        contract.semantic_artifact_contract_ref
+                    ),
+                    semantic_artifact_definition_ref=(
+                        contract.semantic_artifact_definition_ref
+                    ),
+                    semantic_artifact_definition_contract_ref=(
+                        contract.semantic_artifact_definition_contract_ref
+                    ),
+                    semantic_artifact_definition_review_ref=(
+                        contract.semantic_artifact_definition_review_ref
+                    ),
+                    semantic_artifact_definition_review_contract_ref=(
+                        contract.semantic_artifact_definition_review_contract_ref
+                    ),
+                    semantic_artifact_runtime_evidence_ref=(
+                        contract.semantic_artifact_runtime_evidence_ref
+                    ),
+                    semantic_artifact_runtime_evidence_contract_ref=(
+                        contract.semantic_artifact_runtime_evidence_contract_ref
+                    ),
+                    semantic_artifact_runtime_evidence_acceptance_ref=(
+                        contract.semantic_artifact_runtime_evidence_acceptance_ref
+                    ),
+                    semantic_artifact_runtime_evidence_acceptance_contract_ref=(
+                        contract.semantic_artifact_runtime_evidence_acceptance_contract_ref
+                    ),
+                    reduce_only_semantics_ref=contract.reduce_only_semantics_ref,
+                    reduce_only_semantics_contract_ref=(
+                        contract.reduce_only_semantics_contract_ref
+                    ),
+                    evidence_routes=list(contract.evidence_routes),
+                    evidence_route_count=len(contract.evidence_routes),
+                    required_backend_contract=contract.required_backend_contract,
+                    missing_backend_contract=contract.missing_backend_contract,
+                    missing_reason=contract.missing_reason,
+                    required_evidence_refs=list(contract.required_evidence_refs),
+                    required_evidence_count=len(contract.required_evidence_refs),
+                    missing_evidence_refs=list(contract.missing_evidence_refs),
+                    missing_evidence_count=len(contract.missing_evidence_refs),
+                    forbidden_execution_claims=list(
+                        contract.forbidden_execution_claims
+                    ),
+                    forbidden_execution_claim_count=len(
+                        contract.forbidden_execution_claims
+                    ),
+                    backend_owned=contract.backend_owned,
+                    read_only=contract.read_only,
+                    contextless_review_required=(
+                        contract.contextless_review_required
+                    ),
+                    spot_rule_authority=contract.spot_rule_authority,
+                    reduce_only_semantics_contract_available=(
+                        contract.reduce_only_semantics_contract_available
+                    ),
+                    reduce_only_semantics_contract_ready=(
+                        contract.reduce_only_semantics_contract_ready
+                    ),
+                    reduce_only_flag_bound=contract.reduce_only_flag_bound,
+                    reduce_only_position_side_bound=(
+                        contract.reduce_only_position_side_bound
+                    ),
+                    reduce_only_position_size_bound=(
+                        contract.reduce_only_position_size_bound
+                    ),
+                    reduce_only_order_side_bound=(
+                        contract.reduce_only_order_side_bound
+                    ),
+                    runtime_reduce_only_evidence_observed=(
+                        contract.runtime_reduce_only_evidence_observed
+                    ),
+                    runtime_evidence_satisfies_reduce_only_semantics=(
+                        contract.runtime_evidence_satisfies_reduce_only_semantics
+                    ),
+                    semantic_artifact_runtime_evidence_acceptance_available=(
+                        contract.semantic_artifact_runtime_evidence_acceptance_available
+                    ),
+                    semantic_artifact_runtime_evidence_acceptance_accepted=(
+                        contract.semantic_artifact_runtime_evidence_acceptance_accepted
+                    ),
+                    validation_record_reduce_only_semantics_ready=(
+                        contract.validation_record_reduce_only_semantics_ready
+                    ),
+                    validation_record_execution_eligible=(
+                        contract.validation_record_execution_eligible
+                    ),
+                    execution_allowed=contract.execution_allowed,
+                    live_coinbase_orders_ran=contract.live_coinbase_orders_ran,
+                    browser_authority=contract.browser_authority,
+                    bff_authority=contract.bff_authority,
+                    detail=contract.detail,
+                )
+                for contract in iter_futures_request_payload_validation_record_reduce_only_semantics(
                     command_id
                 )
             ]
@@ -32924,6 +33081,9 @@ class AdminApiReadService:
             request_payload_validation_record_liquidation_semantics: list[
                 AdminFuturesCommandRequestPayloadValidationRecordLiquidationSemanticItem
             ],
+            request_payload_validation_record_reduce_only_semantics: list[
+                AdminFuturesCommandRequestPayloadValidationRecordReduceOnlySemanticItem
+            ],
             semantic_guards: list[AdminFuturesCommandSemanticGuardItem],
             detail: str,
         ) -> AdminFuturesCommandContractItem:
@@ -33677,6 +33837,37 @@ class AdminApiReadService:
                 request_payload_validation_record_liquidation_semantics=(
                     request_payload_validation_record_liquidation_semantics
                 ),
+                request_payload_validation_record_reduce_only_semantic_count=len(
+                    request_payload_validation_record_reduce_only_semantics
+                ),
+                blocking_request_payload_validation_record_reduce_only_semantic_count=sum(
+                    1
+                    for item in request_payload_validation_record_reduce_only_semantics
+                    if item.blocking
+                ),
+                ready_request_payload_validation_record_reduce_only_semantic_count=sum(
+                    1
+                    for item in request_payload_validation_record_reduce_only_semantics
+                    if item.reduce_only_semantics_contract_available
+                    and item.reduce_only_semantics_contract_ready
+                    and item.reduce_only_flag_bound
+                    and item.reduce_only_position_side_bound
+                    and item.reduce_only_position_size_bound
+                    and item.reduce_only_order_side_bound
+                    and item.runtime_reduce_only_evidence_observed
+                    and item.runtime_evidence_satisfies_reduce_only_semantics
+                    and item.semantic_artifact_runtime_evidence_acceptance_available
+                    and item.semantic_artifact_runtime_evidence_acceptance_accepted
+                    and item.validation_record_reduce_only_semantics_ready
+                ),
+                runtime_observed_request_payload_validation_record_reduce_only_semantic_count=sum(
+                    1
+                    for item in request_payload_validation_record_reduce_only_semantics
+                    if item.runtime_reduce_only_evidence_observed
+                ),
+                request_payload_validation_record_reduce_only_semantics=(
+                    request_payload_validation_record_reduce_only_semantics
+                ),
                 semantic_guard_count=len(semantic_guards),
                 blocking_semantic_guard_count=sum(
                     1
@@ -34355,6 +34546,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validation_record_reduce_only_semantics=(
+                    request_payload_validation_record_reduce_only_semantics_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 semantic_guards=placement_semantic_guards,
                 detail=(
                     "Futures placement has a route-bound command draft, but "
@@ -34489,6 +34685,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_liquidation_semantics=(
                     request_payload_validation_record_liquidation_semantics_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validation_record_reduce_only_semantics=(
+                    request_payload_validation_record_reduce_only_semantics_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -34630,6 +34831,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validation_record_reduce_only_semantics=(
+                    request_payload_validation_record_reduce_only_semantics_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 semantic_guards=cancel_semantic_guards,
                 detail=(
                     "Futures cancel has a route-bound command draft keyed by "
@@ -34766,6 +34972,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_liquidation_semantics=(
                     request_payload_validation_record_liquidation_semantics_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validation_record_reduce_only_semantics=(
+                    request_payload_validation_record_reduce_only_semantics_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -35625,6 +35836,22 @@ class AdminApiReadService:
             ),
             runtime_observed_request_payload_validation_record_liquidation_semantic_count=sum(
                 command.runtime_observed_request_payload_validation_record_liquidation_semantic_count
+                for command in commands
+            ),
+            request_payload_validation_record_reduce_only_semantic_count=sum(
+                command.request_payload_validation_record_reduce_only_semantic_count
+                for command in commands
+            ),
+            blocking_request_payload_validation_record_reduce_only_semantic_count=sum(
+                command.blocking_request_payload_validation_record_reduce_only_semantic_count
+                for command in commands
+            ),
+            ready_request_payload_validation_record_reduce_only_semantic_count=sum(
+                command.ready_request_payload_validation_record_reduce_only_semantic_count
+                for command in commands
+            ),
+            runtime_observed_request_payload_validation_record_reduce_only_semantic_count=sum(
+                command.runtime_observed_request_payload_validation_record_reduce_only_semantic_count
                 for command in commands
             ),
             semantic_guard_count=sum(
