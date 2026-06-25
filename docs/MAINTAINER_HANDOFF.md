@@ -123,13 +123,32 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7041-7060` under M57.
-- Active autonomous range: `7061-7080` under M57.
-- Current range validation: in progress for execution-eligibility
-  resolution-plan step review evidence.
+- Latest completed autonomous range: `7061-7080` under M57.
+- Active autonomous range: `7081-7100` under M57.
+- Current range validation: focused backend/frontend checks passed for
+  execution-eligibility resolution-plan step review input evidence and bounded
+  command-suite materialized samples. Backend and frontend autonomous log
+  validation passed after the current review-log and handoff updates.
   No live Coinbase execution is planned; submitted/executed notional remains
-  `0` USDC until validation says otherwise.
-- Current `7061-7080` blind/contextless review: pending.
+  `0` USDC.
+- Current `7081-7100` blind/contextless review: completed after remediation.
+  Carver initially found stale review logs plus public/raw command-suite
+  payload size regression; the payload regression was remediated by bounded
+  materialized detail samples. Ampere re-reviewed the remediated backend and
+  found only stale review-log leadership, with no live-execution,
+  reconciliation, futures-state-mutation, browser/BFF-authority, or spot-rule
+  blocker. Socrates and Euler found only stale review-log leadership on the
+  frontend side and no code-level authority leak.
+- Completed `7061-7080` validation: backend/frontend focused validation,
+  OpenAPI and generated schema freshness, autonomous queue, ownership,
+  stale-process, runtime-artifact report-only, and diff checks passed for
+  execution-eligibility resolution-plan step review evidence. Full regression
+  remains a durable milestone closeout gate. No live Coinbase execution was
+  run; submitted/executed notional remains `0` USDC.
+- Completed `7061-7080` blind/contextless review: backend and frontend fresh
+  reviewers passed after remediation and confirmed resolution-plan step review
+  evidence remained backend-owned, read-only, fail-closed, no-live, and
+  display-only.
 - Completed `7041-7060` blind/contextless review: Ohm initially failed on
   missing carried-forward resolution-plan terms in `genai_data/agent_state.md`
   and stale review-log leadership, and Plato initially failed on stale

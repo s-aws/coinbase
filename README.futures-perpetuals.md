@@ -54,10 +54,12 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7061-7080` evidence adds futures request payload validation
-  record execution-eligibility resolution-plan step review evidence while
-  completed M57 `7041-7060` carries forward futures request payload validation
-  record execution-eligibility resolution-plan step evidence, completed M57
+- Active M57 `7081-7100` evidence adds futures request payload validation
+  record execution-eligibility resolution-plan step review input evidence while
+  completed M57 `7061-7080` carries forward futures request payload validation
+  record execution-eligibility resolution-plan step review evidence, completed
+  M57 `7041-7060` carries forward futures request payload validation record
+  execution-eligibility resolution-plan step evidence, completed M57
   `7021-7040` carries forward futures request payload validation record
   execution-eligibility resolution-plan evidence, completed M57 `7001-7020`
   carries forward futures request payload validation record
@@ -401,22 +403,30 @@ and notional evidence fields.
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Current M57 `7061-7080` adds first-class resolution-plan step review rows through
+  Current M57 `7081-7100` adds first-class resolution-plan step review input rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`,
   `execution_eligibility_resolution_plan_step_ref`,
   `execution_eligibility_resolution_plan_step_contract_ref`,
   `execution_eligibility_resolution_plan_step_review_ref`,
   `execution_eligibility_resolution_plan_step_review_contract_ref`,
+  `execution_eligibility_resolution_plan_step_review_input_ref`,
+  `execution_eligibility_resolution_plan_step_review_input_contract_ref`,
   `resolution_plan_step_kind`, `resolution_plan_step_ready=false`, and
   `resolution_plan_step_accepted=false`,
   `resolution_plan_step_review_required=true`,
   `resolution_plan_step_review_ready=false`,
-  `resolution_plan_step_reviewed=false`, and
-  `resolution_plan_step_review_accepted=false`. Resolution plan step review
+  `resolution_plan_step_reviewed=false`,
+  `resolution_plan_step_review_accepted=false`, `review_input_kind`,
+  `review_input_index`, `resolution_plan_step_review_input_required=true`,
+  `resolution_plan_step_review_input_present=false`,
+  `resolution_plan_step_review_input_accepted=false`, and
+  `resolution_plan_step_review_input_validated=false`. Resolution plan step
+  review input presence is not blocker resolution. Resolution plan step review
   presence is not blocker resolution.
-  Exact autonomous phrase: Active M57 `7061-7080` evidence adds futures request payload validation record execution-eligibility resolution-plan step review evidence while completed M57 `7041-7060` carries forward futures request payload validation record execution-eligibility resolution-plan step evidence.
-  Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review evidence.
+  Exact autonomous phrase: Active M57 `7081-7100` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input evidence while completed M57 `7061-7080` carries forward futures request payload validation record execution-eligibility resolution-plan step review evidence.
+  Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input evidence.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,

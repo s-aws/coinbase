@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7061-7080**.
+- Approved phase range: **7081-7100**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7041-7060`.
+- Previous completed range: `7061-7080`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7060`.
+- `current_phase`: `7080`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,42 +81,53 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7061-7080
+## Active Phases 7081-7100
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Evidence.
 
-These phases continue M57 after completed `7041-7060` exposed disabled
-resolution-plan step evidence. The concrete gap is that each ordered
-resolution-plan step now needs a separate backend-owned review row so
-contextless maintainers can distinguish step existence from reviewed,
-accepted, and execution-eligible state. The review rows are evidence only:
-their presence is not blocker resolution, semantic acceptance, command
+These phases continue M57 after completed `7061-7080` exposed disabled
+resolution-plan step review evidence. The concrete gap is that a review row
+does not prove the owner or contextless-review evidence inputs exist. Each
+resolution-plan step review now needs separate backend-owned review-input rows
+so contextless maintainers can distinguish review presence from input
+presence, input acceptance, input validation, review readiness, review
+acceptance, and execution eligibility. The review-input rows are evidence
+only: their presence is not blocker resolution, semantic acceptance, command
 admission, reconciliation execution, Coinbase execution, browser execution
 authority, BFF execution authority, or spot-rule authority.
 
-Active M57 `7061-7080` evidence adds futures request payload validation record
-execution-eligibility resolution-plan step review evidence while completed M57
-`7041-7060` carries forward futures request payload validation record
-execution-eligibility resolution-plan step evidence.
+Active M57 `7081-7100` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input evidence while
+completed M57 `7061-7080` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review evidence.
 
-Active `7061-7080` resolution-plan step review evidence is implemented through
+Active `7081-7100` resolution-plan step review input evidence is implemented
+through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,
-backend Admin API models/read-service serialization, OpenAPI, generated frontend
-schema, frontend adapter/view-model display, and bounded mock fixtures. It adds
-`execution_eligibility_resolution_plan_step_review_ref`,
-`execution_eligibility_resolution_plan_step_review_contract_ref`,
-`resolution_plan_step_review_required=true`,
-`resolution_plan_step_review_ready=false`,
-`resolution_plan_step_reviewed=false`, and
-`resolution_plan_step_review_accepted=false` while carrying forward
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`,
+backend Admin API models/read-service serialization, OpenAPI, generated
+frontend schema, frontend adapter/view-model display, and bounded mock
+fixtures. It adds `execution_eligibility_resolution_plan_step_review_input_ref`,
+`execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`review_input_kind`, `review_input_index`,
+`resolution_plan_step_review_input_required=true`,
+`resolution_plan_step_review_input_present=false`,
+`resolution_plan_step_review_input_accepted=false`, and
+`resolution_plan_step_review_input_validated=false` while carrying forward
 `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
 `execution_eligibility_resolution_plan_step_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
-`resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`,
+`resolution_plan_step_accepted=false`,
+`resolution_plan_step_review_required=true`,
+`resolution_plan_step_review_ready=false`,
+`resolution_plan_step_reviewed=false`,
+`resolution_plan_step_review_accepted=false`, `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
@@ -124,115 +135,137 @@ schema, frontend adapter/view-model display, and bounded mock fixtures. It adds
 `validation_record_admission_link_ready=false`, and
 `blocker_resolved=false`.
 
-This range must not implement validators, mark resolution plan step reviews
-ready/reviewed/accepted, accept runtime evidence, admit commands, execute
-reconciliation, mutate futures/order/exchange state, call Coinbase, create
-frontend/BFF trading logic, or apply spot wallet, no-shorting, USDC,
-cost-basis, average-cost, or inventory lot assumptions as futures/perpetual
-authority. Resolution plan step review presence is not blocker resolution.
+This range must not implement validators, mark resolution plan step review
+inputs present/accepted/validated, mark step reviews ready/reviewed/accepted,
+accept runtime evidence, admit commands, execute reconciliation, mutate
+futures/order/exchange state, call Coinbase, create frontend/BFF trading
+logic, or apply spot wallet, no-shorting, USDC, cost-basis, average-cost, or
+inventory lot assumptions as futures/perpetual authority. Resolution plan step
+review input presence is not blocker resolution. Resolution plan step review
+presence is not blocker resolution.
 
-Exact autonomous phrase: Active M57 `7061-7080` evidence adds futures request payload validation record execution-eligibility resolution-plan step review evidence while completed M57 `7041-7060` carries forward futures request payload validation record execution-eligibility resolution-plan step evidence.
+Exact autonomous phrase: Active M57 `7081-7100` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input evidence while completed M57 `7061-7080` carries forward futures request payload validation record execution-eligibility resolution-plan step review evidence.
 
-### Phase 7061 - Prior Range Closure
+### Phase 7081 - Prior Range Closure
 
-- Record completed `7041-7060` resolution-plan step evidence as historical and
-  move active metadata to `7061-7080`.
+- Record completed `7061-7080` resolution-plan step review evidence as
+  historical and move active metadata to `7081-7100`.
 
-### Phase 7062 - Resolution Plan Step Review Registry
+### Phase 7082 - Resolution Plan Step Review Input Registry
 
-- Add a backend-owned disabled resolution-plan step review registry with one
-  review row per ordered resolution-plan step.
+- Add backend-owned disabled owner/contextless review-input rows for every
+  resolution-plan step review.
 
-### Phase 7063 - Review Reference Contract
+### Phase 7083 - Review Input Reference Contract
 
-- Expose stable review refs and review contract refs linked to the parent plan
-  and step refs.
+- Expose stable review-input refs and review-input contract refs linked to the
+  parent plan, step, and review refs.
 
-### Phase 7064 - False Review Flags
+### Phase 7084 - False Review Input Flags
 
-- Keep review required true while review ready, reviewed, review accepted,
-  runtime evidence, admission, blocker resolution, execution eligibility, live
-  Coinbase, browser, BFF, and spot-rule authority flags remain false or
-  display-only.
+- Keep review input required true while input present, accepted, validated,
+  review ready, reviewed, review accepted, runtime evidence, admission,
+  blocker resolution, execution eligibility, live Coinbase, browser, BFF, and
+  spot-rule authority flags remain false or display-only.
 
-### Phase 7065 - Backend Model Serialization
+### Phase 7085 - Backend Model Serialization
 
-- Expose command-level and suite-level resolution-plan step review counts and
-  row lists through backend Admin API models and read-service serialization.
+- Expose command-level and suite-level resolution-plan step review input counts
+  and row lists through backend Admin API models and read-service
+  serialization.
 
-### Phase 7066 - OpenAPI Regeneration
+### Phase 7086 - OpenAPI Regeneration
 
 - Regenerate the backend OpenAPI contract from backend-owned models.
 
-### Phase 7067 - Frontend Generated Schema
+### Phase 7087 - Frontend Generated Schema
 
 - Regenerate the frontend generated schema from the backend OpenAPI contract.
 
-### Phase 7068 - Frontend Adapter Mapping
+### Phase 7088 - Frontend Adapter Mapping
 
-- Map resolution-plan step review rows and aggregate counts into typed futures
-  view models without adding browser validation or execution authority.
+- Map resolution-plan step review input rows and aggregate counts into typed
+  futures view models without adding browser validation or execution authority.
 
-### Phase 7069 - Summary Display
+### Phase 7089 - Summary Display
 
-- Add command-suite summary counts for total, blocking, ready, accepted, and
-  runtime-observed resolution plan step reviews.
+- Add command-suite summary counts for total, blocking, present, accepted, and
+  validated resolution-plan step review inputs.
 
-### Phase 7070 - Detail Display
+### Phase 7090 - Detail Display
 
-- Render resolution-plan step review refs, contract refs, required/missing
-  evidence, false review state flags, and display-only authority in
-  futures/perpetual details.
+- Render resolution-plan step review input refs, contract refs, input kinds,
+  parent review refs, required/missing evidence, false input state flags, and
+  display-only authority in futures/perpetual details.
 
-### Phase 7071 - Mock Backend Sync
+### Phase 7091 - Mock Backend Sync
 
 - Update bounded frontend mock fixtures to emit backend-equivalent
-  resolution-plan step review rows and counts.
+  resolution-plan step review input rows and counts.
 
-### Phase 7072 - Component Fixture Sync
+### Phase 7092 - Component Fixture Sync
 
 - Update component/unit fixtures so TypeScript enforces the new generated
   contract fields.
 
-### Phase 7073 - Backend Focused Tests
+### Phase 7093 - Backend Focused Tests
 
-- Add focused backend assertions that the resolution-plan step review counts
-  match the registry and all ready/accepted/runtime-observed counts remain
+- Add focused backend assertions that the resolution-plan step review input
+  counts match the registry and all present/accepted/validated counts remain
   zero.
 
-### Phase 7074 - Frontend Focused Tests
+### Phase 7094 - Frontend Focused Tests
 
 - Run API check, typecheck, and focused futures/mock/backend-client/quality
   unit tests for the new display surface.
 
-### Phase 7075 - Autonomous Queue Metadata
+### Phase 7095 - Autonomous Queue Metadata
 
 - Update backend and frontend autonomous queue, artifact, readiness, and
-  checker metadata for `7061-7080`.
+  checker metadata for `7081-7100`.
 
-### Phase 7076 - Contextless Review
+### Phase 7096 - Contextless Review
 
 - Run fresh blind/contextless backend and frontend reviews, remediate blocking
   ambiguity, and close phase-scoped subagents during the phase-end sweep.
 
-### Phase 7077 - No-Live Evidence
+### Phase 7097 - No-Live Evidence
 
 - Record that no live Coinbase execution is planned or run; submitted and
   executed notional remain `0` USDC for this range.
 
-### Phase 7078 - Ownership And Hygiene
+### Phase 7098 - Ownership And Hygiene
 
-- Run ownership, stale-process, process-hygiene, and diff checks.
+- Run ownership, stale-process, process-hygiene, runtime-artifact, and diff
+  checks.
 
-### Phase 7079 - Commit Backend Association
+### Phase 7099 - Commit Backend Association
 
-- Commit and push backend resolution-plan step review evidence once focused
-  checks pass.
+- Commit and push backend resolution-plan step review input evidence once
+  focused checks pass.
 
-### Phase 7080 - Commit Frontend Association
+### Phase 7100 - Commit Frontend Association
 
-- Commit and push frontend resolution-plan step review display once focused
-  checks pass.
+- Commit and push frontend resolution-plan step review input display once
+  focused checks pass.
+
+## Completed Phases 7061-7080
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Evidence.
+
+Completed phases `7061-7080` exposed disabled resolution-plan step review
+evidence after `7041-7060` exposed resolution-plan step evidence. The rows
+added `execution_eligibility_resolution_plan_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_contract_ref`,
+`resolution_plan_step_review_required=true`,
+`resolution_plan_step_review_ready=false`,
+`resolution_plan_step_reviewed=false`, and
+`resolution_plan_step_review_accepted=false` while preserving false runtime,
+admission, blocker-resolution, live Coinbase, browser, BFF, and spot-rule
+authority flags. Resolution plan step review presence is not blocker
+resolution.
+
+Exact autonomous phrase: Active M57 `7061-7080` evidence adds futures request payload validation record execution-eligibility resolution-plan step review evidence while completed M57 `7041-7060` carries forward futures request payload validation record execution-eligibility resolution-plan step evidence.
 
 ## Completed Phases 7041-7060
 

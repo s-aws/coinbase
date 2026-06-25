@@ -95,6 +95,9 @@ from application.admin_api.futures_request_payload_validation_record_execution_e
 from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_CONTRACTS,
 )
+from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_CONTRACTS,
+)
 from application.admin_api.futures_request_payload_validation_record_semantic_artifacts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifacts,
@@ -213,6 +216,7 @@ from application.admin_api.models import (
 )
 from application.admin_api.read_service import (
     AdminApiReadService,
+    FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
     FUTURES_RISK_PROOF_REQUIREMENT_API_EXCLUDE,
     futures_command_suite_api_payload,
 )
@@ -5243,6 +5247,123 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         command_suite.runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
         == 0
     )
+    assert (
+        command_suite.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.present_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+        == 0
+    )
+    assert (
+        command_suite.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+        == 0
+    )
+    assert (
+        command_suite.validated_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+        == 0
+    )
+    for command in command_suite.commands:
+        assert (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_count
+            == min(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_count,
+                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
+            )
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_detail_row_limit
+            == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_detail_rows_limited
+            is (
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_count
+                > command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_count
+            )
+        )
+        assert len(
+            command.request_payload_validation_record_execution_eligibility_resolution_plans
+        ) == (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_count
+        )
+        assert (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+            == min(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_count,
+                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
+            )
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_detail_row_limit
+            == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_detail_rows_limited
+            is (
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+                > command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+            )
+        )
+        assert len(
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_steps
+        ) == (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+        )
+        assert (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+            == min(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count,
+                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
+            )
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_detail_row_limit
+            == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_detail_rows_limited
+            is (
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+                > command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+            )
+        )
+        assert len(
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews
+        ) == (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+        )
+        assert (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+            == min(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count,
+                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
+            )
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_detail_row_limit
+            == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_detail_rows_limited
+            is (
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+                > command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+            )
+        )
+        assert len(
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs
+        ) == (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count
+        )
     assert (
         command_suite.request_payload_validation_record_semantic_artifact_count
         == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS)

@@ -27,6 +27,7 @@ from core.enums import (
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandExecutionEligibilityBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStep,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
@@ -5130,6 +5131,78 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResol
     resolution_plan_step_review_ready: bool = False
     resolution_plan_step_reviewed: bool = False
     resolution_plan_step_review_accepted: bool = False
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_semantic_contract: bool = False
+    validation_record_admission_link_ready: bool = False
+    validation_record_admitted: bool = False
+    blocker_resolved: bool = False
+    validation_record_execution_eligible: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputItem(
+    BaseModel
+):
+    """One disabled input row for an execution-eligibility step review."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    blocker: AdminFuturesCommandExecutionEligibilityBlocker
+    semantic_artifact: AdminFuturesCommandSemanticArtifact
+    resolution_plan_step_kind: (
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStep
+    )
+    resolution_plan_step_index: int = Field(ge=0)
+    review_input_kind: (
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput
+    )
+    review_input_index: int = Field(ge=0)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    validation_record_execution_eligibility_contract_ref: str
+    validation_record_execution_eligibility_blocker_ref: str
+    semantic_ref: str
+    execution_eligibility_resolution_plan_ref: str
+    execution_eligibility_resolution_plan_contract_ref: str
+    execution_eligibility_resolution_plan_step_ref: str
+    execution_eligibility_resolution_plan_step_contract_ref: str
+    execution_eligibility_resolution_plan_step_review_ref: str
+    execution_eligibility_resolution_plan_step_review_contract_ref: str
+    execution_eligibility_resolution_plan_step_review_input_ref: str
+    execution_eligibility_resolution_plan_step_review_input_contract_ref: str
+    ordered_resolution_step_ref: str
+    ordered_resolution_step_count: int = Field(default=0, ge=0)
+    required_backend_contract: str
+    missing_backend_contract: str
+    missing_reason: str
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    forbidden_execution_claims: list[str] = Field(default_factory=list)
+    forbidden_execution_claim_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    contextless_review_required: bool = True
+    spot_rule_authority: bool = False
+    resolution_plan_present: bool = True
+    resolution_plan_step_ready: bool = False
+    resolution_plan_step_accepted: bool = False
+    resolution_plan_step_review_required: bool = True
+    resolution_plan_step_review_ready: bool = False
+    resolution_plan_step_reviewed: bool = False
+    resolution_plan_step_review_accepted: bool = False
+    resolution_plan_step_review_input_required: bool = True
+    resolution_plan_step_review_input_present: bool = False
+    resolution_plan_step_review_input_accepted: bool = False
+    resolution_plan_step_review_input_validated: bool = False
     runtime_evidence_observed: bool = False
     runtime_evidence_satisfies_semantic_contract: bool = False
     validation_record_admission_link_ready: bool = False
@@ -10815,6 +10888,15 @@ class AdminFuturesCommandContractItem(BaseModel):
         default=0,
         ge=0,
     )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_detail_rows_limited: bool = False
     request_payload_validation_record_execution_eligibility_resolution_plans: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanItem
     ] = Field(default_factory=list)
@@ -10838,6 +10920,15 @@ class AdminFuturesCommandContractItem(BaseModel):
         default=0,
         ge=0,
     )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_detail_rows_limited: bool = False
     request_payload_validation_record_execution_eligibility_resolution_plan_steps: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepItem
     ] = Field(default_factory=list)
@@ -10861,8 +10952,49 @@ class AdminFuturesCommandContractItem(BaseModel):
         default=0,
         ge=0,
     )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_detail_rows_limited: bool = False
     request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewItem
+    ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    present_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    validated_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_detail_rows_limited: bool = False
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputItem
     ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
@@ -11956,6 +12088,26 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    present_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    validated_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
         default=0,
         ge=0,
     )

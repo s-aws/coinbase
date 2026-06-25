@@ -4,10 +4,11 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7061-7080` adds request payload
-validation record execution-eligibility resolution-plan step review evidence on
-top of completed `7041-7060` execution-eligibility resolution-plan step
-evidence, completed `7021-7040` execution-eligibility resolution-plan evidence,
+Current futures/perpetual M57 scope: `7081-7100` adds request payload
+validation record execution-eligibility resolution-plan step review input
+evidence on top of completed `7061-7080` execution-eligibility resolution-plan
+step review evidence, completed `7041-7060` execution-eligibility
+resolution-plan step evidence, completed `7021-7040` execution-eligibility resolution-plan evidence,
 completed `7001-7020` execution-eligibility semantic closure evidence,
 completed `6981-7000` reconciliation semantics, completed `6961-6980` cancel
 semantics, completed `6941-6960` order semantics, completed `6921-6940`
@@ -16,7 +17,8 @@ funding semantics, completed `6901-6920` close-only semantics, completed
 semantics, completed `6841-6860` collateral semantics, completed `6821-6840`
 margin semantics, and completed `6801-6820` position semantics. These rows are
 backend-owned, display-only, no-live, and do not treat resolution plan step
-review presence as blocker resolution, accept runtime evidence, accept reconciliation
+review input presence or resolution plan step review presence as blocker
+resolution, accept runtime evidence, accept reconciliation
 semantics, bind live reconciliation/audit evidence, execute reconciliation,
 accept cancel semantics, bind live active-placement or audit evidence, submit
 Coinbase cancellation, accept order semantics, bind live account/order evidence,
