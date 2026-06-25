@@ -13854,6 +13854,53 @@ components:
           type: array
           title: Request Payload Validation Record Execution Eligibility Resolution
             Plan Step Review Input Store Requirements
+        request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        : type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        : type: integer
+          minimum: 0.0
+          title: Available Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        : type: integer
+          minimum: 0.0
+          title: Accepted Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        : type: integer
+          minimum: 0.0
+          title: Materialized Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_detail_row_limit
+        : type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Contract Detail Row Limit
+          default: 0
+        ? request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_detail_rows_limited
+        : type: boolean
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Contract Detail Rows Limited
+          default: false
+        request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem'
+          type: array
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Contracts
         request_payload_validation_record_semantic_artifact_count:
           type: integer
           minimum: 0.0
@@ -15558,6 +15605,13 @@ components:
       title: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput
       description: Inputs required before a futures resolution-plan step review can
         pass.
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract:
+      type: string
+      enum:
+      - input_evidence_record_contract
+      title: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract
+      description: Record contracts required by futures resolution-plan review-input
+        stores.
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement:
       type: string
       enum:
@@ -19019,6 +19073,398 @@ components:
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputItem
       description: One disabled input row for an execution-eligibility step review.
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        blocker:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityBlocker'
+        semantic_artifact:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticArtifact'
+        resolution_plan_step_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStep'
+        resolution_plan_step_index:
+          type: integer
+          minimum: 0.0
+          title: Resolution Plan Step Index
+        review_input_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput'
+        review_input_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Index
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        validation_record_execution_eligibility_contract_ref:
+          type: string
+          title: Validation Record Execution Eligibility Contract Ref
+        validation_record_execution_eligibility_blocker_ref:
+          type: string
+          title: Validation Record Execution Eligibility Blocker Ref
+        semantic_ref:
+          type: string
+          title: Semantic Ref
+        execution_eligibility_resolution_plan_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Ref
+        execution_eligibility_resolution_plan_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Contract Ref
+        execution_eligibility_resolution_plan_step_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Ref
+        execution_eligibility_resolution_plan_step_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Contract Ref
+        execution_eligibility_resolution_plan_step_review_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Ref
+        execution_eligibility_resolution_plan_step_review_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Contract Ref
+        execution_eligibility_resolution_plan_step_review_input_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Ref
+        execution_eligibility_resolution_plan_step_review_input_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Contract
+            Ref
+        ordered_resolution_step_ref:
+          type: string
+          title: Ordered Resolution Step Ref
+        ordered_resolution_step_count:
+          type: integer
+          minimum: 0.0
+          title: Ordered Resolution Step Count
+          default: 0
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        missing_backend_contract:
+          type: string
+          title: Missing Backend Contract
+        missing_reason:
+          type: string
+          title: Missing Reason
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        forbidden_execution_claims:
+          items:
+            type: string
+          type: array
+          title: Forbidden Execution Claims
+        forbidden_execution_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Forbidden Execution Claim Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        contextless_review_required:
+          type: boolean
+          title: Contextless Review Required
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        resolution_plan_present:
+          type: boolean
+          title: Resolution Plan Present
+          default: true
+        resolution_plan_step_ready:
+          type: boolean
+          title: Resolution Plan Step Ready
+          default: false
+        resolution_plan_step_accepted:
+          type: boolean
+          title: Resolution Plan Step Accepted
+          default: false
+        resolution_plan_step_review_required:
+          type: boolean
+          title: Resolution Plan Step Review Required
+          default: true
+        resolution_plan_step_review_ready:
+          type: boolean
+          title: Resolution Plan Step Review Ready
+          default: false
+        resolution_plan_step_reviewed:
+          type: boolean
+          title: Resolution Plan Step Reviewed
+          default: false
+        resolution_plan_step_review_accepted:
+          type: boolean
+          title: Resolution Plan Step Review Accepted
+          default: false
+        resolution_plan_step_review_input_required:
+          type: boolean
+          title: Resolution Plan Step Review Input Required
+          default: true
+        resolution_plan_step_review_input_present:
+          type: boolean
+          title: Resolution Plan Step Review Input Present
+          default: false
+        resolution_plan_step_review_input_accepted:
+          type: boolean
+          title: Resolution Plan Step Review Input Accepted
+          default: false
+        resolution_plan_step_review_input_validated:
+          type: boolean
+          title: Resolution Plan Step Review Input Validated
+          default: false
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        runtime_evidence_satisfies_semantic_contract:
+          type: boolean
+          title: Runtime Evidence Satisfies Semantic Contract
+          default: false
+        validation_record_admission_link_ready:
+          type: boolean
+          title: Validation Record Admission Link Ready
+          default: false
+        validation_record_admitted:
+          type: boolean
+          title: Validation Record Admitted
+          default: false
+        blocker_resolved:
+          type: boolean
+          title: Blocker Resolved
+          default: false
+        validation_record_execution_eligible:
+          type: boolean
+          title: Validation Record Execution Eligible
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+        review_input_store_requirement_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement'
+        review_input_store_requirement_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Requirement Index
+        execution_eligibility_resolution_plan_step_review_input_store_requirement_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Requirement
+            Ref
+        execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Requirement
+            Contract Ref
+        resolution_plan_step_review_input_store_requirement_required:
+          type: boolean
+          title: Resolution Plan Step Review Input Store Requirement Required
+          default: true
+        resolution_plan_step_review_input_store_available:
+          type: boolean
+          title: Resolution Plan Step Review Input Store Available
+          default: false
+        resolution_plan_step_review_input_writer_available:
+          type: boolean
+          title: Resolution Plan Step Review Input Writer Available
+          default: false
+        resolution_plan_step_review_input_record_key_available:
+          type: boolean
+          title: Resolution Plan Step Review Input Record Key Available
+          default: false
+        resolution_plan_step_review_input_validation_gate_ready:
+          type: boolean
+          title: Resolution Plan Step Review Input Validation Gate Ready
+          default: false
+        resolution_plan_step_review_input_replay_gate_ready:
+          type: boolean
+          title: Resolution Plan Step Review Input Replay Gate Ready
+          default: false
+        review_input_store_record_contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract'
+        review_input_store_record_contract_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Contract Index
+        execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Contract Ref
+        execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Contract Contract Ref
+        required_record_schema_ref:
+          type: string
+          title: Required Record Schema Ref
+        required_append_only_log_ref:
+          type: string
+          title: Required Append Only Log Ref
+        required_payload_fields:
+          items:
+            type: string
+          type: array
+          title: Required Payload Fields
+        required_idempotency_key:
+          type: string
+          title: Required Idempotency Key
+        record_contract_gate:
+          type: string
+          title: Record Contract Gate
+        record_contract_required:
+          type: boolean
+          title: Record Contract Required
+          default: true
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        record_schema_available:
+          type: boolean
+          title: Record Schema Available
+          default: false
+        append_only_log_available:
+          type: boolean
+          title: Append Only Log Available
+          default: false
+        idempotency_key_bound:
+          type: boolean
+          title: Idempotency Key Bound
+          default: false
+        payload_schema_validated:
+          type: boolean
+          title: Payload Schema Validated
+          default: false
+        replay_protected:
+          type: boolean
+          title: Replay Protected
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        writer_available:
+          type: boolean
+          title: Writer Available
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        write_allowed:
+          type: boolean
+          title: Write Allowed
+          default: false
+        record_present:
+          type: boolean
+          title: Record Present
+          default: false
+        record_accepted:
+          type: boolean
+          title: Record Accepted
+          default: false
+        record_validated:
+          type: boolean
+          title: Record Validated
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - blocker
+      - semantic_artifact
+      - resolution_plan_step_kind
+      - resolution_plan_step_index
+      - review_input_kind
+      - review_input_index
+      - validation_record_execution_eligibility_contract_ref
+      - validation_record_execution_eligibility_blocker_ref
+      - semantic_ref
+      - execution_eligibility_resolution_plan_ref
+      - execution_eligibility_resolution_plan_contract_ref
+      - execution_eligibility_resolution_plan_step_ref
+      - execution_eligibility_resolution_plan_step_contract_ref
+      - execution_eligibility_resolution_plan_step_review_ref
+      - execution_eligibility_resolution_plan_step_review_contract_ref
+      - execution_eligibility_resolution_plan_step_review_input_ref
+      - execution_eligibility_resolution_plan_step_review_input_contract_ref
+      - ordered_resolution_step_ref
+      - required_backend_contract
+      - missing_backend_contract
+      - missing_reason
+      - detail
+      - review_input_store_requirement_kind
+      - review_input_store_requirement_index
+      - execution_eligibility_resolution_plan_step_review_input_store_requirement_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref
+      - review_input_store_record_contract_kind
+      - review_input_store_record_contract_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref
+      - required_record_schema_ref
+      - required_append_only_log_ref
+      - required_idempotency_key
+      - record_contract_gate
+      title: AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem
+      description: One disabled record contract for an execution-eligibility review-input
+        store.
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem:
       properties:
         field:
@@ -38147,6 +38593,30 @@ components:
           minimum: 0.0
           title: Writer Available Request Payload Validation Record Execution Eligibility
             Resolution Plan Step Review Input Store Requirement Count
+          default: 0
+        request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        : type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        : type: integer
+          minimum: 0.0
+          title: Available Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Contract Count
+          default: 0
+        ? accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        : type: integer
+          minimum: 0.0
+          title: Accepted Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Contract Count
           default: 0
         request_payload_validation_record_semantic_artifact_count:
           type: integer

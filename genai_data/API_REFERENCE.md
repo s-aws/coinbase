@@ -16,14 +16,15 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7101-7120` futures/perpetual request payload validation record
-execution-eligibility resolution-plan step review input store requirement
+Current M57 `7121-7140` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-contract
 evidence for `GET /api/v1/futures/command-suite`: futures request payload
 validation record execution-eligibility resolution-plan step review input store
-requirement evidence; futures request payload validation record
-execution-eligibility resolution-plan step review input store requirement
+record-contract evidence; futures request payload validation record
+execution-eligibility resolution-plan step review input store record-contract
 display; carried-forward futures request payload validation record
-execution-eligibility resolution-plan step review input evidence,
+execution-eligibility resolution-plan step review input store requirement
+evidence, resolution-plan step review input evidence,
 resolution-plan step review evidence, resolution-plan step evidence, and
 resolution-plan evidence. The current source registries are
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`
@@ -35,8 +36,10 @@ and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`
-with store requirement rows derived from each resolution-plan step review
-input.
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`
+with store record-contract rows derived from each resolution-plan step review
+input store requirement.
 Representative command-suite keys:
 `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
@@ -48,6 +51,8 @@ Representative command-suite keys:
 `execution_eligibility_resolution_plan_step_review_input_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
@@ -65,17 +70,35 @@ Representative command-suite keys:
 `resolution_plan_step_review_input_record_key_available=false`,
 `resolution_plan_step_review_input_validation_gate_ready=false`,
 `resolution_plan_step_review_input_replay_gate_ready=false`,
+`record_contract_required=true`,
+`record_contract_available=false`,
+`record_schema_available=false`,
+`append_only_log_available=false`,
+`idempotency_key_bound=false`,
+`payload_schema_validated=false`,
+`replay_protected=false`,
+`store_available=false`,
+`writer_available=false`,
+`writer_allowed=false`,
+`write_allowed=false`,
+`record_present=false`,
+`record_accepted=false`,
+`record_validated=false`,
+`validation_configured=false`,
+`replay_protection_configured=false`,
 `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and
-`blocker_resolved=false`. Resolution plan step review input presence is not
-blocker resolution, runtime acceptance, command admission, Coinbase execution,
-reconciliation execution, futures/order/exchange mutation, browser/BFF
-execution authority, or spot-rule authority. Resolution plan step review
-presence is not blocker resolution.
+`blocker_resolved=false`. Resolution plan step review input store
+record-contract presence is not blocker resolution, runtime acceptance,
+command admission, Coinbase execution, reconciliation execution,
+futures/order/exchange mutation, browser/BFF execution authority, or spot-rule
+authority. Resolution plan step review input store requirement presence is not
+blocker resolution. Resolution plan step review input presence is not blocker
+resolution. Resolution plan step review presence is not blocker resolution.
 
 Completed M57 `7041-7060` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step evidence for

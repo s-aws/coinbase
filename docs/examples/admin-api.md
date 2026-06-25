@@ -13,7 +13,22 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7101-7120"`. Futures/perpetual command-suite reads
+`"approved_phase_range": "7121-7140"`. Futures/perpetual command-suite reads
+expose backend-owned execution-eligibility resolution-plan step review input
+store record-contract evidence while carrying forward execution-eligibility
+resolution-plan step review input store requirement evidence,
+execution-eligibility resolution-plan step review input evidence,
+execution-eligibility resolution-plan step review evidence,
+execution-eligibility resolution-plan step evidence, execution-eligibility
+resolution-plan evidence, execution-eligibility semantic closure evidence,
+disabled reconciliation semantics, cancel semantics, order semantics, and
+earlier evidence. Active M57 `7121-7140` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-contract evidence while completed M57 `7101-7120` carries forward
+futures request payload validation record execution-eligibility resolution-plan
+step review input store requirement evidence.
+
+Completed M57 `7101-7120` futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input
 store requirement evidence while carrying forward execution-eligibility
 resolution-plan step review input evidence, execution-eligibility
@@ -101,6 +116,8 @@ Active execution-eligibility resolution-plan step rows expose
 `execution_eligibility_resolution_plan_step_review_input_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
@@ -118,18 +135,31 @@ Active execution-eligibility resolution-plan step rows expose
 `resolution_plan_step_review_input_record_key_available=false`,
 `resolution_plan_step_review_input_validation_gate_ready=false`,
 `resolution_plan_step_review_input_replay_gate_ready=false`,
+`record_contract_required=true`,
+`record_contract_available=false`,
+`record_schema_available=false`,
+`append_only_log_available=false`,
+`idempotency_key_bound=false`,
+`payload_schema_validated=false`,
+`replay_protected=false`,
+`store_available=false`,
+`writer_available=false`,
+`writer_allowed=false`,
+`write_allowed=false`,
+`record_present=false`,
+`record_accepted=false`,
+`record_validated=false`,
+`validation_configured=false`,
+`replay_protection_configured=false`,
 `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and
-`blocker_resolved=false`. Active M57 `7101-7120` evidence adds futures request
-payload validation record execution-eligibility resolution-plan step review
-input store requirement evidence while completed M57 `7081-7100` carries
-forward futures request payload validation record execution-eligibility
-resolution-plan step review input evidence. Resolution plan step review input
-store requirement presence is not blocker resolution.
+`blocker_resolved=false`. Resolution plan step review input store
+record-contract presence is not blocker resolution. Resolution plan step review
+input store requirement presence is not blocker resolution.
 
 Completed execution-eligibility semantic-closure rows expose
 `validation_record_position_semantics_contract_ref`,

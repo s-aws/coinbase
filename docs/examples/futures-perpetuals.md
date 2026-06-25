@@ -11,11 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7101-7120 range targets explicit M57 futures/perpetual request
-payload validation record execution-eligibility resolution-plan step review input store requirement evidence for
+The active 7121-7140 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review input store record-contract evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7101-7120"` and no-live resolution-plan step review input store requirement fields such
+`"approved_phase_range": "7121-7140"` and no-live resolution-plan step review input store record-contract fields such
 as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
@@ -26,6 +26,8 @@ as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_input_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
@@ -43,12 +45,33 @@ as `execution_eligibility_resolution_plan_ref`,
 `resolution_plan_step_review_input_record_key_available=false`,
 `resolution_plan_step_review_input_validation_gate_ready=false`,
 `resolution_plan_step_review_input_replay_gate_ready=false`,
+`record_contract_required=true`,
+`record_contract_available=false`,
+`record_schema_available=false`,
+`append_only_log_available=false`,
+`idempotency_key_bound=false`,
+`payload_schema_validated=false`,
+`replay_protected=false`,
+`store_available=false`,
+`writer_available=false`,
+`writer_allowed=false`,
+`write_allowed=false`,
+`record_present=false`,
+`record_accepted=false`,
+`record_validated=false`,
+`validation_configured=false`,
+`replay_protection_configured=false`,
 `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+Completed 7101-7120 resolution-plan step review input store requirement
+evidence remains visible through fields such as
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`
+and
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`.
 Completed 7081-7100 resolution-plan step review input evidence remains visible
 through fields such as `execution_eligibility_resolution_plan_step_review_input_ref`
 and `execution_eligibility_resolution_plan_step_review_input_contract_ref`.
@@ -76,10 +99,11 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7101-7120 range is display-only and does not treat resolution plan
-step review input store requirement presence, resolution plan step review input
-presence, or resolution plan step review presence as blocker resolution, admit
-futures commands, bind live
+The active 7121-7140 range is display-only and does not treat resolution plan
+step review input store record-contract presence, resolution plan step review
+input store requirement presence, resolution plan step review input presence,
+or resolution plan step review presence as blocker resolution, admit futures
+commands, bind live
 reconciliation or audit evidence, call Coinbase, execute reconciliation, mutate
 futures state, or grant browser/BFF authority. Completed 6961-6980 cancel semantics remain visible
 through counts such as

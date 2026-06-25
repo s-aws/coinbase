@@ -101,6 +101,9 @@ from application.admin_api.futures_request_payload_validation_record_execution_e
 from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_REQUIREMENT_CONTRACTS,
 )
+from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_CONTRACT_CONTRACTS,
+)
 from application.admin_api.futures_request_payload_validation_record_semantic_artifacts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifacts,
@@ -5294,6 +5297,26 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         command_suite.writer_available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count
         == 0
     )
+    assert (
+        command_suite.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_CONTRACT_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_CONTRACT_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        == 0
+    )
+    assert (
+        command_suite.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        == 0
+    )
     for command in command_suite.commands:
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_count
@@ -5454,6 +5477,76 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert store_requirement.validation_record_execution_eligible is False
             assert store_requirement.execution_allowed is False
             assert store_requirement.live_coinbase_orders_ran is False
+        assert (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+            == min(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count,
+                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
+            )
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_detail_row_limit
+            == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_detail_rows_limited
+            is (
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+                > command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+            )
+        )
+        assert len(
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts
+        ) == (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+        )
+        for record_contract in (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts
+        ):
+            assert record_contract.blocking is True
+            assert record_contract.record_contract_required is True
+            assert record_contract.record_contract_available is False
+            assert record_contract.record_schema_available is False
+            assert record_contract.append_only_log_available is False
+            assert record_contract.idempotency_key_bound is False
+            assert record_contract.payload_schema_validated is False
+            assert record_contract.replay_protected is False
+            assert record_contract.store_available is False
+            assert record_contract.writer_available is False
+            assert record_contract.writer_allowed is False
+            assert record_contract.write_allowed is False
+            assert record_contract.record_present is False
+            assert record_contract.record_accepted is False
+            assert record_contract.record_validated is False
+            assert record_contract.validation_configured is False
+            assert record_contract.replay_protection_configured is False
+            assert (
+                record_contract.resolution_plan_step_review_input_store_available
+                is False
+            )
+            assert (
+                record_contract.resolution_plan_step_review_input_writer_available
+                is False
+            )
+            assert (
+                record_contract.resolution_plan_step_review_input_record_key_available
+                is False
+            )
+            assert (
+                record_contract.resolution_plan_step_review_input_validation_gate_ready
+                is False
+            )
+            assert (
+                record_contract.resolution_plan_step_review_input_replay_gate_ready
+                is False
+            )
+            assert record_contract.resolution_plan_step_review_input_present is False
+            assert record_contract.resolution_plan_step_review_input_accepted is False
+            assert record_contract.resolution_plan_step_review_input_validated is False
+            assert record_contract.blocker_resolved is False
+            assert record_contract.validation_record_execution_eligible is False
+            assert record_contract.execution_allowed is False
+            assert record_contract.live_coinbase_orders_ran is False
     assert (
         command_suite.request_payload_validation_record_semantic_artifact_count
         == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS)

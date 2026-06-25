@@ -123,13 +123,19 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7081-7100` under M57.
-- Active autonomous range: `7101-7120` under M57.
+- Latest completed autonomous range: `7101-7120` under M57.
+- Active autonomous range: `7121-7140` under M57.
 - Current range validation: in progress for execution-eligibility
-  resolution-plan step review input store requirement evidence and bounded
+  resolution-plan step review input store record-contract evidence and bounded
   command-suite materialized samples. No live Coinbase execution is planned;
   submitted/executed notional remains `0` USDC.
-- Current `7101-7120` blind/contextless review: completed after remediation.
+- Current `7121-7140` blind/contextless review: pending for the newly added
+  store record-contract evidence. The required boundary is that record-contract
+  rows are backend-owned disabled evidence only; they do not create stores,
+  configure writers, allow writes, accept records, validate records, admit
+  commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
+  state, or grant browser/BFF or spot-rule authority.
+- Completed `7101-7120` blind/contextless review: completed after remediation.
   Arendt found only stale backend review-log/handoff evidence after verifying
   the store-requirement implementation as fail-closed; Hilbert found only
   stale frontend/backend review-log, frontend testing, and ignored local

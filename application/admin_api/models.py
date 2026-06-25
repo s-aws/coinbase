@@ -28,6 +28,7 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStep,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
@@ -5234,6 +5235,40 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResol
     resolution_plan_step_review_input_record_key_available: bool = False
     resolution_plan_step_review_input_validation_gate_ready: bool = False
     resolution_plan_step_review_input_replay_gate_ready: bool = False
+
+
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem(
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem
+):
+    """One disabled record contract for an execution-eligibility review-input store."""
+
+    review_input_store_record_contract_kind: (
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract
+    )
+    review_input_store_record_contract_index: int = Field(ge=0)
+    execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref: str
+    execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref: str
+    required_record_schema_ref: str
+    required_append_only_log_ref: str
+    required_payload_fields: list[str] = Field(default_factory=list)
+    required_idempotency_key: str
+    record_contract_gate: str
+    record_contract_required: bool = True
+    record_contract_available: bool = False
+    record_schema_available: bool = False
+    append_only_log_available: bool = False
+    idempotency_key_bound: bool = False
+    payload_schema_validated: bool = False
+    replay_protected: bool = False
+    store_available: bool = False
+    writer_available: bool = False
+    writer_allowed: bool = False
+    write_allowed: bool = False
+    record_present: bool = False
+    record_accepted: bool = False
+    record_validated: bool = False
+    validation_configured: bool = False
+    replay_protection_configured: bool = False
 
 
 class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
@@ -11044,6 +11079,34 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_detail_rows_limited: bool = False
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem
+    ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
         ge=0,
@@ -12172,6 +12235,22 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     writer_available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count: int = Field(
         default=0,
         ge=0,
     )
