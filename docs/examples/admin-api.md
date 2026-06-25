@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6841-6860"`. Futures/perpetual command-suite reads
-expose backend-owned disabled collateral semantics while
+`"approved_phase_range": "6861-6880"`. Futures/perpetual command-suite reads
+expose backend-owned disabled liquidation semantics while
 carrying forward earlier semantic artifact runtime evidence binding,
 semantic artifact definition review output acceptance,
 semantic artifact definition review output, semantic artifact definition
@@ -68,9 +68,25 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
 `iter_futures_request_payload_validation_record_margin_semantics`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_collateral_semantics`.
+`iter_futures_request_payload_validation_record_collateral_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_liquidation_semantics`.
 
-Active collateral-semantics rows expose
+Active liquidation-semantics rows expose
+`request_payload_validation_record_liquidation_semantic_count`,
+`blocking_request_payload_validation_record_liquidation_semantic_count`,
+`ready_request_payload_validation_record_liquidation_semantic_count`,
+`runtime_observed_request_payload_validation_record_liquidation_semantic_count`,
+`request_payload_validation_record_liquidation_semantics`,
+`liquidation_semantics_ref`, `liquidation_semantics_contract_ref`,
+`evidence_routes`, `liquidation_semantics_contract_available=false`,
+`liquidation_semantics_contract_ready=false`,
+`liquidation_buffer_bound=false`, `liquidation_price_bound=false`,
+`liquidation_distance_bound=false`, `liquidation_threshold_bound=false`,
+`runtime_liquidation_evidence_observed=false`,
+`runtime_evidence_satisfies_liquidation_semantics=false`, and
+`validation_record_liquidation_semantics_ready=false`. Completed
+collateral-semantics rows expose
 `request_payload_validation_record_collateral_semantic_count`,
 `blocking_request_payload_validation_record_collateral_semantic_count`,
 `ready_request_payload_validation_record_collateral_semantic_count`,
@@ -193,12 +209,13 @@ definition rows expose
 `request_payload_validation_record_semantic_artifacts`,
 `semantic_artifact_ref`, and `semantic_artifact_contract_ref`. These rows are
 blocked evidence only; they do not define futures semantics, resolve execution
-eligibility blockers, validate request payloads, accept collateral semantics,
-bind live account/collateral evidence, accept margin semantics, accept position
-semantics, bind live position evidence, accept or bind runtime evidence, accept
-runtime-evidence acceptances, admit commands, call Coinbase, execute
+eligibility blockers, validate request payloads, accept liquidation semantics,
+bind live account/risk evidence, accept collateral semantics, bind live
+account/collateral evidence, accept margin semantics, accept position
+semantics, bind live position evidence, accept or bind runtime evidence,
+accept runtime-evidence acceptances, admit commands, call Coinbase, execute
 reconciliation, mutate futures state, or grant browser/BFF authority.
-Exact autonomous phrase: Active M57 `6841-6860` evidence adds disabled futures request payload validation record collateral semantics while completed M57 `6821-6840` carries forward disabled futures request payload validation record margin semantics.
+Exact autonomous phrase: Active M57 `6861-6880` evidence adds disabled futures request payload validation record liquidation semantics while completed M57 `6841-6860` carries forward disabled futures request payload validation record collateral semantics.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,

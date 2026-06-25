@@ -5,10 +5,10 @@ Keep it short. Keep it factual.
 
 ## Metadata
 
-- Last updated (ET): 2026-06-24
+- Last updated (ET): 2026-06-25
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6841-6860`.
+- Commit (optional): current active range is `6861-6880`.
 
 ## Current Objective
 
@@ -24,12 +24,33 @@ Keep it short. Keep it factual.
 
 ## Current Phase Override
 
-- Latest completed autonomous range before current work: `6821-6840`.
-- Active autonomous range: `6841-6860`.
-- Current direction: complete phases `6841-6860` with futures request payload
-  validation record collateral semantics.
-- Active `6841-6860` adds disabled futures request payload validation record
-  collateral semantics through
+- Latest completed autonomous range before current work: `6841-6860`.
+- Active autonomous range: `6861-6880`.
+- Current direction: complete phases `6861-6880` with futures request payload
+  validation record liquidation semantics.
+- Exact active evidence phrase: futures request payload validation record liquidation semantics.
+- Active `6861-6880` adds disabled futures request payload validation record
+  liquidation semantics through
+  `application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_liquidation_semantics`.
+  It exposes `request_payload_validation_record_liquidation_semantic_count`,
+  `blocking_request_payload_validation_record_liquidation_semantic_count`,
+  `ready_request_payload_validation_record_liquidation_semantic_count`,
+  `runtime_observed_request_payload_validation_record_liquidation_semantic_count`,
+  `request_payload_validation_record_liquidation_semantics`,
+  `liquidation_semantics_ref`, `liquidation_semantics_contract_ref`,
+  `evidence_routes`, `liquidation_semantics_contract_available`,
+  `liquidation_semantics_contract_ready`, `liquidation_buffer_bound`,
+  `liquidation_price_bound`, `liquidation_distance_bound`,
+  `liquidation_threshold_bound`, `runtime_liquidation_evidence_observed`,
+  `runtime_evidence_satisfies_liquidation_semantics`, and
+  `validation_record_liquidation_semantics_ready`; every readiness,
+  execution, live Coinbase, browser, BFF, and spot-rule authority flag remains
+  false or display-only.
+- Completed `6841-6860` carries forward disabled futures request payload
+  validation record collateral semantics through
   `application/admin_api/futures_request_payload_validation_record_collateral_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
   and

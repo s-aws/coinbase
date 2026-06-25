@@ -54,10 +54,12 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `6841-6860` evidence adds disabled futures request payload
-  validation record collateral semantics while completed M57 `6821-6840`
-  carries forward disabled futures request payload validation record margin
-  semantics and completed M57 `6801-6820` carries forward disabled futures
+- Active M57 `6861-6880` evidence adds disabled futures request payload
+  validation record liquidation semantics while completed M57 `6841-6860`
+  carries forward disabled futures request payload validation record collateral
+  semantics, completed M57 `6821-6840` carries forward disabled futures
+  request payload validation record margin semantics, and completed M57
+  `6801-6820` carries forward disabled futures
   request payload validation record position semantics.
 - The command-suite route also exposes request-field contract metadata for
   each planned command family. These fields are blocked backend contract
@@ -169,8 +171,26 @@ and notional evidence fields.
   `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
   `semantic_artifact_runtime_evidence_acceptance_available=false`, and
   `semantic_artifact_runtime_evidence_acceptance_accepted=false`.
-  Active M57 `6841-6860` adds disabled futures request payload validation
-  record collateral semantics through
+  Active M57 `6861-6880` adds disabled futures request payload validation
+  record liquidation semantics through
+  `application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_liquidation_semantics`,
+  `request_payload_validation_record_liquidation_semantic_count`,
+  `blocking_request_payload_validation_record_liquidation_semantic_count`,
+  `ready_request_payload_validation_record_liquidation_semantic_count`,
+  `runtime_observed_request_payload_validation_record_liquidation_semantic_count`,
+  and `request_payload_validation_record_liquidation_semantics`. Rows expose
+  `liquidation_semantics_ref`, `liquidation_semantics_contract_ref`,
+  `evidence_routes`, `liquidation_semantics_contract_available=false`,
+  `liquidation_semantics_contract_ready=false`,
+  `liquidation_buffer_bound=false`, `liquidation_price_bound=false`,
+  `liquidation_distance_bound=false`, `liquidation_threshold_bound=false`,
+  `runtime_liquidation_evidence_observed=false`,
+  `runtime_evidence_satisfies_liquidation_semantics=false`, and
+  `validation_record_liquidation_semantics_ready=false`.
+  Completed M57 `6841-6860` carries forward disabled futures request payload
+  validation record collateral semantics through
   `application/admin_api/futures_request_payload_validation_record_collateral_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
   `iter_futures_request_payload_validation_record_collateral_semantics`,
@@ -261,14 +281,15 @@ and notional evidence fields.
   `runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
   and `request_payload_validation_record_semantic_artifact_definitions`.
   This evidence does not accept review inputs, accept review outputs, accept
-  review-output acceptances, accept collateral semantics, bind live account or
+  review-output acceptances, accept liquidation semantics, bind live account or
+  liquidation-risk evidence, accept collateral semantics, bind live account or
   collateral evidence, accept margin semantics, accept position semantics, bind live position evidence,
   accept or bind runtime evidence, define futures semantics, pass contextless
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Exact autonomous phrase: Active M57 `6841-6860` evidence adds disabled futures request payload validation record collateral semantics while completed M57 `6821-6840` carries forward disabled futures request payload validation record margin semantics.
-  Literal machine-check phrase: futures request payload validation record collateral semantics.
+  Exact autonomous phrase: Active M57 `6861-6880` evidence adds disabled futures request payload validation record liquidation semantics while completed M57 `6841-6860` carries forward disabled futures request payload validation record collateral semantics.
+  Literal machine-check phrase: futures request payload validation record liquidation semantics.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
