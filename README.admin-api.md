@@ -735,8 +735,32 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6921-6940 add disabled futures request payload validation
-record funding semantics through
+Current M57 phases 6941-6960 add disabled futures request payload validation
+record order semantics through
+`application/admin_api/futures_request_payload_validation_record_order_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_order_semantics`.
+Command-suite
+`request_payload_validation_record_order_semantic_count`,
+`blocking_request_payload_validation_record_order_semantic_count`,
+`ready_request_payload_validation_record_order_semantic_count`,
+`runtime_observed_request_payload_validation_record_order_semantic_count`,
+and `request_payload_validation_record_order_semantics` remain backend-owned
+display evidence. Rows expose `order_semantics_ref`,
+`order_semantics_contract_ref`, `evidence_routes`,
+`order_semantics_contract_available=false`,
+`order_semantics_contract_ready=false`, `order_identity_bound=false`,
+`order_side_bound=false`, `order_size_bound=false`,
+`order_price_bound=false`, `order_type_bound=false`,
+`runtime_order_evidence_observed=false`,
+`runtime_evidence_satisfies_order_semantics=false`, and
+`validation_record_order_semantics_ready=false` while preserving no payload
+validation, no order semantics acceptance, no live account/risk evidence
+binding, no contextless review authority, no command admission, no Coinbase
+calls, no reconciliation execution, no futures/order/exchange state mutation,
+and no browser/BFF or spot-rule authority.
+Completed M57 phases 6921-6940 carry forward disabled futures request payload
+validation record funding semantics through
 `application/admin_api/futures_request_payload_validation_record_funding_semantics.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
 and `iter_futures_request_payload_validation_record_funding_semantics`.

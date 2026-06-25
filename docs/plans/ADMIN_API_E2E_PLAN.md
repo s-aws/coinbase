@@ -49,38 +49,39 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 6921-6940
+## Current Active Phases 6941-6960
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Funding Semantics.
+Batch label: Futures/Perpetuals Request Payload Validation Record Order Semantics.
 
-Current M57 work adds disabled futures request payload validation record
-funding semantics after completed `6901-6920` close-only semantics. The
-backend-owned contract is
-`application/admin_api/futures_request_payload_validation_record_funding_semantics.py`
+Current M57 work adds disabled futures request payload validation record order
+semantics after completed `6921-6940` funding semantics. The backend-owned
+contract is
+`application/admin_api/futures_request_payload_validation_record_order_semantics.py`
 with
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS` and
-`iter_futures_request_payload_validation_record_funding_semantics`.
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS` and
+`iter_futures_request_payload_validation_record_order_semantics`.
 The command suite must expose
-`request_payload_validation_record_funding_semantic_count`,
-`blocking_request_payload_validation_record_funding_semantic_count`,
-`ready_request_payload_validation_record_funding_semantic_count`,
-`runtime_observed_request_payload_validation_record_funding_semantic_count`,
-and `request_payload_validation_record_funding_semantics`.
+`request_payload_validation_record_order_semantic_count`,
+`blocking_request_payload_validation_record_order_semantic_count`,
+`ready_request_payload_validation_record_order_semantic_count`,
+`runtime_observed_request_payload_validation_record_order_semantic_count`,
+and `request_payload_validation_record_order_semantics`.
 
 The rows are no-live display evidence only. They keep
-`funding_semantics_contract_available=false`,
-`funding_semantics_contract_ready=false`, `funding_rate_bound=false`,
-`funding_fee_bound=false`, `funding_interval_bound=false`,
-`funding_cost_bound=false`, `runtime_funding_evidence_observed=false`,
-`runtime_evidence_satisfies_funding_semantics=false`, and
-`validation_record_funding_semantics_ready=false`. Completed close-only
-evidence from `6901-6920` remains carried forward through
-`application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`.
+`order_semantics_contract_available=false`,
+`order_semantics_contract_ready=false`, `order_identity_bound=false`,
+`order_side_bound=false`, `order_size_bound=false`,
+`order_price_bound=false`, `order_type_bound=false`,
+`runtime_order_evidence_observed=false`,
+`runtime_evidence_satisfies_order_semantics=false`, and
+`validation_record_order_semantics_ready=false`. Completed funding evidence
+from `6921-6940` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_funding_semantics.py`.
 This work must not validate command payloads, accept runtime evidence, admit
 commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
 state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `6921-6940` evidence adds disabled futures request payload validation record funding semantics while completed M57 `6901-6920` carries forward disabled futures request payload validation record close-only semantics.
+Exact autonomous phrase: Active M57 `6941-6960` evidence adds disabled futures request payload validation record order semantics while completed M57 `6921-6940` carries forward disabled futures request payload validation record funding semantics.
 
 ## Historical Phases 5601-5620
 

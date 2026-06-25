@@ -11,20 +11,27 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6921-6940 range targets explicit M57 futures/perpetual request
-payload validation record funding semantics for
+The active 6941-6960 range targets explicit M57 futures/perpetual request
+payload validation record order semantics for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6921-6940"` and no-live funding-semantics counts
+`"approved_phase_range": "6941-6960"` and no-live order-semantics counts
 such as
+`"request_payload_validation_record_order_semantic_count"`,
+`"blocking_request_payload_validation_record_order_semantic_count"`,
+`"ready_request_payload_validation_record_order_semantic_count"`,
+`"runtime_observed_request_payload_validation_record_order_semantic_count"`,
+and `"request_payload_validation_record_order_semantics"`.
+The active 6941-6960 range is display-only and does not admit futures
+commands, bind live order evidence, call Coinbase, execute reconciliation,
+or grant browser/BFF authority. Completed 6921-6940 funding semantics remain
+visible through counts such as
 `"request_payload_validation_record_funding_semantic_count"`,
 `"blocking_request_payload_validation_record_funding_semantic_count"`,
 `"ready_request_payload_validation_record_funding_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_funding_semantic_count"`,
 and `"request_payload_validation_record_funding_semantics"`.
-The active 6921-6940 range is display-only and does not admit futures
-commands, bind live funding evidence, call Coinbase, execute reconciliation,
-or grant browser/BFF authority. Completed 6901-6920 close-only semantics
+Completed 6901-6920 close-only semantics
 remain visible through counts such as
 `"request_payload_validation_record_close_only_semantic_count"`,
 `"blocking_request_payload_validation_record_close_only_semantic_count"`,
