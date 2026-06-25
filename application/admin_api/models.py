@@ -28,6 +28,7 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStep,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandReadinessDecision,
@@ -5214,6 +5215,25 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResol
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     detail: str
+
+
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem(
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputItem
+):
+    """One disabled store requirement for an execution-eligibility review input."""
+
+    review_input_store_requirement_kind: (
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement
+    )
+    review_input_store_requirement_index: int = Field(ge=0)
+    execution_eligibility_resolution_plan_step_review_input_store_requirement_ref: str
+    execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref: str
+    resolution_plan_step_review_input_store_requirement_required: bool = True
+    resolution_plan_step_review_input_store_available: bool = False
+    resolution_plan_step_review_input_writer_available: bool = False
+    resolution_plan_step_review_input_record_key_available: bool = False
+    resolution_plan_step_review_input_validation_gate_ready: bool = False
+    resolution_plan_step_review_input_replay_gate_ready: bool = False
 
 
 class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
@@ -10996,6 +11016,34 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    writer_available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_detail_rows_limited: bool = False
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem
+    ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
         ge=0,
@@ -12108,6 +12156,22 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     validated_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    writer_available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirement_count: int = Field(
         default=0,
         ge=0,
     )

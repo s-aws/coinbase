@@ -11,11 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7081-7100 range targets explicit M57 futures/perpetual request
-payload validation record execution-eligibility resolution-plan step review input evidence for
+The active 7101-7120 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review input store requirement evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7081-7100"` and no-live resolution-plan step review input fields such
+`"approved_phase_range": "7101-7120"` and no-live resolution-plan step review input store requirement fields such
 as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
@@ -24,22 +24,34 @@ as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_ref`,
 `execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
 `resolution_plan_step_review_ready=false`,
 `resolution_plan_step_reviewed=false`,
 `resolution_plan_step_review_accepted=false`, `review_input_kind`,
-`review_input_index`, `resolution_plan_step_review_input_required=true`,
+`review_input_index`, `input_evidence_store`,
+`resolution_plan_step_review_input_required=true`,
 `resolution_plan_step_review_input_present=false`,
 `resolution_plan_step_review_input_accepted=false`,
 `resolution_plan_step_review_input_validated=false`,
+`resolution_plan_step_review_input_store_requirement_required=true`,
+`resolution_plan_step_review_input_store_available=false`,
+`resolution_plan_step_review_input_writer_available=false`,
+`resolution_plan_step_review_input_record_key_available=false`,
+`resolution_plan_step_review_input_validation_gate_ready=false`,
+`resolution_plan_step_review_input_replay_gate_ready=false`,
 `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+Completed 7081-7100 resolution-plan step review input evidence remains visible
+through fields such as `execution_eligibility_resolution_plan_step_review_input_ref`
+and `execution_eligibility_resolution_plan_step_review_input_contract_ref`.
 Completed 7061-7080 resolution-plan step review evidence remains visible
 through fields such as `execution_eligibility_resolution_plan_step_review_ref`
 and `execution_eligibility_resolution_plan_step_review_contract_ref`.
@@ -64,9 +76,10 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7081-7100 range is display-only and does not treat resolution plan
-step review input presence or resolution plan step review presence as blocker
-resolution, admit futures commands, bind live
+The active 7101-7120 range is display-only and does not treat resolution plan
+step review input store requirement presence, resolution plan step review input
+presence, or resolution plan step review presence as blocker resolution, admit
+futures commands, bind live
 reconciliation or audit evidence, call Coinbase, execute reconciliation, mutate
 futures state, or grant browser/BFF authority. Completed 6961-6980 cancel semantics remain visible
 through counts such as

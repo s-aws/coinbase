@@ -49,18 +49,20 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7081-7100
+## Current Active Phases 7101-7120
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Requirement Evidence.
 
 Current M57 work adds backend-owned disabled resolution-plan step review input
-fields to futures request payload validation record execution-eligibility
-blocker rows after completed `7061-7080` resolution-plan step review evidence.
-The backend-owned contract is implemented through
+store requirement fields to futures request payload validation record
+execution-eligibility blocker rows after completed `7081-7100`
+resolution-plan step review input evidence. The backend-owned contract is
+implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`,
 Admin API models/read-service serialization, and generated OpenAPI. The command
 suite must expose `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
@@ -70,16 +72,25 @@ suite must expose `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_ref`,
 `execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
 `resolution_plan_step_review_ready=false`,
 `resolution_plan_step_reviewed=false`,
 `resolution_plan_step_review_accepted=false`, `review_input_kind`,
-`review_input_index`, `resolution_plan_step_review_input_required=true`,
+`review_input_index`, `input_evidence_store`,
+`resolution_plan_step_review_input_required=true`,
 `resolution_plan_step_review_input_present=false`,
 `resolution_plan_step_review_input_accepted=false`,
 `resolution_plan_step_review_input_validated=false`,
+`resolution_plan_step_review_input_store_requirement_required=true`,
+`resolution_plan_step_review_input_store_available=false`,
+`resolution_plan_step_review_input_writer_available=false`,
+`resolution_plan_step_review_input_record_key_available=false`,
+`resolution_plan_step_review_input_validation_gate_ready=false`,
+`resolution_plan_step_review_input_replay_gate_ready=false`,
 `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
@@ -89,12 +100,16 @@ suite must expose `execution_eligibility_resolution_plan_ref`,
 `blocker_resolved=false`.
 
 The rows are no-live display evidence only. Resolution plan step review input
-presence is not blocker resolution, runtime acceptance, command admission,
-Coinbase execution, reconciliation execution, futures/order/exchange state
-mutation, browser execution authority, BFF execution authority, or spot-rule
-authority. Resolution plan step review presence is also not blocker
-resolution. Completed resolution-plan step review evidence from `7061-7080`
-remains carried forward through
+store requirement presence is not blocker resolution, runtime acceptance,
+command admission, Coinbase execution, reconciliation execution,
+futures/order/exchange state mutation, browser execution authority, BFF
+execution authority, or spot-rule authority. Resolution plan step review input
+presence is also not blocker resolution. Resolution plan step review presence
+is also not blocker resolution. Completed resolution-plan step review input
+evidence from `7081-7100` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`.
+Completed resolution-plan step review evidence from `7061-7080` remains
+carried forward through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`.
 Completed resolution-plan step evidence from `7041-7060` remains carried
 forward through
@@ -108,8 +123,27 @@ through
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`.
 This work must not validate command payloads, accept runtime evidence, admit
-commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
-state, or grant browser/BFF or spot-rule authority.
+commands, create evidence stores, configure writers, create record keys, enable
+validation or replay gates, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7101-7120` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence while completed M57 `7081-7100` carries forward futures request payload validation record execution-eligibility resolution-plan step review input evidence.
+
+## Completed Phases 7081-7100
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Evidence.
+
+Completed phases `7081-7100` added backend-owned disabled resolution-plan step
+review input rows through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`.
+Those rows carry `execution_eligibility_resolution_plan_step_review_input_ref`,
+`execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`review_input_kind`, `review_input_index`,
+`resolution_plan_step_review_input_required=true`,
+`resolution_plan_step_review_input_present=false`,
+`resolution_plan_step_review_input_accepted=false`, and
+`resolution_plan_step_review_input_validated=false`. Resolution plan step
+review input presence is not blocker resolution.
 
 Exact autonomous phrase: Active M57 `7081-7100` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input evidence while completed M57 `7061-7080` carries forward futures request payload validation record execution-eligibility resolution-plan step review evidence.
 

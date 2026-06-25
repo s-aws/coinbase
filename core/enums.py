@@ -1217,6 +1217,15 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput(
     CONTEXTLESS_REVIEW_EVIDENCE = "contextless_review_evidence"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement(
+    str,
+    Enum,
+):
+    """Store requirements before futures resolution-plan review inputs can exist."""
+
+    INPUT_EVIDENCE_STORE = "input_evidence_store"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

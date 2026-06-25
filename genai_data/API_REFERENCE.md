@@ -16,14 +16,16 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7081-7100` futures/perpetual request payload validation record
-execution-eligibility resolution-plan step review input evidence for
-`GET /api/v1/futures/command-suite`: futures request payload validation record
-execution-eligibility resolution-plan step review input evidence; futures
-request payload validation record execution-eligibility resolution-plan step
-review input display; carried-forward futures request payload validation record
-execution-eligibility resolution-plan step review evidence, resolution-plan
-step evidence, and resolution-plan evidence. The current source registries are
+Current M57 `7101-7120` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store requirement
+evidence for `GET /api/v1/futures/command-suite`: futures request payload
+validation record execution-eligibility resolution-plan step review input store
+requirement evidence; futures request payload validation record
+execution-eligibility resolution-plan step review input store requirement
+display; carried-forward futures request payload validation record
+execution-eligibility resolution-plan step review input evidence,
+resolution-plan step review evidence, resolution-plan step evidence, and
+resolution-plan evidence. The current source registries are
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`
@@ -31,8 +33,10 @@ and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`
-with review input rows derived from each ordered resolution-plan prerequisite
-step review.
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`
+with store requirement rows derived from each resolution-plan step review
+input.
 Representative command-suite keys:
 `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
@@ -42,16 +46,25 @@ Representative command-suite keys:
 `execution_eligibility_resolution_plan_step_review_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_ref`,
 `execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
 `resolution_plan_step_review_ready=false`,
 `resolution_plan_step_reviewed=false`,
 `resolution_plan_step_review_accepted=false`, `review_input_kind`,
-`review_input_index`, `resolution_plan_step_review_input_required=true`,
+`review_input_index`, `input_evidence_store`,
+`resolution_plan_step_review_input_required=true`,
 `resolution_plan_step_review_input_present=false`,
 `resolution_plan_step_review_input_accepted=false`,
 `resolution_plan_step_review_input_validated=false`,
+`resolution_plan_step_review_input_store_requirement_required=true`,
+`resolution_plan_step_review_input_store_available=false`,
+`resolution_plan_step_review_input_writer_available=false`,
+`resolution_plan_step_review_input_record_key_available=false`,
+`resolution_plan_step_review_input_validation_gate_ready=false`,
+`resolution_plan_step_review_input_replay_gate_ready=false`,
 `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,

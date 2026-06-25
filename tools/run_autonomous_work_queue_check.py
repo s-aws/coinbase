@@ -26,6 +26,9 @@ FUTURES_PERPETUALS_EXAMPLES_DOC = (
 )
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
+ADMIN_MODULE_CAPABILITY_MATRIX_DOC = (
+    PROJECT_ROOT / "docs" / "ADMIN_MODULE_CAPABILITY_MATRIX.md"
+)
 AGENT_STATE_DOC = PROJECT_ROOT / "genai_data" / "agent_state.md"
 CONTEXTLESS_REVIEW_LOG_DOC = (
     PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_CONTEXTLESS_REVIEW_LOG.md"
@@ -62,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7081-7100"
-APPROVED_PHASES = tuple(range(7081, 7101))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7061-7080"
+APPROVED_PHASE_RANGE = "7101-7120"
+APPROVED_PHASES = tuple(range(7101, 7121))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7081-7100"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -496,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7081-7100` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input evidence while completed M57 `7061-7080` carries forward futures request payload validation record execution-eligibility resolution-plan step review evidence.",
+            "Active M57 `7101-7120` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence while completed M57 `7081-7100` carries forward futures request payload validation record execution-eligibility resolution-plan step review input evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1540,6 +1543,15 @@ def _check_maintainer_handoff_docs() -> QueueCheck:
             ),
             f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         ],
+        ADMIN_MODULE_CAPABILITY_MATRIX_DOC: [
+            f"Current futures/perpetual M57 scope: `{APPROVED_PHASE_RANGE}`",
+            "futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence",
+            "resolution plan step review input store requirement presence",
+            "create stores",
+            "configure writers",
+            "create record keys",
+            "enable validation or replay gates",
+        ],
     }
     missing: dict[str, list[str]] = {}
     for path, required in required_by_path.items():
@@ -1561,6 +1573,8 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
+        "futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence",
+        "futures request payload validation record execution-eligibility resolution-plan step review input store requirement display",
         "futures request payload validation record execution-eligibility resolution-plan step review input evidence",
         "futures request payload validation record execution-eligibility resolution-plan step review input display",
         "futures request payload validation record execution-eligibility resolution-plan step review evidence",
@@ -1572,6 +1586,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py",
+        "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py",
         "execution_eligibility_resolution_plan_ref",
         "execution_eligibility_resolution_plan_contract_ref",
         "execution_eligibility_resolution_plan_step_ref",
@@ -1580,9 +1595,12 @@ def _check_agent_state_docs() -> QueueCheck:
         "execution_eligibility_resolution_plan_step_review_contract_ref",
         "execution_eligibility_resolution_plan_step_review_input_ref",
         "execution_eligibility_resolution_plan_step_review_input_contract_ref",
+        "execution_eligibility_resolution_plan_step_review_input_store_requirement_ref",
+        "execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref",
         "resolution_plan_step_kind",
         "review_input_kind",
         "review_input_index",
+        "input_evidence_store",
         "resolution_plan_step_ready",
         "resolution_plan_step_accepted",
         "resolution_plan_step_review_required",
@@ -1593,6 +1611,12 @@ def _check_agent_state_docs() -> QueueCheck:
         "resolution_plan_step_review_input_present",
         "resolution_plan_step_review_input_accepted",
         "resolution_plan_step_review_input_validated",
+        "resolution_plan_step_review_input_store_requirement_required",
+        "resolution_plan_step_review_input_store_available",
+        "resolution_plan_step_review_input_writer_available",
+        "resolution_plan_step_review_input_record_key_available",
+        "resolution_plan_step_review_input_validation_gate_ready",
+        "resolution_plan_step_review_input_replay_gate_ready",
         "ordered_resolution_step_refs",
         "ordered_resolution_step_count",
         "resolution_plan_present",
@@ -1601,6 +1625,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "runtime_evidence_satisfies_semantic_contract",
         "validation_record_admission_link_ready",
         "blocker_resolved",
+        "resolution plan step review input store requirement presence is not blocker resolution",
         "resolution plan step review input presence is not blocker resolution",
         "resolution plan step review presence is not blocker resolution",
         "no validators",
@@ -1649,6 +1674,8 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         PREVIOUS_COMPLETED_PHASE_RANGE,
         "completed history",
         "No live Coinbase execution is planned",
+        "futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence",
+        "futures request payload validation record execution-eligibility resolution-plan step review input store requirement display",
         "futures request payload validation record execution-eligibility resolution-plan step review input evidence",
         "futures request payload validation record execution-eligibility resolution-plan step review input display",
         "futures request payload validation record execution-eligibility resolution-plan step review evidence",
@@ -1660,6 +1687,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py",
+        "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py",
         "execution_eligibility_resolution_plan_ref",
         "execution_eligibility_resolution_plan_contract_ref",
         "execution_eligibility_resolution_plan_step_ref",
@@ -1668,6 +1696,8 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "execution_eligibility_resolution_plan_step_review_contract_ref",
         "execution_eligibility_resolution_plan_step_review_input_ref",
         "execution_eligibility_resolution_plan_step_review_input_contract_ref",
+        "execution_eligibility_resolution_plan_step_review_input_store_requirement_ref",
+        "execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref",
         "resolution_plan_step_kind",
         "resolution_plan_step_ready=false",
         "resolution_plan_step_accepted=false",
@@ -1677,10 +1707,17 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "resolution_plan_step_review_accepted=false",
         "review_input_kind",
         "review_input_index",
+        "input_evidence_store",
         "resolution_plan_step_review_input_required=true",
         "resolution_plan_step_review_input_present=false",
         "resolution_plan_step_review_input_accepted=false",
         "resolution_plan_step_review_input_validated=false",
+        "resolution_plan_step_review_input_store_requirement_required=true",
+        "resolution_plan_step_review_input_store_available=false",
+        "resolution_plan_step_review_input_writer_available=false",
+        "resolution_plan_step_review_input_record_key_available=false",
+        "resolution_plan_step_review_input_validation_gate_ready=false",
+        "resolution_plan_step_review_input_replay_gate_ready=false",
         "ordered_resolution_step_refs",
         "ordered_resolution_step_count",
         "resolution_plan_present=true",
@@ -1689,6 +1726,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         "runtime_evidence_satisfies_semantic_contract=false",
         "validation_record_admission_link_ready=false",
         "blocker_resolved=false",
+        "resolution plan step review input store requirement presence is not blocker resolution",
         "resolution plan step review input presence is not blocker resolution",
         "resolution plan step review presence is not blocker resolution",
         "Fresh blind/contextless backend re-review",
