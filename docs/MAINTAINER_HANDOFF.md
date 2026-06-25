@@ -123,8 +123,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6761-6780` under M57.
-- Active autonomous range: `6781-6800` under M57.
+- Latest completed autonomous range: `6781-6800` under M57.
+- Active autonomous range: `6801-6820` under M57.
 - Previous range validation: backend focused validation passed on 2026-06-24
   with `pytest tests\regression\test_admin_api_futures_risk_proofs.py -q --tb=short`
   (17 passed), `pytest tests\regression\test_spot_readiness_gate.py -q --tb=short`
@@ -147,20 +147,29 @@ notional, retained inventory, reconciliation result, and audit ids.
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
 - Active range adds disabled futures request payload validation record
-  semantic artifact runtime evidence acceptance through
+  position semantics through
+  `application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_position_semantics`,
+  including `request_payload_validation_record_position_semantic_count`,
+  `blocking_request_payload_validation_record_position_semantic_count`,
+  `ready_request_payload_validation_record_position_semantic_count`,
+  `runtime_observed_request_payload_validation_record_position_semantic_count`,
+  `request_payload_validation_record_position_semantics`,
+  `position_semantics_ref`, `position_semantics_contract_ref`,
+  `evidence_routes`, `position_semantics_contract_available=false`,
+  `position_semantics_contract_ready=false`, `position_identity_bound=false`,
+  `position_scope_bound=false`, `position_side_derivation_bound=false`,
+  `position_size_bound=false`, `position_notional_bound=false`,
+  `runtime_position_evidence_observed=false`,
+  `runtime_evidence_satisfies_position_semantics=false`, and
+  `validation_record_position_semantics_ready=false`.
+  Completed `6781-6800` carries forward disabled futures request payload
+  validation record semantic artifact runtime evidence acceptance through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
   and
-  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
-  including `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
-  `semantic_artifact_runtime_evidence_acceptance_ref`,
-  `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
-  `semantic_artifact_runtime_evidence_acceptance_available=false`,
-  and `semantic_artifact_runtime_evidence_acceptance_accepted=false`.
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
   Completed `6761-6780` carries forward disabled futures request payload
   validation record semantic artifact runtime evidence binding.
   Completed `6701-6720` carries forward disabled futures request payload

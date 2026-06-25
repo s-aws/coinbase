@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6781-6800`.
+- Commit (optional): current active range is `6801-6820`.
 
 ## Current Objective
 
@@ -24,12 +24,18 @@ Keep it short. Keep it factual.
 
 ## Current Phase Override
 
-- Latest completed autonomous range before current work: `6761-6780`.
-- Active autonomous range: `6781-6800`.
-- Current direction: complete phases `6781-6800` with futures request payload
-  validation record semantic artifact runtime evidence acceptance.
-- Active `6781-6800` adds disabled futures request payload validation record
-  semantic artifact runtime evidence acceptance through
+- Latest completed autonomous range before current work: `6781-6800`.
+- Active autonomous range: `6801-6820`.
+- Current direction: complete phases `6801-6820` with futures request payload
+  validation record position semantics.
+- Active `6801-6820` adds disabled futures request payload validation record
+  position semantics through
+  `application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_position_semantics`.
+- Completed `6781-6800` carries forward disabled futures request payload
+  validation record semantic artifact runtime evidence acceptance through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
   and
@@ -75,7 +81,13 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6761-6780`.
+- Latest completed autonomous range before current work: `6781-6800`.
+- Completed `6781-6800` added disabled futures request payload validation
+  record semantic artifact runtime evidence acceptance through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
 - Completed `6761-6780` added disabled futures request payload validation
   record semantic artifact runtime evidence binding through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
@@ -90,26 +102,25 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6781-6800`.
+- Active autonomous range: `6801-6820`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `6781-6800` with backend-owned futures
-  request payload validation record semantic artifact runtime evidence
-  acceptance and matching frontend display.
+- Current direction: complete phases `6801-6820` with backend-owned futures
+  request payload validation record position semantics and matching frontend
+  display.
 - Backend active source:
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`.
+  `application/admin_api/futures_request_payload_validation_record_position_semantics.py`.
 - Backend active registry:
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`
-  and
-  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`
+  and `iter_futures_request_payload_validation_record_position_semantics`.
 - Active command-suite evidence fields:
-  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
-  and
-  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
-- Active evidence phrase: futures request payload validation record semantic artifact runtime evidence acceptance.
-- Active display phrase: futures request payload validation record semantic artifact runtime evidence acceptance.
+  `request_payload_validation_record_position_semantic_count`,
+  `blocking_request_payload_validation_record_position_semantic_count`,
+  `ready_request_payload_validation_record_position_semantic_count`,
+  `runtime_observed_request_payload_validation_record_position_semantic_count`,
+  and `request_payload_validation_record_position_semantics`.
+- Active evidence phrase: futures request payload validation record position semantics.
+- Active display phrase: futures request payload validation record position semantics.
+- Carried-forward acceptance phrase: futures request payload validation record semantic artifact runtime evidence acceptance.
 - Active row evidence fields:
   `semantic_artifact_definition_review_ref`,
   `semantic_artifact_definition_review_contract_ref`,
@@ -123,6 +134,19 @@ Keep it short. Keep it factual.
   `semantic_artifact_runtime_evidence_contract_ref`,
   `semantic_artifact_runtime_evidence_acceptance_ref`,
   `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
+  `position_semantics_ref`,
+  `position_semantics_contract_ref`,
+  `evidence_routes`,
+  `position_semantics_contract_available=false`,
+  `position_semantics_contract_ready=false`,
+  `position_identity_bound=false`,
+  `position_scope_bound=false`,
+  `position_side_derivation_bound=false`,
+  `position_size_bound=false`,
+  `position_notional_bound=false`,
+  `runtime_position_evidence_observed=false`,
+  `runtime_evidence_satisfies_position_semantics=false`,
+  `validation_record_position_semantics_ready=false`,
   `contextless_review_required=true`,
   `semantic_artifact_definition_available=false`,
   `semantic_artifact_definition_review_available=false`,

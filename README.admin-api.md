@@ -735,7 +735,31 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6781-6800 add disabled futures request payload validation
+Current M57 phases 6801-6820 add disabled futures request payload validation
+record position semantics through
+`application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_position_semantics`.
+Command-suite
+`request_payload_validation_record_position_semantic_count`,
+`blocking_request_payload_validation_record_position_semantic_count`,
+`ready_request_payload_validation_record_position_semantic_count`,
+`runtime_observed_request_payload_validation_record_position_semantic_count`,
+and `request_payload_validation_record_position_semantics` remain
+backend-owned display evidence. Rows expose `position_semantics_ref`,
+`position_semantics_contract_ref`, `evidence_routes`,
+`position_semantics_contract_available=false`,
+`position_semantics_contract_ready=false`, `position_identity_bound=false`,
+`position_scope_bound=false`, `position_side_derivation_bound=false`,
+`position_size_bound=false`, `position_notional_bound=false`,
+`runtime_position_evidence_observed=false`,
+`runtime_evidence_satisfies_position_semantics=false`, and
+`validation_record_position_semantics_ready=false` while preserving no payload
+validation, no position semantics acceptance, no live position evidence
+binding, no contextless review pass, no command admission, no Coinbase calls,
+no reconciliation execution, no futures/order/exchange state mutation, and no
+browser/BFF or spot-rule authority.
+Completed M57 phases 6781-6800 carry forward disabled futures request payload validation
 record semantic artifact runtime evidence acceptance through
 `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,

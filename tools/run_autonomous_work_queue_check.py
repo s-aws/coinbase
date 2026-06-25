@@ -62,9 +62,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "6781-6800"
-APPROVED_PHASES = tuple(range(6781, 6801))
-PREVIOUS_COMPLETED_PHASE_RANGE = "6761-6780"
+APPROVED_PHASE_RANGE = "6801-6820"
+APPROVED_PHASES = tuple(range(6801, 6821))
+PREVIOUS_COMPLETED_PHASE_RANGE = "6781-6800"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -496,7 +496,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `6781-6800` evidence adds disabled futures request payload validation record semantic artifact runtime evidence acceptance while completed M57 `6761-6780` carries forward disabled futures request payload validation record semantic artifact runtime evidence binding.",
+            "Active M57 `6801-6820` evidence adds disabled futures request payload validation record position semantics while completed M57 `6781-6800` carries forward disabled futures request payload validation record semantic artifact runtime evidence acceptance.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1571,6 +1571,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "futures request payload validation evidence record contract evidence",
         "futures request payload validation record schema evidence",
         "futures request payload validation record semantic artifact runtime evidence acceptance",
+        "futures request payload validation record position semantics",
         "futures request payload validation record replay guard evidence",
         "futures request payload validation record semantic artifact runtime evidence acceptance",
         "application/admin_api/futures_request_payload_contracts.py",
@@ -1582,6 +1583,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "application/admin_api/futures_request_payload_validation_evidence_records.py",
         "application/admin_api/futures_request_payload_validation_record_schemas.py",
         "application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py",
+        "application/admin_api/futures_request_payload_validation_record_position_semantics.py",
         "application/admin_api/futures_request_payload_validation_record_replay_guards.py",
         "application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py",
         "FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS",
@@ -1602,6 +1604,8 @@ def _check_agent_state_docs() -> QueueCheck:
         "iter_futures_request_payload_validation_record_schemas",
         "FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS",
         "iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances",
+        "FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS",
+        "iter_futures_request_payload_validation_record_position_semantics",
         "FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS",
         "iter_futures_request_payload_validation_record_replay_guards",
         "FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS",
@@ -1627,6 +1631,11 @@ def _check_agent_state_docs() -> QueueCheck:
         "ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count",
         "runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count",
         "request_payload_validation_record_semantic_artifact_runtime_evidences",
+        "request_payload_validation_record_position_semantic_count",
+        "blocking_request_payload_validation_record_position_semantic_count",
+        "ready_request_payload_validation_record_position_semantic_count",
+        "runtime_observed_request_payload_validation_record_position_semantic_count",
+        "request_payload_validation_record_position_semantics",
         "request_payload_validation_record_replay_guard_count",
         "blocking_request_payload_validation_record_replay_guard_count",
         "request_payload_validation_record_semantic_artifact_runtime_evidence_count",
@@ -1660,6 +1669,9 @@ def _check_agent_state_docs() -> QueueCheck:
         "semantic_artifact_runtime_evidence_contract_ref",
         "semantic_artifact_runtime_evidence_ref",
         "semantic_artifact_runtime_evidence_contract_ref",
+        "position_semantics_ref",
+        "position_semantics_contract_ref",
+        "evidence_routes",
         "validation_record_idempotency_contract_ref",
         "validation_record_replay_window_ref",
         "validation_record_duplicate_policy_ref",
@@ -1685,6 +1697,16 @@ def _check_agent_state_docs() -> QueueCheck:
         "semantic_artifact_runtime_evidence_available",
         "semantic_artifact_runtime_evidence_bound",
         "semantic_artifact_runtime_evidence_accepted",
+        "position_semantics_contract_available",
+        "position_semantics_contract_ready",
+        "position_identity_bound",
+        "position_scope_bound",
+        "position_side_derivation_bound",
+        "position_size_bound",
+        "position_notional_bound",
+        "runtime_position_evidence_observed",
+        "runtime_evidence_satisfies_position_semantics",
+        "validation_record_position_semantics_ready",
         "validation_record_schema_ready",
         "validation_record_schema_registered",
         "validation_record_replay_guard_contract_ready",

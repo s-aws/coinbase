@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6781-6800**.
+- Approved phase range: **6801-6820**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6761-6780`.
+- Previous completed range: `6781-6800`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6780`.
+- `current_phase`: `6800`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,151 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6781-6800
+## Active Phases 6801-6820
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Position Semantics.
+
+These phases continue M57 after completed `6781-6800` exposed disabled futures
+request payload validation record semantic artifact runtime evidence
+acceptance. The next concrete gap is that contextless agents can now see that
+runtime evidence is not accepted, but still need backend-owned futures-specific
+position semantics rows before any future validation-record execution
+eligibility can reason about position identity, configured/observed scope, side
+derivation, size, notional, or read-route evidence. Active M57 `6801-6820`
+evidence adds disabled futures request payload validation record position
+semantics through
+`application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_position_semantics`.
+It emits:
+`request_payload_validation_record_position_semantic_count`,
+`blocking_request_payload_validation_record_position_semantic_count`,
+`ready_request_payload_validation_record_position_semantic_count`,
+`runtime_observed_request_payload_validation_record_position_semantic_count`,
+and `request_payload_validation_record_position_semantics`.
+Rows expose `position_semantics_ref`, `position_semantics_contract_ref`,
+`evidence_routes`, and carried-forward semantic artifact runtime-evidence
+acceptance refs. They keep `position_semantics_contract_available=false`,
+`position_semantics_contract_ready=false`, `position_identity_bound=false`,
+`position_scope_bound=false`, `position_side_derivation_bound=false`,
+`position_size_bound=false`, `position_notional_bound=false`,
+`runtime_position_evidence_observed=false`,
+`runtime_evidence_satisfies_position_semantics=false`,
+`semantic_artifact_runtime_evidence_acceptance_available=false`,
+`semantic_artifact_runtime_evidence_acceptance_accepted=false`,
+`validation_record_position_semantics_ready=false`,
+`validation_record_execution_eligible=false`, `execution_allowed=false`,
+`live_coinbase_orders_ran=false`, `spot_rule_authority=false`, browser
+authority display-only, and BFF authority forward-only/no-execution.
+
+This range must not implement position validators, validate submitted command
+payloads, pass contextless reviews, admit commands, accept runtime evidence,
+accept position semantics, bind live position evidence, submit or cancel
+Coinbase orders, execute reconciliation, mutate futures/order/exchange state,
+accept risk proofs as command readiness, or grant browser/BFF execution
+authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
+inventory-lot assumptions remain forbidden as futures/perpetual authority.
+
+Exact autonomous phrase: Active M57 `6801-6820` evidence adds disabled futures request payload validation record position semantics while completed M57 `6781-6800` carries forward disabled futures request payload validation record semantic artifact runtime evidence acceptance.
+
+### Phase 6801 - Prior Range Closure
+
+- Record completed phases `6781-6800` as historical runtime-evidence-acceptance
+  evidence and move active metadata to `6801-6820`.
+
+### Phase 6802 - Position Semantics Registry
+
+- Add a backend-owned disabled validation-record position-semantics registry
+  derived from runtime-evidence-acceptance contracts.
+
+### Phase 6803 - Position Semantics References
+
+- Expose position-semantics and position-semantics-contract refs for each
+  futures validation-record semantic artifact row.
+
+### Phase 6804 - Position Read Evidence Routes
+
+- Bind position semantics to read-only futures positions and position-detail
+  evidence routes without adding command execution authority.
+
+### Phase 6805 - Position False Flags
+
+- Keep position identity, scope, side derivation, size, notional, runtime
+  observation, execution, live Coinbase, browser, BFF, and spot-rule authority
+  false or display-only for every row.
+
+### Phase 6806 - Command Suite Position Counts
+
+- Add command-level position-semantics counts, blocking counts, ready counts,
+  runtime-observed counts, and rows.
+
+### Phase 6807 - Suite Aggregate Position Counts
+
+- Add suite-level aggregate counts for position-semantics rows without changing
+  command execution readiness.
+
+### Phase 6808 - Backend Contract References
+
+- Add position-semantics contract refs to required backend contracts for every
+  disabled futures command.
+
+### Phase 6809 - Compact Serializer
+
+- Keep public command-suite payload bounded while preserving
+  position-semantics summary counts and omitting full evidence-ref arrays.
+
+### Phase 6810 - OpenAPI Contract
+
+- Regenerate and validate OpenAPI so generated clients expose
+  position-semantics fields from backend-owned models.
+
+### Phase 6811 - Frontend Generated Client Sync
+
+- Sync the frontend generated schema from OpenAPI without introducing browser
+  trading authority.
+
+### Phase 6812 - Frontend Adapter Mapping
+
+- Map backend position-semantics rows into the futures/perpetuals view model.
+
+### Phase 6813 - Frontend Position Semantics Display
+
+- Display position-semantics rows as backend-owned disabled read evidence.
+
+### Phase 6814 - Frontend Mock Backend Contract
+
+- Update mock backend fixtures to include position-semantics rows and aggregate
+  counts that match the backend contract.
+
+### Phase 6815 - Capability Matrix
+
+- Update capability docs to show position semantics remain evidence only and
+  do not grant futures/perpetual execution authority.
+
+### Phase 6816 - Contextless Review Evidence
+
+- Record blind/contextless review evidence that the new row is understandable
+  without chat context and remains non-spot-specific.
+
+### Phase 6817 - Focused Backend Validation
+
+- Run focused backend tests and autonomous queue checks for the new contract.
+
+### Phase 6818 - Focused Frontend Validation
+
+- Run generated API, typecheck, unit, and autonomous queue checks covering the
+  new position-semantics display.
+
+### Phase 6819 - Phase-End Hygiene
+
+- Run stale test-process and subagent hygiene checks, with no live Coinbase
+  execution and notional staying at `0`.
+
+### Phase 6820 - Commit And Push
+
+- Commit and push backend and frontend changes after focused validation passes.
+
+## Completed Phases 6781-6800
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Semantic Artifact Runtime Evidence Acceptance.
 

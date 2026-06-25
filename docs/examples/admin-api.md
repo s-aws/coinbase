@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6781-6800"`. Futures/perpetual command-suite reads
-expose backend-owned disabled semantic artifact runtime evidence acceptance while
+`"approved_phase_range": "6801-6820"`. Futures/perpetual command-suite reads
+expose backend-owned disabled position semantics while
 carrying forward earlier semantic artifact runtime evidence binding,
 semantic artifact definition review output acceptance,
 semantic artifact definition review output, semantic artifact definition
@@ -62,10 +62,25 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
 `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
-and
-`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_position_semantics`.
 
-Active semantic artifact runtime evidence acceptance rows expose
+Active position-semantics rows expose
+`request_payload_validation_record_position_semantic_count`,
+`blocking_request_payload_validation_record_position_semantic_count`,
+`ready_request_payload_validation_record_position_semantic_count`,
+`runtime_observed_request_payload_validation_record_position_semantic_count`,
+`request_payload_validation_record_position_semantics`,
+`position_semantics_ref`, `position_semantics_contract_ref`,
+`evidence_routes`, `position_semantics_contract_available=false`,
+`position_semantics_contract_ready=false`, `position_identity_bound=false`,
+`position_scope_bound=false`, `position_side_derivation_bound=false`,
+`position_size_bound=false`, `position_notional_bound=false`,
+`runtime_position_evidence_observed=false`,
+`runtime_evidence_satisfies_position_semantics=false`, and
+`validation_record_position_semantics_ready=false`. Completed semantic
+artifact runtime evidence acceptance rows expose
 `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
 `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
 `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
@@ -150,7 +165,7 @@ blocked evidence only; they do not define futures semantics, resolve execution
 eligibility blockers, validate request payloads, accept or bind runtime
 evidence, accept runtime-evidence acceptances, admit commands, call Coinbase,
 execute reconciliation, mutate futures state, or grant browser/BFF authority.
-Exact autonomous phrase: Active M57 `6781-6800` evidence adds disabled futures request payload validation record semantic artifact runtime evidence acceptance while completed M57 `6761-6780` carries forward disabled futures request payload validation record semantic artifact runtime evidence binding.
+Exact autonomous phrase: Active M57 `6801-6820` evidence adds disabled futures request payload validation record position semantics while completed M57 `6781-6800` carries forward disabled futures request payload validation record semantic artifact runtime evidence acceptance.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,

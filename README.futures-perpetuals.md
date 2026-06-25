@@ -54,10 +54,10 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `6781-6800` evidence adds disabled futures request payload
-  validation record semantic artifact runtime evidence acceptance while
-  completed M57 `6761-6780` carries forward disabled futures request payload
-  validation record semantic artifact runtime evidence binding.
+- Active M57 `6801-6820` evidence adds disabled futures request payload
+  validation record position semantics while completed M57 `6781-6800`
+  carries forward disabled futures request payload validation record semantic
+  artifact runtime evidence acceptance.
 - The command-suite route also exposes request-field contract metadata for
   each planned command family. These fields are blocked backend contract
   evidence only; they are not accepted payloads and do not create executable
@@ -152,7 +152,7 @@ and notional evidence fields.
   and `request_payload_validation_record_semantic_artifact_definition_review_outputs`.
   Rows expose `semantic_artifact_definition_review_output_contract_ref`,
   `semantic_artifact_definition_review_output_available=false`, and
-  `semantic_artifact_definition_review_output_accepted=false`. Active M57
+  `semantic_artifact_definition_review_output_accepted=false`. Completed M57
   `6781-6800` evidence adds disabled futures request payload validation record
   semantic artifact runtime evidence acceptance through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
@@ -168,6 +168,24 @@ and notional evidence fields.
   `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
   `semantic_artifact_runtime_evidence_acceptance_available=false`, and
   `semantic_artifact_runtime_evidence_acceptance_accepted=false`.
+  Active M57 `6801-6820` adds disabled futures request payload validation
+  record position semantics through
+  `application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_position_semantics`,
+  `request_payload_validation_record_position_semantic_count`,
+  `blocking_request_payload_validation_record_position_semantic_count`,
+  `ready_request_payload_validation_record_position_semantic_count`,
+  `runtime_observed_request_payload_validation_record_position_semantic_count`,
+  and `request_payload_validation_record_position_semantics`. Rows expose
+  `position_semantics_ref`, `position_semantics_contract_ref`,
+  `evidence_routes`, `position_semantics_contract_available=false`,
+  `position_semantics_contract_ready=false`, `position_identity_bound=false`,
+  `position_scope_bound=false`, `position_side_derivation_bound=false`,
+  `position_size_bound=false`, `position_notional_bound=false`,
+  `runtime_position_evidence_observed=false`,
+  `runtime_evidence_satisfies_position_semantics=false`, and
+  `validation_record_position_semantics_ready=false`.
   Completed M57 `6761-6780` carries forward disabled futures request payload
   validation record semantic artifact runtime evidence binding through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
@@ -211,8 +229,8 @@ and notional evidence fields.
   semantics, pass contextless reviews, validate payloads, resolve blockers,
   admit commands, call Coinbase, execute reconciliation, mutate
   futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-  Exact autonomous phrase: Active M57 `6781-6800` evidence adds disabled futures request payload validation record semantic artifact runtime evidence acceptance while completed M57 `6761-6780` carries forward disabled futures request payload validation record semantic artifact runtime evidence binding.
-  Literal machine-check phrase: futures request payload validation record semantic artifact runtime evidence acceptance.
+  Exact autonomous phrase: Active M57 `6801-6820` evidence adds disabled futures request payload validation record position semantics while completed M57 `6781-6800` carries forward disabled futures request payload validation record semantic artifact runtime evidence acceptance.
+  Literal machine-check phrase: futures request payload validation record position semantics.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
