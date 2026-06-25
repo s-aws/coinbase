@@ -34,6 +34,7 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityBlockerContract:
     )
     blocker: AdminFuturesCommandExecutionEligibilityBlocker
     semantic_ref: str
+    semantic_contract_ref: str
     required_backend_artifact_ref: str
     missing_reason: str
     status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
@@ -43,6 +44,8 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityBlockerContract:
     backend_owned: bool = True
     read_only: bool = True
     spot_rule_authority: bool = False
+    semantic_contract_present: bool = True
+    semantic_contract_ready: bool = False
     semantic_ready: bool = False
     runtime_evidence_observed: bool = False
     runtime_evidence_satisfies_execution_eligibility_blocker: bool = False
@@ -102,6 +105,7 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityBlockerContract:
             self.validation_record_execution_eligibility_contract_ref,
             self.validation_record_execution_eligibility_blocker_ref,
             self.semantic_ref,
+            self.semantic_contract_ref,
             self.required_backend_artifact_ref,
             f"{self.validation_record_execution_eligibility_blocker_ref}_contextless_review",
         )
@@ -115,8 +119,9 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityBlockerContract:
         return (
             f"{self.command.value} request field {self.field.value} remains "
             f"execution-ineligible because {self.missing_reason}. The backend "
-            "must satisfy the named futures/perpetual semantic artifact before "
-            "this validation record can participate in command execution."
+            "must satisfy the named futures/perpetual semantic contract before "
+            "this validation record can participate in command execution. A "
+            "present disabled contract row is not execution readiness."
         )
 
 
@@ -128,6 +133,7 @@ def _blocker_specs(
         str,
         str,
         str,
+        str,
     ],
     ...,
 ]:
@@ -135,62 +141,72 @@ def _blocker_specs(
         (
             AdminFuturesCommandExecutionEligibilityBlocker.POSITION_SEMANTICS_MISSING,
             contract.validation_record_position_semantics_ref,
+            contract.validation_record_position_semantics_contract_ref,
             f"{contract.validation_record_position_semantics_ref}_backend_contract",
-            "position-scope semantics are not defined and reviewed",
+            "position-scope semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.MARGIN_SEMANTICS_MISSING,
             contract.validation_record_margin_semantics_ref,
+            contract.validation_record_margin_semantics_contract_ref,
             f"{contract.validation_record_margin_semantics_ref}_backend_contract",
-            "margin semantics are not defined and reviewed",
+            "margin semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.COLLATERAL_SEMANTICS_MISSING,
             contract.validation_record_collateral_semantics_ref,
+            contract.validation_record_collateral_semantics_contract_ref,
             f"{contract.validation_record_collateral_semantics_ref}_backend_contract",
-            "collateral semantics are not defined and reviewed",
+            "collateral semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.LIQUIDATION_SEMANTICS_MISSING,
             contract.validation_record_liquidation_semantics_ref,
+            contract.validation_record_liquidation_semantics_contract_ref,
             f"{contract.validation_record_liquidation_semantics_ref}_backend_contract",
-            "liquidation-buffer semantics are not defined and reviewed",
+            "liquidation-buffer semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.REDUCE_ONLY_SEMANTICS_MISSING,
             contract.validation_record_reduce_only_semantics_ref,
+            contract.validation_record_reduce_only_semantics_contract_ref,
             f"{contract.validation_record_reduce_only_semantics_ref}_backend_contract",
-            "reduce-only semantics are not defined and reviewed",
+            "reduce-only semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.CLOSE_ONLY_SEMANTICS_MISSING,
             contract.validation_record_close_only_semantics_ref,
+            contract.validation_record_close_only_semantics_contract_ref,
             f"{contract.validation_record_close_only_semantics_ref}_backend_contract",
-            "close-only semantics are not defined and reviewed",
+            "close-only semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.FUNDING_SEMANTICS_MISSING,
             contract.validation_record_funding_semantics_ref,
+            contract.validation_record_funding_semantics_contract_ref,
             f"{contract.validation_record_funding_semantics_ref}_backend_contract",
-            "funding semantics are not defined and reviewed",
+            "funding semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.ORDER_SEMANTICS_MISSING,
             contract.validation_record_order_semantics_ref,
+            contract.validation_record_order_semantics_contract_ref,
             f"{contract.validation_record_order_semantics_ref}_backend_contract",
-            "order semantics are not defined and reviewed",
+            "order semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.CANCEL_SEMANTICS_MISSING,
             contract.validation_record_cancel_semantics_ref,
+            contract.validation_record_cancel_semantics_contract_ref,
             f"{contract.validation_record_cancel_semantics_ref}_backend_contract",
-            "cancel semantics are not defined and reviewed",
+            "cancel semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
         (
             AdminFuturesCommandExecutionEligibilityBlocker.RECONCILIATION_SEMANTICS_MISSING,
             contract.validation_record_reconciliation_semantics_ref,
+            contract.validation_record_reconciliation_semantics_contract_ref,
             f"{contract.validation_record_reconciliation_semantics_ref}_backend_contract",
-            "reconciliation semantics are not defined and reviewed",
+            "reconciliation semantics are present only as disabled contract evidence and are not runtime-accepted",
         ),
     )
 
@@ -203,6 +219,7 @@ FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACT
         validation_record_execution_eligibility_contract=contract,
         blocker=blocker,
         semantic_ref=semantic_ref,
+        semantic_contract_ref=semantic_contract_ref,
         required_backend_artifact_ref=required_backend_artifact_ref,
         missing_reason=missing_reason,
     )
@@ -210,6 +227,7 @@ FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACT
     for (
         blocker,
         semantic_ref,
+        semantic_contract_ref,
         required_backend_artifact_ref,
         missing_reason,
     ) in _blocker_specs(contract)

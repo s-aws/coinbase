@@ -53,6 +53,8 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityContract:
     validation_record_order_semantics_ready: bool = False
     validation_record_cancel_semantics_ready: bool = False
     validation_record_reconciliation_semantics_ready: bool = False
+    validation_record_semantic_contracts_present: bool = True
+    validation_record_semantic_contracts_ready: bool = False
     validation_record_admission_link_contract_ready: bool = False
     validation_record_admission_link_ready: bool = False
     validation_record_approval_snapshot_bound: bool = False
@@ -274,40 +276,135 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityContract:
         return f"{self.validation_record_execution_eligibility_contract_ref}_position_semantics"
 
     @property
+    def validation_record_position_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_position_semantics.py::"
+            f"{self.command.value}_{self.field.value}_position_semantics_contract"
+        )
+
+    @property
     def validation_record_margin_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_margin_semantics"
+
+    @property
+    def validation_record_margin_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_margin_semantics.py::"
+            f"{self.command.value}_{self.field.value}_margin_semantics_contract"
+        )
 
     @property
     def validation_record_collateral_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_collateral_semantics"
 
     @property
+    def validation_record_collateral_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_collateral_semantics.py::"
+            f"{self.command.value}_{self.field.value}_collateral_semantics_contract"
+        )
+
+    @property
     def validation_record_liquidation_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_liquidation_semantics"
+
+    @property
+    def validation_record_liquidation_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_liquidation_semantics.py::"
+            f"{self.command.value}_{self.field.value}_liquidation_semantics_contract"
+        )
 
     @property
     def validation_record_reduce_only_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_reduce_only_semantics"
 
     @property
+    def validation_record_reduce_only_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_reduce_only_semantics.py::"
+            f"{self.command.value}_{self.field.value}_reduce_only_semantics_contract"
+        )
+
+    @property
     def validation_record_close_only_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_close_only_semantics"
+
+    @property
+    def validation_record_close_only_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_close_only_semantics.py::"
+            f"{self.command.value}_{self.field.value}_close_only_semantics_contract"
+        )
 
     @property
     def validation_record_funding_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_funding_semantics"
 
     @property
+    def validation_record_funding_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_funding_semantics.py::"
+            f"{self.command.value}_{self.field.value}_funding_semantics_contract"
+        )
+
+    @property
     def validation_record_order_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_order_semantics"
+
+    @property
+    def validation_record_order_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_order_semantics.py::"
+            f"{self.command.value}_{self.field.value}_order_semantics_contract"
+        )
 
     @property
     def validation_record_cancel_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_cancel_semantics"
 
     @property
+    def validation_record_cancel_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_cancel_semantics.py::"
+            f"{self.command.value}_{self.field.value}_cancel_semantics_contract"
+        )
+
+    @property
     def validation_record_reconciliation_semantics_ref(self) -> str:
         return f"{self.validation_record_execution_eligibility_contract_ref}_reconciliation_semantics"
+
+    @property
+    def validation_record_reconciliation_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_reconciliation_semantics.py::"
+            f"{self.command.value}_{self.field.value}_reconciliation_semantics_contract"
+        )
+
+    @property
+    def validation_record_semantic_contract_refs(self) -> tuple[str, ...]:
+        return (
+            self.validation_record_position_semantics_contract_ref,
+            self.validation_record_margin_semantics_contract_ref,
+            self.validation_record_collateral_semantics_contract_ref,
+            self.validation_record_liquidation_semantics_contract_ref,
+            self.validation_record_reduce_only_semantics_contract_ref,
+            self.validation_record_close_only_semantics_contract_ref,
+            self.validation_record_funding_semantics_contract_ref,
+            self.validation_record_order_semantics_contract_ref,
+            self.validation_record_cancel_semantics_contract_ref,
+            self.validation_record_reconciliation_semantics_contract_ref,
+        )
 
     @property
     def required_backend_contract(self) -> str:
@@ -331,6 +428,7 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityContract:
             f"{self.validation_record_execution_eligibility_contract_ref}.validation_record_order_semantics_ref",
             f"{self.validation_record_execution_eligibility_contract_ref}.validation_record_cancel_semantics_ref",
             f"{self.validation_record_execution_eligibility_contract_ref}.validation_record_reconciliation_semantics_ref",
+            f"{self.validation_record_execution_eligibility_contract_ref}.validation_record_semantic_contract_refs",
             f"{self.validation_record_execution_eligibility_contract_ref}.authority_flags",
         )
 
@@ -349,6 +447,7 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityContract:
             self.validation_record_order_semantics_ref,
             self.validation_record_cancel_semantics_ref,
             self.validation_record_reconciliation_semantics_ref,
+            *self.validation_record_semantic_contract_refs,
             f"{self.validation_record_execution_eligibility_contract_ref}_field_manifest",
             f"{self.validation_record_execution_eligibility_contract_ref}_contextless_review",
         )
@@ -365,7 +464,9 @@ class FuturesRequestPayloadValidationRecordExecutionEligibilityContract:
             "validation record can make a futures/perpetual command executable. "
             "Runtime reads, browser display, and BFF forwarding cannot supply "
             "position, margin, collateral, liquidation, reduce-only, close-only, "
-            "funding, order, cancel, or reconciliation semantics."
+            "funding, order, cancel, or reconciliation semantics. The semantic "
+            "contract rows may be present as backend-owned disabled evidence, "
+            "but none are ready or runtime-accepted."
         )
 
 

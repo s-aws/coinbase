@@ -16,9 +16,13 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 futures/perpetual request payload validation record reconciliation
-semantics for `GET /api/v1/futures/command-suite`: futures request
-payload contract registry evidence; futures request payload validator contract
+Current M57 `7001-7020` futures/perpetual request payload validation record
+execution-eligibility semantic closure for
+`GET /api/v1/futures/command-suite`: futures request payload validation record
+execution-eligibility semantic closure evidence; futures request payload
+validation record execution-eligibility evidence; futures request payload
+validation record execution-eligibility blocker evidence; carried-forward
+futures request payload contract registry evidence; futures request payload validator contract
 registry evidence; futures request payload validator input-schema evidence;
 futures request payload validator output-schema evidence; futures request
 payload validator registration evidence; futures request payload validation
@@ -41,8 +45,9 @@ validation record liquidation semantics; futures request payload validation
 record reduce-only semantics; futures request payload validation record
 close-only semantics; futures request payload validation record funding
 semantics; futures request payload validation record order semantics; futures
-request payload validation record cancel semantics; futures request payload
-validation record reconciliation semantics. Source registries include
+request payload validation record cancel semantics; and completed
+`6981-7000` futures request payload validation record reconciliation
+semantics. Source registries include
 `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
 `iter_futures_request_payload_contracts`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
@@ -98,7 +103,34 @@ validation record reconciliation semantics. Source registries include
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
 and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
 
-Representative command-suite keys: `request_payload_validator_contract_count`,
+Current semantic closure source files are
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`.
+They expose present disabled contract evidence, not readiness or runtime
+acceptance. Semantic contract presence is not runtime acceptance, command
+admission, Coinbase execution, reconciliation execution,
+futures/order/exchange mutation, browser/BFF execution authority, or
+spot-rule authority.
+
+Representative command-suite keys:
+`validation_record_position_semantics_contract_ref`,
+`validation_record_margin_semantics_contract_ref`,
+`validation_record_collateral_semantics_contract_ref`,
+`validation_record_liquidation_semantics_contract_ref`,
+`validation_record_reduce_only_semantics_contract_ref`,
+`validation_record_close_only_semantics_contract_ref`,
+`validation_record_funding_semantics_contract_ref`,
+`validation_record_order_semantics_contract_ref`,
+`validation_record_cancel_semantics_contract_ref`,
+`validation_record_reconciliation_semantics_contract_ref`,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`,
+`validation_record_semantic_contracts_ready=false`,
+`semantic_contract_ref`, `semantic_contract_present=true`,
+`semantic_contract_ready=false`,
+`request_payload_validator_contract_count`,
 `blocking_request_payload_validator_contract_count`,
 `request_payload_validator_input_schema_count`,
 `blocking_request_payload_validator_input_schema_count`,
@@ -160,7 +192,8 @@ runtime_reconciliation_evidence_observed=false,
 runtime_evidence_satisfies_reconciliation_semantics=false, and
 validation_record_reconciliation_semantics_ready=false.
 
-Carried-forward execution-eligibility refs remain visible:
+Current execution-eligibility semantic closure refs are authoritative
+display-only evidence:
 `validation_record_execution_eligibility_contract_ref`,
 `validation_record_position_semantics_ref`,
 `validation_record_margin_semantics_ref`,
@@ -172,9 +205,27 @@ Carried-forward execution-eligibility refs remain visible:
 `validation_record_order_semantics_ref`,
 `validation_record_cancel_semantics_ref`,
 `validation_record_reconciliation_semantics_ref`,
+`validation_record_position_semantics_contract_ref`,
+`validation_record_margin_semantics_contract_ref`,
+`validation_record_collateral_semantics_contract_ref`,
+`validation_record_liquidation_semantics_contract_ref`,
+`validation_record_reduce_only_semantics_contract_ref`,
+`validation_record_close_only_semantics_contract_ref`,
+`validation_record_funding_semantics_contract_ref`,
+`validation_record_order_semantics_contract_ref`,
+`validation_record_cancel_semantics_contract_ref`,
+`validation_record_reconciliation_semantics_contract_ref`,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
 `validation_record_execution_eligibility_field_refs`,
+`validation_record_semantic_contracts_present=true`,
+`validation_record_semantic_contracts_ready=false`,
+`semantic_contract_ref`, `semantic_contract_present=true`,
+`semantic_contract_ready=false`,
 runtime_evidence_satisfies_validation_record_execution_eligibility=false, and
-validation_record_execution_eligibility_contract_ready=false.
+validation_record_execution_eligibility_contract_ready=false. Present
+semantic contract rows are not validators, not runtime-accepted contracts, and
+not command execution authority.
 
 False flags remain validation_gate_ready=false,
 validation_gate_passed=false, output_schema_registered=false,

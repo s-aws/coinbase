@@ -22873,6 +22873,42 @@ class AdminApiReadService:
                     validation_record_reconciliation_semantics_ref=(
                         contract.validation_record_reconciliation_semantics_ref
                     ),
+                    validation_record_position_semantics_contract_ref=(
+                        contract.validation_record_position_semantics_contract_ref
+                    ),
+                    validation_record_margin_semantics_contract_ref=(
+                        contract.validation_record_margin_semantics_contract_ref
+                    ),
+                    validation_record_collateral_semantics_contract_ref=(
+                        contract.validation_record_collateral_semantics_contract_ref
+                    ),
+                    validation_record_liquidation_semantics_contract_ref=(
+                        contract.validation_record_liquidation_semantics_contract_ref
+                    ),
+                    validation_record_reduce_only_semantics_contract_ref=(
+                        contract.validation_record_reduce_only_semantics_contract_ref
+                    ),
+                    validation_record_close_only_semantics_contract_ref=(
+                        contract.validation_record_close_only_semantics_contract_ref
+                    ),
+                    validation_record_funding_semantics_contract_ref=(
+                        contract.validation_record_funding_semantics_contract_ref
+                    ),
+                    validation_record_order_semantics_contract_ref=(
+                        contract.validation_record_order_semantics_contract_ref
+                    ),
+                    validation_record_cancel_semantics_contract_ref=(
+                        contract.validation_record_cancel_semantics_contract_ref
+                    ),
+                    validation_record_reconciliation_semantics_contract_ref=(
+                        contract.validation_record_reconciliation_semantics_contract_ref
+                    ),
+                    validation_record_semantic_contract_refs=list(
+                        contract.validation_record_semantic_contract_refs
+                    ),
+                    validation_record_semantic_contract_ref_count=len(
+                        contract.validation_record_semantic_contract_refs
+                    ),
                     required_backend_contract=contract.required_backend_contract,
                     missing_backend_contract=contract.missing_backend_contract,
                     validation_record_execution_eligibility_field_refs=list(
@@ -22927,6 +22963,12 @@ class AdminApiReadService:
                     ),
                     validation_record_reconciliation_semantics_ready=(
                         contract.validation_record_reconciliation_semantics_ready
+                    ),
+                    validation_record_semantic_contracts_present=(
+                        contract.validation_record_semantic_contracts_present
+                    ),
+                    validation_record_semantic_contracts_ready=(
+                        contract.validation_record_semantic_contracts_ready
                     ),
                     validation_record_admission_link_contract_ready=(
                         contract.validation_record_admission_link_contract_ready
@@ -23048,6 +23090,7 @@ class AdminApiReadService:
                         contract.validation_record_execution_eligibility_blocker_ref
                     ),
                     semantic_ref=contract.semantic_ref,
+                    semantic_contract_ref=contract.semantic_contract_ref,
                     required_backend_artifact_ref=(
                         contract.required_backend_artifact_ref
                     ),
@@ -23067,6 +23110,8 @@ class AdminApiReadService:
                     backend_owned=contract.backend_owned,
                     read_only=contract.read_only,
                     spot_rule_authority=contract.spot_rule_authority,
+                    semantic_contract_present=contract.semantic_contract_present,
+                    semantic_contract_ready=contract.semantic_contract_ready,
                     semantic_ready=contract.semantic_ready,
                     runtime_evidence_observed=contract.runtime_evidence_observed,
                     runtime_evidence_satisfies_execution_eligibility_blocker=(

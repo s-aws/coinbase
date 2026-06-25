@@ -54244,14 +54244,38 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert (
         place_validation_record_execution_eligibilities[
             "product_id"
+        ].validation_record_position_semantics_contract_ref
+        == "application/admin_api/futures_request_payload_validation_record_position_semantics.py::futures_place_product_id_position_semantics_contract"
+    )
+    assert (
+        place_validation_record_execution_eligibilities[
+            "product_id"
+        ].validation_record_semantic_contract_ref_count
+        == 10
+    )
+    assert (
+        place_validation_record_execution_eligibilities[
+            "product_id"
+        ].validation_record_semantic_contracts_present
+        is True
+    )
+    assert (
+        place_validation_record_execution_eligibilities[
+            "product_id"
+        ].validation_record_semantic_contracts_ready
+        is False
+    )
+    assert (
+        place_validation_record_execution_eligibilities[
+            "product_id"
         ].validation_record_execution_eligibility_field_count
-        == 12
+        == 13
     )
     assert (
         place_validation_record_execution_eligibilities[
             "product_id"
         ].required_evidence_count
-        == 38
+        == 48
     )
     assert (
         place_validation_record_execution_eligibilities[
@@ -54379,13 +54403,21 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
             "product_id"
         ].validation_record_position_semantics_ref
     )
+    assert (
+        product_position_blocker.semantic_contract_ref
+        == place_validation_record_execution_eligibilities[
+            "product_id"
+        ].validation_record_position_semantics_contract_ref
+    )
+    assert product_position_blocker.semantic_contract_present is True
+    assert product_position_blocker.semantic_contract_ready is False
     assert product_position_blocker.required_backend_contract in (
         place.required_backend_contracts
     )
     assert product_position_blocker.required_backend_artifact_ref.endswith(
         "_backend_contract"
     )
-    assert product_position_blocker.required_evidence_count == 5
+    assert product_position_blocker.required_evidence_count == 6
     assert product_position_blocker.missing_evidence_refs == (
         product_position_blocker.required_evidence_refs
     )

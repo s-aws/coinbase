@@ -49,43 +49,36 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 6981-7000
+## Current Active Phases 7001-7020
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Reconciliation Semantics.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Semantic Closure Evidence.
 
-Current M57 work adds disabled futures request payload validation record
-reconciliation semantics after completed `6961-6980` cancel semantics. The
-backend-owned contract is
-`application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`
-with
-`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`
-and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
-The command suite must expose
-`request_payload_validation_record_reconciliation_semantic_count`,
-`blocking_request_payload_validation_record_reconciliation_semantic_count`,
-`ready_request_payload_validation_record_reconciliation_semantic_count`,
-`runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
-and `request_payload_validation_record_reconciliation_semantics`.
+Current M57 work adds backend-owned disabled semantic closure fields to futures
+request payload validation record execution-eligibility and blocker rows after
+completed `6981-7000` reconciliation semantics. The backend-owned contract is
+implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+Admin API models/read-service serialization, and generated OpenAPI. The command
+suite must expose the ten `validation_record_*_semantics_contract_ref` fields,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`,
+`validation_record_semantic_contracts_ready=false`, blocker
+`semantic_contract_ref`, `semantic_contract_present=true`, and
+`semantic_contract_ready=false`.
 
-The rows are no-live display evidence only. They keep
-`reconciliation_semantics_contract_available=false`,
-`reconciliation_semantics_contract_ready=false`,
-`reconciliation_identity_bound=false`,
-`reconciliation_position_key_bound=false`, `reconciliation_plan_bound=false`,
-`reconciliation_reason_bound=false`,
-`post_exchange_reconciliation_bound=false`,
-`reconciliation_audit_bound=false`,
-`runtime_reconciliation_evidence_observed=false`,
-`runtime_evidence_satisfies_reconciliation_semantics=false`, and
-`validation_record_reconciliation_semantics_ready=false`. Completed cancel
-evidence from `6961-6980` remains carried forward through
-`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`.
+The rows are no-live display evidence only. Semantic contract presence is not
+readiness, runtime acceptance, command admission, Coinbase execution,
+reconciliation execution, futures/order/exchange state mutation, browser
+execution authority, BFF execution authority, or spot-rule authority. Completed
+reconciliation evidence from `6981-7000` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`.
 This work must not validate command payloads, accept runtime evidence, admit
 commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
 state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `6981-7000` evidence adds disabled futures request payload validation record reconciliation semantics while completed M57 `6961-6980` carries forward disabled futures request payload validation record cancel semantics.
-
+Exact autonomous phrase: Active M57 `7001-7020` evidence adds futures request payload validation record execution-eligibility semantic closure evidence while completed M57 `6981-7000` carries forward disabled futures request payload validation record reconciliation semantics.
 ## Historical Phases 5601-5620
 
 Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Evidence.

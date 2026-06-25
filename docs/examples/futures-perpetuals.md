@@ -11,21 +11,28 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6981-7000 range targets explicit M57 futures/perpetual request
-payload validation record reconciliation semantics for
+The active 7001-7020 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility semantic closure evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6981-7000"` and no-live reconciliation-semantics counts
-such as
+`"approved_phase_range": "7001-7020"` and no-live semantic closure fields such
+as `validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`,
+`validation_record_semantic_contracts_ready=false`, `semantic_contract_ref`,
+`semantic_contract_present=true`, and `semantic_contract_ready=false`.
+Completed 6981-7000 reconciliation semantics remain visible through counts such
+as
 `"request_payload_validation_record_reconciliation_semantic_count"`,
 `"blocking_request_payload_validation_record_reconciliation_semantic_count"`,
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 6981-7000 range is display-only and does not admit futures
-commands, bind live reconciliation or audit evidence, call Coinbase, execute
-reconciliation, mutate futures state, or grant browser/BFF authority.
-Completed 6961-6980 cancel semantics remain visible through counts such as
+The active 7001-7020 range is display-only and does not treat semantic contract
+presence as readiness, admit futures commands, bind live reconciliation or audit
+evidence, call Coinbase, execute reconciliation, mutate futures state, or grant
+browser/BFF authority. Completed 6961-6980 cancel semantics remain visible
+through counts such as
 `"request_payload_validation_record_cancel_semantic_count"`,
 `"blocking_request_payload_validation_record_cancel_semantic_count"`,
 `"ready_request_payload_validation_record_cancel_semantic_count"`,

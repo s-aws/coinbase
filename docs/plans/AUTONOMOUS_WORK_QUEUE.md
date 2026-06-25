@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6981-7000**.
+- Approved phase range: **7001-7020**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6961-6980`.
+- Previous completed range: `6981-7000`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6960`.
+- `current_phase`: `7000`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,155 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6981-7000
+## Active Phases 7001-7020
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Semantic Closure Evidence.
+
+These phases continue M57 after completed `6981-7000` exposed disabled futures
+request payload validation record reconciliation semantics. The concrete gap is
+that execution-eligibility and blocker rows now need to close the semantic-family
+ambiguity: the ten semantic contract rows are present as backend-owned disabled
+contract evidence, but their presence is not readiness, runtime acceptance,
+command admission, reconciliation execution, Coinbase execution, browser
+execution authority, BFF execution authority, or spot-rule authority. Active
+M57 `7001-7020` evidence adds futures request payload validation record
+execution-eligibility semantic closure evidence while completed M57 `6981-7000`
+carries forward disabled futures request payload validation record reconciliation
+semantics.
+
+Active `7001-7020` semantic-closure evidence is implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+backend Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/view-model display, and bounded mock fixtures. It adds
+`validation_record_position_semantics_contract_ref`,
+`validation_record_margin_semantics_contract_ref`,
+`validation_record_collateral_semantics_contract_ref`,
+`validation_record_liquidation_semantics_contract_ref`,
+`validation_record_reduce_only_semantics_contract_ref`,
+`validation_record_close_only_semantics_contract_ref`,
+`validation_record_funding_semantics_contract_ref`,
+`validation_record_order_semantics_contract_ref`,
+`validation_record_cancel_semantics_contract_ref`,
+`validation_record_reconciliation_semantics_contract_ref`,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`, and
+`validation_record_semantic_contracts_ready=false` to execution-eligibility rows.
+It adds `semantic_contract_ref`, `semantic_contract_present=true`, and
+`semantic_contract_ready=false` to execution-eligibility blocker rows while
+preserving the existing `required_backend_artifact_ref` shape for downstream
+semantic-artifact evidence.
+
+This range must not implement execution validators, accept semantic contracts as
+ready, accept runtime evidence, admit commands, execute reconciliation, mutate
+futures/order/exchange state, call Coinbase, create frontend/BFF trading logic,
+or apply spot wallet, no-shorting, USDC, cost-basis, average-cost, or inventory
+lot assumptions as futures/perpetual authority.
+
+Exact autonomous phrase: Active M57 `7001-7020` evidence adds futures request payload validation record execution-eligibility semantic closure evidence while completed M57 `6981-7000` carries forward disabled futures request payload validation record reconciliation semantics.
+
+### Phase 7001 - Prior Range Closure
+
+- Record completed `6981-7000` reconciliation-semantics evidence as historical
+  and move active metadata to `7001-7020`.
+
+### Phase 7002 - Execution Eligibility Semantic Contract Refs
+
+- Add backend-owned disabled semantic-contract refs for position, margin,
+  collateral, liquidation, reduce-only, close-only, funding, order, cancel, and
+  reconciliation semantics to every execution-eligibility row.
+
+### Phase 7003 - Semantic Contract Evidence Manifest
+
+- Add `validation_record_semantic_contract_refs` and its count to the execution
+  eligibility field manifest and required evidence refs.
+
+### Phase 7004 - Semantic Contract Readiness Flags
+
+- Keep `validation_record_semantic_contracts_present=true` and
+  `validation_record_semantic_contracts_ready=false` so contract presence is not
+  confused with execution readiness.
+
+### Phase 7005 - Blocker Contract Boundary
+
+- Add `semantic_contract_ref`, `semantic_contract_present=true`, and
+  `semantic_contract_ready=false` to execution-eligibility blockers while
+  preserving `required_backend_artifact_ref` for the missing artifact chain.
+
+### Phase 7006 - Missing Reason Semantics
+
+- Update blocker detail and missing reasons to say semantic contracts are present
+  only as disabled contract evidence and are not runtime-accepted.
+
+### Phase 7007 - Model And Read-Service Serialization
+
+- Expose the new execution-eligibility and blocker fields through backend Admin
+  API models and read-service serialization without adding commands.
+
+### Phase 7008 - OpenAPI Regeneration
+
+- Regenerate the backend OpenAPI contract from backend-owned models.
+
+### Phase 7009 - Frontend Generated Schema
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 7010 - Frontend Adapter Mapping
+
+- Map the new execution-eligibility semantic closure fields into typed futures
+  view models without adding browser validation or trading authority.
+
+### Phase 7011 - Frontend Display
+
+- Display semantic-contract refs, counts, and present/ready flags in the
+  futures/perpetuals read model.
+
+### Phase 7012 - Mock Backend Fixture
+
+- Update mock backend command-suite fixtures to emit the same semantic closure
+  contract shape as the backend.
+
+### Phase 7013 - Backend Focused Tests
+
+- Cover backend registry, read-service, OpenAPI, and no-live/no-authority
+  assertions for semantic closure evidence.
+
+### Phase 7014 - Frontend Focused Tests
+
+- Cover adapter mapping, UI rendering, mock backend, API check, and typecheck for
+  semantic closure display.
+
+### Phase 7015 - Autonomous Queue Validators
+
+- Update backend and frontend autonomous queue validators to require the current
+  `7001-7020` semantic closure evidence.
+
+### Phase 7016 - Documentation And Examples
+
+- Update Admin API, futures/perpetuals, examples, capability matrix, handoff,
+  API reference, testing, and agent-state docs.
+
+### Phase 7017 - Contextless Review
+
+- Run blind/contextless backend and frontend review and remediate any ambiguity
+  before proceeding.
+
+### Phase 7018 - Hygiene And Artifact Checks
+
+- Run stale-process and runtime-artifact reporting, record no-live notional
+  evidence, and close phase-scoped or stale unused subagents.
+
+### Phase 7019 - Focused Validation Summary
+
+- Record focused backend/frontend validation evidence and explicitly note that
+  full regression is deferred until a durable milestone closeout gate.
+
+### Phase 7020 - Commit And Push
+
+- Commit and push backend/frontend phase work after validation, review, and
+  hygiene evidence are recorded.
+## Completed Phases 6981-7000
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Reconciliation Semantics.
 
@@ -97,7 +245,7 @@ payload validation record reconciliation semantics while completed M57
 `6961-6980` carries forward disabled futures request payload validation record
 cancel semantics.
 
-Active `6981-7000` reconciliation-semantics evidence is implemented through
+Completed `6981-7000` reconciliation-semantics evidence is implemented through
 `application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
 and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
@@ -131,7 +279,7 @@ proofs as command readiness, or grant browser/BFF execution authority. Spot
 wallet, no-shorting, USDC, cost-basis, average-cost, and inventory-lot
 assumptions remain forbidden as futures/perpetual authority.
 
-Exact autonomous phrase: Active M57 `6981-7000` evidence adds disabled futures request payload validation record reconciliation semantics while completed M57 `6961-6980` carries forward disabled futures request payload validation record cancel semantics.
+Completed autonomous phrase: Completed M57 `6981-7000` evidence added disabled futures request payload validation record reconciliation semantics while completed M57 `6961-6980` carries forward disabled futures request payload validation record cancel semantics.
 
 ### Phase 6981 - Prior Range Closure
 

@@ -4825,6 +4825,18 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem(
     validation_record_order_semantics_ref: str
     validation_record_cancel_semantics_ref: str
     validation_record_reconciliation_semantics_ref: str
+    validation_record_position_semantics_contract_ref: str
+    validation_record_margin_semantics_contract_ref: str
+    validation_record_collateral_semantics_contract_ref: str
+    validation_record_liquidation_semantics_contract_ref: str
+    validation_record_reduce_only_semantics_contract_ref: str
+    validation_record_close_only_semantics_contract_ref: str
+    validation_record_funding_semantics_contract_ref: str
+    validation_record_order_semantics_contract_ref: str
+    validation_record_cancel_semantics_contract_ref: str
+    validation_record_reconciliation_semantics_contract_ref: str
+    validation_record_semantic_contract_refs: list[str] = Field(default_factory=list)
+    validation_record_semantic_contract_ref_count: int = Field(default=0, ge=0)
     required_backend_contract: str
     missing_backend_contract: str
     validation_record_execution_eligibility_field_refs: list[str] = Field(
@@ -4855,6 +4867,8 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem(
     validation_record_order_semantics_ready: bool = False
     validation_record_cancel_semantics_ready: bool = False
     validation_record_reconciliation_semantics_ready: bool = False
+    validation_record_semantic_contracts_present: bool = True
+    validation_record_semantic_contracts_ready: bool = False
     validation_record_admission_link_contract_ready: bool = False
     validation_record_admission_link_ready: bool = False
     validation_record_approval_snapshot_bound: bool = False
@@ -4915,6 +4929,7 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlock
     validation_record_execution_eligibility_contract_ref: str
     validation_record_execution_eligibility_blocker_ref: str
     semantic_ref: str
+    semantic_contract_ref: str
     required_backend_artifact_ref: str
     required_backend_contract: str
     missing_backend_contract: str
@@ -4928,6 +4943,8 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlock
     backend_owned: bool = True
     read_only: bool = True
     spot_rule_authority: bool = False
+    semantic_contract_present: bool = True
+    semantic_contract_ready: bool = False
     semantic_ready: bool = False
     runtime_evidence_observed: bool = False
     runtime_evidence_satisfies_execution_eligibility_blocker: bool = False

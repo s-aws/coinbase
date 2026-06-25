@@ -17412,6 +17412,9 @@ components:
         semantic_ref:
           type: string
           title: Semantic Ref
+        semantic_contract_ref:
+          type: string
+          title: Semantic Contract Ref
         required_backend_artifact_ref:
           type: string
           title: Required Backend Artifact Ref
@@ -17466,6 +17469,14 @@ components:
           type: boolean
           title: Spot Rule Authority
           default: false
+        semantic_contract_present:
+          type: boolean
+          title: Semantic Contract Present
+          default: true
+        semantic_contract_ready:
+          type: boolean
+          title: Semantic Contract Ready
+          default: false
         semantic_ready:
           type: boolean
           title: Semantic Ready
@@ -17513,6 +17524,7 @@ components:
       - validation_record_execution_eligibility_contract_ref
       - validation_record_execution_eligibility_blocker_ref
       - semantic_ref
+      - semantic_contract_ref
       - required_backend_artifact_ref
       - required_backend_contract
       - missing_backend_contract
@@ -17671,6 +17683,46 @@ components:
         validation_record_reconciliation_semantics_ref:
           type: string
           title: Validation Record Reconciliation Semantics Ref
+        validation_record_position_semantics_contract_ref:
+          type: string
+          title: Validation Record Position Semantics Contract Ref
+        validation_record_margin_semantics_contract_ref:
+          type: string
+          title: Validation Record Margin Semantics Contract Ref
+        validation_record_collateral_semantics_contract_ref:
+          type: string
+          title: Validation Record Collateral Semantics Contract Ref
+        validation_record_liquidation_semantics_contract_ref:
+          type: string
+          title: Validation Record Liquidation Semantics Contract Ref
+        validation_record_reduce_only_semantics_contract_ref:
+          type: string
+          title: Validation Record Reduce Only Semantics Contract Ref
+        validation_record_close_only_semantics_contract_ref:
+          type: string
+          title: Validation Record Close Only Semantics Contract Ref
+        validation_record_funding_semantics_contract_ref:
+          type: string
+          title: Validation Record Funding Semantics Contract Ref
+        validation_record_order_semantics_contract_ref:
+          type: string
+          title: Validation Record Order Semantics Contract Ref
+        validation_record_cancel_semantics_contract_ref:
+          type: string
+          title: Validation Record Cancel Semantics Contract Ref
+        validation_record_reconciliation_semantics_contract_ref:
+          type: string
+          title: Validation Record Reconciliation Semantics Contract Ref
+        validation_record_semantic_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Validation Record Semantic Contract Refs
+        validation_record_semantic_contract_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Validation Record Semantic Contract Ref Count
+          default: 0
         required_backend_contract:
           type: string
           title: Required Backend Contract
@@ -17766,6 +17818,14 @@ components:
         validation_record_reconciliation_semantics_ready:
           type: boolean
           title: Validation Record Reconciliation Semantics Ready
+          default: false
+        validation_record_semantic_contracts_present:
+          type: boolean
+          title: Validation Record Semantic Contracts Present
+          default: true
+        validation_record_semantic_contracts_ready:
+          type: boolean
+          title: Validation Record Semantic Contracts Ready
           default: false
         validation_record_admission_link_contract_ready:
           type: boolean
@@ -17979,6 +18039,16 @@ components:
       - validation_record_order_semantics_ref
       - validation_record_cancel_semantics_ref
       - validation_record_reconciliation_semantics_ref
+      - validation_record_position_semantics_contract_ref
+      - validation_record_margin_semantics_contract_ref
+      - validation_record_collateral_semantics_contract_ref
+      - validation_record_liquidation_semantics_contract_ref
+      - validation_record_reduce_only_semantics_contract_ref
+      - validation_record_close_only_semantics_contract_ref
+      - validation_record_funding_semantics_contract_ref
+      - validation_record_order_semantics_contract_ref
+      - validation_record_cancel_semantics_contract_ref
+      - validation_record_reconciliation_semantics_contract_ref
       - required_backend_contract
       - missing_backend_contract
       - detail

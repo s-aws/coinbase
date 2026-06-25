@@ -992,6 +992,8 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         and contract.validation_record_order_semantics_ready is False
         and contract.validation_record_cancel_semantics_ready is False
         and contract.validation_record_reconciliation_semantics_ready is False
+        and contract.validation_record_semantic_contracts_present is True
+        and contract.validation_record_semantic_contracts_ready is False
         and contract.validation_record_admission_link_contract_ready is False
         and contract.validation_record_admission_link_ready is False
         and contract.validation_record_approval_snapshot_bound is False
@@ -1065,14 +1067,49 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         and contract.validation_record_reconciliation_semantics_ref.endswith(
             "_request_payload_validation_record_execution_eligibility_reconciliation_semantics"
         )
-        and len(contract.validation_record_execution_eligibility_field_refs) == 12
+        and contract.validation_record_position_semantics_contract_ref.endswith(
+            "_position_semantics_contract"
+        )
+        and contract.validation_record_margin_semantics_contract_ref.endswith(
+            "_margin_semantics_contract"
+        )
+        and contract.validation_record_collateral_semantics_contract_ref.endswith(
+            "_collateral_semantics_contract"
+        )
+        and contract.validation_record_liquidation_semantics_contract_ref.endswith(
+            "_liquidation_semantics_contract"
+        )
+        and contract.validation_record_reduce_only_semantics_contract_ref.endswith(
+            "_reduce_only_semantics_contract"
+        )
+        and contract.validation_record_close_only_semantics_contract_ref.endswith(
+            "_close_only_semantics_contract"
+        )
+        and contract.validation_record_funding_semantics_contract_ref.endswith(
+            "_funding_semantics_contract"
+        )
+        and contract.validation_record_order_semantics_contract_ref.endswith(
+            "_order_semantics_contract"
+        )
+        and contract.validation_record_cancel_semantics_contract_ref.endswith(
+            "_cancel_semantics_contract"
+        )
+        and contract.validation_record_reconciliation_semantics_contract_ref.endswith(
+            "_reconciliation_semantics_contract"
+        )
+        and len(contract.validation_record_semantic_contract_refs) == 10
+        and all(
+            semantic_contract_ref.endswith("_semantics_contract")
+            for semantic_contract_ref in contract.validation_record_semantic_contract_refs
+        )
+        and len(contract.validation_record_execution_eligibility_field_refs) == 13
         and all(
             field_ref.startswith(
                 contract.validation_record_execution_eligibility_contract_ref
             )
             for field_ref in contract.validation_record_execution_eligibility_field_refs
         )
-        and len(contract.required_evidence_refs) == 38
+        and len(contract.required_evidence_refs) == 48
         and contract.missing_evidence_refs == contract.required_evidence_refs
         and contract.browser_authority == "display_only"
         and contract.bff_authority == "forward_only_no_execution"
@@ -1100,6 +1137,8 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         and contract.backend_owned is True
         and contract.read_only is True
         and contract.spot_rule_authority is False
+        and contract.semantic_contract_present is True
+        and contract.semantic_contract_ready is False
         and contract.semantic_ready is False
         and contract.runtime_evidence_observed is False
         and contract.runtime_evidence_satisfies_execution_eligibility_blocker
@@ -1115,6 +1154,8 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         and contract.semantic_ref.startswith(
             contract.validation_record_execution_eligibility_contract_ref
         )
+        and contract.semantic_contract_ref.startswith("application/admin_api/")
+        and contract.semantic_contract_ref.endswith("_semantics_contract")
         and contract.required_backend_artifact_ref.endswith("_backend_contract")
         and contract.required_backend_contract
         == contract.validation_record_execution_eligibility_blocker_ref
@@ -1122,7 +1163,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         == contract.required_backend_artifact_ref
         and len(contract.forbidden_execution_claims) == 7
         and "spot_rule_authority" in contract.forbidden_execution_claims
-        and len(contract.required_evidence_refs) == 5
+        and len(contract.required_evidence_refs) == 6
         and contract.missing_evidence_refs == contract.required_evidence_refs
         and contract.browser_authority == "display_only"
         and contract.bff_authority == "forward_only_no_execution"
@@ -4044,6 +4085,52 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 emitted.validation_record_reconciliation_semantics_ref
                 == contract.validation_record_reconciliation_semantics_ref
             )
+            assert (
+                emitted.validation_record_position_semantics_contract_ref
+                == contract.validation_record_position_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_margin_semantics_contract_ref
+                == contract.validation_record_margin_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_collateral_semantics_contract_ref
+                == contract.validation_record_collateral_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_liquidation_semantics_contract_ref
+                == contract.validation_record_liquidation_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_reduce_only_semantics_contract_ref
+                == contract.validation_record_reduce_only_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_close_only_semantics_contract_ref
+                == contract.validation_record_close_only_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_funding_semantics_contract_ref
+                == contract.validation_record_funding_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_order_semantics_contract_ref
+                == contract.validation_record_order_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_cancel_semantics_contract_ref
+                == contract.validation_record_cancel_semantics_contract_ref
+            )
+            assert (
+                emitted.validation_record_reconciliation_semantics_contract_ref
+                == contract.validation_record_reconciliation_semantics_contract_ref
+            )
+            assert emitted.validation_record_semantic_contract_refs == list(
+                contract.validation_record_semantic_contract_refs
+            )
+            assert emitted.validation_record_semantic_contract_ref_count == len(
+                contract.validation_record_semantic_contract_refs
+            )
             assert emitted.required_backend_contract == contract.required_backend_contract
             assert emitted.missing_backend_contract == contract.missing_backend_contract
             assert emitted.validation_record_execution_eligibility_field_refs == list(
@@ -4082,6 +4169,8 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert emitted.validation_record_order_semantics_ready is False
             assert emitted.validation_record_cancel_semantics_ready is False
             assert emitted.validation_record_reconciliation_semantics_ready is False
+            assert emitted.validation_record_semantic_contracts_present is True
+            assert emitted.validation_record_semantic_contracts_ready is False
             assert emitted.validation_record_admission_link_contract_ready is False
             assert emitted.validation_record_admission_link_ready is False
             assert emitted.validation_record_approval_snapshot_bound is False
@@ -4145,6 +4234,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 == contract.validation_record_execution_eligibility_blocker_ref
             )
             assert emitted.semantic_ref == contract.semantic_ref
+            assert emitted.semantic_contract_ref == contract.semantic_contract_ref
             assert (
                 emitted.required_backend_artifact_ref
                 == contract.required_backend_artifact_ref
@@ -4171,6 +4261,8 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert emitted.backend_owned == contract.backend_owned
             assert emitted.read_only == contract.read_only
             assert emitted.spot_rule_authority == contract.spot_rule_authority
+            assert emitted.semantic_contract_present is True
+            assert emitted.semantic_contract_ready is False
             assert emitted.semantic_ready is False
             assert emitted.runtime_evidence_observed is False
             assert (

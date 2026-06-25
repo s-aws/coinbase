@@ -735,35 +735,30 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6981-7000 add disabled futures request payload validation
-record reconciliation semantics through
+Current M57 phases 7001-7020 add futures request payload validation record
+execution-eligibility semantic closure evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite execution-eligibility rows expose the ten
+`validation_record_*_semantics_contract_ref` fields,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`, and
+`validation_record_semantic_contracts_ready=false`. Blocker rows expose
+`semantic_contract_ref`, `semantic_contract_present=true`, and
+`semantic_contract_ready=false` while preserving the existing
+`required_backend_artifact_ref` shape for downstream semantic-artifact evidence.
+Semantic contract presence is disabled evidence only; it does not accept runtime
+evidence, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+Completed M57 `6981-7000` carries forward disabled futures request payload
+validation record reconciliation semantics through
 `application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
 and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
-Command-suite
-`request_payload_validation_record_reconciliation_semantic_count`,
-`blocking_request_payload_validation_record_reconciliation_semantic_count`,
-`ready_request_payload_validation_record_reconciliation_semantic_count`,
-`runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
-and `request_payload_validation_record_reconciliation_semantics` remain
-backend-owned display evidence. Rows expose `reconciliation_semantics_ref`,
-`reconciliation_semantics_contract_ref`, `evidence_routes`,
-`reconciliation_semantics_contract_available=false`,
-`reconciliation_semantics_contract_ready=false`,
-`reconciliation_identity_bound=false`,
-`reconciliation_position_key_bound=false`,
-`reconciliation_plan_bound=false`, `reconciliation_reason_bound=false`,
-`post_exchange_reconciliation_bound=false`,
-`reconciliation_audit_bound=false`,
-`runtime_reconciliation_evidence_observed=false`,
-`runtime_evidence_satisfies_reconciliation_semantics=false`, and
-`validation_record_reconciliation_semantics_ready=false` while preserving no
-payload validation, no reconciliation semantics acceptance, no reconciliation
-or audit evidence binding, no contextless review authority, no command
-admission, no Coinbase calls, no reconciliation execution, no
-futures/order/exchange state mutation, and no browser/BFF or spot-rule
-authority. Completed M57 `6961-6980` carries forward disabled futures request
-payload validation record cancel semantics through
+Completed M57 `6961-6980` carries forward disabled futures request payload
+validation record cancel semantics through
 `application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`, and
 `iter_futures_request_payload_validation_record_cancel_semantics`.

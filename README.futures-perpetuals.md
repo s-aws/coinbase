@@ -54,10 +54,12 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `6981-7000` evidence adds disabled futures request payload
-  validation record reconciliation semantics while completed M57 `6961-6980`
-  carries forward disabled futures request payload validation record cancel
-  semantics, completed M57 `6941-6960` carries forward disabled futures request
+- Active M57 `7001-7020` evidence adds futures request payload validation
+  record execution-eligibility semantic closure evidence while completed M57
+  `6981-7000` carries forward disabled futures request payload validation
+  record reconciliation semantics, completed M57 `6961-6980` carries forward
+  disabled futures request payload validation record cancel semantics, completed
+  M57 `6941-6960` carries forward disabled futures request
   payload validation record order semantics, and completed M57 `6921-6940`
   carries forward disabled futures
   request payload validation record funding
@@ -94,6 +96,18 @@ and notional evidence fields.
   `validation_record_order_semantics_ref`,
   `validation_record_cancel_semantics_ref`,
   `validation_record_reconciliation_semantics_ref`,
+  `validation_record_position_semantics_contract_ref`,
+  `validation_record_margin_semantics_contract_ref`,
+  `validation_record_collateral_semantics_contract_ref`,
+  `validation_record_liquidation_semantics_contract_ref`,
+  `validation_record_reduce_only_semantics_contract_ref`,
+  `validation_record_close_only_semantics_contract_ref`,
+  `validation_record_funding_semantics_contract_ref`,
+  `validation_record_order_semantics_contract_ref`,
+  `validation_record_cancel_semantics_contract_ref`,
+  `validation_record_reconciliation_semantics_contract_ref`,
+  `validation_record_semantic_contract_refs`,
+  `validation_record_semantic_contract_ref_count`,
   `validation_record_execution_eligibility_field_refs`,
   `validation_record_execution_eligibility_field_count`,
   `runtime_evidence_satisfies_validation_record_execution_eligibility=false`,
@@ -108,8 +122,11 @@ and notional evidence fields.
   validation_record_funding_semantics_ready=false,
   validation_record_order_semantics_ready=false,
   validation_record_cancel_semantics_ready=false, and
-  validation_record_reconciliation_semantics_ready=false. This evidence is disabled and
-  does not make admitted futures/perpetual validation records executable,
+  validation_record_reconciliation_semantics_ready=false. Semantic contract
+  rows are present as disabled evidence through
+  validation_record_semantic_contracts_present=true, but
+  validation_record_semantic_contracts_ready=false. This evidence is disabled
+  and does not make admitted futures/perpetual validation records executable,
   encode futures position/margin/collateral/liquidation/reduce-only/close-only/
   funding/order/cancel/reconciliation semantics, call Coinbase, mutate futures
   state, or grant browser/BFF or spot-rule authority.
@@ -377,8 +394,8 @@ and notional evidence fields.
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Exact autonomous phrase: Active M57 `6981-7000` evidence adds disabled futures request payload validation record reconciliation semantics while completed M57 `6961-6980` carries forward disabled futures request payload validation record cancel semantics.
-  Literal machine-check phrase: futures request payload validation record reconciliation semantics.
+  Exact autonomous phrase: Active M57 `7001-7020` evidence adds futures request payload validation record execution-eligibility semantic closure evidence while completed M57 `6981-7000` carries forward disabled futures request payload validation record reconciliation semantics.
+  Literal machine-check phrase: futures request payload validation record execution-eligibility semantic closure evidence.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
