@@ -13,8 +13,8 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6901-6920"`. Futures/perpetual command-suite reads
-expose backend-owned disabled close-only semantics while
+`"approved_phase_range": "6921-6940"`. Futures/perpetual command-suite reads
+expose backend-owned disabled funding semantics while
 carrying forward earlier semantic artifact runtime evidence binding,
 semantic artifact definition review output acceptance,
 semantic artifact definition review output, semantic artifact definition
@@ -74,9 +74,24 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
 `iter_futures_request_payload_validation_record_reduce_only_semantics`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
-and `iter_futures_request_payload_validation_record_close_only_semantics`.
+`iter_futures_request_payload_validation_record_close_only_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_funding_semantics`.
 
-Active close-only-semantics rows expose
+Active funding-semantics rows expose
+`request_payload_validation_record_funding_semantic_count`,
+`blocking_request_payload_validation_record_funding_semantic_count`,
+`ready_request_payload_validation_record_funding_semantic_count`,
+`runtime_observed_request_payload_validation_record_funding_semantic_count`,
+`request_payload_validation_record_funding_semantics`,
+`funding_semantics_ref`, `funding_semantics_contract_ref`,
+`evidence_routes`, `funding_semantics_contract_available=false`,
+`funding_semantics_contract_ready=false`, `funding_rate_bound=false`,
+`funding_fee_bound=false`, `funding_interval_bound=false`,
+`funding_cost_bound=false`, `runtime_funding_evidence_observed=false`,
+`runtime_evidence_satisfies_funding_semantics=false`, and
+`validation_record_funding_semantics_ready=false`. Completed
+close-only-semantics rows expose
 `request_payload_validation_record_close_only_semantic_count`,
 `blocking_request_payload_validation_record_close_only_semantic_count`,
 `ready_request_payload_validation_record_close_only_semantic_count`,

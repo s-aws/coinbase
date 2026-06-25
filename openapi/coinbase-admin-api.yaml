@@ -13983,6 +13983,32 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordCloseOnlySemanticItem'
           type: array
           title: Request Payload Validation Record Close Only Semantics
+        request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Funding Semantic Count
+          default: 0
+        blocking_request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Funding Semantic Count
+          default: 0
+        ready_request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Funding Semantic Count
+          default: 0
+        runtime_observed_request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Funding Semantic
+            Count
+          default: 0
+        request_payload_validation_record_funding_semantics:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordFundingSemanticItem'
+          type: array
+          title: Request Payload Validation Record Funding Semantics
         semantic_guard_count:
           type: integer
           minimum: 0.0
@@ -17648,6 +17674,233 @@ components:
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem
       description: One disabled validation-record execution-eligibility row.
+    AdminFuturesCommandRequestPayloadValidationRecordFundingSemanticItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        blocker:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityBlocker'
+        semantic_artifact:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticArtifact'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        validation_record_execution_eligibility_contract_ref:
+          type: string
+          title: Validation Record Execution Eligibility Contract Ref
+        validation_record_execution_eligibility_blocker_ref:
+          type: string
+          title: Validation Record Execution Eligibility Blocker Ref
+        semantic_ref:
+          type: string
+          title: Semantic Ref
+        semantic_artifact_ref:
+          type: string
+          title: Semantic Artifact Ref
+        semantic_artifact_contract_ref:
+          type: string
+          title: Semantic Artifact Contract Ref
+        semantic_artifact_definition_ref:
+          type: string
+          title: Semantic Artifact Definition Ref
+        semantic_artifact_definition_contract_ref:
+          type: string
+          title: Semantic Artifact Definition Contract Ref
+        semantic_artifact_definition_review_ref:
+          type: string
+          title: Semantic Artifact Definition Review Ref
+        semantic_artifact_definition_review_contract_ref:
+          type: string
+          title: Semantic Artifact Definition Review Contract Ref
+        semantic_artifact_runtime_evidence_ref:
+          type: string
+          title: Semantic Artifact Runtime Evidence Ref
+        semantic_artifact_runtime_evidence_contract_ref:
+          type: string
+          title: Semantic Artifact Runtime Evidence Contract Ref
+        semantic_artifact_runtime_evidence_acceptance_ref:
+          type: string
+          title: Semantic Artifact Runtime Evidence Acceptance Ref
+        semantic_artifact_runtime_evidence_acceptance_contract_ref:
+          type: string
+          title: Semantic Artifact Runtime Evidence Acceptance Contract Ref
+        funding_semantics_ref:
+          type: string
+          title: Funding Semantics Ref
+        funding_semantics_contract_ref:
+          type: string
+          title: Funding Semantics Contract Ref
+        evidence_routes:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEvidenceRoute'
+          type: array
+          title: Evidence Routes
+        evidence_route_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Route Count
+          default: 0
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        missing_backend_contract:
+          type: string
+          title: Missing Backend Contract
+        missing_reason:
+          type: string
+          title: Missing Reason
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        forbidden_execution_claims:
+          items:
+            type: string
+          type: array
+          title: Forbidden Execution Claims
+        forbidden_execution_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Forbidden Execution Claim Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        contextless_review_required:
+          type: boolean
+          title: Contextless Review Required
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        funding_semantics_contract_available:
+          type: boolean
+          title: Funding Semantics Contract Available
+          default: false
+        funding_semantics_contract_ready:
+          type: boolean
+          title: Funding Semantics Contract Ready
+          default: false
+        funding_rate_bound:
+          type: boolean
+          title: Funding Rate Bound
+          default: false
+        funding_fee_bound:
+          type: boolean
+          title: Funding Fee Bound
+          default: false
+        funding_interval_bound:
+          type: boolean
+          title: Funding Interval Bound
+          default: false
+        funding_cost_bound:
+          type: boolean
+          title: Funding Cost Bound
+          default: false
+        runtime_funding_evidence_observed:
+          type: boolean
+          title: Runtime Funding Evidence Observed
+          default: false
+        runtime_evidence_satisfies_funding_semantics:
+          type: boolean
+          title: Runtime Evidence Satisfies Funding Semantics
+          default: false
+        semantic_artifact_runtime_evidence_acceptance_available:
+          type: boolean
+          title: Semantic Artifact Runtime Evidence Acceptance Available
+          default: false
+        semantic_artifact_runtime_evidence_acceptance_accepted:
+          type: boolean
+          title: Semantic Artifact Runtime Evidence Acceptance Accepted
+          default: false
+        validation_record_funding_semantics_ready:
+          type: boolean
+          title: Validation Record Funding Semantics Ready
+          default: false
+        validation_record_execution_eligible:
+          type: boolean
+          title: Validation Record Execution Eligible
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - blocker
+      - semantic_artifact
+      - validation_record_execution_eligibility_contract_ref
+      - validation_record_execution_eligibility_blocker_ref
+      - semantic_ref
+      - semantic_artifact_ref
+      - semantic_artifact_contract_ref
+      - semantic_artifact_definition_ref
+      - semantic_artifact_definition_contract_ref
+      - semantic_artifact_definition_review_ref
+      - semantic_artifact_definition_review_contract_ref
+      - semantic_artifact_runtime_evidence_ref
+      - semantic_artifact_runtime_evidence_contract_ref
+      - semantic_artifact_runtime_evidence_acceptance_ref
+      - semantic_artifact_runtime_evidence_acceptance_contract_ref
+      - funding_semantics_ref
+      - funding_semantics_contract_ref
+      - required_backend_contract
+      - missing_backend_contract
+      - missing_reason
+      - detail
+      title: AdminFuturesCommandRequestPayloadValidationRecordFundingSemanticItem
+      description: One disabled funding-semantics row required by futures validation
+        records.
     AdminFuturesCommandRequestPayloadValidationRecordLiquidationSemanticItem:
       properties:
         field:
@@ -33172,11 +33425,6 @@ components:
           minimum: 0.0
           title: Ready Record Validation Remediation Dependency Count
           default: 0
-        record_validation_remediation_dependencies:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem'
-          type: array
-          title: Record Validation Remediation Dependencies
         record_validation_remediation_dependency_work_item_count:
           type: integer
           minimum: 0.0
@@ -33192,11 +33440,6 @@ components:
           minimum: 0.0
           title: Ready Record Validation Remediation Dependency Work Item Count
           default: 0
-        record_validation_remediation_dependency_work_items:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem'
-          type: array
-          title: Record Validation Remediation Dependency Work Items
         record_validation_remediation_dependency_work_item_claim_trace_count:
           type: integer
           minimum: 0.0
@@ -33214,11 +33457,6 @@ components:
           title: Ready Record Validation Remediation Dependency Work Item Claim Trace
             Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_traces:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTrace'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Traces
         record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count:
           type: integer
           minimum: 0.0
@@ -33237,12 +33475,6 @@ components:
           title: Ready Record Validation Remediation Dependency Work Item Claim Trace
             Clearance Plan Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_trace_clearance_plans:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Plans
         record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count:
           type: integer
           minimum: 0.0
@@ -33267,12 +33499,6 @@ components:
           title: Completed Record Validation Remediation Dependency Work Item Claim
             Trace Clearance Step Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_trace_clearance_steps:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStep'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Steps
         record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count:
           type: integer
           minimum: 0.0
@@ -33297,12 +33523,6 @@ components:
           title: Completed Record Validation Remediation Dependency Work Item Claim
             Trace Clearance Step Review Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReview'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Reviews
         record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count:
           type: integer
           minimum: 0.0
@@ -33327,12 +33547,6 @@ components:
           title: Accepted Record Validation Remediation Dependency Work Item Claim
             Trace Clearance Step Review Input Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Inputs
         record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count:
           type: integer
           minimum: 0.0
@@ -33357,12 +33571,6 @@ components:
           title: Writer Available Record Validation Remediation Dependency Work Item
             Claim Trace Clearance Step Review Input Store Requirement Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirement'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Input Store Requirements
         record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count:
           type: integer
           minimum: 0.0
@@ -33387,12 +33595,6 @@ components:
           title: Accepted Record Validation Remediation Dependency Work Item Claim
             Trace Clearance Step Review Input Store Record Contract Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContract'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Input Store Record Contracts
         record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count:
           type: integer
           minimum: 0.0
@@ -33417,12 +33619,6 @@ components:
           title: Configured Record Validation Remediation Dependency Work Item Claim
             Trace Clearance Step Review Input Store Record Validation Count
           default: 0
-        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations:
-          items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidation'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Input Store Record Validations
         ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count
         : type: integer
           minimum: 0.0
@@ -33449,12 +33645,6 @@ components:
             Trace Clearance Step Review Input Store Record Validation Remediation
             Count
           default: 0
-        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations
-        : items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediation'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Input Store Record Validation Remediations
         ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count
         : type: integer
           minimum: 0.0
@@ -33482,12 +33672,6 @@ components:
             Trace Clearance Step Review Input Store Record Validation Remediation
             Dependency Count
           default: 0
-        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies
-        : items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependency'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Input Store Record Validation Remediation Dependencies
         ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count
         : type: integer
           minimum: 0.0
@@ -33544,13 +33728,6 @@ components:
             Trace Clearance Step Review Input Store Record Validation Remediation
             Dependency Work Item Claim Trace Count
           default: 0
-        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces
-        : items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Input Store Record Validation Remediation Dependency Work
-            Item Claim Traces
         ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
         : type: integer
           minimum: 0.0
@@ -33572,13 +33749,6 @@ components:
             Clearance Step Review Input Store Record Validation Remediation Dependency
             Work Item Claim Trace Clearance Plan Count
           default: 0
-        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
-        : items:
-            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan'
-          type: array
-          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
-            Step Review Input Store Record Validation Remediation Dependency Work
-            Item Claim Trace Clearance Plans
         ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
         : type: integer
           minimum: 0.0
@@ -35832,6 +36002,27 @@ components:
           type: integer
           minimum: 0.0
           title: Runtime Observed Request Payload Validation Record Close Only Semantic
+            Count
+          default: 0
+        request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Funding Semantic Count
+          default: 0
+        blocking_request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Funding Semantic Count
+          default: 0
+        ready_request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Funding Semantic Count
+          default: 0
+        runtime_observed_request_payload_validation_record_funding_semantic_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Request Payload Validation Record Funding Semantic
             Count
           default: 0
         semantic_guard_count:

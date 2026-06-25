@@ -142,6 +142,10 @@ from application.admin_api.futures_request_payload_validation_record_close_only_
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS,
     iter_futures_request_payload_validation_record_close_only_semantics,
 )
+from application.admin_api.futures_request_payload_validation_record_funding_semantics import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS,
+    iter_futures_request_payload_validation_record_funding_semantics,
+)
 from application.admin_api.futures_reconciliation import (
     AdminApiFuturesReconciliation,
     FUTURES_RECONCILIATION_CONTRACT,
@@ -188,6 +192,7 @@ from application.admin_api.models import (
 )
 from application.admin_api.read_service import (
     AdminApiReadService,
+    FUTURES_RISK_PROOF_REQUIREMENT_API_EXCLUDE,
     futures_command_suite_api_payload,
 )
 from application.admin_api.reconciliation import (
@@ -1949,6 +1954,76 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS
     )
 
+    assert len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS
+    ) == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS)
+    funding_semantic_runtime_evidence_acceptance_contract_refs = {
+        contract.semantic_artifact_runtime_evidence_acceptance_contract_ref
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS
+        if contract.semantic_artifact
+        == AdminFuturesCommandSemanticArtifact.FUNDING_SEMANTICS
+    }
+    assert all(
+        contract.semantic_artifact
+        == AdminFuturesCommandSemanticArtifact.FUNDING_SEMANTICS
+        and contract.blocker
+        == AdminFuturesCommandExecutionEligibilityBlocker.FUNDING_SEMANTICS_MISSING
+        and contract.semantic_artifact_runtime_evidence_acceptance_contract_ref
+        in funding_semantic_runtime_evidence_acceptance_contract_refs
+        and contract.status == AdminApiGateStatus.BLOCKED
+        and contract.source == AdminFuturesEvidenceSource.BACKEND_CONTRACT
+        and contract.required is True
+        and contract.blocking is True
+        and contract.backend_owned is True
+        and contract.read_only is True
+        and contract.contextless_review_required is True
+        and contract.spot_rule_authority is False
+        and contract.funding_semantics_contract_available is False
+        and contract.funding_semantics_contract_ready is False
+        and contract.funding_rate_bound is False
+        and contract.funding_fee_bound is False
+        and contract.funding_interval_bound is False
+        and contract.funding_cost_bound is False
+        and contract.runtime_funding_evidence_observed is False
+        and contract.runtime_evidence_satisfies_funding_semantics is False
+        and contract.semantic_artifact_runtime_evidence_acceptance_available
+        is False
+        and contract.semantic_artifact_runtime_evidence_acceptance_accepted
+        is False
+        and contract.validation_record_funding_semantics_ready is False
+        and contract.validation_record_execution_eligible is False
+        and contract.execution_allowed is False
+        and contract.live_coinbase_orders_ran is False
+        and contract.funding_semantics_ref == contract.semantic_ref
+        and contract.funding_semantics_contract_ref.startswith(
+            "application/admin_api/"
+            "futures_request_payload_validation_record_funding_semantics.py::"
+        )
+        and contract.required_backend_contract
+        == contract.funding_semantics_contract_ref
+        and contract.missing_backend_contract == contract.funding_semantics_ref
+        and len(contract.evidence_routes) == 2
+        and AdminFuturesCommandEvidenceRoute.FUTURES_ACCOUNT
+        in contract.evidence_routes
+        and AdminFuturesCommandEvidenceRoute.FUTURES_RISK_PROOFS
+        in contract.evidence_routes
+        and len(contract.forbidden_execution_claims) == 17
+        and "spot_rule_authority" in contract.forbidden_execution_claims
+        and len(contract.required_evidence_refs) >= 28
+        and f"{contract.funding_semantics_contract_ref}.funding_rate"
+        in contract.required_evidence_refs
+        and f"{contract.funding_semantics_contract_ref}.funding_fee"
+        in contract.required_evidence_refs
+        and f"{contract.funding_semantics_contract_ref}.funding_interval"
+        in contract.required_evidence_refs
+        and f"{contract.funding_semantics_contract_ref}.funding_cost"
+        in contract.required_evidence_refs
+        and contract.missing_evidence_refs == contract.required_evidence_refs
+        and contract.browser_authority == "display_only"
+        and contract.bff_authority == "forward_only_no_execution"
+        for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS
+    )
+
     emitted_count = 0
     validator_emitted_count = 0
     input_schema_emitted_count = 0
@@ -1976,6 +2051,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     validation_record_liquidation_semantic_emitted_count = 0
     validation_record_reduce_only_semantic_emitted_count = 0
     validation_record_close_only_semantic_emitted_count = 0
+    validation_record_funding_semantic_emitted_count = 0
     for command in command_suite.commands:
         registry_rows = list(iter_futures_request_payload_contracts(command.command))
         validator_registry_rows = list(
@@ -2094,6 +2170,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 command.command
             )
         )
+        validation_record_funding_semantic_registry_rows = list(
+            iter_futures_request_payload_validation_record_funding_semantics(
+                command.command
+            )
+        )
         emitted_count += len(command.request_fields)
         validator_emitted_count += len(command.request_payload_validator_contracts)
         input_schema_emitted_count += len(
@@ -2170,6 +2251,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         validation_record_close_only_semantic_emitted_count += len(
             command.request_payload_validation_record_close_only_semantics
+        )
+        validation_record_funding_semantic_emitted_count += len(
+            command.request_payload_validation_record_funding_semantics
         )
         assert command.request_field_count == len(registry_rows)
         assert command.required_request_field_count == len(registry_rows)
@@ -2558,6 +2642,22 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.runtime_observed_request_payload_validation_record_close_only_semantic_count
             == 0
         )
+        assert (
+            command.request_payload_validation_record_funding_semantic_count
+            == len(validation_record_funding_semantic_registry_rows)
+        )
+        assert (
+            command.blocking_request_payload_validation_record_funding_semantic_count
+            == len(validation_record_funding_semantic_registry_rows)
+        )
+        assert (
+            command.ready_request_payload_validation_record_funding_semantic_count
+            == 0
+        )
+        assert (
+            command.runtime_observed_request_payload_validation_record_funding_semantic_count
+            == 0
+        )
         assert all(
             contract.contract_ref in command.required_backend_contracts
             for contract in registry_rows
@@ -2682,6 +2782,11 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             contract.close_only_semantics_contract_ref
             in command.required_backend_contracts
             for contract in validation_record_close_only_semantic_registry_rows
+        )
+        assert all(
+            contract.funding_semantics_contract_ref
+            in command.required_backend_contracts
+            for contract in validation_record_funding_semantic_registry_rows
         )
         for emitted, contract in zip(
             command.request_fields,
@@ -4441,6 +4546,83 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert emitted.bff_authority == contract.bff_authority
             assert emitted.detail == contract.detail
 
+        for emitted, contract in zip(
+            command.request_payload_validation_record_funding_semantics,
+            validation_record_funding_semantic_registry_rows,
+            strict=True,
+        ):
+            assert emitted.field == contract.field
+            assert emitted.blocker == contract.blocker
+            assert emitted.semantic_artifact == contract.semantic_artifact
+            assert emitted.status == contract.status
+            assert emitted.source == contract.source
+            assert emitted.required == contract.required
+            assert emitted.blocking == contract.blocking
+            assert (
+                emitted.validation_record_execution_eligibility_contract_ref
+                == contract.validation_record_execution_eligibility_contract_ref
+            )
+            assert (
+                emitted.validation_record_execution_eligibility_blocker_ref
+                == contract.validation_record_execution_eligibility_blocker_ref
+            )
+            assert emitted.semantic_ref == contract.semantic_ref
+            assert emitted.semantic_artifact_ref == contract.semantic_artifact_ref
+            assert (
+                emitted.semantic_artifact_runtime_evidence_acceptance_contract_ref
+                == contract.semantic_artifact_runtime_evidence_acceptance_contract_ref
+            )
+            assert emitted.funding_semantics_ref == contract.funding_semantics_ref
+            assert (
+                emitted.funding_semantics_contract_ref
+                == contract.funding_semantics_contract_ref
+            )
+            assert emitted.evidence_routes == list(contract.evidence_routes)
+            assert emitted.evidence_route_count == len(contract.evidence_routes)
+            assert emitted.required_backend_contract == contract.required_backend_contract
+            assert emitted.missing_backend_contract == contract.missing_backend_contract
+            assert emitted.missing_reason == contract.missing_reason
+            assert emitted.required_evidence_refs == list(contract.required_evidence_refs)
+            assert emitted.required_evidence_count == len(contract.required_evidence_refs)
+            assert emitted.missing_evidence_refs == list(contract.missing_evidence_refs)
+            assert emitted.missing_evidence_count == len(contract.missing_evidence_refs)
+            assert emitted.forbidden_execution_claims == list(
+                contract.forbidden_execution_claims
+            )
+            assert emitted.forbidden_execution_claim_count == len(
+                contract.forbidden_execution_claims
+            )
+            assert emitted.backend_owned == contract.backend_owned
+            assert emitted.read_only == contract.read_only
+            assert (
+                emitted.contextless_review_required
+                == contract.contextless_review_required
+            )
+            assert emitted.spot_rule_authority == contract.spot_rule_authority
+            assert emitted.funding_semantics_contract_available is False
+            assert emitted.funding_semantics_contract_ready is False
+            assert emitted.funding_rate_bound is False
+            assert emitted.funding_fee_bound is False
+            assert emitted.funding_interval_bound is False
+            assert emitted.funding_cost_bound is False
+            assert emitted.runtime_funding_evidence_observed is False
+            assert emitted.runtime_evidence_satisfies_funding_semantics is False
+            assert (
+                emitted.semantic_artifact_runtime_evidence_acceptance_available
+                is False
+            )
+            assert (
+                emitted.semantic_artifact_runtime_evidence_acceptance_accepted
+                is False
+            )
+            assert emitted.validation_record_funding_semantics_ready is False
+            assert emitted.validation_record_execution_eligible is False
+            assert emitted.execution_allowed is False
+            assert emitted.live_coinbase_orders_ran is False
+            assert emitted.browser_authority == contract.browser_authority
+            assert emitted.bff_authority == contract.bff_authority
+            assert emitted.detail == contract.detail
+
     assert emitted_count == len(FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS)
     assert validator_emitted_count == len(FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS)
     assert input_schema_emitted_count == len(
@@ -4532,6 +4714,9 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert validation_record_close_only_semantic_emitted_count == len(
         FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS
+    )
+    assert validation_record_funding_semantic_emitted_count == len(
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS
     )
     assert command_suite.request_field_count == len(
         FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS
@@ -4937,6 +5122,22 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert (
         command_suite.runtime_observed_request_payload_validation_record_close_only_semantic_count
+        == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_funding_semantic_count
+        == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS)
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_funding_semantic_count
+        == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS)
+    )
+    assert (
+        command_suite.ready_request_payload_validation_record_funding_semantic_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_funding_semantic_count
         == 0
     )
 
@@ -6848,6 +7049,7 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert "required_evidence_refs" not in runtime_evidence
     assert "missing_evidence_refs" not in runtime_evidence
     assert "forbidden_execution_claims" not in runtime_evidence
+
     runtime_evidence_acceptance = next(
         item
         for item in place[
@@ -6983,6 +7185,36 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     assert "required_evidence_refs" not in close_only_semantic
     assert "missing_evidence_refs" not in close_only_semantic
     assert "forbidden_execution_claims" not in close_only_semantic
+    funding_semantic = next(
+        item
+        for item in place["request_payload_validation_record_funding_semantics"]
+        if item["field"] == AdminFuturesCommandRequestField.PRODUCT_ID.value
+    )
+    assert funding_semantic["semantic_artifact"] == (
+        AdminFuturesCommandSemanticArtifact.FUNDING_SEMANTICS.value
+    )
+    assert funding_semantic["required_evidence_count"] >= 28
+    assert funding_semantic["missing_evidence_count"] >= 28
+    assert funding_semantic["forbidden_execution_claim_count"] == 17
+    assert funding_semantic["evidence_route_count"] == 2
+    assert funding_semantic["funding_semantics_contract_available"] is False
+    assert funding_semantic["funding_semantics_contract_ready"] is False
+    assert funding_semantic["funding_rate_bound"] is False
+    assert funding_semantic["funding_fee_bound"] is False
+    assert funding_semantic["funding_interval_bound"] is False
+    assert funding_semantic["funding_cost_bound"] is False
+    assert funding_semantic["runtime_funding_evidence_observed"] is False
+    assert (
+        funding_semantic["runtime_evidence_satisfies_funding_semantics"]
+        is False
+    )
+    assert (
+        funding_semantic["validation_record_funding_semantics_ready"]
+        is False
+    )
+    assert "required_evidence_refs" not in funding_semantic
+    assert "missing_evidence_refs" not in funding_semantic
+    assert "forbidden_execution_claims" not in funding_semantic
     margin_collateral = next(
         item
         for item in place["risk_proof_requirements"]
@@ -7132,3 +7364,20 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
         margin_collateral["proof_acceptance_blockers"]
     )
     assert margin_collateral["command_execution_allowed"] is False
+
+
+def test_futures_command_suite_raw_serialization_excludes_deep_risk_proofs() -> None:
+    command_suite = AdminApiReadService().build_futures_command_suite()
+    first_requirement = command_suite.commands[0].risk_proof_requirements[0]
+
+    assert (
+        first_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_plans
+    )
+
+    payload = command_suite.model_dump(mode="json")
+    encoded_payload = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+    assert len(encoded_payload) < 50_000_000
+    serialized_requirement = payload["commands"][0]["risk_proof_requirements"][0]
+    for excluded_field in FUTURES_RISK_PROOF_REQUIREMENT_API_EXCLUDE:
+        assert excluded_field not in serialized_requirement

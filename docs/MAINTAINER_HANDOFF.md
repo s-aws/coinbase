@@ -123,20 +123,30 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6881-6900` under M57.
-- Active autonomous range: `6901-6920` under M57.
+- Latest completed autonomous range: `6901-6920` under M57.
+- Active autonomous range: `6921-6940` under M57.
 - Current range validation: backend focused validation passed on 2026-06-25
-  with `python -m pytest tests\regression\test_admin_api_futures_risk_proofs.py -q --tb=short`
-  plus OpenAPI freshness subset
-  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract -q --tb=short`
-  (18 total focused tests passed). Backend autonomous queue, ownership,
-  stale-process, runtime-artifact report-only, and diff checks also ran. No
-  live Coinbase execution was run; submitted/executed notional remains `0`
-  USDC.
-- Active range blind/contextless review: no callable subagent tool was
-  available in this session, so a direct contextless-file review plus checker
-  hardening was used. Fresh backend/frontend fallback review passed and the
-  phase-end stale-subagent sweep found no phase-scoped subagents left open.
+  with py-compile and
+  `pytest tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules tests\regression\test_admin_api_contract.py::test_admin_api_frontend_fixtures_are_bounded_and_offline_safe -q --tb=short --maxfail=1`
+  (`22` passed), plus frontend association checks
+  `npm run typecheck`, `npm run lint`, `npm run api:check`, focused unit
+  tests (`74` passed), `npm run autonomous:check`,
+  `npm run security:commands`, and `npm run release:check`.
+  The futures risk-proof suite included a bounded raw serialization guard for
+  futures command-suite risk proofs. Backend autonomous queue, ownership,
+  stale-process, and diff checks also passed for this range. Full regression
+  remains a durable milestone closeout gate and is currently blocked by the
+  preserved oversized `runtime_state/test_admin_api_contract` artifact until
+  cleanup/archive is explicitly approved. No live Coinbase execution was run;
+  submitted/executed notional remains `0` USDC.
+- Active range blind/contextless review: Godel
+  (`019efe07-adbb-7761-9b84-aaa732f42791`) passed without chat history. It
+  confirmed funding-semantics rows are backend-owned read/display evidence
+  only, no browser/BFF/live Coinbase/reconciliation/futures state authority was
+  introduced, futures cancellation remains keyed by `client_order_id`, and
+  OpenAPI/generated schema/mock/adapter/UI are aligned. Phase-end subagent
+  sweep closed Godel after consuming the findings; no phase-scoped subagent is
+  intentionally left open.
 - Current enterprise manual Spot order path is dry-submit/review only:
   `POST /api/v1/orders` remains live-disabled, may derive backend-owned
   `client_order_id`, and exits before Spot wallet, no-short sell authority,
@@ -146,23 +156,27 @@ notional, retained inventory, reconciliation result, and audit ids.
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
 - Active range adds disabled futures request payload validation record
-  close-only semantics through
+  funding semantics through
+  `application/admin_api/futures_request_payload_validation_record_funding_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_funding_semantics`,
+  including `request_payload_validation_record_funding_semantic_count`,
+  `blocking_request_payload_validation_record_funding_semantic_count`,
+  `ready_request_payload_validation_record_funding_semantic_count`,
+  `runtime_observed_request_payload_validation_record_funding_semantic_count`,
+  `request_payload_validation_record_funding_semantics`,
+  `funding_semantics_ref`, `funding_semantics_contract_ref`,
+  `evidence_routes`, `funding_semantics_contract_available=false`,
+  `funding_semantics_contract_ready=false`, `funding_rate_bound=false`,
+  `funding_fee_bound=false`, `funding_interval_bound=false`,
+  `funding_cost_bound=false`, `runtime_funding_evidence_observed=false`,
+  `runtime_evidence_satisfies_funding_semantics=false`, and
+  `validation_record_funding_semantics_ready=false`.
+  Completed `6901-6920` carries forward disabled futures request payload
+  validation record close-only semantics through
   `application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_close_only_semantics`,
-  including `request_payload_validation_record_close_only_semantic_count`,
-  `blocking_request_payload_validation_record_close_only_semantic_count`,
-  `ready_request_payload_validation_record_close_only_semantic_count`,
-  `runtime_observed_request_payload_validation_record_close_only_semantic_count`,
-  `request_payload_validation_record_close_only_semantics`,
-  `close_only_semantics_ref`, `close_only_semantics_contract_ref`,
-  `evidence_routes`, `close_only_semantics_contract_available=false`,
-  `close_only_semantics_contract_ready=false`,
-  `close_only_flag_bound=false`, `close_only_position_side_bound=false`,
-  `close_only_position_size_bound=false`, `close_only_order_side_bound=false`,
-  `runtime_close_only_evidence_observed=false`,
-  `runtime_evidence_satisfies_close_only_semantics=false`, and
-  `validation_record_close_only_semantics_ready=false`.
+  and `iter_futures_request_payload_validation_record_close_only_semantics`.
   Completed `6881-6900` carries forward disabled futures request payload
   validation record reduce-only semantics through
   `application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
