@@ -4957,6 +4957,73 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlock
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanItem(
+    BaseModel
+):
+    """One disabled resolution plan row for an execution-eligibility blocker."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    blocker: AdminFuturesCommandExecutionEligibilityBlocker
+    semantic_artifact: AdminFuturesCommandSemanticArtifact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    validation_record_execution_eligibility_contract_ref: str
+    validation_record_execution_eligibility_blocker_ref: str
+    semantic_ref: str
+    semantic_artifact_ref: str
+    semantic_artifact_contract_ref: str
+    semantic_artifact_definition_ref: str
+    semantic_artifact_definition_contract_ref: str
+    semantic_artifact_definition_review_ref: str
+    semantic_artifact_runtime_evidence_ref: str
+    semantic_artifact_runtime_evidence_contract_ref: str
+    semantic_artifact_runtime_evidence_acceptance_ref: str
+    semantic_artifact_runtime_evidence_acceptance_contract_ref: str
+    execution_eligibility_resolution_plan_ref: str
+    execution_eligibility_resolution_plan_contract_ref: str
+    ordered_resolution_step_refs: list[str] = Field(default_factory=list)
+    ordered_resolution_step_count: int = Field(default=0, ge=0)
+    required_backend_contract: str
+    missing_backend_contract: str
+    missing_reason: str
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    forbidden_execution_claims: list[str] = Field(default_factory=list)
+    forbidden_execution_claim_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    contextless_review_required: bool = True
+    spot_rule_authority: bool = False
+    resolution_plan_present: bool = True
+    resolution_plan_ready: bool = False
+    resolution_plan_accepted: bool = False
+    semantic_contract_present: bool = True
+    semantic_contract_ready: bool = False
+    semantic_artifact_definition_available: bool = False
+    semantic_artifact_definition_review_passed: bool = False
+    semantic_artifact_runtime_evidence_available: bool = False
+    semantic_artifact_runtime_evidence_accepted: bool = False
+    semantic_artifact_runtime_evidence_acceptance_available: bool = False
+    semantic_artifact_runtime_evidence_acceptance_accepted: bool = False
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_semantic_contract: bool = False
+    validation_record_admission_link_ready: bool = False
+    validation_record_admitted: bool = False
+    blocker_resolved: bool = False
+    validation_record_execution_eligible: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
     BaseModel
 ):
@@ -10609,6 +10676,29 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_blockers: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plans: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanItem
+    ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
         ge=0,
@@ -11643,6 +11733,26 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     )
     runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count: int = (
         Field(default=0, ge=0)
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_count: int = Field(
+        default=0,
+        ge=0,
     )
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,

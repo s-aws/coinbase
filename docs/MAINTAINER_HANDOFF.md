@@ -123,20 +123,25 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6981-7000` under M57.
-- Active autonomous range: `7001-7020` under M57.
+- Latest completed autonomous range: `7001-7020` under M57.
+- Active autonomous range: `7021-7040` under M57.
 - Current range validation: passed ordinary phase closeout for
-  execution-eligibility semantic closure evidence.
+  execution-eligibility resolution-plan evidence.
   No live Coinbase execution is planned; submitted/executed notional remains
   `0` USDC until validation says otherwise.
-- Completed `6981-7000` validation: backend focused validation, OpenAPI
+- Current `7021-7040` blind/contextless review: Hubble initially failed on
+  stale backend active-range docs, Hilbert initially failed on stale frontend
+  active-range/current-phase docs, both sets of findings were remediated, both
+  re-reviews passed, and phase-end subagent cleanup closed Hubble and Hilbert.
+- Completed `7001-7020` validation: backend focused validation, OpenAPI
   freshness, autonomous queue, ownership, stale-process, runtime-artifact
-  report-only, and diff checks passed for disabled reconciliation-semantics
-  evidence. Full regression remains a durable milestone closeout gate. No live
-  Coinbase execution was run; submitted/executed notional remains `0` USDC.
-- Completed `6981-7000` blind/contextless review: the final fresh backend and
-  frontend reviews passed after remediation and confirmed reconciliation
-  semantics remained backend-owned disabled/read-only evidence. The frontend
+  report-only, and diff checks passed for execution-eligibility semantic
+  closure evidence. Full regression remains a durable milestone closeout gate.
+  No live Coinbase execution was run; submitted/executed notional remains `0`
+  USDC.
+- Completed `7001-7020` blind/contextless review: the final fresh backend and
+  frontend reviews passed after remediation and confirmed semantic closure
+  evidence remained backend-owned disabled/read-only evidence. The frontend
   only displayed backend contracts without browser/BFF/live execution
   authority, no spot-only wallet/cost-basis/sell-guard rule was imported into
   futures/perpetuals, and phase-end subagent cleanup was completed.
@@ -149,30 +154,24 @@ notional, retained inventory, reconciliation result, and audit ids.
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
 - Active range adds futures request payload validation record
-  execution-eligibility semantic closure evidence through
+  execution-eligibility resolution-plan evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`.
+  The current fields include `execution_eligibility_resolution_plan_ref`,
+  `execution_eligibility_resolution_plan_contract_ref`,
+  `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+  `resolution_plan_present=true`, `resolution_plan_ready=false`,
+  `resolution_plan_accepted=false`,
+  `runtime_evidence_satisfies_semantic_contract=false`,
+  `validation_record_admission_link_ready=false`, and
+  `blocker_resolved=false`. Resolution plan presence is not blocker
+  resolution, runtime acceptance, command admission, Coinbase execution,
+  reconciliation execution, futures/order/exchange mutation, browser/BFF
+  execution authority, or spot-rule authority.
+- Completed `7001-7020` carries forward futures request payload validation
+  record execution-eligibility semantic closure evidence through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`
   and
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`.
-  The current fields include
-  `validation_record_position_semantics_contract_ref`,
-  `validation_record_margin_semantics_contract_ref`,
-  `validation_record_collateral_semantics_contract_ref`,
-  `validation_record_liquidation_semantics_contract_ref`,
-  `validation_record_reduce_only_semantics_contract_ref`,
-  `validation_record_close_only_semantics_contract_ref`,
-  `validation_record_funding_semantics_contract_ref`,
-  `validation_record_order_semantics_contract_ref`,
-  `validation_record_cancel_semantics_contract_ref`,
-  `validation_record_reconciliation_semantics_contract_ref`,
-  `validation_record_semantic_contract_refs`,
-  `validation_record_semantic_contract_ref_count`,
-  `validation_record_semantic_contracts_present=true`,
-  `validation_record_semantic_contracts_ready=false`,
-  `semantic_contract_ref`, `semantic_contract_present=true`, and
-  `semantic_contract_ready=false`. Semantic contract presence is not runtime
-  acceptance, validator readiness, command admission, Coinbase execution,
-  reconciliation execution, futures/order/exchange mutation, browser/BFF
-  execution authority, or spot-rule authority.
 - Completed `6981-7000` carries forward disabled futures request payload
   validation record reconciliation semantics through
   `application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`,

@@ -49,36 +49,38 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7001-7020
+## Current Active Phases 7021-7040
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Semantic Closure Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Evidence.
 
-Current M57 work adds backend-owned disabled semantic closure fields to futures
-request payload validation record execution-eligibility and blocker rows after
-completed `6981-7000` reconciliation semantics. The backend-owned contract is
+Current M57 work adds backend-owned disabled resolution-plan fields to futures
+request payload validation record execution-eligibility blocker rows after
+completed `7001-7020` semantic-closure evidence. The backend-owned contract is
 implemented through
-`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
-`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
 Admin API models/read-service serialization, and generated OpenAPI. The command
-suite must expose the ten `validation_record_*_semantics_contract_ref` fields,
-`validation_record_semantic_contract_refs`,
-`validation_record_semantic_contract_ref_count`,
-`validation_record_semantic_contracts_present=true`,
-`validation_record_semantic_contracts_ready=false`, blocker
-`semantic_contract_ref`, `semantic_contract_present=true`, and
-`semantic_contract_ready=false`.
+suite must expose `execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`,
+`runtime_evidence_satisfies_semantic_contract=false`,
+`validation_record_admission_link_ready=false`, and
+`blocker_resolved=false`.
 
-The rows are no-live display evidence only. Semantic contract presence is not
-readiness, runtime acceptance, command admission, Coinbase execution,
+The rows are no-live display evidence only. Resolution plan presence is not
+blocker resolution, runtime acceptance, command admission, Coinbase execution,
 reconciliation execution, futures/order/exchange state mutation, browser
 execution authority, BFF execution authority, or spot-rule authority. Completed
-reconciliation evidence from `6981-7000` remains carried forward through
-`application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`.
+semantic-closure evidence from `7001-7020` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`.
 This work must not validate command payloads, accept runtime evidence, admit
 commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
 state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7001-7020` evidence adds futures request payload validation record execution-eligibility semantic closure evidence while completed M57 `6981-7000` carries forward disabled futures request payload validation record reconciliation semantics.
+Exact autonomous phrase: Active M57 `7021-7040` evidence adds futures request payload validation record execution-eligibility resolution-plan evidence while completed M57 `7001-7020` carries forward futures request payload validation record execution-eligibility semantic closure evidence.
 ## Historical Phases 5601-5620
 
 Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Evidence.

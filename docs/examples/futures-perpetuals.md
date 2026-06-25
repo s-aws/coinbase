@@ -11,12 +11,20 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7001-7020 range targets explicit M57 futures/perpetual request
-payload validation record execution-eligibility semantic closure evidence for
+The active 7021-7040 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7001-7020"` and no-live semantic closure fields such
-as `validation_record_semantic_contract_refs`,
+`"approved_phase_range": "7021-7040"` and no-live resolution-plan fields such
+as `execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`,
+`runtime_evidence_satisfies_semantic_contract=false`,
+`validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+Completed 7001-7020 semantic closure evidence remains visible through fields
+such as `validation_record_semantic_contract_refs`,
 `validation_record_semantic_contract_ref_count`,
 `validation_record_semantic_contracts_present=true`,
 `validation_record_semantic_contracts_ready=false`, `semantic_contract_ref`,
@@ -28,10 +36,10 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7001-7020 range is display-only and does not treat semantic contract
-presence as readiness, admit futures commands, bind live reconciliation or audit
-evidence, call Coinbase, execute reconciliation, mutate futures state, or grant
-browser/BFF authority. Completed 6961-6980 cancel semantics remain visible
+The active 7021-7040 range is display-only and does not treat resolution plan
+presence as blocker resolution, admit futures commands, bind live
+reconciliation or audit evidence, call Coinbase, execute reconciliation, mutate
+futures state, or grant browser/BFF authority. Completed 6961-6980 cancel semantics remain visible
 through counts such as
 `"request_payload_validation_record_cancel_semantic_count"`,
 `"blocking_request_payload_validation_record_cancel_semantic_count"`,

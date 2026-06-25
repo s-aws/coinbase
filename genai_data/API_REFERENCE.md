@@ -16,7 +16,29 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7001-7020` futures/perpetual request payload validation record
+Current M57 `7021-7040` futures/perpetual request payload validation record
+execution-eligibility resolution-plan evidence for
+`GET /api/v1/futures/command-suite`: futures request payload validation record
+execution-eligibility resolution-plan evidence; futures request payload
+validation record execution-eligibility resolution-plan display; carried-
+forward futures request payload validation record execution-eligibility
+semantic closure evidence. The current source registry is
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`
+with rows derived from semantic-artifact runtime-evidence acceptance contracts.
+Representative command-suite keys:
+`execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`,
+`runtime_evidence_satisfies_semantic_contract=false`,
+`validation_record_admission_link_ready=false`, and
+`blocker_resolved=false`. Resolution plan presence is not blocker resolution,
+runtime acceptance, command admission, Coinbase execution, reconciliation
+execution, futures/order/exchange mutation, browser/BFF execution authority, or
+spot-rule authority.
+
+Completed M57 `7001-7020` futures/perpetual request payload validation record
 execution-eligibility semantic closure for
 `GET /api/v1/futures/command-suite`: futures request payload validation record
 execution-eligibility semantic closure evidence; futures request payload
@@ -103,7 +125,7 @@ semantics. Source registries include
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
 and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
 
-Current semantic closure source files are
+Completed semantic closure source files are
 `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`.
@@ -192,7 +214,7 @@ runtime_reconciliation_evidence_observed=false,
 runtime_evidence_satisfies_reconciliation_semantics=false, and
 validation_record_reconciliation_semantics_ready=false.
 
-Current execution-eligibility semantic closure refs are authoritative
+Completed execution-eligibility semantic closure refs are authoritative
 display-only evidence:
 `validation_record_execution_eligibility_contract_ref`,
 `validation_record_position_semantics_ref`,

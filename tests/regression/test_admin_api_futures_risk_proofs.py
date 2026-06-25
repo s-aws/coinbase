@@ -86,6 +86,9 @@ from application.admin_api.futures_request_payload_validation_record_execution_e
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS,
     iter_futures_request_payload_validation_record_execution_eligibility_blockers,
 )
+from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plans import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_CONTRACTS,
+)
 from application.admin_api.futures_request_payload_validation_record_semantic_artifacts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifacts,
@@ -5160,6 +5163,30 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert (
         command_suite.runtime_observed_request_payload_validation_record_execution_eligibility_blocker_count
+        == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_execution_eligibility_resolution_plan_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.ready_request_payload_validation_record_execution_eligibility_resolution_plan_count
+        == 0
+    )
+    assert (
+        command_suite.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_count
         == 0
     )
     assert (

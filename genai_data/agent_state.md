@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-25
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `7001-7020`.
+- Commit (optional): current active range is `7021-7040`.
 
 ## Current Objective
 
@@ -24,15 +24,15 @@ Keep it short. Keep it factual.
 
 ## Current Phase Override
 
-- Latest completed autonomous range before current work: `6981-7000`.
-- Active autonomous range: `7001-7020`.
-- Current direction: complete phases `7001-7020` with futures request payload validation record execution-eligibility semantic closure evidence.
-- Exact active evidence phrase: futures request payload validation record execution-eligibility semantic closure evidence.
-- Active `7001-7020` adds backend-owned disabled semantic closure fields to futures request payload validation record execution-eligibility and blocker rows through `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`, `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`, Admin API models/read-service serialization, OpenAPI, generated frontend schema, frontend adapter/display, and bounded mock fixtures.
-- Execution-eligibility rows expose ten `validation_record_*_semantics_contract_ref` fields, `validation_record_semantic_contract_refs`, `validation_record_semantic_contract_ref_count`, `validation_record_semantic_contracts_present=true`, and `validation_record_semantic_contracts_ready=false`.
-- Blocker rows expose `semantic_contract_ref`, `semantic_contract_present=true`, and `semantic_contract_ready=false` while preserving existing `required_backend_artifact_ref` values for downstream semantic-artifact evidence.
-- Every readiness, execution, live Coinbase, browser, BFF, and spot-rule authority flag remains false or display-only. Semantic contract presence is not runtime acceptance, command admission, reconciliation execution, Coinbase execution, or futures/order/exchange mutation authority. Lowercase durability token: semantic contract presence is not runtime acceptance. Active M57 `7001-7020` evidence adds futures request payload validation record execution-eligibility semantic closure evidence while completed M57 `6981-7000` carries forward disabled futures request payload validation record reconciliation semantics.
-- Completed `6981-7000` carries forward disabled futures request payload validation record reconciliation semantics through `application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`, `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`, and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
+- Latest completed autonomous range before current work: `7001-7020`.
+- Active autonomous range: `7021-7040`.
+- Current direction: complete phases `7021-7040` with futures request payload validation record execution-eligibility resolution-plan evidence.
+- Exact active evidence phrase: futures request payload validation record execution-eligibility resolution-plan evidence.
+- Active display phrase: futures request payload validation record execution-eligibility resolution-plan display.
+- Active `7021-7040` adds backend-owned disabled resolution-plan rows for futures request payload validation record execution-eligibility blockers through `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`, Admin API models/read-service serialization, OpenAPI, generated frontend schema, frontend adapter/display, and bounded mock fixtures.
+- Resolution-plan rows expose `execution_eligibility_resolution_plan_ref`, `execution_eligibility_resolution_plan_contract_ref`, `ordered_resolution_step_refs`, `ordered_resolution_step_count`, `resolution_plan_present=true`, `resolution_plan_ready=false`, `resolution_plan_accepted=false`, `runtime_evidence_satisfies_semantic_contract=false`, `validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+- Every readiness, execution, live Coinbase, browser, BFF, and spot-rule authority flag remains false or display-only. Resolution plan presence is not blocker resolution, runtime acceptance, command admission, reconciliation execution, Coinbase execution, or futures/order/exchange mutation authority. Lowercase durability token: resolution plan presence is not blocker resolution. Active M57 `7021-7040` evidence adds futures request payload validation record execution-eligibility resolution-plan evidence while completed M57 `7001-7020` carries forward futures request payload validation record execution-eligibility semantic closure evidence.
+- Completed `7001-7020` carries forward futures request payload validation record execution-eligibility semantic closure evidence through `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`, `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`, Admin API models/read-service serialization, OpenAPI, generated frontend schema, frontend adapter/display, and bounded mock fixtures.
 ## Hard Constraints
 
 - Use `client_order_id` for internal tracking.
@@ -67,7 +67,13 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6981-7000`.
+- Latest completed autonomous range before current work: `7001-7020`.
+- Completed `7001-7020` added futures request payload validation record
+  execution-eligibility semantic closure evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+  Admin API models/read-service serialization, OpenAPI, generated frontend
+  schema, frontend adapter/display, and bounded mock fixtures.
 - Completed `6961-6980` added disabled futures request payload validation
   record cancel semantics through
   `application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
@@ -148,11 +154,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `7001-7020`.
+- Active autonomous range: `7021-7040`.
 - Approved milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `7001-7020` with backend-owned futures request payload validation record execution-eligibility semantic closure evidence and matching frontend display.
-- Active evidence phrase: futures request payload validation record execution-eligibility semantic closure evidence.
-- Active display phrase: futures request payload validation record execution-eligibility semantic closure display.
+- Current direction: complete phases `7021-7040` with backend-owned futures request payload validation record execution-eligibility resolution-plan evidence and matching frontend display.
+- Active evidence phrase: futures request payload validation record execution-eligibility resolution-plan evidence.
+- Active display phrase: futures request payload validation record execution-eligibility resolution-plan display.
 - Boundary: no validators, no runtime acceptance, no command admission, no Coinbase execution, no reconciliation execution, no futures/order/exchange mutation, no browser/BFF execution authority, and no spot-rule authority.
 ## Decisions (Durable)
 
@@ -449,16 +455,43 @@ Keep it short. Keep it factual.
 
 ## Active M57 Machine-Check Evidence Terms
 
-Current direction: complete phases `7001-7020` with futures request payload validation record execution-eligibility semantic closure evidence.
+Current direction: complete phases `7021-7040` with futures request payload validation record execution-eligibility resolution-plan evidence.
 
-Active evidence phrases: futures request payload validation record execution-eligibility semantic closure evidence; futures request payload validation record execution-eligibility semantic closure display.
+Active evidence phrases: futures request payload validation record execution-eligibility resolution-plan evidence; futures request payload validation record execution-eligibility resolution-plan display.
 
-Current backend symbols: application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py; application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py; validation_record_position_semantics_contract_ref; validation_record_margin_semantics_contract_ref; validation_record_collateral_semantics_contract_ref; validation_record_liquidation_semantics_contract_ref; validation_record_reduce_only_semantics_contract_ref; validation_record_close_only_semantics_contract_ref; validation_record_funding_semantics_contract_ref; validation_record_order_semantics_contract_ref; validation_record_cancel_semantics_contract_ref; validation_record_reconciliation_semantics_contract_ref; validation_record_semantic_contract_refs; validation_record_semantic_contract_ref_count; validation_record_semantic_contracts_present; validation_record_semantic_contracts_ready; semantic_contract_ref; semantic_contract_present; semantic_contract_ready.
+Current backend symbols: application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py; execution_eligibility_resolution_plan_ref; execution_eligibility_resolution_plan_contract_ref; ordered_resolution_step_refs; ordered_resolution_step_count; resolution_plan_present; resolution_plan_ready; resolution_plan_accepted; runtime_evidence_satisfies_semantic_contract; validation_record_admission_link_ready; blocker_resolved; resolution plan presence is not blocker resolution.
 
-Carried-forward evidence phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition review evidence; futures request payload validation record semantic artifact definition review input evidence; futures request payload validation record semantic artifact definition review output evidence; futures request payload validation record semantic artifact definition review output acceptance evidence; futures request payload validation record semantic artifact runtime evidence binding; futures request payload validation record semantic artifact runtime evidence acceptance; futures request payload validation record position semantics; futures request payload validation record margin semantics; futures request payload validation record collateral semantics; futures request payload validation record liquidation semantics; futures request payload validation record reduce-only semantics; futures request payload validation record close-only semantics; futures request payload validation record funding semantics; futures request payload validation record order semantics; futures request payload validation record cancel semantics; futures request payload validation record reconciliation semantics.
+Carried-forward evidence phrases: futures request payload validation record execution-eligibility semantic closure evidence; futures request payload validation record execution-eligibility semantic closure display; futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition review evidence; futures request payload validation record semantic artifact definition review input evidence; futures request payload validation record semantic artifact definition review output evidence; futures request payload validation record semantic artifact definition review output acceptance evidence; futures request payload validation record semantic artifact runtime evidence binding; futures request payload validation record semantic artifact runtime evidence acceptance; futures request payload validation record position semantics; futures request payload validation record margin semantics; futures request payload validation record collateral semantics; futures request payload validation record liquidation semantics; futures request payload validation record reduce-only semantics; futures request payload validation record close-only semantics; futures request payload validation record funding semantics; futures request payload validation record order semantics; futures request payload validation record cancel semantics; futures request payload validation record reconciliation semantics.
 ## Validation Status
 
-- Current `7001-7020` validation: passed ordinary phase closeout for
+- Current `7021-7040` validation: passed ordinary phase closeout for
+  execution-eligibility resolution-plan evidence. Backend commands run:
+  `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py application\admin_api\futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`;
+  `python tools\generate_admin_api_openapi.py`;
+  `pytest tests\regression\test_admin_api_futures_risk_proofs.py::test_futures_request_payload_field_contracts_are_disabled tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules tests\regression\test_admin_api_contract.py::test_admin_api_frontend_fixtures_are_bounded_and_offline_safe -q --tb=short --maxfail=1`
+  (`5` passed, `1` warning); `python tools\run_autonomous_work_queue_check.py --summary-only`
+  (passed); `python tools\check_ownership.py` (passed);
+  `python tools\check_stale_test_processes.py --include-sibling-frontend`
+  (passed); `python tools\check_runtime_artifacts.py --top 5` (passed,
+  `0` artifacts, `0.0` GiB); and `git diff --check` (passed with line-ending
+  warnings only). Frontend commands run: `npm run api:generate`;
+  `npm run api:check`; `npm run typecheck`; `npm run autonomous:check`; and
+  focused Vitest for backend runtime, backend API client, mock backend,
+  futures read model, and quality gates (`121` passed);
+  `npm run test:processes` (passed); and `git diff --check` (passed with
+  line-ending warnings only).
+- Current `7021-7040` blind/contextless review: backend reviewer Hubble
+  (`019eff3b-8254-7c52-b6e0-e739a5e0fa1d`) initially failed on stale
+  `docs/plans/ADMIN_API_E2E_PLAN.md` and
+  `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` active-range wording; those findings
+  were remediated and Hubble passed re-review. Frontend reviewer Hilbert
+  (`019eff3b-ac5b-7fb3-a7a1-30450222ea29`) initially failed on stale
+  `docs/TESTING.md` and `current_phase` metadata, then on one historical
+  `Active 6461-6480` label; those findings were remediated and Hilbert passed
+  re-review. Phase-end stale-subagent sweep closed Hubble and Hilbert; no
+  completed, failed, superseded, stale, or unused phase-scoped subagent remains
+  intentionally open.
+- Completed `7001-7020` validation: passed ordinary phase closeout for
   execution-eligibility semantic closure evidence. Backend commands run:
   `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py application\admin_api\futures_request_payload_validation_record_execution_eligibilities.py application\admin_api\futures_request_payload_validation_record_execution_eligibility_blockers.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py tools\run_autonomous_work_queue_check.py`;
   `python tools\generate_admin_api_openapi.py`;
@@ -473,7 +506,7 @@ Carried-forward evidence phrases: futures request payload contract registry evid
   `npx vitest run tests/unit/backendRuntime.test.ts tests/unit/backendApiClient.test.ts tests/unit/mockBackend.test.ts tests/unit/FuturesPerpetualsReadModel.test.tsx tests/unit/qualityGates.test.tsx --reporter=dot`
   (`121` passed); `npm run test:processes` (passed); and
   `git diff --check` (passed with line-ending warnings only).
-- Current `7001-7020` blind/contextless review: first backend reviewer Boole
+- Completed `7001-7020` blind/contextless review: first backend reviewer Boole
   (`019eff09-6b93-75c2-a756-b566e0c0ffb3`) failed on a broken autonomous
   validator, stale backend handoff text, and diff hygiene; those findings were
   remediated and Boole was closed. First frontend reviewer Bacon
@@ -542,14 +575,15 @@ Carried-forward evidence phrases: futures request payload contract registry evid
 
 ## Next 3 Actions
 
-1. Commit and push the backend and frontend phase `7001-7020` semantic-closure work after final diff review.
-2. Advance to the next approved M57 phase only after the phase `7001-7020` commits are complete.
-3. Keep full regression reserved for durable milestone closeout or explicit request until the runtime artifact blocker is resolved.
+1. Finish autonomous queue, ownership, stale-process, and diff checks for phase `7021-7040` resolution-plan evidence.
+2. Run fresh blind/contextless backend and frontend reviews, consume findings, and close phase-scoped subagents.
+3. Commit and push backend/frontend phase `7021-7040` work after final diff review, then advance only to the next approved M57 gap.
 
 ## Handoff Notes
 
-- Phase `6981-7000` adds backend-owned futures request payload validation
-  record reconciliation semantics and frontend display only.
+- Phase `7021-7040` adds backend-owned futures request payload validation
+  record execution-eligibility resolution-plan evidence and frontend display
+  only.
 - The backend remains authoritative for trading behavior, guard checks, live execution, reconciliation, and Coinbase calls.
 - The frontend consumes generated OpenAPI/backend contracts and remains display-only for this evidence surface.
 - No spot-only wallet/no-shorting/cost-basis rules are imported into futures/perpetual command readiness.

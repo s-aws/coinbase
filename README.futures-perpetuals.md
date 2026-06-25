@@ -54,10 +54,12 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7001-7020` evidence adds futures request payload validation
-  record execution-eligibility semantic closure evidence while completed M57
-  `6981-7000` carries forward disabled futures request payload validation
-  record reconciliation semantics, completed M57 `6961-6980` carries forward
+- Active M57 `7021-7040` evidence adds futures request payload validation
+  record execution-eligibility resolution-plan evidence while completed M57
+  `7001-7020` carries forward futures request payload validation record
+  execution-eligibility semantic closure evidence, completed M57 `6981-7000`
+  carries forward disabled futures request payload validation record
+  reconciliation semantics, completed M57 `6961-6980` carries forward
   disabled futures request payload validation record cancel semantics, completed
   M57 `6941-6960` carries forward disabled futures request
   payload validation record order semantics, and completed M57 `6921-6940`
@@ -383,6 +385,7 @@ and notional evidence fields.
   `runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
   and `request_payload_validation_record_semantic_artifact_definitions`.
   This evidence does not accept review inputs, accept review outputs, accept
+  resolution plans, accept runtime evidence, admit validation records, accept
   review-output acceptances, accept order semantics, bind live account or
   order evidence, accept funding semantics, bind live account or
   funding evidence, accept close-only semantics, bind live account or
@@ -394,8 +397,8 @@ and notional evidence fields.
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Exact autonomous phrase: Active M57 `7001-7020` evidence adds futures request payload validation record execution-eligibility semantic closure evidence while completed M57 `6981-7000` carries forward disabled futures request payload validation record reconciliation semantics.
-  Literal machine-check phrase: futures request payload validation record execution-eligibility semantic closure evidence.
+  Exact autonomous phrase: Active M57 `7021-7040` evidence adds futures request payload validation record execution-eligibility resolution-plan evidence while completed M57 `7001-7020` carries forward futures request payload validation record execution-eligibility semantic closure evidence.
+  Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan evidence.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifacts.py`,
