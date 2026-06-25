@@ -735,8 +735,31 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6801-6820 add disabled futures request payload validation
-record position semantics through
+Current M57 phases 6821-6840 add disabled futures request payload validation
+record margin semantics through
+`application/admin_api/futures_request_payload_validation_record_margin_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_margin_semantics`.
+Command-suite
+`request_payload_validation_record_margin_semantic_count`,
+`blocking_request_payload_validation_record_margin_semantic_count`,
+`ready_request_payload_validation_record_margin_semantic_count`,
+`runtime_observed_request_payload_validation_record_margin_semantic_count`,
+and `request_payload_validation_record_margin_semantics` remain backend-owned
+display evidence. Rows expose `margin_semantics_ref`,
+`margin_semantics_contract_ref`, `evidence_routes`,
+`margin_semantics_contract_available=false`,
+`margin_semantics_contract_ready=false`, `margin_account_bound=false`,
+`margin_requirement_bound=false`, `margin_mode_bound=false`,
+`margin_buffer_bound=false`, `runtime_margin_evidence_observed=false`,
+`runtime_evidence_satisfies_margin_semantics=false`, and
+`validation_record_margin_semantics_ready=false` while preserving no payload
+validation, no margin semantics acceptance, no live account/collateral
+evidence binding, no contextless review authority, no command admission, no
+Coinbase calls, no reconciliation execution, no futures/order/exchange state
+mutation, and no browser/BFF or spot-rule authority.
+Completed M57 phases 6801-6820 carry forward disabled futures request payload
+validation record position semantics through
 `application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
 and `iter_futures_request_payload_validation_record_position_semantics`.
@@ -756,9 +779,9 @@ backend-owned display evidence. Rows expose `position_semantics_ref`,
 `runtime_evidence_satisfies_position_semantics=false`, and
 `validation_record_position_semantics_ready=false` while preserving no payload
 validation, no position semantics acceptance, no live position evidence
-binding, no contextless review pass, no command admission, no Coinbase calls,
-no reconciliation execution, no futures/order/exchange state mutation, and no
-browser/BFF or spot-rule authority.
+binding, no command admission, no Coinbase calls, no reconciliation execution,
+no futures/order/exchange state mutation, and no browser/BFF or spot-rule
+authority.
 Completed M57 phases 6781-6800 carry forward disabled futures request payload validation
 record semantic artifact runtime evidence acceptance through
 `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,

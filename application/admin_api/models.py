@@ -5490,6 +5490,69 @@ class AdminFuturesCommandRequestPayloadValidationRecordPositionSemanticItem(
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidationRecordMarginSemanticItem(
+    BaseModel
+):
+    """One disabled margin-semantics row required by futures validation records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    blocker: AdminFuturesCommandExecutionEligibilityBlocker
+    semantic_artifact: AdminFuturesCommandSemanticArtifact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    validation_record_execution_eligibility_contract_ref: str
+    validation_record_execution_eligibility_blocker_ref: str
+    semantic_ref: str
+    semantic_artifact_ref: str
+    semantic_artifact_contract_ref: str
+    semantic_artifact_definition_ref: str
+    semantic_artifact_definition_contract_ref: str
+    semantic_artifact_definition_review_ref: str
+    semantic_artifact_definition_review_contract_ref: str
+    semantic_artifact_runtime_evidence_ref: str
+    semantic_artifact_runtime_evidence_contract_ref: str
+    semantic_artifact_runtime_evidence_acceptance_ref: str
+    semantic_artifact_runtime_evidence_acceptance_contract_ref: str
+    margin_semantics_ref: str
+    margin_semantics_contract_ref: str
+    evidence_routes: list[AdminFuturesCommandEvidenceRoute] = Field(default_factory=list)
+    evidence_route_count: int = Field(default=0, ge=0)
+    required_backend_contract: str
+    missing_backend_contract: str
+    missing_reason: str
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    forbidden_execution_claims: list[str] = Field(default_factory=list)
+    forbidden_execution_claim_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    contextless_review_required: bool = True
+    spot_rule_authority: bool = False
+    margin_semantics_contract_available: bool = False
+    margin_semantics_contract_ready: bool = False
+    margin_account_bound: bool = False
+    margin_requirement_bound: bool = False
+    margin_mode_bound: bool = False
+    margin_buffer_bound: bool = False
+    runtime_margin_evidence_observed: bool = False
+    runtime_evidence_satisfies_margin_semantics: bool = False
+    semantic_artifact_runtime_evidence_acceptance_available: bool = False
+    semantic_artifact_runtime_evidence_acceptance_accepted: bool = False
+    validation_record_margin_semantics_ready: bool = False
+    validation_record_execution_eligible: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandSemanticGuardItem(BaseModel):
     """One backend-owned futures/perpetual command semantic guard row."""
 
@@ -10197,6 +10260,25 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_position_semantics: list[
         AdminFuturesCommandRequestPayloadValidationRecordPositionSemanticItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_margin_semantic_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_margin_semantic_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_margin_semantic_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_margin_semantic_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_margin_semantics: list[
+        AdminFuturesCommandRequestPayloadValidationRecordMarginSemanticItem
+    ] = Field(default_factory=list)
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
@@ -11010,6 +11092,19 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         Field(default=0, ge=0)
     )
     runtime_observed_request_payload_validation_record_position_semantic_count: int = (
+        Field(default=0, ge=0)
+    )
+    request_payload_validation_record_margin_semantic_count: int = (
+        Field(default=0, ge=0)
+    )
+    blocking_request_payload_validation_record_margin_semantic_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_margin_semantic_count: int = (
+        Field(default=0, ge=0)
+    )
+    runtime_observed_request_payload_validation_record_margin_semantic_count: int = (
         Field(default=0, ge=0)
     )
     semantic_guard_count: int = Field(default=0, ge=0)

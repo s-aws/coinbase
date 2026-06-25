@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6801-6820**.
+- Approved phase range: **6821-6840**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6781-6800`.
+- Previous completed range: `6801-6820`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6800`.
+- `current_phase`: `6820`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,149 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6801-6820
+## Active Phases 6821-6840
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Margin Semantics.
+
+These phases continue M57 after completed `6801-6820` exposed disabled futures
+request payload validation record position semantics. The next concrete gap is
+that contextless agents can now see position identity and position-route
+evidence are missing, but still need backend-owned futures/perpetual margin
+semantics rows before any future validation-record execution eligibility can
+reason about account equity, available collateral, initial margin, maintenance
+margin, margin mode, or risk-proof evidence. Active M57 `6821-6840` evidence
+adds disabled futures request payload validation record margin semantics
+through
+`application/admin_api/futures_request_payload_validation_record_margin_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_margin_semantics`.
+It emits:
+`request_payload_validation_record_margin_semantic_count`,
+`blocking_request_payload_validation_record_margin_semantic_count`,
+`ready_request_payload_validation_record_margin_semantic_count`,
+`runtime_observed_request_payload_validation_record_margin_semantic_count`,
+and `request_payload_validation_record_margin_semantics`.
+Rows expose `margin_semantics_ref`, `margin_semantics_contract_ref`,
+`evidence_routes`, and carried-forward position and semantic-artifact
+runtime-evidence acceptance refs. They keep
+`margin_semantics_contract_available=false`,
+`margin_semantics_contract_ready=false`, `margin_account_bound=false`,
+`margin_requirement_bound=false`, `margin_mode_bound=false`,
+`margin_buffer_bound=false`, `runtime_margin_evidence_observed=false`,
+`runtime_evidence_satisfies_margin_semantics=false`,
+`validation_record_margin_semantics_ready=false`,
+`validation_record_execution_eligible=false`, `execution_allowed=false`,
+`live_coinbase_orders_ran=false`, `spot_rule_authority=false`, browser
+authority display-only, and BFF authority forward-only/no-execution.
+
+This range must not implement margin validators, validate submitted command
+payloads, pass contextless reviews, admit commands, accept runtime evidence,
+accept margin semantics, bind live account/collateral evidence, submit or
+cancel Coinbase orders, execute reconciliation, mutate futures/order/exchange
+state, accept risk proofs as command readiness, or grant browser/BFF execution
+authority. Spot wallet, no-shorting, USDC, cost-basis, average-cost, and
+inventory-lot assumptions remain forbidden as futures/perpetual authority.
+
+Exact autonomous phrase: Active M57 `6821-6840` evidence adds disabled futures request payload validation record margin semantics while completed M57 `6801-6820` carries forward disabled futures request payload validation record position semantics.
+
+### Phase 6821 - Prior Range Closure
+
+- Record completed phases `6801-6820` as historical position-semantics evidence
+  and move active metadata to `6821-6840`.
+
+### Phase 6822 - Margin Semantics Registry
+
+- Add a backend-owned disabled validation-record margin-semantics registry
+  derived from runtime-evidence-acceptance contracts.
+
+### Phase 6823 - Margin Semantics References
+
+- Expose margin-semantics and margin-semantics-contract refs for each futures
+  validation-record semantic artifact row.
+
+### Phase 6824 - Margin Evidence Routes
+
+- Bind margin semantics to read-only futures account and risk-proof evidence
+  routes without adding command execution authority.
+
+### Phase 6825 - Margin False Flags
+
+- Keep margin account, requirement, mode, buffer, runtime observation,
+  execution, live Coinbase, browser, BFF, and spot-rule authority false or
+  display-only for every row.
+
+### Phase 6826 - Command Suite Margin Counts
+
+- Add command-level margin-semantics counts, blocking counts, ready counts,
+  runtime-observed counts, and rows.
+
+### Phase 6827 - Suite Aggregate Margin Counts
+
+- Add suite-level aggregate counts for margin-semantics rows without changing
+  command execution readiness.
+
+### Phase 6828 - Backend Contract References
+
+- Add margin-semantics contract refs to required backend contracts for every
+  disabled futures command.
+
+### Phase 6829 - Compact Serializer
+
+- Keep public command-suite payload bounded while preserving
+  margin-semantics summary counts and omitting full evidence-ref arrays.
+
+### Phase 6830 - OpenAPI Contract
+
+- Regenerate and validate OpenAPI so generated clients expose
+  margin-semantics fields from backend-owned models.
+
+### Phase 6831 - Frontend Generated Client Sync
+
+- Sync the frontend generated schema from OpenAPI without introducing browser
+  trading authority.
+
+### Phase 6832 - Frontend Adapter Mapping
+
+- Map backend margin-semantics rows into the futures/perpetuals view model.
+
+### Phase 6833 - Frontend Margin Semantics Display
+
+- Display margin-semantics rows as backend-owned disabled read evidence.
+
+### Phase 6834 - Frontend Mock Backend Contract
+
+- Update mock backend fixtures to include margin-semantics rows and aggregate
+  counts that match the backend contract.
+
+### Phase 6835 - Capability Matrix
+
+- Update capability docs to show margin semantics remain evidence only and do
+  not grant futures/perpetual execution authority.
+
+### Phase 6836 - Contextless Review Evidence
+
+- Record blind/contextless review evidence that the new row is understandable
+  without chat context and remains non-spot-specific.
+
+### Phase 6837 - Focused Backend Validation
+
+- Run focused backend tests and autonomous queue checks for the new contract.
+
+### Phase 6838 - Focused Frontend Validation
+
+- Run generated API, typecheck, unit, and autonomous queue checks covering the
+  new margin-semantics display.
+
+### Phase 6839 - Phase-End Hygiene
+
+- Run stale test-process and subagent hygiene checks, with no live Coinbase
+  execution and notional staying at `0`.
+
+### Phase 6840 - Commit And Push
+
+- Commit and push backend and frontend changes after focused validation passes.
+
+## Completed Phases 6801-6820
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Position Semantics.
 

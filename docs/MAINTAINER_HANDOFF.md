@@ -123,21 +123,18 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `6781-6800` under M57.
-- Active autonomous range: `6801-6820` under M57.
+- Latest completed autonomous range: `6801-6820` under M57.
+- Active autonomous range: `6821-6840` under M57.
 - Previous range validation: backend focused validation passed on 2026-06-24
-  with `pytest tests\regression\test_admin_api_futures_risk_proofs.py -q --tb=short`
-  (17 passed), `pytest tests\regression\test_spot_readiness_gate.py -q --tb=short`
-  (8 passed), `pytest tests\regression\test_admin_api_contract.py -q --tb=short`
-  (135 passed), and `python tools\run_autonomous_work_queue_check.py --summary-only`
-  (passed). A compact serializer regression found by blind review was fixed:
-  public futures command-suite payload remains bounded while semantic guards
-  keep blocker refs and frontend fixtures keep root contract summaries. No live
-  Coinbase execution was run; submitted/executed notional remains `0` USDC.
-- Active range blind/contextless review: initial frontend and backend reviews
-  failed on stale docs/log evidence and compacted blocker refs; remediation
-  passed fresh frontend and backend re-review. Phase-end stale-subagent sweep
-  closed Helmholtz, Boyle, Franklin, and Pauli after findings were consumed.
+  with `python -m pytest tests\regression\test_admin_api_futures_risk_proofs.py -q --tb=short`
+  (17 passed) and
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract -q --tb=short`
+  (1 passed). No live Coinbase execution was run; submitted/executed notional
+  remains `0` USDC.
+- Active range blind/contextless review: no callable subagent tool was
+  available in this session, so a direct contextless-file review plus checker
+  hardening was used. Fresh backend/frontend fallback review passed and the
+  phase-end stale-subagent sweep found no phase-scoped subagents left open.
 - Current enterprise manual Spot order path is dry-submit/review only:
   `POST /api/v1/orders` remains live-disabled, may derive backend-owned
   `client_order_id`, and exits before Spot wallet, no-short sell authority,
@@ -146,8 +143,25 @@ notional, retained inventory, reconciliation result, and audit ids.
   `allow_live_execution=true`. Backend `trader` or `admin` RBAC authority is
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
-- Active range adds disabled futures request payload validation record
-  position semantics through
+- Active range adds disabled futures request payload validation record margin
+  semantics through
+  `application/admin_api/futures_request_payload_validation_record_margin_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_margin_semantics`,
+  including `request_payload_validation_record_margin_semantic_count`,
+  `blocking_request_payload_validation_record_margin_semantic_count`,
+  `ready_request_payload_validation_record_margin_semantic_count`,
+  `runtime_observed_request_payload_validation_record_margin_semantic_count`,
+  `request_payload_validation_record_margin_semantics`,
+  `margin_semantics_ref`, `margin_semantics_contract_ref`,
+  `evidence_routes`, `margin_semantics_contract_available=false`,
+  `margin_semantics_contract_ready=false`, `margin_account_bound=false`,
+  `margin_requirement_bound=false`, `margin_mode_bound=false`,
+  `margin_buffer_bound=false`, `runtime_margin_evidence_observed=false`,
+  `runtime_evidence_satisfies_margin_semantics=false`, and
+  `validation_record_margin_semantics_ready=false`.
+  Completed `6801-6820` carries forward disabled futures request payload
+  validation record position semantics through
   `application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
   and `iter_futures_request_payload_validation_record_position_semantics`,

@@ -4,14 +4,15 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `6801-6820` adds request payload
-validation record position semantics on top of completed `6781-6800` semantic
-artifact runtime evidence acceptance. These rows are backend-owned,
-display-only, no-live, and do not accept position semantics, bind live position
-evidence, accept or bind runtime evidence, define executable futures
-semantics, pass contextless reviews, validate payloads, resolve blockers, admit
-commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
-state, or grant browser/BFF authority.
+Current futures/perpetual M57 scope: `6821-6840` adds request payload
+validation record margin semantics on top of completed `6801-6820` position
+semantics. These rows are backend-owned, display-only, no-live, and do not
+accept margin semantics, bind live account/collateral evidence, accept position
+semantics, bind live position evidence, accept or bind runtime evidence, define
+executable futures semantics, pass contextless reviews as execution authority,
+validate payloads, resolve blockers, admit commands, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+authority.
 
 | Module | Read-only views | Command drafts | Dry-submit | Live execution | Backend namespace | Identity key | Product-specific rules | Required gates |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
