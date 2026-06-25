@@ -11,12 +11,18 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6761-6780 range targets explicit M57 futures/perpetual request
-payload validation record semantic artifact runtime evidence binding for
+The active 6781-6800 range targets explicit M57 futures/perpetual request
+payload validation record semantic artifact runtime evidence acceptance for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6761-6780"` and no-live semantic artifact runtime
-evidence counts such as
+`"approved_phase_range": "6781-6800"` and no-live semantic artifact runtime
+evidence acceptance counts such as
+`"request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count"`,
+`"blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count"`,
+`"ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count"`,
+`"runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count"`,
+and `"request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances"`.
+Completed 6761-6780 semantic artifact runtime evidence binding remains visible through
 `"request_payload_validation_record_semantic_artifact_runtime_evidence_count"`,
 `"blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count"`,
 `"ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count"`,

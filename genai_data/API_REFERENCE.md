@@ -720,13 +720,29 @@ Current behavior:
   validation_record_replay_guard_contract_ready=false,
   validation_record_idempotency_contract_ready=false, and
   validation_record_replay_protected=false.
-- Active M57 `6761-6780` evidence adds disabled futures request payload
-  validation record semantic artifact runtime evidence binding through
+- Active M57 `6781-6800` evidence adds disabled futures request payload
+  validation record semantic artifact runtime evidence acceptance through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+  The command-suite response exposes
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
+  `semantic_artifact_runtime_evidence_acceptance_ref`,
+  `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
+  semantic_artifact_runtime_evidence_acceptance_available=false, and
+  semantic_artifact_runtime_evidence_acceptance_accepted=false.
+  Completed `6761-6780` evidence carries forward disabled futures request
+  payload validation record semantic artifact runtime evidence binding through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
   and
   `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
-  The command-suite response exposes
+  The carried-forward response exposes
   `request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
   `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
   `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,

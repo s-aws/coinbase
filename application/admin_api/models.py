@@ -5352,6 +5352,80 @@ class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactRuntimeEv
     detail: str
 
 
+class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactRuntimeEvidenceAcceptanceItem(
+    BaseModel
+):
+    """One disabled acceptance row required by semantic artifact runtime evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    blocker: AdminFuturesCommandExecutionEligibilityBlocker
+    semantic_artifact: AdminFuturesCommandSemanticArtifact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    validation_record_execution_eligibility_contract_ref: str
+    validation_record_execution_eligibility_blocker_ref: str
+    semantic_ref: str
+    semantic_artifact_ref: str
+    semantic_artifact_contract_ref: str
+    semantic_artifact_definition_ref: str
+    semantic_artifact_definition_contract_ref: str
+    semantic_artifact_definition_review_ref: str
+    semantic_artifact_definition_review_contract_ref: str
+    semantic_artifact_definition_review_input_ref: str
+    semantic_artifact_definition_review_input_contract_ref: str
+    semantic_artifact_definition_review_output_ref: str
+    semantic_artifact_definition_review_output_contract_ref: str
+    semantic_artifact_definition_review_output_acceptance_ref: str
+    semantic_artifact_definition_review_output_acceptance_contract_ref: str
+    semantic_artifact_runtime_evidence_ref: str
+    semantic_artifact_runtime_evidence_contract_ref: str
+    semantic_artifact_runtime_evidence_acceptance_ref: str
+    semantic_artifact_runtime_evidence_acceptance_contract_ref: str
+    required_backend_contract: str
+    missing_backend_contract: str
+    missing_reason: str
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    required_evidence_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_count: int = Field(default=0, ge=0)
+    forbidden_execution_claims: list[str] = Field(default_factory=list)
+    forbidden_execution_claim_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    contextless_review_required: bool = True
+    spot_rule_authority: bool = False
+    semantic_artifact_definition_available: bool = False
+    semantic_artifact_definition_review_available: bool = False
+    semantic_artifact_definition_review_input_available: bool = False
+    semantic_artifact_definition_review_input_accepted: bool = False
+    semantic_artifact_definition_review_output_available: bool = False
+    semantic_artifact_definition_review_output_accepted: bool = False
+    semantic_artifact_definition_review_output_acceptance_available: bool = False
+    semantic_artifact_definition_review_output_acceptance_accepted: bool = False
+    semantic_artifact_runtime_evidence_available: bool = False
+    semantic_artifact_runtime_evidence_bound: bool = False
+    semantic_artifact_runtime_evidence_accepted: bool = False
+    semantic_artifact_runtime_evidence_acceptance_available: bool = False
+    semantic_artifact_runtime_evidence_acceptance_accepted: bool = False
+    semantic_artifact_definition_reviewed: bool = False
+    semantic_artifact_definition_review_passed: bool = False
+    runtime_evidence_observed: bool = False
+    runtime_evidence_satisfies_semantic_artifact_definition: bool = False
+    semantic_artifact_defined: bool = False
+    semantic_artifact_reviewed: bool = False
+    execution_eligibility_blocker_resolved: bool = False
+    validation_record_execution_eligible: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandSemanticGuardItem(BaseModel):
     """One backend-owned futures/perpetual command semantic guard row."""
 
@@ -10021,6 +10095,25 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_semantic_artifact_runtime_evidences: list[
         AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactRuntimeEvidenceItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances: list[
+        AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactRuntimeEvidenceAcceptanceItem
+    ] = Field(default_factory=list)
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
@@ -10808,6 +10901,19 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         Field(default=0, ge=0)
     )
     runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count: int = (
+        Field(default=0, ge=0)
+    )
+    request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = (
+        Field(default=0, ge=0)
+    )
+    blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = (
+        Field(default=0, ge=0)
+    )
+    runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count: int = (
         Field(default=0, ge=0)
     )
     semantic_guard_count: int = Field(default=0, ge=0)

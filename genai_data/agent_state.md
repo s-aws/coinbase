@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6761-6780`.
+- Commit (optional): current active range is `6781-6800`.
 
 ## Current Objective
 
@@ -21,6 +21,25 @@ Keep it short. Keep it factual.
   spot-only rules into non-spot domains, and remain understandable to
   contextless/blind agents through docs, capability matrices, tests, and
   review logs.
+
+## Current Phase Override
+
+- Latest completed autonomous range before current work: `6761-6780`.
+- Active autonomous range: `6781-6800`.
+- Current direction: complete phases `6781-6800` with futures request payload
+  validation record semantic artifact runtime evidence acceptance.
+- Active `6781-6800` adds disabled futures request payload validation record
+  semantic artifact runtime evidence acceptance through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+- Completed `6761-6780` carries forward disabled futures request payload
+  validation record semantic artifact runtime evidence binding through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
 
 ## Hard Constraints
 
@@ -56,77 +75,41 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6741-6760`.
-- Active autonomous range: `6761-6780`.
-- Active `6761-6780` adds disabled futures request payload validation record
-  semantic artifact runtime evidence binding through
+- Latest completed autonomous range before current work: `6761-6780`.
+- Completed `6761-6780` added disabled futures request payload validation
+  record semantic artifact runtime evidence binding through
   `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
   and
   `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
-  Each row exposes `semantic_artifact_runtime_evidence_ref`,
-  `semantic_artifact_runtime_evidence_contract_ref`,
-  `contextless_review_required=true`,
-  `semantic_artifact_runtime_evidence_available=false`,
-  `semantic_artifact_runtime_evidence_bound=false`,
-  `semantic_artifact_runtime_evidence_accepted=false`,
-  `semantic_artifact_definition_review_output_acceptance_available=false`,
-  `semantic_artifact_definition_review_output_acceptance_accepted=false`,
-  `semantic_artifact_definition_review_output_available=false`,
-  `semantic_artifact_definition_review_output_accepted=false`,
-  `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`, and
-  `execution_eligibility_blocker_resolved=false`. Completed `6741-6760`
-  carries forward disabled futures request payload validation record semantic
-  artifact definition review output acceptance evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
-  and
-  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
-  Completed `6721-6740` carries forward disabled futures request payload
-  validation record semantic artifact definition review output evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_outputs.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
-  and
-  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`.
-  Completed `6701-6720` carries forward disabled futures request payload
-  validation record semantic artifact definition review input evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_inputs.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
-  and
-  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`.
-  Completed `6681-6700`
-  carries forward disabled futures request payload validation record semantic
-  artifact definition review evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_reviews.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
-  and
-  `iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`.
-  Completed `6661-6680` carries forward disabled futures request payload
-  validation record semantic artifact definition evidence through
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`,
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
-  and `iter_futures_request_payload_validation_record_semantic_artifact_definitions`.
+- Earlier completed ranges remain historical carried-forward evidence:
+  `6741-6760` semantic artifact definition review output acceptance,
+  `6721-6740` semantic artifact definition review output, `6701-6720`
+  semantic artifact definition review input, `6681-6700` semantic artifact
+  definition review, and `6661-6680` semantic artifact definition.
+
 ## Active Scope
 
-- Active autonomous range: `6761-6780`.
+- Active autonomous range: `6781-6800`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `6761-6780` with backend-owned futures
-  request payload validation record semantic artifact runtime evidence binding
-  and matching frontend display.
+- Current direction: complete phases `6781-6800` with backend-owned futures
+  request payload validation record semantic artifact runtime evidence
+  acceptance and matching frontend display.
 - Backend active source:
-  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`.
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`.
 - Backend active registry:
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`
   and
-  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
 - Active command-suite evidence fields:
-  `request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
-  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
-  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
-  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
-  and `request_payload_validation_record_semantic_artifact_runtime_evidences`.
-- Active evidence phrase: futures request payload validation record semantic artifact runtime evidence binding.
-- Active display phrase: futures request payload validation record semantic artifact runtime evidence binding.
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  and
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+- Active evidence phrase: futures request payload validation record semantic artifact runtime evidence acceptance.
+- Active display phrase: futures request payload validation record semantic artifact runtime evidence acceptance.
 - Active row evidence fields:
   `semantic_artifact_definition_review_ref`,
   `semantic_artifact_definition_review_contract_ref`,
@@ -138,6 +121,8 @@ Keep it short. Keep it factual.
   `semantic_artifact_definition_review_output_acceptance_contract_ref`,
   `semantic_artifact_runtime_evidence_ref`,
   `semantic_artifact_runtime_evidence_contract_ref`,
+  `semantic_artifact_runtime_evidence_acceptance_ref`,
+  `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
   `contextless_review_required=true`,
   `semantic_artifact_definition_available=false`,
   `semantic_artifact_definition_review_available=false`,
@@ -152,16 +137,19 @@ Keep it short. Keep it factual.
   `semantic_artifact_runtime_evidence_available=false`,
   `semantic_artifact_runtime_evidence_bound=false`,
   `semantic_artifact_runtime_evidence_accepted=false`,
+  `semantic_artifact_runtime_evidence_acceptance_available=false`,
+  `semantic_artifact_runtime_evidence_acceptance_accepted=false`,
   `runtime_evidence_satisfies_semantic_artifact_definition=false`,
   `semantic_artifact_defined=false`, `semantic_artifact_reviewed=false`,
   `execution_eligibility_blocker_resolved=false`,
   `validation_record_execution_eligible=false`, `execution_allowed=false`,
   and `live_coinbase_orders_ran=false`.
 - Boundary: this active range does not validate command payloads, pass
-  contextless reviews, accept review inputs, accept review outputs, accept review-output acceptances,
-  accept or bind runtime evidence, admit commands, accept risk proofs as command readiness, call Coinbase, execute reconciliation, mutate
-  futures/order/exchange state, grant browser/BFF authority, or import spot-only rules into
-  futures/perpetuals.
+  contextless reviews, accept review inputs, accept review outputs, accept
+  review-output acceptances, accept or bind runtime evidence, admit commands,
+  accept risk proofs as command readiness, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, grant browser/BFF
+  authority, or import spot-only rules into futures/perpetuals.
 - Cancel command identity remains `client_order_id`.
 ## Decisions (Durable)
 

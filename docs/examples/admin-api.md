@@ -13,9 +13,10 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "6761-6780"`. Futures/perpetual command-suite reads
-expose backend-owned disabled semantic artifact runtime evidence binding while
-carrying forward earlier semantic artifact definition review output acceptance,
+`"approved_phase_range": "6781-6800"`. Futures/perpetual command-suite reads
+expose backend-owned disabled semantic artifact runtime evidence acceptance while
+carrying forward earlier semantic artifact runtime evidence binding,
+semantic artifact definition review output acceptance,
 semantic artifact definition review output, semantic artifact definition
 review input, semantic artifact definition review,
 semantic artifact definition, semantic artifact, execution-eligibility blocker,
@@ -59,10 +60,22 @@ execution-eligibility, and admission-link evidence:
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
 `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
 and
-`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
 
-Active semantic artifact runtime evidence rows expose
+Active semantic artifact runtime evidence acceptance rows expose
+`request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
+`semantic_artifact_runtime_evidence_acceptance_ref`,
+`semantic_artifact_runtime_evidence_acceptance_contract_ref`,
+`semantic_artifact_runtime_evidence_acceptance_available=false`, and
+`semantic_artifact_runtime_evidence_acceptance_accepted=false`. Completed
+semantic artifact runtime evidence rows expose
 `request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
 `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
 `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
@@ -135,9 +148,9 @@ definition rows expose
 `semantic_artifact_ref`, and `semantic_artifact_contract_ref`. These rows are
 blocked evidence only; they do not define futures semantics, resolve execution
 eligibility blockers, validate request payloads, accept or bind runtime
-evidence, admit commands, call Coinbase, execute reconciliation, mutate futures
-state, or grant browser/BFF authority.
-Exact autonomous phrase: Active M57 `6761-6780` evidence adds disabled futures request payload validation record semantic artifact runtime evidence binding while completed M57 `6741-6760` carries forward disabled futures request payload validation record semantic artifact definition review output acceptance evidence.
+evidence, accept runtime-evidence acceptances, admit commands, call Coinbase,
+execute reconciliation, mutate futures state, or grant browser/BFF authority.
+Exact autonomous phrase: Active M57 `6781-6800` evidence adds disabled futures request payload validation record semantic artifact runtime evidence acceptance while completed M57 `6761-6780` carries forward disabled futures request payload validation record semantic artifact runtime evidence binding.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,

@@ -735,7 +735,13 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 6761-6780 add disabled futures request payload validation
+Current M57 phases 6781-6800 add disabled futures request payload validation
+record semantic artifact runtime evidence acceptance through
+`application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+Completed M57 phases 6761-6780 carry forward disabled futures request payload validation
 record semantic artifact runtime evidence binding through
 `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
