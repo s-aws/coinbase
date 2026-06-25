@@ -13,9 +13,9 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7041-7060"`. Futures/perpetual command-suite reads
-expose backend-owned execution-eligibility resolution-plan step evidence while
-carrying forward execution-eligibility resolution-plan evidence, execution-eligibility semantic closure evidence, disabled reconciliation semantics,
+`"approved_phase_range": "7061-7080"`. Futures/perpetual command-suite reads
+expose backend-owned execution-eligibility resolution-plan step review evidence while
+carrying forward execution-eligibility resolution-plan step evidence, execution-eligibility resolution-plan evidence, execution-eligibility semantic closure evidence, disabled reconciliation semantics,
 cancel semantics, order semantics, and
 carrying forward earlier semantic artifact runtime evidence binding,
 semantic artifact definition review output acceptance,
@@ -91,17 +91,23 @@ Active execution-eligibility resolution-plan step rows expose
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
 `execution_eligibility_resolution_plan_step_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
-`resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`,
+`resolution_plan_step_accepted=false`,
+`resolution_plan_step_review_required=true`,
+`resolution_plan_step_review_ready=false`,
+`resolution_plan_step_reviewed=false`,
+`resolution_plan_step_review_accepted=false`, `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and
-`blocker_resolved=false`. Active M57 `7041-7060` evidence adds futures request
-payload validation record execution-eligibility resolution-plan step evidence
-while completed M57 `7021-7040` carries forward futures request payload
-validation record execution-eligibility resolution-plan evidence.
+`blocker_resolved=false`. Active M57 `7061-7080` evidence adds futures request
+payload validation record execution-eligibility resolution-plan step review evidence
+while completed M57 `7041-7060` carries forward futures request payload
+validation record execution-eligibility resolution-plan step evidence.
 
 Completed execution-eligibility semantic-closure rows expose
 `validation_record_position_semantics_contract_ref`,

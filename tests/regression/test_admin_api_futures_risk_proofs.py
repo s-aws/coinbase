@@ -92,6 +92,9 @@ from application.admin_api.futures_request_payload_validation_record_execution_e
 from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_CONTRACTS,
 )
+from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_CONTRACTS,
+)
 from application.admin_api.futures_request_payload_validation_record_semantic_artifacts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifacts,
@@ -5214,6 +5217,30 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert (
         command_suite.runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+        == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+        == 0
+    )
+    assert (
+        command_suite.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
+        == 0
+    )
+    assert (
+        command_suite.runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_count
         == 0
     )
     assert (

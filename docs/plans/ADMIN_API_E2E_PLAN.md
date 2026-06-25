@@ -49,23 +49,30 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7041-7060
+## Current Active Phases 7061-7080
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Evidence.
 
-Current M57 work adds backend-owned disabled resolution-plan step fields to
+Current M57 work adds backend-owned disabled resolution-plan step review fields to
 futures request payload validation record execution-eligibility blocker rows
-after completed `7021-7040` resolution-plan evidence. The backend-owned
+after completed `7041-7060` resolution-plan step evidence. The backend-owned
 contract is implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,
 Admin API models/read-service serialization, and generated OpenAPI. The command
 suite must expose `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
 `execution_eligibility_resolution_plan_step_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
-`resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`,
+`resolution_plan_step_accepted=false`,
+`resolution_plan_step_review_required=true`,
+`resolution_plan_step_review_ready=false`,
+`resolution_plan_step_reviewed=false`,
+`resolution_plan_step_review_accepted=false`, `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
@@ -73,10 +80,13 @@ suite must expose `execution_eligibility_resolution_plan_ref`,
 `validation_record_admission_link_ready=false`, and
 `blocker_resolved=false`.
 
-The rows are no-live display evidence only. Resolution plan step presence is
+The rows are no-live display evidence only. Resolution plan step review presence is
 not blocker resolution, runtime acceptance, command admission, Coinbase
 execution, reconciliation execution, futures/order/exchange state mutation,
 browser execution authority, BFF execution authority, or spot-rule authority.
+Completed resolution-plan step evidence from `7041-7060` remains carried forward
+through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`.
 Completed resolution-plan evidence from `7021-7040` remains carried forward
 through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`.
@@ -89,7 +99,7 @@ This work must not validate command payloads, accept runtime evidence, admit
 commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
 state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7041-7060` evidence adds futures request payload validation record execution-eligibility resolution-plan step evidence while completed M57 `7021-7040` carries forward futures request payload validation record execution-eligibility resolution-plan evidence.
+Exact autonomous phrase: Active M57 `7061-7080` evidence adds futures request payload validation record execution-eligibility resolution-plan step review evidence while completed M57 `7041-7060` carries forward futures request payload validation record execution-eligibility resolution-plan step evidence.
 ## Historical Phases 5601-5620
 
 Batch label: Futures/Perpetuals Risk Proof Record Validation Remediation Dependency Work-Item Claim-Trace Clearance Step Review Input Store Record Validation Evidence.

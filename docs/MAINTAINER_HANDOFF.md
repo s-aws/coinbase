@@ -123,13 +123,14 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7021-7040` under M57.
-- Active autonomous range: `7041-7060` under M57.
-- Current range validation: passed ordinary phase closeout for
-  execution-eligibility resolution-plan step evidence.
+- Latest completed autonomous range: `7041-7060` under M57.
+- Active autonomous range: `7061-7080` under M57.
+- Current range validation: in progress for execution-eligibility
+  resolution-plan step review evidence.
   No live Coinbase execution is planned; submitted/executed notional remains
   `0` USDC until validation says otherwise.
-- Current `7041-7060` blind/contextless review: Ohm initially failed on
+- Current `7061-7080` blind/contextless review: pending.
+- Completed `7041-7060` blind/contextless review: Ohm initially failed on
   missing carried-forward resolution-plan terms in `genai_data/agent_state.md`
   and stale review-log leadership, and Plato initially failed on stale
   frontend/backend review-log leadership plus frontend quality gates still
@@ -138,6 +139,12 @@ notional, retained inventory, reconciliation result, and audit ids.
   `7041-7060`, and preserving `7021-7040` as completed history. Ohm and
   Plato re-reviewed and passed after remediation, then phase-end cleanup
   closed both agents.
+- Completed `7041-7060` validation: backend focused validation, OpenAPI
+  freshness, autonomous queue, ownership, stale-process, runtime-artifact
+  report-only, and diff checks passed for execution-eligibility resolution-plan
+  step evidence. Full regression remains a durable milestone closeout gate. No
+  live Coinbase execution was run; submitted/executed notional remains `0`
+  USDC.
 - Completed `7021-7040` validation: backend focused validation, OpenAPI
   freshness, autonomous queue, ownership, stale-process, runtime-artifact
   report-only, and diff checks passed for execution-eligibility resolution-plan
