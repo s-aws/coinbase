@@ -11,11 +11,18 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 6821-6840 range targets explicit M57 futures/perpetual request
-payload validation record margin semantics for
+The active 6841-6860 range targets explicit M57 futures/perpetual request
+payload validation record collateral semantics for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "6821-6840"` and no-live margin-semantics counts
+`"approved_phase_range": "6841-6860"` and no-live collateral-semantics counts
+such as
+`"request_payload_validation_record_collateral_semantic_count"`,
+`"blocking_request_payload_validation_record_collateral_semantic_count"`,
+`"ready_request_payload_validation_record_collateral_semantic_count"`,
+`"runtime_observed_request_payload_validation_record_collateral_semantic_count"`,
+and `"request_payload_validation_record_collateral_semantics"`.
+Completed 6821-6840 margin semantics remain visible through counts
 such as
 `"request_payload_validation_record_margin_semantic_count"`,
 `"blocking_request_payload_validation_record_margin_semantic_count"`,

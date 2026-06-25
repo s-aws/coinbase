@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **6821-6840**.
+- Approved phase range: **6841-6860**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `6801-6820`.
+- Previous completed range: `6821-6840`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `6820`.
+- `current_phase`: `6840`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,149 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 6821-6840
+## Active Phases 6841-6860
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Collateral Semantics.
+
+These phases continue M57 after completed `6821-6840` exposed disabled futures
+request payload validation record margin semantics. The next concrete gap is
+that contextless agents can see margin semantics are missing, but still need
+backend-owned futures/perpetual collateral semantics rows before any future
+validation-record execution eligibility can reason about available collateral,
+collateral currency, collateral requirements, collateral source, or account
+risk-proof evidence. Active M57 `6841-6860` evidence adds disabled futures
+request payload validation record collateral semantics through
+`application/admin_api/futures_request_payload_validation_record_collateral_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_collateral_semantics`.
+It emits:
+`request_payload_validation_record_collateral_semantic_count`,
+`blocking_request_payload_validation_record_collateral_semantic_count`,
+`ready_request_payload_validation_record_collateral_semantic_count`,
+`runtime_observed_request_payload_validation_record_collateral_semantic_count`,
+and `request_payload_validation_record_collateral_semantics`.
+Rows expose `collateral_semantics_ref`,
+`collateral_semantics_contract_ref`, `evidence_routes`, and carried-forward
+margin, position, and semantic-artifact runtime-evidence acceptance refs. They
+keep `collateral_semantics_contract_available=false`,
+`collateral_semantics_contract_ready=false`, `collateral_balance_bound=false`,
+`collateral_currency_bound=false`, `collateral_requirement_bound=false`,
+`collateral_source_bound=false`, `runtime_collateral_evidence_observed=false`,
+`runtime_evidence_satisfies_collateral_semantics=false`,
+`validation_record_collateral_semantics_ready=false`,
+`validation_record_execution_eligible=false`, `execution_allowed=false`,
+`live_coinbase_orders_ran=false`, `spot_rule_authority=false`, browser
+authority display-only, and BFF authority forward-only/no-execution.
+
+This range must not implement collateral validators, validate submitted command
+payloads, pass contextless reviews as execution authority, admit commands,
+accept runtime evidence, accept collateral semantics, bind live account or
+collateral evidence, submit or cancel Coinbase orders, execute reconciliation,
+mutate futures/order/exchange state, accept risk proofs as command readiness,
+or grant browser/BFF execution authority. Spot wallet, no-shorting, USDC,
+cost-basis, average-cost, and inventory-lot assumptions remain forbidden as
+futures/perpetual authority.
+
+Exact autonomous phrase: Active M57 `6841-6860` evidence adds disabled futures request payload validation record collateral semantics while completed M57 `6821-6840` carries forward disabled futures request payload validation record margin semantics.
+
+### Phase 6841 - Prior Range Closure
+
+- Record completed phases `6821-6840` as historical margin-semantics evidence
+  and move active metadata to `6841-6860`.
+
+### Phase 6842 - Collateral Semantics Registry
+
+- Add a backend-owned disabled validation-record collateral-semantics registry
+  derived from runtime-evidence-acceptance contracts.
+
+### Phase 6843 - Collateral Semantics References
+
+- Expose collateral-semantics and collateral-semantics-contract refs for each
+  futures validation-record semantic artifact row.
+
+### Phase 6844 - Collateral Evidence Routes
+
+- Bind collateral semantics to read-only futures account and risk-proof
+  evidence routes without adding command execution authority.
+
+### Phase 6845 - Collateral False Flags
+
+- Keep collateral balance, currency, requirement, source, runtime observation,
+  execution, live Coinbase, browser, BFF, and spot-rule authority false or
+  display-only for every row.
+
+### Phase 6846 - Command Suite Collateral Counts
+
+- Add command-level collateral-semantics counts, blocking counts, ready counts,
+  runtime-observed counts, and rows.
+
+### Phase 6847 - Suite Aggregate Collateral Counts
+
+- Add suite-level aggregate counts for collateral-semantics rows without
+  changing command execution readiness.
+
+### Phase 6848 - Backend Contract References
+
+- Add collateral-semantics contract refs to required backend contracts for
+  every disabled futures command.
+
+### Phase 6849 - Compact Serializer
+
+- Keep public command-suite payload bounded while preserving
+  collateral-semantics summary counts and omitting full evidence-ref arrays.
+
+### Phase 6850 - OpenAPI Contract
+
+- Regenerate and validate OpenAPI so generated clients expose
+  collateral-semantics fields from backend-owned models.
+
+### Phase 6851 - Frontend Generated Client Sync
+
+- Sync the frontend generated schema from OpenAPI without introducing browser
+  trading authority.
+
+### Phase 6852 - Frontend Adapter Mapping
+
+- Map backend collateral-semantics rows into the futures/perpetuals view model.
+
+### Phase 6853 - Frontend Collateral Semantics Display
+
+- Display collateral-semantics rows as backend-owned disabled read evidence.
+
+### Phase 6854 - Frontend Mock Backend Contract
+
+- Update mock backend fixtures to include collateral-semantics rows and
+  aggregate counts that match the backend contract.
+
+### Phase 6855 - Capability Matrix
+
+- Update capability docs to show collateral semantics remain evidence only and
+  do not grant futures/perpetual execution authority.
+
+### Phase 6856 - Contextless Review Evidence
+
+- Record blind/contextless review evidence that the new row is understandable
+  without chat context and remains non-spot-specific.
+
+### Phase 6857 - Focused Backend Validation
+
+- Run focused backend tests and autonomous queue checks for the new contract.
+
+### Phase 6858 - Focused Frontend Validation
+
+- Run focused frontend API, type, unit, and autonomous queue checks for the
+  generated schema, adapter, mock, and read model.
+
+### Phase 6859 - Phase Evidence And Handoff
+
+- Record validation, no-live Coinbase notional `0` USDC, and phase-end
+  stale-subagent sweep evidence in backend/frontend handoff docs.
+
+### Phase 6860 - Commit And Push
+
+- Commit and push backend and frontend changes after focused validation passes.
+
+## Completed Phases 6821-6840
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Margin Semantics.
 

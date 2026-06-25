@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-24
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `6821-6840`.
+- Commit (optional): current active range is `6841-6860`.
 
 ## Current Objective
 
@@ -24,12 +24,18 @@ Keep it short. Keep it factual.
 
 ## Current Phase Override
 
-- Latest completed autonomous range before current work: `6801-6820`.
-- Active autonomous range: `6821-6840`.
-- Current direction: complete phases `6821-6840` with futures request payload
-  validation record margin semantics.
-- Active `6821-6840` adds disabled futures request payload validation record
-  margin semantics through
+- Latest completed autonomous range before current work: `6821-6840`.
+- Active autonomous range: `6841-6860`.
+- Current direction: complete phases `6841-6860` with futures request payload
+  validation record collateral semantics.
+- Active `6841-6860` adds disabled futures request payload validation record
+  collateral semantics through
+  `application/admin_api/futures_request_payload_validation_record_collateral_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_collateral_semantics`.
+- Completed `6821-6840` carries forward disabled futures request payload
+  validation record margin semantics through
   `application/admin_api/futures_request_payload_validation_record_margin_semantics.py`,
   `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
   and
@@ -87,7 +93,12 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `6801-6820`.
+- Latest completed autonomous range before current work: `6821-6840`.
+- Completed `6821-6840` added disabled futures request payload validation
+  record margin semantics through
+  `application/admin_api/futures_request_payload_validation_record_margin_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_margin_semantics`.
 - Completed `6801-6820` added disabled futures request payload validation
   record position semantics through
   `application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
@@ -113,24 +124,25 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `6821-6840`.
+- Active autonomous range: `6841-6860`.
 - Active milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `6821-6840` with backend-owned futures
-  request payload validation record margin semantics and matching frontend
+- Current direction: complete phases `6841-6860` with backend-owned futures
+  request payload validation record collateral semantics and matching frontend
   display.
 - Backend active source:
-  `application/admin_api/futures_request_payload_validation_record_margin_semantics.py`.
+  `application/admin_api/futures_request_payload_validation_record_collateral_semantics.py`.
 - Backend active registry:
-  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`
-  and `iter_futures_request_payload_validation_record_margin_semantics`.
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`
+  and `iter_futures_request_payload_validation_record_collateral_semantics`.
 - Active command-suite evidence fields:
-  `request_payload_validation_record_margin_semantic_count`,
-  `blocking_request_payload_validation_record_margin_semantic_count`,
-  `ready_request_payload_validation_record_margin_semantic_count`,
-  `runtime_observed_request_payload_validation_record_margin_semantic_count`,
-  and `request_payload_validation_record_margin_semantics`.
-- Active evidence phrase: futures request payload validation record margin semantics.
-- Active display phrase: futures request payload validation record margin semantics.
+- `request_payload_validation_record_collateral_semantic_count`,
+  `blocking_request_payload_validation_record_collateral_semantic_count`,
+  `ready_request_payload_validation_record_collateral_semantic_count`,
+  `runtime_observed_request_payload_validation_record_collateral_semantic_count`,
+  and `request_payload_validation_record_collateral_semantics`.
+- Active evidence phrase: futures request payload validation record collateral semantics.
+- Active display phrase: futures request payload validation record collateral semantics.
+- Carried-forward margin phrase: futures request payload validation record margin semantics.
 - Carried-forward position phrase: futures request payload validation record position semantics.
 - Carried-forward acceptance phrase: futures request payload validation record semantic artifact runtime evidence acceptance.
 - Active row evidence fields:
@@ -494,21 +506,21 @@ Keep it short. Keep it factual.
 
 ## Active M57 Machine-Check Evidence Terms
 
-Current direction: complete phases `6821-6840` with futures request payload validation record margin semantics.
+Current direction: complete phases `6841-6860` with futures request payload validation record collateral semantics.
 
-Active evidence phrases: futures request payload validation record margin semantics; futures request payload validation record margin semantics display.
+Active evidence phrases: futures request payload validation record collateral semantics; futures request payload validation record collateral semantics display.
 
-Active backend files and constants: application/admin_api/futures_request_payload_validation_record_margin_semantics.py; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS; iter_futures_request_payload_validation_record_margin_semantics.
+Active backend files and constants: application/admin_api/futures_request_payload_validation_record_collateral_semantics.py; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS; iter_futures_request_payload_validation_record_collateral_semantics.
 
-Active command-suite fields: request_payload_validation_record_margin_semantic_count; blocking_request_payload_validation_record_margin_semantic_count; ready_request_payload_validation_record_margin_semantic_count; runtime_observed_request_payload_validation_record_margin_semantic_count; request_payload_validation_record_margin_semantics; margin_semantics_ref; margin_semantics_contract_ref; evidence_routes; request_payload_validation_record_position_semantic_count; blocking_request_payload_validation_record_position_semantic_count; ready_request_payload_validation_record_position_semantic_count; runtime_observed_request_payload_validation_record_position_semantic_count; request_payload_validation_record_position_semantics; position_semantics_ref; position_semantics_contract_ref; semantic_artifact_runtime_evidence_ref; semantic_artifact_runtime_evidence_contract_ref; semantic_artifact_runtime_evidence_acceptance_ref; semantic_artifact_runtime_evidence_acceptance_contract_ref.
+Active command-suite fields: request_payload_validation_record_collateral_semantic_count; blocking_request_payload_validation_record_collateral_semantic_count; ready_request_payload_validation_record_collateral_semantic_count; runtime_observed_request_payload_validation_record_collateral_semantic_count; request_payload_validation_record_collateral_semantics; collateral_semantics_ref; collateral_semantics_contract_ref; evidence_routes; request_payload_validation_record_margin_semantic_count; blocking_request_payload_validation_record_margin_semantic_count; ready_request_payload_validation_record_margin_semantic_count; runtime_observed_request_payload_validation_record_margin_semantic_count; request_payload_validation_record_margin_semantics; margin_semantics_ref; margin_semantics_contract_ref; request_payload_validation_record_position_semantic_count; blocking_request_payload_validation_record_position_semantic_count; ready_request_payload_validation_record_position_semantic_count; runtime_observed_request_payload_validation_record_position_semantic_count; request_payload_validation_record_position_semantics; position_semantics_ref; position_semantics_contract_ref; semantic_artifact_runtime_evidence_ref; semantic_artifact_runtime_evidence_contract_ref; semantic_artifact_runtime_evidence_acceptance_ref; semantic_artifact_runtime_evidence_acceptance_contract_ref.
 
-Active false flags: contextless_review_required=true; margin_semantics_contract_available=false; margin_semantics_contract_ready=false; margin_account_bound=false; margin_requirement_bound=false; margin_mode_bound=false; margin_buffer_bound=false; runtime_margin_evidence_observed=false; runtime_evidence_satisfies_margin_semantics=false; validation_record_margin_semantics_ready=false; position_semantics_contract_available=false; position_semantics_contract_ready=false; position_identity_bound=false; position_scope_bound=false; position_side_derivation_bound=false; position_size_bound=false; position_notional_bound=false; runtime_position_evidence_observed=false; runtime_evidence_satisfies_position_semantics=false; validation_record_position_semantics_ready=false; semantic_artifact_definition_available=false; semantic_artifact_definition_review_available=false; semantic_artifact_definition_reviewed=false; semantic_artifact_definition_review_passed=false; semantic_artifact_definition_review_input_available=false; semantic_artifact_definition_review_input_accepted=false; semantic_artifact_definition_review_output_available=false; semantic_artifact_definition_review_output_accepted=false; semantic_artifact_definition_review_output_acceptance_available=false; semantic_artifact_definition_review_output_acceptance_accepted=false; semantic_artifact_runtime_evidence_available=false; semantic_artifact_runtime_evidence_bound=false; semantic_artifact_runtime_evidence_accepted=false; semantic_artifact_runtime_evidence_acceptance_available=false; semantic_artifact_runtime_evidence_acceptance_accepted=false; runtime_evidence_satisfies_semantic_artifact_definition=false; semantic_artifact_defined=false; semantic_artifact_reviewed=false; execution_eligibility_blocker_resolved=false; validation_record_execution_eligible=false; execution_allowed=false; live_coinbase_orders_ran=false.
+Active false flags: contextless_review_required=true; collateral_semantics_contract_available=false; collateral_semantics_contract_ready=false; collateral_balance_bound=false; collateral_currency_bound=false; collateral_requirement_bound=false; collateral_source_bound=false; runtime_collateral_evidence_observed=false; runtime_evidence_satisfies_collateral_semantics=false; validation_record_collateral_semantics_ready=false; margin_semantics_contract_available=false; margin_semantics_contract_ready=false; margin_account_bound=false; margin_requirement_bound=false; margin_mode_bound=false; margin_buffer_bound=false; runtime_margin_evidence_observed=false; runtime_evidence_satisfies_margin_semantics=false; validation_record_margin_semantics_ready=false; position_semantics_contract_available=false; position_semantics_contract_ready=false; position_identity_bound=false; position_scope_bound=false; position_side_derivation_bound=false; position_size_bound=false; position_notional_bound=false; runtime_position_evidence_observed=false; runtime_evidence_satisfies_position_semantics=false; validation_record_position_semantics_ready=false; semantic_artifact_definition_available=false; semantic_artifact_definition_review_available=false; semantic_artifact_definition_reviewed=false; semantic_artifact_definition_review_passed=false; semantic_artifact_definition_review_input_available=false; semantic_artifact_definition_review_input_accepted=false; semantic_artifact_definition_review_output_available=false; semantic_artifact_definition_review_output_accepted=false; semantic_artifact_definition_review_output_acceptance_available=false; semantic_artifact_definition_review_output_acceptance_accepted=false; semantic_artifact_runtime_evidence_available=false; semantic_artifact_runtime_evidence_bound=false; semantic_artifact_runtime_evidence_accepted=false; semantic_artifact_runtime_evidence_acceptance_available=false; semantic_artifact_runtime_evidence_acceptance_accepted=false; runtime_evidence_satisfies_semantic_artifact_definition=false; semantic_artifact_defined=false; semantic_artifact_reviewed=false; execution_eligibility_blocker_resolved=false; validation_record_execution_eligible=false; execution_allowed=false; live_coinbase_orders_ran=false.
 
-Carried-forward evidence phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition review evidence; futures request payload validation record semantic artifact runtime evidence acceptance; futures request payload validation record position semantics.
+Carried-forward evidence phrases: futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition review evidence; futures request payload validation record semantic artifact runtime evidence acceptance; futures request payload validation record position semantics; futures request payload validation record margin semantics.
 
-Carried-forward backend files: application/admin_api/futures_request_payload_contracts.py; application/admin_api/futures_request_payload_validators.py; application/admin_api/futures_request_payload_validator_input_schemas.py; application/admin_api/futures_request_payload_validator_output_schemas.py; application/admin_api/futures_request_payload_validator_registrations.py; application/admin_api/futures_request_payload_validation_evidence.py; application/admin_api/futures_request_payload_validation_evidence_records.py; application/admin_api/futures_request_payload_validation_record_schemas.py; application/admin_api/futures_request_payload_validation_record_replay_guards.py; application/admin_api/futures_request_payload_validation_record_audit_links.py; application/admin_api/futures_request_payload_validation_record_admission_links.py; application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py; application/admin_api/futures_request_payload_validation_record_position_semantics.py.
+Carried-forward backend files: application/admin_api/futures_request_payload_contracts.py; application/admin_api/futures_request_payload_validators.py; application/admin_api/futures_request_payload_validator_input_schemas.py; application/admin_api/futures_request_payload_validator_output_schemas.py; application/admin_api/futures_request_payload_validator_registrations.py; application/admin_api/futures_request_payload_validation_evidence.py; application/admin_api/futures_request_payload_validation_evidence_records.py; application/admin_api/futures_request_payload_validation_record_schemas.py; application/admin_api/futures_request_payload_validation_record_replay_guards.py; application/admin_api/futures_request_payload_validation_record_audit_links.py; application/admin_api/futures_request_payload_validation_record_admission_links.py; application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py; application/admin_api/futures_request_payload_validation_record_position_semantics.py; application/admin_api/futures_request_payload_validation_record_margin_semantics.py.
 
-Carried-forward backend constants: FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS; iter_futures_request_payload_contracts; FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS; iter_futures_request_payload_validator_contracts; FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS; iter_futures_request_payload_validator_input_schemas; FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS; iter_futures_request_payload_validator_output_schemas; FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS; iter_futures_request_payload_validator_registrations; FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS; iter_futures_request_payload_validation_evidence; FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS; iter_futures_request_payload_validation_evidence_records; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS; iter_futures_request_payload_validation_record_schemas; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS; iter_futures_request_payload_validation_record_replay_guards; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS; iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS; iter_futures_request_payload_validation_record_position_semantics.
+Carried-forward backend constants: FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS; iter_futures_request_payload_contracts; FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS; iter_futures_request_payload_validator_contracts; FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS; iter_futures_request_payload_validator_input_schemas; FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS; iter_futures_request_payload_validator_output_schemas; FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS; iter_futures_request_payload_validator_registrations; FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS; iter_futures_request_payload_validation_evidence; FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS; iter_futures_request_payload_validation_evidence_records; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS; iter_futures_request_payload_validation_record_schemas; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS; iter_futures_request_payload_validation_record_replay_guards; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS; iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS; iter_futures_request_payload_validation_record_position_semantics; FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS; iter_futures_request_payload_validation_record_margin_semantics.
 
 Carried-forward command-suite fields: request_field_count; blocking_request_field_count; request_payload_validator_contract_count; blocking_request_payload_validator_contract_count; request_payload_validator_input_schema_count; blocking_request_payload_validator_input_schema_count; request_payload_validator_output_schema_count; blocking_request_payload_validator_output_schema_count; request_payload_validator_registration_count; blocking_request_payload_validator_registration_count; request_payload_validation_evidence_count; blocking_request_payload_validation_evidence_count; request_payload_validation_evidence_record_count; blocking_request_payload_validation_evidence_record_count; request_payload_validation_record_schema_count; blocking_request_payload_validation_record_schema_count; request_payload_validation_record_replay_guard_count; blocking_request_payload_validation_record_replay_guard_count; request_payload_validation_record_semantic_artifact_runtime_evidence_count; blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count; ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count; runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count; request_payload_validation_record_semantic_artifact_runtime_evidences; request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count; blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count; ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count; runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count; request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.
 
@@ -560,10 +572,10 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
 - Last stale process checks: 2026-06-24. Backend and frontend stale
   test-process checks passed.
 - Last full backend regression: 2026-06-16 historical pass. Full regression was not rerun for this ordinary phase. Current full regression closeout remains blocked until oversized `runtime_state/test_admin_api_contract` artifacts are cleaned or archived with explicit operator approval.
-- Current `6821-6840` validation: passed focused backend, frontend,
+- Current `6841-6860` validation: passed focused backend, frontend,
   autonomous, and contextless review gates for ordinary phase closeout.
   Backend commands run:
-  `python -m py_compile application\admin_api\futures_request_payload_validation_record_margin_semantics.py application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_futures_risk_proofs.py tools\run_autonomous_work_queue_check.py`;
+  `python -m py_compile application\admin_api\futures_request_payload_validation_record_collateral_semantics.py application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_futures_risk_proofs.py tools\run_autonomous_work_queue_check.py`;
   `python -m pytest tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract -q --tb=short`
   (18 passed); `python tools\run_autonomous_work_queue_check.py --summary-only`
   (passed); `python tools\check_ownership.py` (passed);
@@ -571,7 +583,7 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
   (passed); `git diff --check` (passed with line-ending warnings only).
   Frontend commands run: `npm run api:check`; `npm run typecheck`;
   `npm run test -- FuturesPerpetualsReadModel.test.tsx mockBackend.test.ts backendRuntime.test.ts qualityGates.test.tsx AdminShell.test.tsx`
-  (76 passed); `npm run autonomous:check` (passed);
+  (77 passed); `npm run autonomous:check` (passed);
   `npm run test:processes` (passed); `git diff --check` (passed with
   line-ending warnings only).
 - Full backend regression was not rerun for this ordinary phase. It remains a
@@ -582,14 +594,14 @@ Legacy live-boundary reminders that remain disabled: live_execution_disabled; fu
 
 ## Next 3 Actions
 
-1. Commit and push the backend and frontend phase `6821-6840` work after final diff review.
+1. Commit and push the backend and frontend phase `6841-6860` work after final diff review.
 2. Continue the next approved M57 phase range only after this phase is committed.
 3. Keep full regression reserved for durable milestone closeout or explicit request until the runtime artifact blocker is resolved.
 
 ## Handoff Notes
 
-- Phase `6821-6840` adds backend-owned futures request payload validation
-  record margin semantics and frontend display only.
+- Phase `6841-6860` adds backend-owned futures request payload validation
+  record collateral semantics and frontend display only.
 - The backend remains authoritative for trading behavior, guard checks, live execution, reconciliation, and Coinbase calls.
 - The frontend consumes generated OpenAPI/backend contracts and remains display-only for this evidence surface.
 - No spot-only wallet/no-shorting/cost-basis rules are imported into futures/perpetual command readiness.
