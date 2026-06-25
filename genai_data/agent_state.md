@@ -8,7 +8,7 @@ Keep it short. Keep it factual.
 - Last updated (ET): 2026-06-25
 - Updated by: Codex
 - Branch: codex/stealth-live-service-decision-3501
-- Commit (optional): current active range is `7021-7040`.
+- Commit (optional): current active range is `7041-7060`.
 
 ## Current Objective
 
@@ -24,14 +24,15 @@ Keep it short. Keep it factual.
 
 ## Current Phase Override
 
-- Latest completed autonomous range before current work: `7001-7020`.
-- Active autonomous range: `7021-7040`.
-- Current direction: complete phases `7021-7040` with futures request payload validation record execution-eligibility resolution-plan evidence.
-- Exact active evidence phrase: futures request payload validation record execution-eligibility resolution-plan evidence.
-- Active display phrase: futures request payload validation record execution-eligibility resolution-plan display.
-- Active `7021-7040` adds backend-owned disabled resolution-plan rows for futures request payload validation record execution-eligibility blockers through `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`, Admin API models/read-service serialization, OpenAPI, generated frontend schema, frontend adapter/display, and bounded mock fixtures.
-- Resolution-plan rows expose `execution_eligibility_resolution_plan_ref`, `execution_eligibility_resolution_plan_contract_ref`, `ordered_resolution_step_refs`, `ordered_resolution_step_count`, `resolution_plan_present=true`, `resolution_plan_ready=false`, `resolution_plan_accepted=false`, `runtime_evidence_satisfies_semantic_contract=false`, `validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
-- Every readiness, execution, live Coinbase, browser, BFF, and spot-rule authority flag remains false or display-only. Resolution plan presence is not blocker resolution, runtime acceptance, command admission, reconciliation execution, Coinbase execution, or futures/order/exchange mutation authority. Lowercase durability token: resolution plan presence is not blocker resolution. Active M57 `7021-7040` evidence adds futures request payload validation record execution-eligibility resolution-plan evidence while completed M57 `7001-7020` carries forward futures request payload validation record execution-eligibility semantic closure evidence.
+- Latest completed autonomous range before current work: `7021-7040`.
+- Active autonomous range: `7041-7060`.
+- Current direction: complete phases `7041-7060` with futures request payload validation record execution-eligibility resolution-plan step evidence.
+- Exact active evidence phrase: futures request payload validation record execution-eligibility resolution-plan step evidence.
+- Active display phrase: futures request payload validation record execution-eligibility resolution-plan step display.
+- Active `7041-7060` adds backend-owned disabled resolution-plan step rows for futures request payload validation record execution-eligibility blockers through `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`, Admin API models/read-service serialization, OpenAPI, generated frontend schema, frontend adapter/display, and bounded mock fixtures.
+- Resolution-plan step rows expose `execution_eligibility_resolution_plan_ref`, `execution_eligibility_resolution_plan_contract_ref`, `execution_eligibility_resolution_plan_step_ref`, `execution_eligibility_resolution_plan_step_contract_ref`, `resolution_plan_step_kind`, `resolution_plan_step_ready=false`, `resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`, `ordered_resolution_step_refs`, `ordered_resolution_step_count`, `resolution_plan_present=true`, `resolution_plan_ready=false`, `resolution_plan_accepted=false`, `runtime_evidence_satisfies_semantic_contract=false`, `validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+- Every readiness, execution, live Coinbase, browser, BFF, and spot-rule authority flag remains false or display-only. Resolution plan step presence is not blocker resolution, runtime acceptance, command admission, reconciliation execution, Coinbase execution, or futures/order/exchange mutation authority. Active limits: no validators, no command admission, no Coinbase execution, no reconciliation execution, no futures/order/exchange mutation, no browser/BFF execution authority, and no spot-rule authority. Lowercase durability token: resolution plan step presence is not blocker resolution. Active M57 `7041-7060` evidence adds futures request payload validation record execution-eligibility resolution-plan step evidence while completed M57 `7021-7040` carries forward futures request payload validation record execution-eligibility resolution-plan evidence.
+- Completed `7021-7040` carries forward futures request payload validation record execution-eligibility resolution-plan evidence through `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`, Admin API models/read-service serialization, OpenAPI, generated frontend schema, frontend adapter/display, and bounded mock fixtures.
 - Completed `7001-7020` carries forward futures request payload validation record execution-eligibility semantic closure evidence through `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`, `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`, Admin API models/read-service serialization, OpenAPI, generated frontend schema, frontend adapter/display, and bounded mock fixtures.
 ## Hard Constraints
 
@@ -67,7 +68,12 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range before current work: `7001-7020`.
+- Latest completed autonomous range before current work: `7021-7040`.
+- Completed `7021-7040` added futures request payload validation record
+  execution-eligibility resolution-plan evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
+  Admin API models/read-service serialization, OpenAPI, generated frontend
+  schema, frontend adapter/display, and bounded mock fixtures.
 - Completed `7001-7020` added futures request payload validation record
   execution-eligibility semantic closure evidence through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
@@ -154,11 +160,11 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `7021-7040`.
+- Active autonomous range: `7041-7060`.
 - Approved milestone: M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Current direction: complete phases `7021-7040` with backend-owned futures request payload validation record execution-eligibility resolution-plan evidence and matching frontend display.
-- Active evidence phrase: futures request payload validation record execution-eligibility resolution-plan evidence.
-- Active display phrase: futures request payload validation record execution-eligibility resolution-plan display.
+- Current direction: complete phases `7041-7060` with backend-owned futures request payload validation record execution-eligibility resolution-plan step evidence and matching frontend display.
+- Active evidence phrase: futures request payload validation record execution-eligibility resolution-plan step evidence.
+- Active display phrase: futures request payload validation record execution-eligibility resolution-plan step display.
 - Boundary: no validators, no runtime acceptance, no command admission, no Coinbase execution, no reconciliation execution, no futures/order/exchange mutation, no browser/BFF execution authority, and no spot-rule authority.
 ## Decisions (Durable)
 
@@ -455,16 +461,16 @@ Keep it short. Keep it factual.
 
 ## Active M57 Machine-Check Evidence Terms
 
-Current direction: complete phases `7021-7040` with futures request payload validation record execution-eligibility resolution-plan evidence.
+Current direction: complete phases `7041-7060` with futures request payload validation record execution-eligibility resolution-plan step evidence.
 
-Active evidence phrases: futures request payload validation record execution-eligibility resolution-plan evidence; futures request payload validation record execution-eligibility resolution-plan display.
+Active evidence phrases: futures request payload validation record execution-eligibility resolution-plan step evidence; futures request payload validation record execution-eligibility resolution-plan step display.
 
-Current backend symbols: application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py; execution_eligibility_resolution_plan_ref; execution_eligibility_resolution_plan_contract_ref; ordered_resolution_step_refs; ordered_resolution_step_count; resolution_plan_present; resolution_plan_ready; resolution_plan_accepted; runtime_evidence_satisfies_semantic_contract; validation_record_admission_link_ready; blocker_resolved; resolution plan presence is not blocker resolution.
+Current backend symbols: application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py; execution_eligibility_resolution_plan_ref; execution_eligibility_resolution_plan_contract_ref; execution_eligibility_resolution_plan_step_ref; execution_eligibility_resolution_plan_step_contract_ref; resolution_plan_step_kind; resolution_plan_step_ready; resolution_plan_step_accepted; ordered_resolution_step_ref; ordered_resolution_step_count; resolution_plan_present; runtime_evidence_satisfies_semantic_contract; validation_record_admission_link_ready; blocker_resolved; resolution plan step presence is not blocker resolution.
 
-Carried-forward evidence phrases: futures request payload validation record execution-eligibility semantic closure evidence; futures request payload validation record execution-eligibility semantic closure display; futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition review evidence; futures request payload validation record semantic artifact definition review input evidence; futures request payload validation record semantic artifact definition review output evidence; futures request payload validation record semantic artifact definition review output acceptance evidence; futures request payload validation record semantic artifact runtime evidence binding; futures request payload validation record semantic artifact runtime evidence acceptance; futures request payload validation record position semantics; futures request payload validation record margin semantics; futures request payload validation record collateral semantics; futures request payload validation record liquidation semantics; futures request payload validation record reduce-only semantics; futures request payload validation record close-only semantics; futures request payload validation record funding semantics; futures request payload validation record order semantics; futures request payload validation record cancel semantics; futures request payload validation record reconciliation semantics.
+Carried-forward evidence phrases: futures request payload validation record execution-eligibility resolution-plan evidence; futures request payload validation record execution-eligibility resolution-plan display; futures request payload validation record execution-eligibility semantic closure evidence; futures request payload validation record execution-eligibility semantic closure display; futures request payload contract registry evidence; futures request payload validation gate evidence; futures request payload validator contract registry evidence; futures request payload validator input-schema evidence; futures request payload validator output-schema evidence; futures request payload validator registration evidence; futures request payload validation evidence; futures request payload validation evidence record contract evidence; futures request payload validation record schema evidence; futures request payload validation record replay guard evidence; futures request payload validation record audit-link evidence; futures request payload validation record admission-link evidence; futures request payload validation record execution-eligibility blocker evidence; futures request payload validation record semantic artifact evidence; futures request payload validation record semantic artifact definition evidence; futures request payload validation record semantic artifact definition review evidence; futures request payload validation record semantic artifact definition review input evidence; futures request payload validation record semantic artifact definition review output evidence; futures request payload validation record semantic artifact definition review output acceptance evidence; futures request payload validation record semantic artifact runtime evidence binding; futures request payload validation record semantic artifact runtime evidence acceptance; futures request payload validation record position semantics; futures request payload validation record margin semantics; futures request payload validation record collateral semantics; futures request payload validation record liquidation semantics; futures request payload validation record reduce-only semantics; futures request payload validation record close-only semantics; futures request payload validation record funding semantics; futures request payload validation record order semantics; futures request payload validation record cancel semantics; futures request payload validation record reconciliation semantics.
 ## Validation Status
 
-- Current `7021-7040` validation: passed ordinary phase closeout for
+- Completed `7021-7040` validation: passed ordinary phase closeout for
   execution-eligibility resolution-plan evidence. Backend commands run:
   `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py application\admin_api\futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`;
   `python tools\generate_admin_api_openapi.py`;
@@ -480,7 +486,7 @@ Carried-forward evidence phrases: futures request payload validation record exec
   futures read model, and quality gates (`121` passed);
   `npm run test:processes` (passed); and `git diff --check` (passed with
   line-ending warnings only).
-- Current `7021-7040` blind/contextless review: backend reviewer Hubble
+- Completed `7021-7040` blind/contextless review: backend reviewer Hubble
   (`019eff3b-8254-7c52-b6e0-e739a5e0fa1d`) initially failed on stale
   `docs/plans/ADMIN_API_E2E_PLAN.md` and
   `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` active-range wording; those findings

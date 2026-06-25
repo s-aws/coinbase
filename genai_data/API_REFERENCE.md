@@ -16,27 +16,42 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7021-7040` futures/perpetual request payload validation record
-execution-eligibility resolution-plan evidence for
+Current M57 `7041-7060` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step evidence for
 `GET /api/v1/futures/command-suite`: futures request payload validation record
-execution-eligibility resolution-plan evidence; futures request payload
-validation record execution-eligibility resolution-plan display; carried-
+execution-eligibility resolution-plan step evidence; futures request payload
+validation record execution-eligibility resolution-plan step display; carried-
 forward futures request payload validation record execution-eligibility
-semantic closure evidence. The current source registry is
+resolution-plan evidence. The current source registries are
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`
-with rows derived from semantic-artifact runtime-evidence acceptance contracts.
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`
+with step rows derived from each ordered resolution-plan prerequisite.
 Representative command-suite keys:
 `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
+`execution_eligibility_resolution_plan_step_ref`,
+`execution_eligibility_resolution_plan_step_contract_ref`,
+`resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+`resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and
-`blocker_resolved=false`. Resolution plan presence is not blocker resolution,
+`blocker_resolved=false`. Resolution plan step presence is not blocker resolution,
 runtime acceptance, command admission, Coinbase execution, reconciliation
 execution, futures/order/exchange mutation, browser/BFF execution authority, or
 spot-rule authority.
+
+Completed M57 `7021-7040` futures/perpetual request payload validation record
+execution-eligibility resolution-plan evidence for
+`GET /api/v1/futures/command-suite` exposed
+`execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`, and `blocker_resolved=false`.
 
 Completed M57 `7001-7020` futures/perpetual request payload validation record
 execution-eligibility semantic closure for

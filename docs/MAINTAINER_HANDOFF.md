@@ -123,13 +123,27 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7001-7020` under M57.
-- Active autonomous range: `7021-7040` under M57.
+- Latest completed autonomous range: `7021-7040` under M57.
+- Active autonomous range: `7041-7060` under M57.
 - Current range validation: passed ordinary phase closeout for
-  execution-eligibility resolution-plan evidence.
+  execution-eligibility resolution-plan step evidence.
   No live Coinbase execution is planned; submitted/executed notional remains
   `0` USDC until validation says otherwise.
-- Current `7021-7040` blind/contextless review: Hubble initially failed on
+- Current `7041-7060` blind/contextless review: Ohm initially failed on
+  missing carried-forward resolution-plan terms in `genai_data/agent_state.md`
+  and stale review-log leadership, and Plato initially failed on stale
+  frontend/backend review-log leadership plus frontend quality gates still
+  expecting `7021-7040`. The findings were consumed and remediated by adding
+  current `7041-7060` review-log entries, moving active quality gates to
+  `7041-7060`, and preserving `7021-7040` as completed history. Ohm and
+  Plato re-reviewed and passed after remediation, then phase-end cleanup
+  closed both agents.
+- Completed `7021-7040` validation: backend focused validation, OpenAPI
+  freshness, autonomous queue, ownership, stale-process, runtime-artifact
+  report-only, and diff checks passed for execution-eligibility resolution-plan
+  evidence. Full regression remains a durable milestone closeout gate. No live
+  Coinbase execution was run; submitted/executed notional remains `0` USDC.
+- Completed `7021-7040` blind/contextless review: Hubble initially failed on
   stale backend active-range docs, Hilbert initially failed on stale frontend
   active-range/current-phase docs, both sets of findings were remediated, both
   re-reviews passed, and phase-end subagent cleanup closed Hubble and Hilbert.
@@ -154,19 +168,26 @@ notional, retained inventory, reconciliation result, and audit ids.
   required for order-create command tests; a frontend human "operator" label is
   not enough backend authority.
 - Active range adds futures request payload validation record
-  execution-eligibility resolution-plan evidence through
-  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`.
+  execution-eligibility resolution-plan step evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`.
   The current fields include `execution_eligibility_resolution_plan_ref`,
   `execution_eligibility_resolution_plan_contract_ref`,
+  `execution_eligibility_resolution_plan_step_ref`,
+  `execution_eligibility_resolution_plan_step_contract_ref`,
+  `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+  `resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`,
   `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
   `resolution_plan_present=true`, `resolution_plan_ready=false`,
   `resolution_plan_accepted=false`,
   `runtime_evidence_satisfies_semantic_contract=false`,
   `validation_record_admission_link_ready=false`, and
-  `blocker_resolved=false`. Resolution plan presence is not blocker
+  `blocker_resolved=false`. Resolution plan step presence is not blocker
   resolution, runtime acceptance, command admission, Coinbase execution,
   reconciliation execution, futures/order/exchange mutation, browser/BFF
   execution authority, or spot-rule authority.
+- Completed `7021-7040` carries forward futures request payload validation
+  record execution-eligibility resolution-plan evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`.
 - Completed `7001-7020` carries forward futures request payload validation
   record execution-eligibility semantic closure evidence through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`

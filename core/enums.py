@@ -1191,6 +1191,23 @@ class AdminFuturesCommandExecutionEligibilityBlocker(str, Enum):
     RECONCILIATION_SEMANTICS_MISSING = "reconciliation_semantics_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStep(str, Enum):
+    """Ordered backend evidence steps required to clear a futures blocker."""
+
+    SEMANTIC_ARTIFACT_CONTRACT = "semantic_artifact_contract"
+    SEMANTIC_ARTIFACT_DEFINITION_CONTRACT = "semantic_artifact_definition_contract"
+    SEMANTIC_ARTIFACT_DEFINITION_REVIEW = "semantic_artifact_definition_review"
+    SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACT = (
+        "semantic_artifact_runtime_evidence_contract"
+    )
+    SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACT = (
+        "semantic_artifact_runtime_evidence_acceptance_contract"
+    )
+    RUNTIME_READBACK = "runtime_readback"
+    ADMISSION_LINK = "admission_link"
+    CONTEXTLESS_REVIEW = "contextless_review"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

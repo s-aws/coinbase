@@ -144,6 +144,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidationRecordAuditLinkItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanItem,
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem,
     AdminFuturesCommandRequestPayloadValidationRecordReplayGuardItem,
     AdminFuturesCommandRequestPayloadValidationRecordSchemaItem,
@@ -379,6 +380,9 @@ from .futures_request_payload_validation_record_execution_eligibility_blockers i
 )
 from .futures_request_payload_validation_record_execution_eligibility_resolution_plans import (
     iter_futures_request_payload_validation_record_execution_eligibility_resolution_plans,
+)
+from .futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps import (
+    iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps,
 )
 from .futures_request_payload_validation_record_semantic_artifacts import (
     iter_futures_request_payload_validation_record_semantic_artifacts,
@@ -691,6 +695,7 @@ FUTURES_COMMAND_SUITE_API_DEEP_COMPACT_FIELDS = frozenset(
         "semantic_ref",
     }
 )
+FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_STEP_ROW_LIMIT = 8
 
 
 def _dump_futures_command_suite_response(
@@ -785,6 +790,29 @@ def futures_command_suite_frontend_fixture_payload(
     for key in ("required_backend_contracts", "missing_backend_contracts"):
         if key in payload:
             compacted[key] = payload[key]
+    for command in compacted.get("commands", []):
+        if not isinstance(command, dict):
+            continue
+        step_rows = command.get(
+            "request_payload_validation_record_execution_eligibility_resolution_plan_steps"
+        )
+        if not isinstance(step_rows, list):
+            continue
+        limited_rows = step_rows[
+            :FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_STEP_ROW_LIMIT
+        ]
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_steps"
+        ] = limited_rows
+        command[
+            "materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_count"
+        ] = len(limited_rows)
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_detail_row_limit"
+        ] = FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_STEP_ROW_LIMIT
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_detail_rows_limited"
+        ] = len(step_rows) > len(limited_rows)
     return compacted
 
 
@@ -23259,6 +23287,92 @@ class AdminApiReadService:
                 )
             ]
 
+        def request_payload_validation_record_execution_eligibility_resolution_plan_steps_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> list[
+            AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepItem
+        ]:
+            return [
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepItem(
+                    field=contract.field,
+                    blocker=contract.blocker,
+                    semantic_artifact=contract.semantic_artifact,
+                    resolution_plan_step_kind=contract.resolution_plan_step_kind,
+                    resolution_plan_step_index=contract.resolution_plan_step_index,
+                    status=contract.status,
+                    source=contract.source,
+                    required=contract.required,
+                    blocking=contract.blocking,
+                    validation_record_execution_eligibility_contract_ref=(
+                        contract.validation_record_execution_eligibility_contract_ref
+                    ),
+                    validation_record_execution_eligibility_blocker_ref=(
+                        contract.validation_record_execution_eligibility_blocker_ref
+                    ),
+                    semantic_ref=contract.semantic_ref,
+                    execution_eligibility_resolution_plan_ref=(
+                        contract.execution_eligibility_resolution_plan_ref
+                    ),
+                    execution_eligibility_resolution_plan_contract_ref=(
+                        contract.execution_eligibility_resolution_plan_contract_ref
+                    ),
+                    execution_eligibility_resolution_plan_step_ref=(
+                        contract.execution_eligibility_resolution_plan_step_ref
+                    ),
+                    execution_eligibility_resolution_plan_step_contract_ref=(
+                        contract.execution_eligibility_resolution_plan_step_contract_ref
+                    ),
+                    ordered_resolution_step_ref=contract.ordered_resolution_step_ref,
+                    ordered_resolution_step_count=(
+                        contract.ordered_resolution_step_count
+                    ),
+                    required_backend_contract=contract.required_backend_contract,
+                    missing_backend_contract=contract.missing_backend_contract,
+                    missing_reason=contract.missing_reason,
+                    required_evidence_refs=list(contract.required_evidence_refs),
+                    required_evidence_count=len(contract.required_evidence_refs),
+                    missing_evidence_refs=list(contract.missing_evidence_refs),
+                    missing_evidence_count=len(contract.missing_evidence_refs),
+                    forbidden_execution_claims=list(
+                        contract.forbidden_execution_claims
+                    ),
+                    forbidden_execution_claim_count=len(
+                        contract.forbidden_execution_claims
+                    ),
+                    backend_owned=contract.backend_owned,
+                    read_only=contract.read_only,
+                    contextless_review_required=(
+                        contract.contextless_review_required
+                    ),
+                    spot_rule_authority=contract.spot_rule_authority,
+                    resolution_plan_present=contract.resolution_plan_present,
+                    resolution_plan_step_ready=contract.resolution_plan_step_ready,
+                    resolution_plan_step_accepted=(
+                        contract.resolution_plan_step_accepted
+                    ),
+                    runtime_evidence_observed=contract.runtime_evidence_observed,
+                    runtime_evidence_satisfies_semantic_contract=(
+                        contract.runtime_evidence_satisfies_semantic_contract
+                    ),
+                    validation_record_admission_link_ready=(
+                        contract.validation_record_admission_link_ready
+                    ),
+                    validation_record_admitted=contract.validation_record_admitted,
+                    blocker_resolved=contract.blocker_resolved,
+                    validation_record_execution_eligible=(
+                        contract.validation_record_execution_eligible
+                    ),
+                    execution_allowed=contract.execution_allowed,
+                    live_coinbase_orders_ran=contract.live_coinbase_orders_ran,
+                    browser_authority=contract.browser_authority,
+                    bff_authority=contract.bff_authority,
+                    detail=contract.detail,
+                )
+                for contract in iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps(
+                    command_id
+                )
+            ]
+
         def request_payload_validation_record_semantic_artifacts_for(
             command_id: AdminFuturesCommandAction,
         ) -> list[AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem]:
@@ -34006,6 +34120,9 @@ class AdminApiReadService:
             request_payload_validation_record_execution_eligibility_resolution_plans: list[
                 AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanItem
             ],
+            request_payload_validation_record_execution_eligibility_resolution_plan_steps: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepItem
+            ],
             request_payload_validation_record_semantic_artifacts: list[
                 AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem
             ],
@@ -34474,6 +34591,32 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plans=(
                     request_payload_validation_record_execution_eligibility_resolution_plans
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_count=len(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_steps
+                ),
+                blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_steps
+                    if item.blocking
+                ),
+                ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_steps
+                    if item.resolution_plan_step_ready
+                ),
+                accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_steps
+                    if item.resolution_plan_step_accepted
+                ),
+                runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_steps
+                    if item.runtime_evidence_observed
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_steps=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_steps
                 ),
                 request_payload_validation_record_semantic_artifact_count=len(
                     request_payload_validation_record_semantic_artifacts
@@ -35660,6 +35803,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_steps=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_steps_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.PLACE
@@ -35829,6 +35977,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plans=(
                     request_payload_validation_record_execution_eligibility_resolution_plans_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_steps=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_steps_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -36005,6 +36158,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_steps=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_steps_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.CANCEL
@@ -36176,6 +36334,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plans=(
                     request_payload_validation_record_execution_eligibility_resolution_plans_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_steps=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_steps_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -36953,6 +37116,26 @@ class AdminApiReadService:
             ),
             runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_count=sum(
                 command.runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_count
+                for command in commands
+            ),
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+                for command in commands
+            ),
+            blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                command.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+                for command in commands
+            ),
+            ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                command.ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+                for command in commands
+            ),
+            accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
+                for command in commands
+            ),
+            runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_step_count=sum(
+                command.runtime_observed_request_payload_validation_record_execution_eligibility_resolution_plan_step_count
                 for command in commands
             ),
             request_payload_validation_record_semantic_artifact_count=sum(

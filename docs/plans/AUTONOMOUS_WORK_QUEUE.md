@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7021-7040**.
+- Approved phase range: **7041-7060**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7001-7020`.
+- Previous completed range: `7021-7040`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7020`.
+- `current_phase`: `7040`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,31 +81,36 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7021-7040
+## Active Phases 7041-7060
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Evidence.
 
-These phases continue M57 after completed `7001-7020` exposed disabled futures
-request payload validation record execution-eligibility semantic closure
-evidence. The concrete gap is that execution-eligibility blockers now need a
-backend-owned, ordered remediation plan that explains exactly which semantic
-artifact, runtime evidence, readback, admission-link, and contextless-review
-facts must exist before each blocker can be cleared. The plan rows are evidence
-only: their presence is not blocker resolution, semantic acceptance, command
+These phases continue M57 after completed `7021-7040` exposed disabled futures
+request payload validation record execution-eligibility resolution-plan
+evidence. The concrete gap is that each ordered resolution-plan prerequisite
+now needs a first-class backend-owned row so contextless maintainers can review
+step kind, step ref, required/missing evidence, and false readiness/execution
+flags without interpreting a raw string array. The step rows are evidence only:
+their presence is not blocker resolution, semantic acceptance, command
 admission, reconciliation execution, Coinbase execution, browser execution
 authority, BFF execution authority, or spot-rule authority.
 
-Active M57 `7021-7040` evidence adds futures request payload validation record
-execution-eligibility resolution-plan evidence while completed M57 `7001-7020`
-carries forward futures request payload validation record execution-eligibility
-semantic closure evidence.
+Active M57 `7041-7060` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step evidence while completed M57
+`7021-7040` carries forward futures request payload validation record
+execution-eligibility resolution-plan evidence.
 
-Active `7021-7040` resolution-plan evidence is implemented through
+Active `7041-7060` resolution-plan step evidence is implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
 backend Admin API models/read-service serialization, OpenAPI, generated frontend
 schema, frontend adapter/view-model display, and bounded mock fixtures. It adds
 `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
+`execution_eligibility_resolution_plan_step_ref`,
+`execution_eligibility_resolution_plan_step_contract_ref`,
+`resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+`resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`,
 `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
 `resolution_plan_present=true`, `resolution_plan_ready=false`,
 `resolution_plan_accepted=false`,
@@ -113,109 +118,130 @@ schema, frontend adapter/view-model display, and bounded mock fixtures. It adds
 `validation_record_admission_link_ready=false`, and
 `blocker_resolved=false` to the command-suite evidence.
 
-This range must not implement execution validators, mark resolution plans ready
-or accepted, accept runtime evidence, admit commands, execute reconciliation,
-mutate futures/order/exchange state, call Coinbase, create frontend/BFF trading
-logic, or apply spot wallet, no-shorting, USDC, cost-basis, average-cost, or
-inventory lot assumptions as futures/perpetual authority.
+This range must not implement execution validators, mark resolution plan steps
+ready or accepted, accept runtime evidence, admit commands, execute
+reconciliation, mutate futures/order/exchange state, call Coinbase, create
+frontend/BFF trading logic, or apply spot wallet, no-shorting, USDC,
+cost-basis, average-cost, or inventory lot assumptions as futures/perpetual
+authority. Resolution plan step presence is not blocker resolution.
 
-Exact autonomous phrase: Active M57 `7021-7040` evidence adds futures request payload validation record execution-eligibility resolution-plan evidence while completed M57 `7001-7020` carries forward futures request payload validation record execution-eligibility semantic closure evidence.
+Exact autonomous phrase: Active M57 `7041-7060` evidence adds futures request payload validation record execution-eligibility resolution-plan step evidence while completed M57 `7021-7040` carries forward futures request payload validation record execution-eligibility resolution-plan evidence.
 
-### Phase 7021 - Prior Range Closure
+### Phase 7041 - Prior Range Closure
 
-- Record completed `7001-7020` semantic-closure evidence as historical and move
-  active metadata to `7021-7040`.
+- Record completed `7021-7040` resolution-plan evidence as historical and move
+  active metadata to `7041-7060`.
 
-### Phase 7022 - Resolution Plan Registry
+### Phase 7042 - Resolution Plan Step Registry
 
-- Add a backend-owned disabled resolution-plan registry with one row per
-  execution-eligibility blocker and runtime-evidence acceptance contract.
+- Add a backend-owned disabled resolution-plan step registry with one row per
+  ordered step under each execution-eligibility resolution plan.
 
-### Phase 7023 - Ordered Resolution Steps
+### Phase 7043 - Step Kind Enum
 
-- Bind each row to ordered semantic artifact, definition, review, runtime
-  evidence, acceptance, readback, admission-link, and contextless-review refs.
+- Add enum-backed step kinds for semantic artifact, definition, review,
+  runtime evidence, runtime-evidence acceptance, readback, admission-link, and
+  contextless-review prerequisites.
 
-### Phase 7024 - False Readiness Flags
+### Phase 7044 - False Readiness Flags
 
-- Keep resolution plan ready/accepted, runtime evidence, admission, blocker
-  resolution, execution eligibility, live Coinbase, browser, BFF, and spot-rule
-  authority flags false or display-only.
+- Keep resolution plan step ready/accepted, runtime evidence, admission,
+  blocker resolution, execution eligibility, live Coinbase, browser, BFF, and
+  spot-rule authority flags false or display-only.
 
-### Phase 7025 - Backend Model Serialization
+### Phase 7045 - Backend Model Serialization
 
-- Expose command-level and suite-level resolution-plan counts and row lists
+- Expose command-level and suite-level resolution-plan step counts and row lists
   through backend Admin API models and read-service serialization.
 
-### Phase 7026 - OpenAPI Regeneration
+### Phase 7046 - OpenAPI Regeneration
 
 - Regenerate the backend OpenAPI contract from backend-owned models.
 
-### Phase 7027 - Frontend Generated Schema
+### Phase 7047 - Frontend Generated Schema
 
 - Regenerate the frontend generated schema from the backend OpenAPI contract.
 
-### Phase 7028 - Frontend Adapter Mapping
+### Phase 7048 - Frontend Adapter Mapping
 
-- Map resolution-plan rows and aggregate counts into typed futures view models
-  without adding browser validation or execution authority.
+- Map resolution-plan step rows and aggregate counts into typed futures view
+  models without adding browser validation or execution authority.
 
-### Phase 7029 - Summary Display
+### Phase 7049 - Summary Display
 
 - Add command-suite summary counts for total, blocking, ready, accepted, and
-  runtime-observed resolution plans.
+  runtime-observed resolution plan steps.
 
-### Phase 7030 - Detail Display
+### Phase 7050 - Detail Display
 
-- Render resolution-plan refs, ordered steps, required/missing evidence, false
-  state flags, and display-only authority in futures/perpetual details.
+- Render resolution-plan step refs, ordered refs, required/missing evidence,
+  false state flags, and display-only authority in futures/perpetual details.
 
-### Phase 7031 - Mock Backend Sync
+### Phase 7051 - Mock Backend Sync
 
 - Update bounded frontend mock fixtures to emit backend-equivalent
-  resolution-plan rows and counts.
+  resolution-plan step rows and counts.
 
-### Phase 7032 - Component Fixture Sync
+### Phase 7052 - Component Fixture Sync
 
 - Update component/unit fixtures so TypeScript enforces the new generated
   contract fields.
 
-### Phase 7033 - Backend Focused Tests
+### Phase 7053 - Backend Focused Tests
 
-- Add focused backend assertions that the resolution-plan counts match the
+- Add focused backend assertions that the resolution-plan step counts match the
   registry and all ready/accepted/runtime-observed counts remain zero.
 
-### Phase 7034 - Frontend Focused Tests
+### Phase 7054 - Frontend Focused Tests
 
 - Run API check, typecheck, and focused futures/mock/backend-client/quality
   unit tests for the new display surface.
 
-### Phase 7035 - Autonomous Queue Metadata
+### Phase 7055 - Autonomous Queue Metadata
 
 - Update backend and frontend autonomous queue, artifact, readiness, and
-  checker metadata for `7021-7040`.
+  checker metadata for `7041-7060`.
 
-### Phase 7036 - Contextless Review
+### Phase 7056 - Contextless Review
 
 - Run fresh blind/contextless backend and frontend reviews, remediate blocking
   ambiguity, and close phase-scoped subagents during the phase-end sweep.
 
-### Phase 7037 - No-Live Evidence
+### Phase 7057 - No-Live Evidence
 
 - Record that no live Coinbase execution is planned or run; submitted and
   executed notional remain `0` USDC for this range.
 
-### Phase 7038 - Ownership And Hygiene
+### Phase 7058 - Ownership And Hygiene
 
 - Run ownership, stale-process, process-hygiene, and diff checks.
 
-### Phase 7039 - Commit Backend Association
+### Phase 7059 - Commit Backend Association
 
-- Commit and push backend resolution-plan evidence once focused checks pass.
+- Commit and push backend resolution-plan step evidence once focused checks
+  pass.
 
-### Phase 7040 - Commit Frontend Association
+### Phase 7060 - Commit Frontend Association
 
-- Commit and push frontend resolution-plan display once focused checks pass.
+- Commit and push frontend resolution-plan step display once focused checks
+  pass.
+
+## Completed Phases 7021-7040
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Evidence.
+
+Completed M57 `7021-7040` added backend-owned disabled resolution-plan rows
+for futures request payload validation record execution-eligibility blockers.
+The rows expose `execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`,
+`runtime_evidence_satisfies_semantic_contract=false`,
+`validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+Resolution plan presence is not blocker resolution, command admission,
+reconciliation execution, Coinbase execution, futures/order/exchange mutation,
+browser/BFF execution authority, or spot-rule authority.
 
 ## Completed Phases 7001-7020
 
