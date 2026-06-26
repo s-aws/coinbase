@@ -167,6 +167,9 @@ from application.admin_api.futures_request_payload_validation_record_validation_
 from application.admin_api.futures_request_payload_validation_record_validation_check_output_schema_field_constraints import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_OUTPUT_SCHEMA_FIELD_CONSTRAINT_CONTRACTS,
 )
+from application.admin_api.futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_refs import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_CONTRACTS,
+)
 from application.admin_api.futures_request_payload_validation_record_semantic_artifacts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifacts,
@@ -8021,6 +8024,136 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 == "forward_only_no_execution"
             )
             assert validation_check_output_schema_field_constraint.spot_rule_authority is False
+        output_schema_field_constraint_source_ref_count = (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+        )
+        materialized_output_schema_field_constraint_source_ref_count = (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+        )
+        output_schema_field_constraint_source_ref_rows = (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_refs
+        )
+        assert (
+            output_schema_field_constraint_source_ref_count
+            == output_schema_field_constraint_count
+        )
+        assert (
+            materialized_output_schema_field_constraint_source_ref_count
+            == len(output_schema_field_constraint_source_ref_rows)
+        )
+        assert materialized_output_schema_field_constraint_source_ref_count <= min(
+            output_schema_field_constraint_source_ref_count,
+            FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_detail_row_limit
+            == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_detail_rows_limited
+            is (
+                output_schema_field_constraint_source_ref_count
+                > materialized_output_schema_field_constraint_source_ref_count
+            )
+        )
+        for validation_check_output_schema_field_constraint_source_ref in output_schema_field_constraint_source_ref_rows:
+            assert validation_check_output_schema_field_constraint_source_ref.blocking is True
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_required
+                is True
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_ready
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_declared
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_contextless_review_passed
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_accepted
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_recorded
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+                == len(
+                    validation_check_output_schema_field_constraint_source_ref.predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_refs
+                )
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+                == len(
+                    validation_check_output_schema_field_constraint_source_ref.successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_refs
+                )
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blocker_count
+                == len(
+                    validation_check_output_schema_field_constraint_source_ref.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blockers
+                )
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blocker_count
+                >= 5
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_blocker_count
+                == len(
+                    validation_check_output_schema_field_constraint_source_ref.inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_blockers
+                )
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_blocker_count
+                > 0
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref
+                == validation_check_output_schema_field_constraint_source_ref.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_evidence_ref
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_target_ref
+                == validation_check_output_schema_field_constraint_source_ref.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_evidence_ref
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_check_output_schema_field_constraint_source_ref_source_ref
+                == validation_check_output_schema_field_constraint_source_ref.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_evidence_ref
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.blocker_resolved
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.validation_record_execution_eligible
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.execution_allowed
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.live_coinbase_orders_ran
+                is False
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.browser_authority
+                == "display_only"
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.bff_authority
+                == "forward_only_no_execution"
+            )
+            assert (
+                validation_check_output_schema_field_constraint_source_ref.spot_rule_authority
+                is False
+            )
     assert (
         command_suite.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_count
         == len(
@@ -8231,6 +8364,30 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
     )
     assert (
         command_suite.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_count
+        == 0
+    )
+    assert (
+        command_suite.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+        == 0
+    )
+    assert (
+        command_suite.declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
+        == 0
+    )
+    assert (
+        command_suite.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count
         == 0
     )
     assert (

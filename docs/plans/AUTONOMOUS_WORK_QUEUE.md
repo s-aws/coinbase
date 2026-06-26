@@ -109,7 +109,7 @@ request payload validation record execution-eligibility resolution-plan step
 review input store record-validation check output schema field-constraint
 evidence.
 
-Active `7561-7580` source-ref evidence is planned through
+Active `7561-7580` source-ref evidence is implemented through
 `application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_refs.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend
 schema, frontend adapter/view-model display, and bounded mock fixtures.
