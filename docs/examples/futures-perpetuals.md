@@ -11,13 +11,13 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7261-7280 range targets explicit M57 futures/perpetual request
+The active 7281-7300 range targets explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
-clearance-step evidence for
+clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7261-7280"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step fields such
+`"approved_phase_range": "7281-7300"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review fields such
 as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
@@ -41,6 +41,25 @@ as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_gate`,
+`required_clearance_step_contract`,
+`required_clearance_step_review_input_ref`,
+`clearance_step_review_claim`,
+`clearance_step_review_target_ref`,
+`clearance_step_review_source_ref`,
+`predecessor_clearance_step_review_refs`,
+`successor_clearance_step_review_refs`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_completed=false`,
+`clearance_step_review_input_present=false`,
+`clearance_step_review_input_accepted=false`,
+`clearance_step_review_input_validated=false`,
+`clearance_step_review_gate_passed=false`,
+`clearance_step_ready=false`,
+`clearance_step_completed=false`,
 `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate`,
 `required_clearance_plan_contract`,
 `required_clearance_step_review_ref`,
@@ -200,7 +219,12 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7261-7280 range is display-only and does not treat dependency
+The active 7281-7300 range is display-only and does not treat dependency
+work-item claim-trace clearance-step review presence as clearance-step review
+completion, review input presence, review gate passage, clearance-step
+completion, claim-trace clearance, command admission, Coinbase execution,
+reconciliation execution, futures/order/exchange mutation, browser/BFF
+authority, or spot-rule authority. It also does not treat dependency
 work-item claim-trace clearance-plan presence as claim-trace clearance,
 clearance-plan creation, clearance-plan readiness, claim allowance, claim
 resolution, claim-review acceptance, contextless review acceptance, evidence

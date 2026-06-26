@@ -41,6 +41,8 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewBlocker,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewKind,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
@@ -5554,6 +5556,51 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResol
     clearance_step_review_gates_passed: bool = False
     prior_clearance_step_complete: bool = False
     next_clearance_step_enabled: bool = False
+
+
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewItem(
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepItem
+):
+    """One disabled review for an execution-eligibility claim-trace clearance step."""
+
+    clearance_step_review_name: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewKind
+    clearance_step_review_index: int = Field(ge=0)
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref: str
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_contract_ref: str
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_gate: str
+    required_clearance_step_contract: str
+    required_clearance_step_review_input_ref: str
+    clearance_step_review_claim: str
+    clearance_step_review_target_ref: str
+    clearance_step_review_source_ref: str
+    predecessor_clearance_step_review_refs: list[str] = Field(default_factory=list)
+    predecessor_clearance_step_review_count: int = Field(default=0, ge=0)
+    successor_clearance_step_review_refs: list[str] = Field(default_factory=list)
+    successor_clearance_step_review_count: int = Field(default=0, ge=0)
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_blockers: list[
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewBlocker
+    ] = Field(default_factory=list)
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_blocker_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    inherited_clearance_step_blockers: list[str] = Field(default_factory=list)
+    inherited_clearance_step_blocker_count: int = Field(default=0, ge=0)
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_required: bool = (
+        True
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ready: bool = (
+        False
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_completed: bool = (
+        False
+    )
+    clearance_step_review_input_present: bool = False
+    clearance_step_review_input_accepted: bool = False
+    clearance_step_review_input_validated: bool = False
+    clearance_step_review_gate_passed: bool = False
+    clearance_step_ready: bool = False
+    clearance_step_completed: bool = False
 
 
 class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
@@ -11600,6 +11647,34 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    completed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_detail_rows_limited: bool = False
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewItem
+    ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
         ge=0,
@@ -12868,6 +12943,22 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     completed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    completed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count: int = Field(
         default=0,
         ge=0,
     )

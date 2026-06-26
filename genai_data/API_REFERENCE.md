@@ -16,12 +16,24 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7241-7260` futures/perpetual request payload validation record
+Current M57 `7281-7300` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim-trace clearance plan evidence for
+remediation dependency work-item claim-trace clearance-step review evidence for
 `GET /api/v1/futures/command-suite`:
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review evidence; futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review display; carried-forward completed `7261-7280` futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance step
+evidence; futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance step display; carried-forward
+completed `7241-7260` futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item
 claim-trace clearance plan evidence; futures request payload validation record
 execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance plan

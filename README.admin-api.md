@@ -735,9 +735,34 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 7261-7280 add futures request payload validation record
+Current M57 phases 7281-7300 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim-trace clearance step evidence through
+remediation dependency work-item claim-trace clearance-step review evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_gate`,
+`required_clearance_step_contract`,
+`required_clearance_step_review_input_ref`,
+`clearance_step_review_claim`,
+`clearance_step_review_target_ref`,
+`clearance_step_review_source_ref`,
+`predecessor_clearance_step_review_refs`,
+`successor_clearance_step_review_refs`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_completed=false`,
+`clearance_step_review_input_present=false`,
+`clearance_step_review_input_accepted=false`,
+`clearance_step_review_input_validated=false`,
+`clearance_step_review_gate_passed=false`,
+`clearance_step_ready=false`,
+`clearance_step_completed=false` while carrying forward completed M57 phases
+7261-7280 futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance step evidence through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend schema,
 and frontend display. Command-suite rows expose
@@ -876,10 +901,13 @@ evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7261-7280` evidence adds futures request payload validation record
+Active M57 `7281-7300` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim-trace clearance step evidence while
-completed M57 `7241-7260` carries forward futures request payload validation
+remediation dependency work-item claim-trace clearance-step review evidence while
+completed M57 `7261-7280` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance step
+evidence and completed M57 `7241-7260` carries forward futures request payload validation
 record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance plan
 evidence and completed M57 `7221-7240` carries forward futures request payload validation

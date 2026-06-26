@@ -4,11 +4,14 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7261-7280` adds futures request payload
+Current futures/perpetual M57 scope: `7281-7300` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review evidence on top of completed `7261-7280` futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance step
-evidence on top of completed `7241-7260` futures request payload validation
-record execution-eligibility resolution-plan step review input store
+evidence, completed `7241-7260` futures request payload validation record
+execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance plan
 evidence, completed `7221-7240` futures request payload validation
 record execution-eligibility resolution-plan step review input store
@@ -42,6 +45,11 @@ funding semantics, completed `6901-6920` close-only semantics, completed
 semantics, completed `6841-6860` collateral semantics, completed `6821-6840`
 margin semantics, and completed `6801-6820` position semantics. These rows are
 backend-owned, display-only, no-live, and do not treat resolution plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review presence as clearance-step review completion,
+review input presence, review gate passage, claim-trace clearance, command
+admission, Coinbase execution, reconciliation execution, browser/BFF
+authority, or spot-rule authority. They also do not treat resolution plan step
 review input store record-validation remediation dependency work-item
 claim-trace presence,
 resolution plan step review input store record-validation remediation dependency work-item
