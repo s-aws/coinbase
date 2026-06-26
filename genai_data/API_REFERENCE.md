@@ -16,13 +16,16 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7161-7180` futures/perpetual request payload validation record
+Current M57 `7181-7200` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation evidence for `GET /api/v1/futures/command-suite`: futures request
-payload validation record execution-eligibility resolution-plan step review
-input store record-validation remediation evidence; futures request payload
-validation record execution-eligibility resolution-plan step review input store
-record-validation remediation display; carried-forward completed `7141-7160`
+remediation dependency evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency evidence;
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency display;
+carried-forward completed `7161-7180` futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation evidence and display; carried-forward completed `7141-7160`
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation evidence and display; carried-forward
 completed `7121-7140` futures request payload validation record
@@ -45,8 +48,10 @@ and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`
-with store record-validation remediation rows derived from each store
-record-validation row.
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`
+with store record-validation remediation dependency rows derived from each
+store record-validation remediation row.
 Representative command-suite keys:
 `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
@@ -64,6 +69,20 @@ Representative command-suite keys:
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_kind`,
+`record_validation_remediation_dependency_gate`,
+`record_validation_remediation_dependency_action_refs`,
+`record_validation_remediation_dependency_blockers`,
+`record_validation_remediation_dependency_required=true`,
+`record_validation_remediation_dependency_ready=false`,
+`record_validation_remediation_dependency_resolved=false`,
+`record_validation_remediation_dependency_performed=false`,
+`record_validation_remediation_dependency_graph_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`record_validation_remediation_dependency_claim_trace_created=false`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
@@ -127,11 +146,17 @@ Representative command-suite keys:
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and
 `blocker_resolved=false`. Resolution plan step review input store
-record-validation remediation presence is not blocker resolution, runtime
-acceptance, command admission, Coinbase execution, reconciliation execution,
+record-validation remediation dependency presence is not blocker resolution,
+runtime acceptance, dependency graph creation, work item creation, claim trace
+creation, command admission, Coinbase execution, reconciliation execution,
 futures/order/exchange mutation, browser/BFF execution authority, remediation
-authority, validation authority, or spot-rule authority. Resolution plan step
-review input store record-validation presence is not blocker resolution,
+dependency authority, remediation authority, validation authority, or
+spot-rule authority. Resolution plan step review input store record-validation
+remediation presence is not blocker resolution, runtime acceptance, command
+admission, Coinbase execution, reconciliation execution, futures/order/exchange
+mutation, browser/BFF execution authority, remediation authority, validation
+authority, or spot-rule authority. Resolution plan step review input store
+record-validation presence is not blocker resolution,
 runtime acceptance,
 command admission, Coinbase execution, reconciliation execution,
 futures/order/exchange mutation, browser/BFF execution authority, validation

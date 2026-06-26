@@ -54,10 +54,13 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7161-7180` evidence adds futures request payload validation
+- Active M57 `7181-7200` evidence adds futures request payload validation
   record execution-eligibility resolution-plan step review input store
-  record-validation remediation evidence while completed M57 `7141-7160`
-  carries forward futures request payload validation record execution-eligibility
+  record-validation remediation dependency evidence while completed M57
+  `7161-7180` carries forward futures request payload validation record
+  execution-eligibility resolution-plan step review input store
+  record-validation remediation evidence, completed M57 `7141-7160` carries
+  forward futures request payload validation record execution-eligibility
   resolution-plan step review input store record-validation evidence, completed
   M57 `7121-7140` carries forward
   futures request payload validation record execution-eligibility
@@ -415,10 +418,13 @@ and notional evidence fields.
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Current M57 `7161-7180` adds first-class resolution-plan step review input
-  store record-validation remediation rows through
+  Current M57 `7181-7200` adds first-class resolution-plan step review input
+  store record-validation remediation dependency rows through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`,
+  carrying forward completed `7161-7180` store record-validation remediation
+  rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`,
-  carrying forward completed `7141-7160` store record-validation rows through
+  completed `7141-7160` store record-validation rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
   completed `7121-7140` store record-contract rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`
@@ -440,6 +446,20 @@ and notional evidence fields.
   `record_validation_recorded=false`,
   `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`,
   `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
+  `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref`,
+  `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`,
+  `review_input_store_record_validation_remediation_dependency_kind`,
+  `record_validation_remediation_dependency_gate`,
+  `record_validation_remediation_dependency_action_refs`,
+  `record_validation_remediation_dependency_blockers`,
+  `record_validation_remediation_dependency_required=true`,
+  `record_validation_remediation_dependency_ready=false`,
+  `record_validation_remediation_dependency_resolved=false`,
+  `record_validation_remediation_dependency_performed=false`,
+  `record_validation_remediation_dependency_graph_ready=false`,
+  `record_validation_remediation_dependency_work_item_created=false`,
+  `record_validation_remediation_dependency_work_item_claimed=false`,
+  `record_validation_remediation_dependency_claim_trace_created=false`,
   `review_input_store_record_validation_remediation_kind`,
   `record_validation_remediation_required=true`,
   `record_validation_remediation_ready=false`,
@@ -460,12 +480,17 @@ and notional evidence fields.
   `record_present=false`, `record_accepted=false`, `record_validated=false`,
   `validation_configured=false`, and `replay_protection_configured=false`.
   Resolution plan step review input store record-validation remediation
+  dependency presence is not blocker resolution, dependency graph creation,
+  work item creation, claim trace creation, remediation execution, command
+  admission, Coinbase execution, reconciliation execution, futures/order/
+  exchange mutation, browser/BFF authority, or spot-rule authority. Resolution
+  plan step review input store record-validation remediation presence is not
+  blocker resolution. Resolution plan step review input store record-validation
   presence is not blocker resolution. Resolution plan step review input store
-  record-validation presence is not blocker resolution. Resolution plan step
-  review input store record-contract
-  presence is not blocker resolution.
-  Exact autonomous phrase: Active M57 `7161-7180` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence while completed M57 `7141-7160` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.
-  Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence.
+  record-contract presence is not blocker resolution.
+  Exact autonomous phrase: Active M57 `7181-7200` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency evidence while completed M57 `7161-7180` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence.
+  Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency evidence.
+  Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence.
   Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.
   Completed M57 `7101-7120` added first-class resolution-plan step review input store requirement rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,

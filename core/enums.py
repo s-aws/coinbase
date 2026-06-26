@@ -1255,6 +1255,32 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     )
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependency(
+    str,
+    Enum,
+):
+    """Dependency required before futures review-input store validation remediation can proceed."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY = (
+        "input_evidence_record_validation_remediation_dependency"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyBlocker(
+    str,
+    Enum,
+):
+    """Blocked dependency reasons for futures review-input store validation remediation."""
+
+    RECORD_VALIDATION_REMEDIATION_NOT_READY = (
+        "record_validation_remediation_not_ready"
+    )
+    DEPENDENCY_GRAPH_MISSING = "dependency_graph_missing"
+    DEPENDENCY_WORK_ITEM_MISSING = "dependency_work_item_missing"
+    DEPENDENCY_CLAIM_TRACE_MISSING = "dependency_claim_trace_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

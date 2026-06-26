@@ -31,6 +31,8 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidation,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediation,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependency,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
@@ -5327,6 +5329,44 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResol
     record_validation_remediation_accepted: bool = False
     record_validation_remediation_work_item_created: bool = False
     record_validation_remediation_dependency_ready: bool = False
+
+
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyItem(
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationItem
+):
+    """One disabled dependency for an execution-eligibility review-input store record validation remediation."""
+
+    review_input_store_record_validation_remediation_dependency_kind: (
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependency
+    )
+    review_input_store_record_validation_remediation_dependency_index: int = Field(
+        ge=0
+    )
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref: str
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref: str
+    record_validation_remediation_dependency_gate: str
+    record_validation_remediation_dependency_action_refs: list[str] = Field(
+        default_factory=list
+    )
+    record_validation_remediation_dependency_action_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_blockers: list[
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyBlocker
+    ] = Field(default_factory=list)
+    record_validation_remediation_dependency_blocker_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_required: bool = True
+    record_validation_remediation_dependency_ready: bool = False
+    record_validation_remediation_dependency_resolved: bool = False
+    record_validation_remediation_dependency_performed: bool = False
+    record_validation_remediation_dependency_graph_ready: bool = False
+    record_validation_remediation_dependency_work_item_created: bool = False
+    record_validation_remediation_dependency_work_item_claimed: bool = False
+    record_validation_remediation_dependency_claim_trace_created: bool = False
 
 
 class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
@@ -11225,6 +11265,34 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    performed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_detail_rows_limited: bool = False
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyItem
+    ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
         ge=0,
@@ -12405,6 +12473,22 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     recorded_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    performed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_count: int = Field(
         default=0,
         ge=0,
     )

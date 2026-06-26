@@ -49,15 +49,15 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7161-7180
+## Current Active Phases 7181-7200
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Evidence.
 
 Current M57 work adds backend-owned disabled resolution-plan step review input
-store record-validation remediation fields to futures request payload
+store record-validation remediation dependency fields to futures request payload
 validation record execution-eligibility blocker rows after completed
-`7141-7160` resolution-plan step review input store record-validation
-evidence. The backend-owned contract is implemented through
+`7161-7180` resolution-plan step review input store record-validation
+remediation evidence. The backend-owned contract is implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,
@@ -66,8 +66,24 @@ evidence. The backend-owned contract is implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`,
 Admin API models/read-service serialization, and generated OpenAPI. The command
 suite must expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_kind`,
+`record_validation_remediation_dependency_gate`,
+`record_validation_remediation_dependency_action_refs`,
+`record_validation_remediation_dependency_blockers`,
+`record_validation_remediation_dependency_required=true`,
+`record_validation_remediation_dependency_ready=false`,
+`record_validation_remediation_dependency_resolved=false`,
+`record_validation_remediation_dependency_performed=false`,
+`record_validation_remediation_dependency_graph_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`, and
+`record_validation_remediation_dependency_claim_trace_created=false` while
+carrying forward
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
 `review_input_store_record_validation_remediation_kind`,
@@ -80,27 +96,46 @@ suite must expose
 `record_validation_remediation_recorded=false`,
 `record_validation_remediation_accepted=false`,
 `record_validation_remediation_work_item_created=false`, and
-`record_validation_remediation_dependency_ready=false` while carrying forward
+`record_validation_remediation_dependency_ready=false`,
 the parent record-validation, record-contract, store-requirement, plan, step,
 review, and review-input refs and false readiness flags.
 
 The rows are no-live display evidence only. Resolution plan step review input
-store record-validation remediation presence is not blocker resolution,
-runtime acceptance, command admission, Coinbase execution, reconciliation
+store record-validation remediation dependency presence is not blocker
+resolution, runtime acceptance, dependency graph creation, work item creation,
+claim trace creation, command admission, Coinbase execution, reconciliation
 execution, futures/order/exchange state mutation, browser execution authority,
 BFF execution authority, or spot-rule authority. Completed resolution-plan
-step review input store record-validation evidence from `7141-7160` remains
-carried forward through
+step review input store record-validation remediation evidence from
+`7161-7180` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`.
+Completed resolution-plan step review input store record-validation evidence
+from `7141-7160` remains carried forward through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`.
 Completed resolution-plan step review input store record-contract evidence from
 `7121-7140` remains carried forward through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`.
-This work must not perform remediation, validate command payloads, accept
+This work must not create dependency graphs, create work items, claim work,
+create claim traces, perform remediation, validate command payloads, accept
 runtime evidence, admit commands, configure validators, create validation
 schemas, configure replay guards, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7161-7180` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence while completed M57 `7141-7160` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.
+Exact autonomous phrase: Active M57 `7181-7200` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency evidence while completed M57 `7161-7180` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence.
+
+## Completed Phases 7161-7180
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Evidence.
+
+Completed M57 `7161-7180` work added backend-owned disabled resolution-plan
+step review input store record-validation remediation fields to futures request
+payload validation record execution-eligibility blocker rows after completed
+`7141-7160` resolution-plan step review input store record-validation
+evidence. The work is implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`,
+Admin API models/read-service serialization, generated OpenAPI, and frontend
+display. Resolution plan step review input store record-validation remediation
+presence is not blocker resolution.
 
 ## Completed Phases 7141-7160
 
