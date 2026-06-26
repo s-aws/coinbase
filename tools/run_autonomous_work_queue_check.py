@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7241-7260"
-APPROVED_PHASES = tuple(range(7241, 7261))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7221-7240"
+APPROVED_PHASE_RANGE = "7261-7280"
+APPROVED_PHASES = tuple(range(7261, 7281))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7241-7260"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7241-7260` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance plan evidence while completed M57 `7221-7240` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim trace evidence.",
+            "Active M57 `7261-7280` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance step evidence while completed M57 `7241-7260` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance plan evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1585,6 +1585,8 @@ def _check_agent_state_docs() -> QueueCheck:
         f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         f"Current direction: complete phases `{APPROVED_PHASE_RANGE}`",
         f"Active `{APPROVED_PHASE_RANGE}`",
+        "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance step evidence",
+        "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance step display",
         "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item evidence",
         "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item display",
         "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance plan evidence",
@@ -1624,6 +1626,7 @@ def _check_agent_state_docs() -> QueueCheck:
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans.py",
+        "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces.py",
         "application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans.py",
         "execution_eligibility_resolution_plan_ref",
@@ -1650,10 +1653,22 @@ def _check_agent_state_docs() -> QueueCheck:
         "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref",
         "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref",
         "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_contract_ref",
+        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref",
+        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_contract_ref",
         "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref",
         "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref",
         "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref",
         "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_contract_ref",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_required",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ready",
+        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_completed",
+        "clearance_step_review_ready",
+        "clearance_step_review_complete",
+        "clearance_step_review_inputs_present",
+        "clearance_step_review_gates_passed",
+        "prior_clearance_step_complete",
+        "next_clearance_step_enabled",
         "review_input_store_record_validation_remediation_dependency_kind",
         "review_input_store_record_validation_remediation_dependency_work_item_kind",
         "review_input_store_record_validation_remediation_dependency_work_item_claim_trace_kind",

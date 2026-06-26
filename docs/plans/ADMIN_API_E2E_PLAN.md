@@ -49,7 +49,50 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7241-7260
+## Current Active Phases 7261-7280
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance Steps Evidence.
+
+Current M57 work adds backend-owned disabled resolution-plan step review input
+store record-validation remediation dependency work-item claim-trace
+clearance-step fields to futures request payload validation record
+execution-eligibility blocker rows after completed `7241-7260` remediation
+dependency work-item claim-trace clearance-plan evidence. The backend-owned
+contract is implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps.py`,
+Admin API models/read-service serialization, and generated OpenAPI. The
+command suite must expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_contract_ref`,
+`clearance_step_name`, `clearance_step_index`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate`,
+`required_clearance_plan_contract`, `required_clearance_step_review_ref`,
+`predecessor_clearance_step_refs`, `successor_clearance_step_refs`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_completed=false`,
+`clearance_step_review_ready=false`,
+`clearance_step_review_complete=false`,
+`clearance_step_review_inputs_present=false`,
+`clearance_step_review_gates_passed=false`,
+`prior_clearance_step_complete=false`, and
+`next_clearance_step_enabled=false` while carrying forward the parent
+clearance-plan, claim-trace, work-item, dependency, remediation,
+record-validation, record-contract, store-requirement, plan, step, review, and
+review-input refs and false readiness flags.
+
+The rows are no-live display evidence only. Dependency work-item claim-trace
+clearance-step presence is not clearance-step execution, clearance-step
+completion, clearance-step review readiness, claim-trace clearance,
+clearance-plan creation, clearance-plan readiness, claim allowance, claim
+resolution, claim review acceptance, contextless acceptance, evidence
+recording, command admission, Coinbase execution, reconciliation execution,
+futures/order/exchange state mutation, browser execution authority, BFF
+execution authority, or spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7261-7280` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance step evidence while completed M57 `7241-7260` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance plan evidence.
+
+## Completed Phases 7241-7260
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance Plans Evidence.
 

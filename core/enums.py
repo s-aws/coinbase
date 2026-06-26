@@ -1355,6 +1355,36 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep(
+    str,
+    Enum,
+):
+    """Backend clearance-plan steps before futures dependency claim traces can clear."""
+
+    INSPECT_CLAIM_TRACE = "inspect_claim_trace"
+    VERIFY_CLAIM_LEDGER = "verify_claim_ledger"
+    VERIFY_CLAIM_TRACE_STORE = "verify_claim_trace_store"
+    VERIFY_PREDECESSOR_SUCCESSOR_SEQUENCE = "verify_predecessor_successor_sequence"
+    RUN_CONTEXTLESS_REVIEW = "run_contextless_review"
+    RECORD_CLEARANCE_PLAN_EVIDENCE = "record_clearance_plan_evidence"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker(
+    str,
+    Enum,
+):
+    """Blocked clearance-step reasons for futures dependency work-item claim traces."""
+
+    CLEARANCE_PLAN_NOT_CREATED = "clearance_plan_not_created"
+    CLEARANCE_PLAN_NOT_READY = "clearance_plan_not_ready"
+    CLEARANCE_SEQUENCE_MISSING = "clearance_sequence_missing"
+    PRIOR_CLEARANCE_STEP_INCOMPLETE = "prior_clearance_step_incomplete"
+    REQUIRED_STEP_REVIEW_MISSING = "required_step_review_missing"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

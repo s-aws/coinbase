@@ -735,9 +735,26 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 7241-7260 add futures request payload validation record
+Current M57 phases 7261-7280 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim-trace clearance plan evidence through
+remediation dependency work-item claim-trace clearance step evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate`,
+`required_clearance_plan_contract`,
+`required_clearance_step_review_ref`,
+`clearance_step_name`, `clearance_step_index`,
+`clearance_step_review_ready=false`, `clearance_step_review_complete=false`,
+`clearance_step_review_inputs_present=false`,
+`clearance_step_review_gates_passed=false`,
+`prior_clearance_step_complete=false`, and
+`next_clearance_step_enabled=false` while carrying forward completed M57 phases
+7241-7260 futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance plan evidence through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend schema,
 and frontend display. Command-suite rows expose
@@ -859,10 +876,13 @@ evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7241-7260` evidence adds futures request payload validation record
+Active M57 `7261-7280` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim-trace clearance plan evidence while
-completed M57 `7221-7240` carries forward futures request payload validation
+remediation dependency work-item claim-trace clearance step evidence while
+completed M57 `7241-7260` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance plan
+evidence and completed M57 `7221-7240` carries forward futures request payload validation
 record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim trace evidence,
 completed M57 `7201-7220` carries forward futures request payload validation
