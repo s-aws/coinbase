@@ -4,19 +4,35 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7421-7440` adds futures request payload
+Current futures/perpetual M57 scope: `7441-7460` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema field evidence on top
+of completed `7421-7440` futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema evidence. The current
+rows are backend-owned, display-only, no-live, and do not treat
+validation-check input-schema field presence as field declaration, field-name
+declaration, field-type declaration, constraint declaration, source-ref
+declaration, acceptance contract declaration, contextless review passage,
+validation-check input schema readiness, command admission, Coinbase
+execution, reconciliation execution, browser/BFF authority, or spot-rule
+authority.
+
+Completed futures/perpetual M57 scope: `7421-7440` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check input schema evidence on top of
 completed `7401-7420` futures request payload validation record
 execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
-review input store record-validation check contract evidence. The current rows are
-backend-owned, display-only, no-live, and do not treat validation-check
-input-schema presence as schema declaration, field declaration, type
-declaration, constraint declaration, acceptance contract declaration,
-contextless review passage, validation-check contract readiness, command
-admission, Coinbase execution, reconciliation execution, browser/BFF
+review input store record-validation check contract evidence. The completed
+rows are backend-owned, display-only, no-live, and do not treat
+validation-check input-schema presence as schema declaration, field
+declaration, type declaration, constraint declaration, acceptance contract
+declaration, contextless review passage, validation-check contract readiness,
+command admission, Coinbase execution, reconciliation execution, browser/BFF
 authority, or spot-rule authority.
 
 Completed futures/perpetual M57 scope: `7401-7420` adds futures request payload
