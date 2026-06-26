@@ -16,9 +16,15 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7201-7220` futures/perpetual request payload validation record
+Current M57 `7221-7240` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item evidence for `GET /api/v1/futures/command-suite`:
+remediation dependency work-item claim trace evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim trace evidence; futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace display;
+carried-forward completed `7201-7220`
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency work-item
 evidence; futures request payload validation record execution-eligibility
@@ -57,9 +63,26 @@ and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items.py`
-with store record-validation remediation dependency work-item rows derived from
-each store record-validation remediation dependency row.
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces.py`
+with store record-validation remediation dependency work-item claim-trace rows
+derived from each store record-validation remediation dependency work-item row.
 Representative command-suite keys:
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_claim_trace_kind`,
+`record_validation_remediation_dependency_work_item_claim_trace_gate`,
+`claim_trace_claim`,
+`claim_trace_target_ref`,
+`claim_trace_source_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_created=false`,
+`claim_trace_created=false`,
+`claim_trace_ready=false`,
+`claim_allowed=false`,
+`claim_resolved=false`,
+`claim_review_accepted=false`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
 `review_input_store_record_validation_remediation_dependency_work_item_kind`,

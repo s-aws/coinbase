@@ -11,11 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7201-7220 range targets explicit M57 futures/perpetual request
-payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item evidence for
+The active 7221-7240 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7201-7220"` and no-live resolution-plan step review input store record-validation remediation dependency work-item fields such
+`"approved_phase_range": "7221-7240"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace fields such
 as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
@@ -36,6 +36,23 @@ as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_claim_trace_kind`,
+`record_validation_remediation_dependency_work_item_claim_trace_gate`,
+`claim_trace_claim`,
+`claim_trace_target_ref`,
+`claim_trace_source_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_action_refs`,
+`record_validation_remediation_dependency_work_item_claim_trace_blockers`,
+`record_validation_remediation_dependency_work_item_claim_trace_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_created=false`,
+`claim_trace_created=false`,
+`claim_trace_ready=false`,
+`claim_allowed=false`,
+`claim_resolved=false`,
+`claim_review_accepted=false`,
 `review_input_store_record_validation_remediation_dependency_work_item_kind`,
 `record_validation_remediation_dependency_work_item_gate`,
 `record_validation_remediation_dependency_work_item_action_refs`,
@@ -168,9 +185,13 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7201-7220 range is display-only and does not treat dependency
-work-item presence as dependency resolution, claim-ledger registration, owner
-review acceptance, contextless review acceptance, or evidence recording. It
+The active 7221-7240 range is display-only and does not treat dependency
+work-item claim-trace presence as dependency resolution, claim creation,
+claim-trace readiness, claim allowance, claim resolution, claim-review
+acceptance, contextless review acceptance, or evidence recording. It also does
+not treat dependency work-item presence as dependency resolution,
+claim-ledger registration, owner review acceptance, contextless review
+acceptance, or evidence recording. It
 also does not treat resolution plan
 step review input store record-validation remediation dependency presence,
 resolution plan step review input store record-validation remediation presence,

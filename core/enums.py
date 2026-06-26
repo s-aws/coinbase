@@ -1305,6 +1305,31 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace(
+    str,
+    Enum,
+):
+    """Claim trace required before futures review-input store dependency work can be claimed."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE = (
+        "input_evidence_record_validation_remediation_dependency_work_item_claim_trace"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceBlocker(
+    str,
+    Enum,
+):
+    """Blocked claim-trace reasons for futures review-input store dependency work items."""
+
+    WORK_ITEM_NOT_READY = "work_item_not_ready"
+    WORK_ITEM_NOT_CLAIMED = "work_item_not_claimed"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    CLAIM_TRACE_STORE_MISSING = "claim_trace_store_missing"
+    CLAIM_REVIEW_MISSING = "claim_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 
