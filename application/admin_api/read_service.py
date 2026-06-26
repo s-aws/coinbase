@@ -148,6 +148,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem,
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem,
     AdminFuturesCommandRequestPayloadValidationRecordReplayGuardItem,
@@ -400,6 +401,9 @@ from .futures_request_payload_validation_record_execution_eligibility_resolution
 from .futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts import (
     iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts,
 )
+from .futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations import (
+    iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations,
+)
 from .futures_request_payload_validation_record_semantic_artifacts import (
     iter_futures_request_payload_validation_record_semantic_artifacts,
 )
@@ -566,7 +570,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7121-7140"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7141-7160"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -686,6 +690,7 @@ FUTURES_COMMAND_SUITE_API_DETAIL_COMPACT_ARRAYS = frozenset(
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts",
+        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations",
         "request_payload_validation_record_semantic_artifacts",
         "request_payload_validation_record_semantic_artifact_definitions",
         "request_payload_validation_record_semantic_artifact_definition_reviews",
@@ -972,6 +977,35 @@ def futures_command_suite_frontend_fixture_payload(
             )
         ) or len(step_review_input_store_record_contract_rows) > len(
             limited_review_input_store_record_contract_rows
+        )
+        step_review_input_store_record_validation_rows = command.get(
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations"
+        )
+        if not isinstance(step_review_input_store_record_validation_rows, list):
+            continue
+        limited_review_input_store_record_validation_rows = (
+            step_review_input_store_record_validation_rows[
+                :FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_STEP_ROW_LIMIT
+            ]
+        )
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations"
+        ] = limited_review_input_store_record_validation_rows
+        command[
+            "materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count"
+        ] = len(limited_review_input_store_record_validation_rows)
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_detail_row_limit"
+        ] = FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_STEP_ROW_LIMIT
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_detail_rows_limited"
+        ] = bool(
+            command.get(
+                "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_detail_rows_limited",
+                False,
+            )
+        ) or len(step_review_input_store_record_validation_rows) > len(
+            limited_review_input_store_record_validation_rows
         )
     return compacted
 
@@ -24104,6 +24138,154 @@ class AdminApiReadService:
                 )
             ]
 
+        def request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> list[
+            AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationItem
+        ]:
+            parent_record_contracts_by_ref = {
+                item.execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref: item
+                for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts_for(
+                    command_id
+                )
+            }
+            validation_items: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationItem
+            ] = []
+            for contract in (
+                iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations(
+                    command_id
+                )
+            ):
+                payload = parent_record_contracts_by_ref[
+                    contract.execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref
+                ].model_dump(mode="python")
+                payload.update(
+                    {
+                        "review_input_store_record_validation_kind": (
+                            contract.review_input_store_record_validation_kind
+                        ),
+                        "review_input_store_record_validation_index": (
+                            contract.review_input_store_record_validation_index
+                        ),
+                        "status": contract.status,
+                        "source": contract.source,
+                        "required": contract.required,
+                        "blocking": contract.blocking,
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref": (
+                            contract.execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref
+                        ),
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref": (
+                            contract.execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref
+                        ),
+                        "record_validation_gate": contract.record_validation_gate,
+                        "record_validation_schema_ref": (
+                            contract.record_validation_schema_ref
+                        ),
+                        "record_validation_check_refs": list(
+                            contract.record_validation_check_refs
+                        ),
+                        "record_validation_check_count": len(
+                            contract.record_validation_check_refs
+                        ),
+                        "required_backend_contract": (
+                            contract.required_backend_contract
+                        ),
+                        "missing_backend_contract": (
+                            contract.missing_backend_contract
+                        ),
+                        "missing_reason": contract.missing_reason,
+                        "required_evidence_refs": list(contract.required_evidence_refs),
+                        "required_evidence_count": len(
+                            contract.required_evidence_refs
+                        ),
+                        "missing_evidence_refs": list(contract.missing_evidence_refs),
+                        "missing_evidence_count": len(contract.missing_evidence_refs),
+                        "forbidden_execution_claims": list(
+                            contract.forbidden_execution_claims
+                        ),
+                        "forbidden_execution_claim_count": len(
+                            contract.forbidden_execution_claims
+                        ),
+                        "backend_owned": contract.backend_owned,
+                        "read_only": contract.read_only,
+                        "contextless_review_required": (
+                            contract.contextless_review_required
+                        ),
+                        "spot_rule_authority": contract.spot_rule_authority,
+                        "record_validation_required": (
+                            contract.record_validation_required
+                        ),
+                        "record_validation_ready": contract.record_validation_ready,
+                        "record_validation_configured": (
+                            contract.record_validation_configured
+                        ),
+                        "record_validation_registered": (
+                            contract.record_validation_registered
+                        ),
+                        "record_validation_gate_ready": (
+                            contract.record_validation_gate_ready
+                        ),
+                        "record_validation_gate_passed": (
+                            contract.record_validation_gate_passed
+                        ),
+                        "record_validation_replay_guard_ready": (
+                            contract.record_validation_replay_guard_ready
+                        ),
+                        "record_validation_schema_ready": (
+                            contract.record_validation_schema_ready
+                        ),
+                        "record_validation_append_only_log_ready": (
+                            contract.record_validation_append_only_log_ready
+                        ),
+                        "record_validation_idempotency_bound": (
+                            contract.record_validation_idempotency_bound
+                        ),
+                        "record_validation_payload_bound": (
+                            contract.record_validation_payload_bound
+                        ),
+                        "record_validation_contextless_review_passed": (
+                            contract.record_validation_contextless_review_passed
+                        ),
+                        "record_validation_performed": (
+                            contract.record_validation_performed
+                        ),
+                        "record_validation_accepted": (
+                            contract.record_validation_accepted
+                        ),
+                        "record_validation_recorded": (
+                            contract.record_validation_recorded
+                        ),
+                        "runtime_evidence_observed": contract.runtime_evidence_observed,
+                        "runtime_evidence_satisfies_semantic_contract": (
+                            contract.runtime_evidence_satisfies_semantic_contract
+                        ),
+                        "validation_record_admission_link_ready": (
+                            contract.validation_record_admission_link_ready
+                        ),
+                        "validation_record_admitted": (
+                            contract.validation_record_admitted
+                        ),
+                        "blocker_resolved": contract.blocker_resolved,
+                        "validation_record_execution_eligible": (
+                            contract.validation_record_execution_eligible
+                        ),
+                        "execution_allowed": contract.execution_allowed,
+                        "live_coinbase_orders_ran": (
+                            contract.live_coinbase_orders_ran
+                        ),
+                        "browser_authority": contract.browser_authority,
+                        "bff_authority": contract.bff_authority,
+                        "detail": contract.detail,
+                    }
+                )
+                validation_items.append(
+                    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationItem(
+                        **payload
+                    )
+                )
+            return validation_items
+
         def request_payload_validation_record_semantic_artifacts_for(
             command_id: AdminFuturesCommandAction,
         ) -> list[AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem]:
@@ -34866,6 +35048,9 @@ class AdminApiReadService:
             request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts: list[
                 AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem
             ],
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationItem
+            ],
             request_payload_validation_record_semantic_artifacts: list[
                 AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem
             ],
@@ -34970,6 +35155,11 @@ class AdminApiReadService:
             )
             materialized_resolution_plan_step_review_input_store_record_contracts = (
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts[
+                    :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ]
+            )
+            materialized_resolution_plan_step_review_input_store_record_validations = (
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations[
                     :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
                 ]
             )
@@ -35560,6 +35750,48 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts=(
                     materialized_resolution_plan_step_review_input_store_record_contracts
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=len(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations
+                ),
+                blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations
+                    if item.blocking
+                ),
+                ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations
+                    if item.record_validation_ready
+                    and item.record_validation_gate_passed
+                    and item.record_validation_accepted
+                ),
+                configured_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations
+                    if item.record_validation_configured
+                ),
+                accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations
+                    if item.record_validation_accepted
+                ),
+                materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=len(
+                    materialized_resolution_plan_step_review_input_store_record_validations
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_detail_row_limit=(
+                    FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_detail_rows_limited=(
+                    len(
+                        request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations
+                    )
+                    > len(
+                        materialized_resolution_plan_step_review_input_store_record_validations
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
+                    materialized_resolution_plan_step_review_input_store_record_validations
                 ),
                 request_payload_validation_record_semantic_artifact_count=len(
                     request_payload_validation_record_semantic_artifacts
@@ -36771,6 +37003,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.PLACE
@@ -36965,6 +37202,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -37166,6 +37408,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.CANCEL
@@ -37362,6 +37609,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -38231,6 +38483,26 @@ class AdminApiReadService:
             ),
             accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count=sum(
                 command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contract_count
+                for command in commands
+            ),
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count
+                for command in commands
+            ),
+            blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                command.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count
+                for command in commands
+            ),
+            ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                command.ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count
+                for command in commands
+            ),
+            configured_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                command.configured_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count
+                for command in commands
+            ),
+            accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
+                command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count
                 for command in commands
             ),
             request_payload_validation_record_semantic_artifact_count=sum(

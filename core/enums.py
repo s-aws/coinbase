@@ -1235,6 +1235,15 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     INPUT_EVIDENCE_RECORD_CONTRACT = "input_evidence_record_contract"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidation(
+    str,
+    Enum,
+):
+    """Record validation gates required by futures resolution-plan review-input stores."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION = "input_evidence_record_validation"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

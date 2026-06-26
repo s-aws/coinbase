@@ -54,9 +54,12 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7121-7140` evidence adds futures request payload validation
+- Active M57 `7141-7160` evidence adds futures request payload validation
   record execution-eligibility resolution-plan step review input store
-  record-contract evidence while completed M57 `7101-7120` carries forward
+  record-validation evidence while completed M57 `7121-7140` carries forward
+  futures request payload validation record execution-eligibility
+  resolution-plan step review input store record-contract evidence, completed
+  M57 `7101-7120` carries forward
   futures request payload validation record execution-eligibility
   resolution-plan step review input store requirement evidence, completed M57
   `7081-7100` carries forward futures request payload validation record
@@ -409,11 +412,27 @@ and notional evidence fields.
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Current M57 `7121-7140` adds first-class resolution-plan step review input
-  store record-contract rows through
-  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`,
-  carrying forward completed `7101-7120` store requirement rows through
+  Current M57 `7141-7160` adds first-class resolution-plan step review input
+  store record-validation rows through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
+  carrying forward completed `7121-7140` store record-contract rows through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`
+  and completed `7101-7120` store requirement rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`,
+  `execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref`,
+  `execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
+  `review_input_store_record_validation_kind`,
+  `record_validation_required=true`, `record_validation_ready=false`,
+  `record_validation_configured=false`, `record_validation_registered=false`,
+  `record_validation_gate_ready=false`, `record_validation_gate_passed=false`,
+  `record_validation_replay_guard_ready=false`,
+  `record_validation_schema_ready=false`,
+  `record_validation_append_only_log_ready=false`,
+  `record_validation_idempotency_bound=false`,
+  `record_validation_payload_bound=false`,
+  `record_validation_contextless_review_passed=false`,
+  `record_validation_performed=false`, `record_validation_accepted=false`, and
+  `record_validation_recorded=false`, with parent fields
   `execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
   `execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
   `review_input_store_record_contract_kind`,
@@ -424,10 +443,11 @@ and notional evidence fields.
   `writer_available=false`, `writer_allowed=false`, `write_allowed=false`,
   `record_present=false`, `record_accepted=false`, `record_validated=false`,
   `validation_configured=false`, and `replay_protection_configured=false`.
-  Resolution plan step review input store record-contract presence is not
-  blocker resolution.
-  Exact autonomous phrase: Active M57 `7121-7140` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence while completed M57 `7101-7120` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence.
-  Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
+  Resolution plan step review input store record-validation presence is not
+  blocker resolution. Resolution plan step review input store record-contract
+  presence is not blocker resolution.
+  Exact autonomous phrase: Active M57 `7141-7160` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence while completed M57 `7121-7140` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
+  Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.
   Completed M57 `7101-7120` added first-class resolution-plan step review input store requirement rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,

@@ -4,9 +4,11 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7121-7140` adds futures request payload
+Current futures/perpetual M57 scope: `7141-7160` adds futures request payload
 validation record execution-eligibility resolution-plan step review input
-store record-contract evidence on top of completed `7101-7120` futures request
+store record-validation evidence on top of completed `7121-7140` futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-contract evidence and completed `7101-7120` futures request
 payload validation record execution-eligibility resolution-plan step review
 input store requirement evidence, completed `7081-7100` futures request payload
 validation record execution-eligibility resolution-plan step review input
@@ -22,7 +24,8 @@ funding semantics, completed `6901-6920` close-only semantics, completed
 semantics, completed `6841-6860` collateral semantics, completed `6821-6840`
 margin semantics, and completed `6801-6820` position semantics. These rows are
 backend-owned, display-only, no-live, and do not treat resolution plan step
-review input store record-contract presence, resolution plan step review input
+review input store record-validation presence, resolution plan step review
+input store record-contract presence, resolution plan step review input
 store requirement presence, resolution plan step review input presence, or
 resolution plan step review presence as blocker resolution, create stores,
 configure writers, create record keys, enable validation or replay gates,
@@ -41,8 +44,10 @@ execution authority, validate payloads, resolve blockers, admit commands, call
 Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant
 browser/BFF authority.
 
-Machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
+Machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.
+Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
 Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence.
+Boundary token: resolution plan step review input store record-validation presence is not blocker resolution.
 Boundary token: resolution plan step review input store record-contract presence is not blocker resolution.
 
 | Module | Read-only views | Command drafts | Dry-submit | Live execution | Backend namespace | Identity key | Product-specific rules | Required gates |

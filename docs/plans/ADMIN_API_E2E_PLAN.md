@@ -49,14 +49,14 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7121-7140
+## Current Active Phases 7141-7160
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Contract Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Evidence.
 
 Current M57 work adds backend-owned disabled resolution-plan step review input
-store record-contract fields to futures request payload validation record
-execution-eligibility blocker rows after completed `7101-7120`
-resolution-plan step review input store requirement evidence. The
+store record-validation fields to futures request payload validation record
+execution-eligibility blocker rows after completed `7121-7140`
+resolution-plan step review input store record-contract evidence. The
 backend-owned contract is implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
@@ -64,39 +64,53 @@ backend-owned contract is implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
 Admin API models/read-service serialization, and generated OpenAPI. The command
 suite must expose
-`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
-`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
-`review_input_store_record_contract_kind`,
-`record_contract_required=true`, `record_contract_available=false`,
-`record_schema_available=false`, `append_only_log_available=false`,
-`idempotency_key_bound=false`, `payload_schema_validated=false`,
-`replay_protected=false`, `store_available=false`,
-`writer_available=false`, `writer_allowed=false`, `write_allowed=false`,
-`record_present=false`, `record_accepted=false`, `record_validated=false`,
-`validation_configured=false`, and `replay_protection_configured=false` while
-carrying forward the parent plan, step, review, review-input, and
-store-requirement refs and false readiness flags.
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
+`review_input_store_record_validation_kind`,
+`record_validation_required=true`, `record_validation_ready=false`,
+`record_validation_configured=false`, `record_validation_registered=false`,
+`record_validation_gate_ready=false`, `record_validation_gate_passed=false`,
+`record_validation_replay_guard_ready=false`,
+`record_validation_schema_ready=false`,
+`record_validation_append_only_log_ready=false`,
+`record_validation_idempotency_bound=false`,
+`record_validation_payload_bound=false`,
+`record_validation_contextless_review_passed=false`,
+`record_validation_performed=false`, `record_validation_accepted=false`, and
+`record_validation_recorded=false` while carrying forward the parent
+record-contract, store-requirement, plan, step, review, and review-input refs
+and false readiness flags.
 
 The rows are no-live display evidence only. Resolution plan step review input
-store record-contract presence is not blocker resolution, runtime acceptance,
-command admission, Coinbase execution, reconciliation execution,
+store record-validation presence is not blocker resolution, runtime
+acceptance, command admission, Coinbase execution, reconciliation execution,
 futures/order/exchange state mutation, browser execution authority, BFF
 execution authority, or spot-rule authority. Resolution plan step review input
-store requirement presence is also not blocker resolution. Completed
-resolution-plan step review input store requirement evidence from `7101-7120`
-remains carried forward through
+store record-contract presence is also not blocker resolution. Completed
+resolution-plan step review input store record-contract evidence from
+`7121-7140` remains carried forward through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`.
+Completed resolution-plan step review input store requirement evidence from
+`7101-7120` remains carried forward through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`.
-Completed resolution-plan step review input evidence from `7081-7100` remains
-carried forward through
-`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`.
 This work must not validate command payloads, accept runtime evidence, admit
-commands, create evidence stores, configure writers, create record keys, enable
-validation or replay gates, call Coinbase, execute reconciliation, mutate
-futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+commands, configure validators, create validation schemas, configure replay
+guards, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7121-7140` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence while completed M57 `7101-7120` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence.
+Exact autonomous phrase: Active M57 `7141-7160` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence while completed M57 `7121-7140` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
+
+## Completed Phases 7121-7140
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Contract Evidence.
+
+Completed phases `7121-7140` added backend-owned disabled resolution-plan step
+review input store record-contract fields while preserving false
+record-contract/schema/log/idempotency/payload-validation/replay/store/writer/
+write/record/admission/execution/live authority.
 
 ## Completed Phases 7101-7120
 

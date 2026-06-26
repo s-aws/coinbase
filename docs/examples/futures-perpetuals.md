@@ -11,11 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7121-7140 range targets explicit M57 futures/perpetual request
-payload validation record execution-eligibility resolution-plan step review input store record-contract evidence for
+The active 7141-7160 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review input store record-validation evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7121-7140"` and no-live resolution-plan step review input store record-contract fields such
+`"approved_phase_range": "7141-7160"` and no-live resolution-plan step review input store record-validation fields such
 as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
@@ -28,6 +28,8 @@ as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
 `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
 `resolution_plan_step_accepted=false`,
 `resolution_plan_step_review_required=true`,
@@ -47,6 +49,14 @@ as `execution_eligibility_resolution_plan_ref`,
 `resolution_plan_step_review_input_replay_gate_ready=false`,
 `record_contract_required=true`,
 `record_contract_available=false`,
+`record_validation_required=true`,
+`record_validation_ready=false`,
+`record_validation_configured=false`,
+`record_validation_registered=false`,
+`record_validation_gate_ready=false`,
+`record_validation_gate_passed=false`,
+`record_validation_accepted=false`,
+`record_validation_recorded=false`,
 `record_schema_available=false`,
 `append_only_log_available=false`,
 `idempotency_key_bound=false`,
@@ -67,6 +77,11 @@ as `execution_eligibility_resolution_plan_ref`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+Completed 7121-7140 resolution-plan step review input store record-contract
+evidence remains visible through fields such as
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`
+and
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`.
 Completed 7101-7120 resolution-plan step review input store requirement
 evidence remains visible through fields such as
 `execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`
@@ -99,8 +114,9 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7121-7140 range is display-only and does not treat resolution plan
-step review input store record-contract presence, resolution plan step review
+The active 7141-7160 range is display-only and does not treat resolution plan
+step review input store record-validation presence, resolution plan step review
+input store record-contract presence, resolution plan step review
 input store requirement presence, resolution plan step review input presence,
 or resolution plan step review presence as blocker resolution, admit futures
 commands, bind live

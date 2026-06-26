@@ -735,12 +735,26 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 7121-7140 add futures request payload validation record
-execution-eligibility resolution-plan step review input store record-contract
+Current M57 phases 7141-7160 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
 evidence through
-`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend schema,
 and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
+`review_input_store_record_validation_kind`,
+`record_validation_required=true`, `record_validation_ready=false`,
+`record_validation_configured=false`, `record_validation_registered=false`,
+`record_validation_gate_ready=false`, `record_validation_gate_passed=false`,
+`record_validation_replay_guard_ready=false`,
+`record_validation_schema_ready=false`,
+`record_validation_append_only_log_ready=false`,
+`record_validation_idempotency_bound=false`,
+`record_validation_payload_bound=false`,
+`record_validation_contextless_review_passed=false`,
+`record_validation_performed=false`, `record_validation_accepted=false`, and
+`record_validation_recorded=false` while carrying forward
 `execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
 `review_input_store_record_contract_kind`,
@@ -751,16 +765,20 @@ and frontend display. Command-suite rows expose
 `writer_available=false`, `writer_allowed=false`, `write_allowed=false`,
 `record_present=false`, `record_accepted=false`, `record_validated=false`,
 `validation_configured=false`, and `replay_protection_configured=false`.
-Resolution plan step review input store record-contract presence is disabled
+Resolution plan step review input store record-validation presence is disabled
 evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7121-7140` evidence adds futures request payload validation record
-execution-eligibility resolution-plan step review input store record-contract
-evidence while completed M57 `7101-7120` carries forward futures request
+Active M57 `7141-7160` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+evidence while completed M57 `7121-7140` carries forward futures request
 payload validation record execution-eligibility resolution-plan step review
-input store requirement evidence.
+input store record-contract evidence.
+Completed M57 phases 7121-7140 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-contract
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`.
 Completed M57 phases 7101-7120 add futures request payload validation record
 execution-eligibility resolution-plan step review input store requirement
 evidence through
