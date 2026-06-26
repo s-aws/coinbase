@@ -24,6 +24,7 @@ from core.enums import (
 from .futures_request_payload_validation_record_validation_check_contracts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_CONTRACTS,
     FuturesRequestPayloadValidationRecordValidationCheckContract,
+    count_futures_request_payload_validation_record_validation_check_contracts,
 )
 
 
@@ -303,17 +304,10 @@ def count_futures_request_payload_validation_record_validation_check_input_schem
 ) -> int:
     """Return the full disabled input-schema dependency count for one command."""
 
-    return (
-        sum(
-            1
-            for contract in (
-                FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_CONTRACTS
-            )
-            if contract.command == command
-        )
-        * len(
-            AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchema
-        )
+    return count_futures_request_payload_validation_record_validation_check_contracts(
+        command
+    ) * len(
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchema
     )
 
 

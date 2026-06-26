@@ -297,6 +297,25 @@ FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_
 )
 
 
+def count_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks(
+    command: AdminFuturesCommandAction,
+) -> int:
+    """Return the full disabled validation-check count for one command."""
+
+    return (
+        sum(
+            1
+            for validation in (
+                FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_CONTRACTS
+            )
+            if validation.command == command
+        )
+        * len(
+            AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheck
+        )
+    )
+
+
 def iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks(
     command: AdminFuturesCommandAction,
 ) -> Iterator[

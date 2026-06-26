@@ -24,6 +24,7 @@ from core.enums import (
 from .futures_request_payload_validation_record_validation_check_contracts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_CONTRACTS,
     FuturesRequestPayloadValidationRecordValidationCheckContract,
+    count_futures_request_payload_validation_record_validation_check_contracts,
     iter_futures_request_payload_validation_record_validation_check_contracts,
 )
 
@@ -301,11 +302,8 @@ def count_futures_request_payload_validation_record_validation_check_output_sche
 ) -> int:
     """Return the full disabled output-schema count for one command."""
 
-    return sum(
-        1
-        for _ in iter_futures_request_payload_validation_record_validation_check_contracts(
-            command
-        )
+    return count_futures_request_payload_validation_record_validation_check_contracts(
+        command
     ) * len(
         AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchema
     )

@@ -13,16 +13,16 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7521-7540"`. Futures/perpetual command-suite reads
+`"approved_phase_range": "7541-7560"`. Futures/perpetual command-suite reads
 now expose backend-owned clearance-step review input store record-validation
-check output schema field-type evidence for active M57 `7521-7540` while
-completed `7501-7520` clearance-step review input store record-validation
-check output schema field-name evidence remains carried-forward history. The current
-rows are disabled, no-live evidence only and do not declare field types, field
-names, source refs, fields, schemas, acceptance contracts, pass contextless
-review, ready validation-check output schema field types, admit commands, call Coinbase,
-execute reconciliation, mutate state, or grant browser/BFF or spot-rule
-authority.
+check output schema field-constraint evidence for active M57 `7541-7560`
+while completed `7521-7540` clearance-step review input store
+record-validation check output schema field-type evidence remains
+carried-forward history. The current rows are disabled, no-live evidence only
+and do not declare constraints, field types, field names, source refs, fields,
+schemas, acceptance contracts, pass contextless review, ready validation-check
+output schema field constraints, admit commands, call Coinbase, execute
+reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
 
 Completed `"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input
@@ -58,8 +58,16 @@ execution-eligibility resolution-plan step review evidence,
 execution-eligibility resolution-plan step evidence, execution-eligibility
 resolution-plan evidence, execution-eligibility semantic closure evidence,
 disabled reconciliation semantics, cancel semantics, order semantics, and
-earlier evidence. Active M57 `7521-7540` evidence adds futures request payload
+earlier evidence. Active M57 `7541-7560` evidence adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint evidence while
+completed M57 `7521-7540` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-type evidence.
+Completed M57 `7521-7540` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check output schema field-type evidence while
 completed M57 `7501-7520` carries forward futures request payload validation

@@ -24,6 +24,7 @@ from core.enums import (
 from .futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_CHECK_CONTRACTS,
     FuturesRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheck,
+    count_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks,
 )
 
 
@@ -292,6 +293,21 @@ FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_VALIDATION_CHECK_CONTRACTS: tuple[
         AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContract
     )
 )
+
+
+def count_futures_request_payload_validation_record_validation_check_contracts(
+    command: AdminFuturesCommandAction,
+) -> int:
+    """Return the full disabled validation-check contract count for one command."""
+
+    return (
+        count_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks(
+            command
+        )
+        * len(
+            AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContract
+        )
+    )
 
 
 def iter_futures_request_payload_validation_record_validation_check_contracts(

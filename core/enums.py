@@ -1718,6 +1718,34 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraint(
+    str,
+    Enum,
+):
+    """Backend-owned futures field-constraint dependencies for validation-check output schemas."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_DECLARATION = (
+        "output_schema_field_constraints_declaration"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintBlocker(
+    str,
+    Enum,
+):
+    """Blocked field-constraint reasons before futures validation-check output schemas can run."""
+
+    OUTPUT_SCHEMA_FIELD_NOT_READY = "output_schema_field_not_ready"
+    OUTPUT_SCHEMA_FIELD_TYPE_NOT_READY = "output_schema_field_type_not_ready"
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_MISSING = (
+        "output_schema_field_constraints_missing"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_SOURCE_REF_MISSING = (
+        "output_schema_field_constraints_source_ref_missing"
+    )
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField(
     str,
     Enum,
