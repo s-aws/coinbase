@@ -62,6 +62,8 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRef,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefBlocker,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReview,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldName,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldNameBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldType,
@@ -6439,6 +6441,58 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResol
     validation_check_output_schema_field_constraint_source_ref_contextless_review_passed: bool = False
     validation_check_output_schema_field_constraint_source_ref_accepted: bool = False
     validation_check_output_schema_field_constraint_source_ref_recorded: bool = False
+
+
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewItem(
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefItem
+):
+    """One disabled contextless-review dependency for a validation-check output schema field constraint source ref."""
+
+    clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_kind: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReview
+    clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_index: int = Field(
+        ge=0
+    )
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_ref: str
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_contract_ref: str
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_gate: str
+    required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review: str
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_claim: str
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_target_ref: str
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_source_ref: str
+    predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_refs: list[
+        str
+    ] = Field(default_factory=list)
+    predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_refs: list[
+        str
+    ] = Field(default_factory=list)
+    successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blockers: list[
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewBlocker
+    ] = Field(default_factory=list)
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blocker_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blockers: list[
+        str
+    ] = Field(default_factory=list)
+    inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blocker_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_required: bool = True
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_ready: bool = False
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_declared: bool = False
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_passed: bool = False
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_accepted: bool = False
+    validation_check_output_schema_field_constraint_source_ref_contextless_review_recorded: bool = False
 
 
 class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
@@ -12953,6 +13007,42 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_refs: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    passed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_detail_rows_limited: bool = False
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewItem
+    ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
         ge=0,
@@ -14533,6 +14623,30 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    passed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count: int = Field(
         default=0,
         ge=0,
     )
