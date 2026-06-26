@@ -1244,6 +1244,17 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     INPUT_EVIDENCE_RECORD_VALIDATION = "input_evidence_record_validation"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediation(
+    str,
+    Enum,
+):
+    """Remediation required by futures resolution-plan review-input store record validations."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION = (
+        "input_evidence_record_validation_remediation"
+    )
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

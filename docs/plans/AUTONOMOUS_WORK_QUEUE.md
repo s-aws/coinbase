@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7141-7160**.
+- Approved phase range: **7161-7180**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7121-7140`.
+- Previous completed range: `7141-7160`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7140`.
+- `current_phase`: `7160`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,185 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7141-7160
+## Active Phases 7161-7180
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Evidence.
+
+These phases continue M57 after completed `7141-7160` exposed disabled
+resolution-plan step review input store record-validation evidence. The
+concrete gap is that a named disabled validation row still does not identify
+the remediation work required before the validation could ever become ready,
+recorded, accepted, or execution eligible. Each store record-validation row now
+needs a separate backend-owned store record-validation remediation row so
+contextless maintainers can distinguish "a validation row is named" from "the
+remediation path exists." The remediation rows are evidence only: their
+presence is not blocker resolution, runtime acceptance, command admission,
+reconciliation execution, Coinbase execution, browser execution authority, BFF
+execution authority, or spot-rule authority.
+
+Active M57 `7161-7180` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation evidence while completed M57 `7141-7160` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation evidence.
+
+Active `7161-7180` resolution-plan step review input store record-validation
+remediation evidence is implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`,
+backend Admin API models/read-service serialization, OpenAPI, generated
+frontend schema, frontend adapter/view-model display, and bounded mock
+fixtures. It adds
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
+`review_input_store_record_validation_remediation_kind`,
+`record_validation_remediation_gate`,
+`record_validation_remediation_action_refs`,
+`record_validation_remediation_required=true`,
+`record_validation_remediation_ready=false`,
+`record_validation_remediation_configured=false`,
+`record_validation_remediation_performed=false`,
+`record_validation_remediation_recorded=false`,
+`record_validation_remediation_accepted=false`,
+`record_validation_remediation_work_item_created=false`, and
+`record_validation_remediation_dependency_ready=false` while carrying forward
+the parent record-validation, record-contract, store-requirement,
+review-input, review, step, and plan refs, false runtime
+evidence/admission/execution flags, and `blocker_resolved=false`.
+
+This range must not perform remediation, configure validators, create
+validation schemas, configure append-only logs, bind idempotency keys, bind
+payload fields, validate payloads, enable replay guards, mark review inputs
+present, accepted, or validated, mark records present/accepted/validated,
+accept runtime evidence, admit commands, execute reconciliation, mutate
+futures/order/exchange state, call Coinbase, create frontend/BFF trading
+logic, or apply spot wallet, no-shorting, USDC, cost-basis, average-cost, or
+inventory lot assumptions as futures/perpetual authority. Resolution plan step
+review input store record-validation remediation presence is not blocker
+resolution. Resolution plan step review input store record-validation presence
+is not blocker resolution. Resolution plan step review input store
+record-contract presence is not blocker resolution. Resolution plan step review
+input store requirement presence is not blocker resolution. Resolution plan
+step review input presence is not blocker resolution. Resolution plan step
+review presence is not blocker resolution.
+
+Exact autonomous phrase: Active M57 `7161-7180` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence while completed M57 `7141-7160` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.
+
+### Phase 7161 - Prior Range Closure
+
+- Record completed `7141-7160` resolution-plan step review input store
+  record-validation evidence as historical and move active metadata to
+  `7161-7180`.
+
+### Phase 7162 - Store Record-Validation Remediation Registry
+
+- Add backend-owned disabled input evidence store record-validation remediation
+  rows for every resolution-plan step review input store record validation.
+
+### Phase 7163 - Remediation Reference Contract
+
+- Expose stable store record-validation remediation refs and contract refs
+  linked to the parent validation, record-contract, store-requirement,
+  review-input, review, step, and plan refs.
+
+### Phase 7164 - False Remediation Flags
+
+- Keep remediation required true while readiness, configuration, performed,
+  recorded, accepted, work-item, dependency readiness, validation readiness,
+  runtime evidence, admission, blocker resolution, execution eligibility, live
+  Coinbase, browser, BFF, and spot-rule authority flags remain false or
+  display-only.
+
+### Phase 7165 - Backend Model Serialization
+
+- Expose command-level and suite-level resolution-plan step review input store
+  record-validation remediation counts and row lists through backend Admin API
+  models and read-service serialization.
+
+### Phase 7166 - OpenAPI Regeneration
+
+- Regenerate the backend OpenAPI contract from backend-owned models.
+
+### Phase 7167 - Frontend Generated Schema
+
+- Regenerate the frontend generated schema from the backend OpenAPI contract.
+
+### Phase 7168 - Frontend Adapter Mapping
+
+- Map resolution-plan step review input store record-validation remediation
+  rows and aggregate counts into typed futures view models without adding
+  browser validation, remediation, or execution authority.
+
+### Phase 7169 - Summary Display
+
+- Add command-suite summary counts for total, blocking, ready, and recorded
+  resolution-plan step review input store record-validation remediations.
+
+### Phase 7170 - Detail Display
+
+- Render remediation refs, contract refs, action refs, parent validation refs,
+  false remediation/validation/execution flags, and display-only authority in
+  futures/perpetual details.
+
+### Phase 7171 - Mock Backend Sync
+
+- Update bounded frontend mock fixtures to emit backend-equivalent
+  resolution-plan step review input store record-validation remediation rows
+  and counts.
+
+### Phase 7172 - Component Fixture Sync
+
+- Update component/unit fixtures so TypeScript enforces the new generated
+  remediation contract fields.
+
+### Phase 7173 - Backend Focused Tests
+
+- Add focused backend assertions that remediation counts match the registry and
+  all ready/recorded counts remain zero.
+
+### Phase 7174 - Frontend Focused Tests
+
+- Run API check, typecheck, and focused futures/mock/backend-client/quality
+  unit tests for the new display surface.
+
+### Phase 7175 - Autonomous Queue Metadata
+
+- Update backend and frontend autonomous queue, artifact, readiness, and
+  checker metadata for `7161-7180`.
+
+### Phase 7176 - Contextless Review
+
+- Run fresh blind/contextless backend and frontend reviews when available,
+  remediate blocking ambiguity, and close phase-scoped subagents during the
+  phase-end sweep.
+
+### Phase 7177 - No-Live Evidence
+
+- Record that no live Coinbase execution is planned or run; submitted and
+  executed notional remain `0` USDC for this range.
+
+### Phase 7178 - Ownership And Hygiene
+
+- Run ownership, stale-process, process-hygiene, runtime-artifact, and diff
+  checks.
+
+### Phase 7179 - Commit Backend Association
+
+- Commit and push backend resolution-plan step review input store
+  record-validation remediation evidence once focused checks pass.
+
+### Phase 7180 - Commit Frontend Association
+
+- Commit and push frontend resolution-plan step review input store
+  record-validation remediation display once focused checks pass.
+
+## Completed Phases 7141-7160
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Evidence.
 
@@ -98,13 +276,13 @@ blocker resolution, runtime acceptance, command admission, reconciliation
 execution, Coinbase execution, browser execution authority, BFF execution
 authority, or spot-rule authority.
 
-Active M57 `7141-7160` evidence adds futures request payload validation record
+Completed M57 `7141-7160` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 evidence while completed M57 `7121-7140` carries forward futures request
 payload validation record execution-eligibility resolution-plan step review
 input store record-contract evidence.
 
-Active `7141-7160` resolution-plan step review input store record-validation
+Completed `7141-7160` resolution-plan step review input store record-validation
 evidence is implemented through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
@@ -148,7 +326,7 @@ input store requirement presence is not blocker resolution. Resolution plan
 step review input presence is not blocker resolution. Resolution plan step
 review presence is not blocker resolution.
 
-Exact autonomous phrase: Active M57 `7141-7160` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence while completed M57 `7121-7140` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
+Completed autonomous phrase: Completed M57 `7141-7160` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence while completed M57 `7121-7140` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
 
 ### Phase 7141 - Prior Range Closure
 

@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7141-7160"
-APPROVED_PHASES = tuple(range(7141, 7161))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7121-7140"
+APPROVED_PHASE_RANGE = "7161-7180"
+APPROVED_PHASES = tuple(range(7161, 7181))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7141-7160"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7141-7160` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence while completed M57 `7121-7140` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.",
+            "Active M57 `7161-7180` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence while completed M57 `7141-7160` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",

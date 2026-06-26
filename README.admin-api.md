@@ -735,12 +735,27 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 7141-7160 add futures request payload validation record
+Current M57 phases 7161-7180 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
+`review_input_store_record_validation_remediation_kind`,
+`record_validation_remediation_required=true`,
+`record_validation_remediation_ready=false`,
+`record_validation_remediation_configured=false`,
+`record_validation_remediation_performed=false`,
+`record_validation_remediation_recorded=false`,
+`record_validation_remediation_accepted=false`,
+`record_validation_remediation_work_item_created=false`, and
+`record_validation_remediation_dependency_ready=false` while carrying forward
+completed M57 phases 7141-7160 futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 evidence through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
-Admin API models/read-service serialization, OpenAPI, generated frontend schema,
-and frontend display. Command-suite rows expose
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
 `review_input_store_record_validation_kind`,
@@ -765,16 +780,26 @@ and frontend display. Command-suite rows expose
 `writer_available=false`, `writer_allowed=false`, `write_allowed=false`,
 `record_present=false`, `record_accepted=false`, `record_validated=false`,
 `validation_configured=false`, and `replay_protection_configured=false`.
-Resolution plan step review input store record-validation presence is disabled
+Resolution plan step review input store record-validation remediation presence
+is disabled evidence only; it does not perform remediation, resolve blockers,
+create a store, configure a writer, allow writes, accept records, validate
+records, accept runtime evidence, admit commands, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF or
+spot-rule authority. Resolution plan step review input store record-validation
+presence is disabled
 evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7141-7160` evidence adds futures request payload validation record
+Active M57 `7161-7180` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-evidence while completed M57 `7121-7140` carries forward futures request
-payload validation record execution-eligibility resolution-plan step review
-input store record-contract evidence.
+remediation evidence while completed M57 `7141-7160` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation evidence.
+Completed M57 phases 7141-7160 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`.
 Completed M57 phases 7121-7140 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-contract
 evidence through

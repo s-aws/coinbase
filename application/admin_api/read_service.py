@@ -149,6 +149,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContractItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationItem,
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem,
     AdminFuturesCommandRequestPayloadValidationRecordReplayGuardItem,
@@ -404,6 +405,9 @@ from .futures_request_payload_validation_record_execution_eligibility_resolution
 from .futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations import (
     iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations,
 )
+from .futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations import (
+    iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations,
+)
 from .futures_request_payload_validation_record_semantic_artifacts import (
     iter_futures_request_payload_validation_record_semantic_artifacts,
 )
@@ -570,7 +574,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7141-7160"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7161-7180"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -691,6 +695,7 @@ FUTURES_COMMAND_SUITE_API_DETAIL_COMPACT_ARRAYS = frozenset(
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations",
+        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations",
         "request_payload_validation_record_semantic_artifacts",
         "request_payload_validation_record_semantic_artifact_definitions",
         "request_payload_validation_record_semantic_artifact_definition_reviews",
@@ -1006,6 +1011,37 @@ def futures_command_suite_frontend_fixture_payload(
             )
         ) or len(step_review_input_store_record_validation_rows) > len(
             limited_review_input_store_record_validation_rows
+        )
+        step_review_input_store_record_validation_remediation_rows = command.get(
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations"
+        )
+        if not isinstance(
+            step_review_input_store_record_validation_remediation_rows, list
+        ):
+            continue
+        limited_review_input_store_record_validation_remediation_rows = (
+            step_review_input_store_record_validation_remediation_rows[
+                :FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_STEP_ROW_LIMIT
+            ]
+        )
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations"
+        ] = limited_review_input_store_record_validation_remediation_rows
+        command[
+            "materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count"
+        ] = len(limited_review_input_store_record_validation_remediation_rows)
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_detail_row_limit"
+        ] = FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_STEP_ROW_LIMIT
+        command[
+            "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_detail_rows_limited"
+        ] = bool(
+            command.get(
+                "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_detail_rows_limited",
+                False,
+            )
+        ) or len(step_review_input_store_record_validation_remediation_rows) > len(
+            limited_review_input_store_record_validation_remediation_rows
         )
     return compacted
 
@@ -24286,6 +24322,134 @@ class AdminApiReadService:
                 )
             return validation_items
 
+        def request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> list[
+            AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationItem
+        ]:
+            parent_record_validations_by_ref = {
+                item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref: item
+                for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
+                    command_id
+                )
+            }
+            remediation_items: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationItem
+            ] = []
+            for contract in (
+                iter_futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations(
+                    command_id
+                )
+            ):
+                payload = parent_record_validations_by_ref[
+                    contract.execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref
+                ].model_dump(mode="python")
+                payload.update(
+                    {
+                        "review_input_store_record_validation_remediation_kind": (
+                            contract.review_input_store_record_validation_remediation_kind
+                        ),
+                        "review_input_store_record_validation_remediation_index": (
+                            contract.review_input_store_record_validation_remediation_index
+                        ),
+                        "status": contract.status,
+                        "source": contract.source,
+                        "required": contract.required,
+                        "blocking": contract.blocking,
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref": (
+                            contract.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref
+                        ),
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref": (
+                            contract.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref
+                        ),
+                        "record_validation_remediation_gate": (
+                            contract.record_validation_remediation_gate
+                        ),
+                        "record_validation_remediation_action_refs": list(
+                            contract.record_validation_remediation_action_refs
+                        ),
+                        "record_validation_remediation_action_count": len(
+                            contract.record_validation_remediation_action_refs
+                        ),
+                        "required_backend_contract": (
+                            contract.required_backend_contract
+                        ),
+                        "missing_backend_contract": (
+                            contract.missing_backend_contract
+                        ),
+                        "missing_reason": contract.missing_reason,
+                        "required_evidence_refs": list(contract.required_evidence_refs),
+                        "required_evidence_count": len(
+                            contract.required_evidence_refs
+                        ),
+                        "missing_evidence_refs": list(contract.missing_evidence_refs),
+                        "missing_evidence_count": len(contract.missing_evidence_refs),
+                        "forbidden_execution_claims": list(
+                            contract.forbidden_execution_claims
+                        ),
+                        "forbidden_execution_claim_count": len(
+                            contract.forbidden_execution_claims
+                        ),
+                        "backend_owned": contract.backend_owned,
+                        "read_only": contract.read_only,
+                        "contextless_review_required": (
+                            contract.contextless_review_required
+                        ),
+                        "spot_rule_authority": contract.spot_rule_authority,
+                        "record_validation_remediation_required": (
+                            contract.record_validation_remediation_required
+                        ),
+                        "record_validation_remediation_ready": (
+                            contract.record_validation_remediation_ready
+                        ),
+                        "record_validation_remediation_configured": (
+                            contract.record_validation_remediation_configured
+                        ),
+                        "record_validation_remediation_performed": (
+                            contract.record_validation_remediation_performed
+                        ),
+                        "record_validation_remediation_recorded": (
+                            contract.record_validation_remediation_recorded
+                        ),
+                        "record_validation_remediation_accepted": (
+                            contract.record_validation_remediation_accepted
+                        ),
+                        "record_validation_remediation_work_item_created": (
+                            contract.record_validation_remediation_work_item_created
+                        ),
+                        "record_validation_remediation_dependency_ready": (
+                            contract.record_validation_remediation_dependency_ready
+                        ),
+                        "runtime_evidence_observed": contract.runtime_evidence_observed,
+                        "runtime_evidence_satisfies_semantic_contract": (
+                            contract.runtime_evidence_satisfies_semantic_contract
+                        ),
+                        "validation_record_admission_link_ready": (
+                            contract.validation_record_admission_link_ready
+                        ),
+                        "validation_record_admitted": (
+                            contract.validation_record_admitted
+                        ),
+                        "blocker_resolved": contract.blocker_resolved,
+                        "validation_record_execution_eligible": (
+                            contract.validation_record_execution_eligible
+                        ),
+                        "execution_allowed": contract.execution_allowed,
+                        "live_coinbase_orders_ran": (
+                            contract.live_coinbase_orders_ran
+                        ),
+                        "browser_authority": contract.browser_authority,
+                        "bff_authority": contract.bff_authority,
+                        "detail": contract.detail,
+                    }
+                )
+                remediation_items.append(
+                    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationItem(
+                        **payload
+                    )
+                )
+            return remediation_items
+
         def request_payload_validation_record_semantic_artifacts_for(
             command_id: AdminFuturesCommandAction,
         ) -> list[AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem]:
@@ -35051,6 +35215,9 @@ class AdminApiReadService:
             request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations: list[
                 AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationItem
             ],
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationItem
+            ],
             request_payload_validation_record_semantic_artifacts: list[
                 AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem
             ],
@@ -35160,6 +35327,11 @@ class AdminApiReadService:
             )
             materialized_resolution_plan_step_review_input_store_record_validations = (
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations[
+                    :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ]
+            )
+            materialized_resolution_plan_step_review_input_store_record_validation_remediations = (
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations[
                     :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
                 ]
             )
@@ -35792,6 +35964,42 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
                     materialized_resolution_plan_step_review_input_store_record_validations
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=len(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations
+                ),
+                blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations
+                    if item.blocking
+                ),
+                ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations
+                    if item.record_validation_remediation_ready
+                    and item.record_validation_remediation_accepted
+                ),
+                recorded_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=sum(
+                    1
+                    for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations
+                    if item.record_validation_remediation_recorded
+                ),
+                materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=len(
+                    materialized_resolution_plan_step_review_input_store_record_validation_remediations
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_detail_row_limit=(
+                    FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_detail_rows_limited=(
+                    len(
+                        request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations
+                    )
+                    > len(
+                        materialized_resolution_plan_step_review_input_store_record_validation_remediations
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations=(
+                    materialized_resolution_plan_step_review_input_store_record_validation_remediations
                 ),
                 request_payload_validation_record_semantic_artifact_count=len(
                     request_payload_validation_record_semantic_artifacts
@@ -37008,6 +37216,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.PLACE
@@ -37207,6 +37420,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -37413,6 +37631,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.CANCEL
@@ -37614,6 +37837,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -38503,6 +38731,22 @@ class AdminApiReadService:
             ),
             accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count=sum(
                 command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_count
+                for command in commands
+            ),
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=sum(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count
+                for command in commands
+            ),
+            blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=sum(
+                command.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count
+                for command in commands
+            ),
+            ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=sum(
+                command.ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count
+                for command in commands
+            ),
+            recorded_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count=sum(
+                command.recorded_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_count
                 for command in commands
             ),
             request_payload_validation_record_semantic_artifact_count=sum(
