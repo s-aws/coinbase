@@ -135,9 +135,10 @@ def get_futures_command_suite(
     """Read blocked M57 futures/perpetual command contract evidence."""
 
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_model_response(
-        AdminFuturesCommandSuiteResponse,
-        futures_command_suite_api_payload(service.build_futures_command_suite()),
+    return JSONResponse(
+        content=futures_command_suite_api_payload(
+            service.build_futures_command_suite()
+        )
     )
 
 

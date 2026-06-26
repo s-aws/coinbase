@@ -11,12 +11,18 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7341-7360 range targets explicit M57 futures/perpetual request
+The active 7361-7380 range targets explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
-clearance-step review input store record-contract evidence. Completed
-7321-7340 clearance-step review input store requirement evidence remains
+clearance-step review input store record-validation evidence. Completed
+7341-7360 clearance-step review input store record-contract evidence remains
 carried-forward history.
+
+The completed 7341-7360 range targeted explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-contract evidence for
+`GET /api/v1/futures/command-suite` and the disabled command draft routes.
 
 The completed 7321-7340 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
@@ -36,7 +42,27 @@ input store record-validation remediation dependency work-item claim-trace
 clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7341-7360"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract fields such
+`"approved_phase_range": "7361-7380"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation fields such
+as `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ready=false`,
+`record_validation_required=true`,
+`record_validation_ready=false`,
+`record_validation_configured=false`,
+`record_validation_registered=false`,
+`record_validation_gate_ready=false`,
+`record_validation_gate_passed=false`,
+`record_validation_replay_guard_ready=false`,
+`record_validation_schema_ready=false`,
+`record_validation_append_only_log_ready=false`,
+`record_validation_idempotency_bound=false`,
+`record_validation_payload_bound=false`,
+`record_validation_performed=false`,
+`record_validation_accepted=false`,
+`validation_checks_passed=false`,
+`validation_gate_passed=false`, and
+`replay_gate_passed=false`.
+
+Completed `"approved_phase_range": "7341-7360"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract fields such
 as `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_required=true`,
 `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_available=false`,
 `record_contract_available=false`,
@@ -268,7 +294,15 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7341-7360 range is display-only and does not treat dependency
+The active 7361-7380 range is display-only and does not treat dependency
+work-item claim-trace clearance-step review input store record-validation
+presence as validator configuration, validation gate readiness, replay gate
+readiness, schema availability, append-only log availability, idempotency
+binding, payload binding, record acceptance, record validation, command
+admission, Coinbase execution, reconciliation execution, browser authority,
+BFF authority, or spot-rule authority.
+
+The completed 7341-7360 range is display-only and does not treat dependency
 work-item claim-trace clearance-step review input store record-contract
 presence as record contract availability, record schema availability,
 append-only log availability, idempotency binding, payload schema validation,

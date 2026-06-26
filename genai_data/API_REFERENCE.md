@@ -16,19 +16,30 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7341-7360` futures/perpetual request payload validation record
+Current M57 `7361-7380` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store
-record-contract evidence for `GET /api/v1/futures/command-suite` adds disabled
-clearance-step review input store record-contract rows through
-`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts.py`.
-Completed M57 `7321-7340` clearance-step review input store requirement
+record-validation evidence for `GET /api/v1/futures/command-suite` adds
+disabled clearance-step review input store record-validation rows through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations.py`.
+Completed M57 `7341-7360` clearance-step review input store record-contract
 evidence is now carried forward history. The current rows are read-only/no-live
-evidence and do not make record contracts available, register schemas, create
-append-only logs, bind idempotency keys, validate payload schemas, configure
-replay protection, make stores or writers available, allow writes, accept or
-validate records, admit commands, execute reconciliation, call Coinbase, mutate
-futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+evidence and do not configure validators, pass validation gates, pass replay
+gates, make schemas or append-only logs available, bind idempotency or payload
+validation, accept or validate records, admit commands, execute reconciliation,
+call Coinbase, mutate futures/order/exchange state, or grant browser/BFF or
+spot-rule authority.
+
+Completed M57 `7341-7360` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-contract evidence for `GET /api/v1/futures/command-suite`: futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-contract evidence;
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-contract display.
 
 Completed M57 `7321-7340` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation

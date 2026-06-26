@@ -45,6 +45,7 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputKind,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractBlocker,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewKind,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement,
@@ -5792,6 +5793,78 @@ class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResol
     record_validated: bool = False
     validation_configured: bool = False
     replay_protection_configured: bool = False
+
+
+class AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationItem(
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractItem
+):
+    """One disabled record validation for an execution-eligibility clearance-step review input store record."""
+
+    clearance_step_review_input_store_record_validation_kind: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidation
+    clearance_step_review_input_store_record_validation_index: int = Field(ge=0)
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref: str
+    execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_contract_ref: str
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_gate: str
+    required_clearance_step_review_input_store_record_contract_contract: str
+    validation_checks: list[str] = Field(default_factory=list)
+    validation_check_count: int = Field(default=0, ge=0)
+    validation_gate: str
+    replay_gate: str
+    clearance_step_review_input_store_record_validation_claim: str
+    clearance_step_review_input_store_record_validation_target_ref: str
+    clearance_step_review_input_store_record_validation_source_ref: str
+    predecessor_clearance_step_review_input_store_record_validation_refs: list[str] = (
+        Field(default_factory=list)
+    )
+    predecessor_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    successor_clearance_step_review_input_store_record_validation_refs: list[str] = Field(
+        default_factory=list
+    )
+    successor_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_blockers: list[
+        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationBlocker
+    ] = Field(default_factory=list)
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_blocker_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    inherited_clearance_step_review_input_store_record_contract_blockers: list[str] = (
+        Field(default_factory=list)
+    )
+    inherited_clearance_step_review_input_store_record_contract_blocker_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_required: bool = (
+        True
+    )
+    record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ready: bool = (
+        False
+    )
+    record_validation_required: bool = True
+    record_validation_ready: bool = False
+    record_validation_configured: bool = False
+    record_validation_registered: bool = False
+    record_validation_gate_ready: bool = False
+    record_validation_gate_passed: bool = False
+    record_validation_replay_guard_ready: bool = False
+    record_validation_schema_ready: bool = False
+    record_validation_append_only_log_ready: bool = False
+    record_validation_idempotency_bound: bool = False
+    record_validation_payload_bound: bool = False
+    record_validation_contextless_review_passed: bool = False
+    record_validation_performed: bool = False
+    record_validation_accepted: bool = False
+    record_validation_recorded: bool = False
+    validation_checks_passed: bool = False
+    validation_gate_passed: bool = False
+    replay_gate_passed: bool = False
 
 
 class AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem(
@@ -11954,6 +12027,38 @@ class AdminFuturesCommandContractItem(BaseModel):
     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts: list[
         AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractItem
     ] = Field(default_factory=list)
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    configured_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_detail_row_limit: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_detail_rows_limited: bool = False
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations: list[
+        AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationItem
+    ] = Field(default_factory=list)
     request_payload_validation_record_semantic_artifact_count: int = Field(
         default=0,
         ge=0,
@@ -12795,6 +12900,30 @@ class AdminFuturesCommandContractItem(BaseModel):
     detail: str
 
 
+_FUTURES_COMMAND_SUITE_JSON_DUMP_OMIT_FIELDS = frozenset(
+    {
+        "detail",
+        "forbidden_execution_claims",
+        "missing_backend_contracts",
+        "missing_evidence_refs",
+        "required_backend_contracts",
+        "required_evidence_refs",
+    }
+)
+
+
+def _strip_futures_command_suite_json_dump(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _strip_futures_command_suite_json_dump(item)
+            for key, item in value.items()
+            if key not in _FUTURES_COMMAND_SUITE_JSON_DUMP_OMIT_FIELDS
+        }
+    if isinstance(value, list):
+        return [_strip_futures_command_suite_json_dump(item) for item in value]
+    return value
+
+
 class AdminFuturesCommandSuiteResponse(BaseModel):
     """Read-only M57 futures/perpetual command contract readiness evidence."""
 
@@ -13290,6 +13419,26 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
         ge=0,
     )
     accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    configured_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count: int = Field(
         default=0,
         ge=0,
     )
@@ -14044,6 +14193,13 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     submitted_notional_usdc: DecimalString = "0"
     executed_notional_usdc: DecimalString = "0"
     message: str
+
+    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        payload = super().model_dump(*args, **kwargs)
+        mode = kwargs.get("mode", args[0] if args else "python")
+        if mode == "json":
+            return _strip_futures_command_suite_json_dump(payload)
+        return payload
 
 
 class AdminRiskEvidenceItem(BaseModel):

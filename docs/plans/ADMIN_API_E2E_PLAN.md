@@ -49,11 +49,31 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7341-7360
+## Current Active Phases 7361-7380
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Evidence.
+
+Current M57 work adds backend-owned disabled resolution-plan step review input
+store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation fields to futures request
+payload validation record execution-eligibility blocker rows after completed
+`7341-7360` clearance-step review input store record-contract evidence. The
+backend-owned contract is implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations.py`,
+Admin API models/read-service serialization, and generated OpenAPI. The rows
+remain no-live display evidence only and do not configure validators, pass
+validation or replay gates, make schemas or append-only logs available, bind
+idempotency or payload validation, perform validation checks, accept records,
+validate records, admit commands, execute reconciliation, call Coinbase, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7361-7380` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation evidence while completed M57 `7341-7360` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence.
+
+## Completed Phases 7341-7360
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Contracts Evidence.
 
-Current M57 work adds backend-owned disabled resolution-plan step review input
+Completed M57 work adds backend-owned disabled resolution-plan step review input
 store record-validation remediation dependency work-item claim-trace
 clearance-step review input store record-contract fields to futures request
 payload validation record execution-eligibility blocker rows after completed
@@ -68,7 +88,7 @@ available, allow writes, record evidence, accept records, validate records,
 admit commands, execute reconciliation, call Coinbase, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7341-7360` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence while completed M57 `7321-7340` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement evidence.
+Completed autonomous phrase: Active M57 `7341-7360` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence while completed M57 `7321-7340` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement evidence.
 
 ## Completed Phases 7321-7340
 
