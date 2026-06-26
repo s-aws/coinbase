@@ -16,9 +16,14 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7181-7200` futures/perpetual request payload validation record
+Current M57 `7201-7220` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency evidence for `GET /api/v1/futures/command-suite`:
+remediation dependency work-item evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+evidence; futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item display; carried-forward completed `7181-7200`
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency evidence;
 futures request payload validation record execution-eligibility resolution-plan
@@ -50,9 +55,24 @@ and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`
 and
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`
-with store record-validation remediation dependency rows derived from each
-store record-validation remediation row.
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items.py`
+with store record-validation remediation dependency work-item rows derived from
+each store record-validation remediation dependency row.
 Representative command-suite keys:
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_kind`,
+`record_validation_remediation_dependency_work_item_gate`,
+`record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`claim_ledger_registered=false`,
+`owner_review_accepted=false`,
+`contextless_review_passed=false`,
+`accepts_evidence=false`,
+`writes_evidence=false`,
 `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,

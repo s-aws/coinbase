@@ -11,11 +11,11 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7181-7200 range targets explicit M57 futures/perpetual request
-payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency evidence for
+The active 7201-7220 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7181-7200"` and no-live resolution-plan step review input store record-validation remediation dependency fields such
+`"approved_phase_range": "7201-7220"` and no-live resolution-plan step review input store record-validation remediation dependency work-item fields such
 as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
@@ -34,6 +34,21 @@ as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref`,
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_kind`,
+`record_validation_remediation_dependency_work_item_gate`,
+`record_validation_remediation_dependency_work_item_action_refs`,
+`record_validation_remediation_dependency_work_item_blockers`,
+`record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`claim_ledger_registered=false`,
+`owner_review_accepted=false`,
+`contextless_review_passed=false`,
+`accepts_evidence=false`,
+`writes_evidence=false`,
 `review_input_store_record_validation_remediation_dependency_kind`,
 `record_validation_remediation_dependency_gate`,
 `record_validation_remediation_dependency_action_refs`,
@@ -101,6 +116,11 @@ as `execution_eligibility_resolution_plan_ref`,
 `resolution_plan_accepted=false`,
 `runtime_evidence_satisfies_semantic_contract=false`,
 `validation_record_admission_link_ready=false`, and `blocker_resolved=false`.
+Completed 7181-7200 resolution-plan step review input store record-validation
+remediation dependency evidence remains visible through fields such as
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref`
+and
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`.
 Completed 7161-7180 resolution-plan step review input store record-validation
 remediation evidence remains visible through fields such as
 `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`
@@ -148,7 +168,10 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7181-7200 range is display-only and does not treat resolution plan
+The active 7201-7220 range is display-only and does not treat dependency
+work-item presence as dependency resolution, claim-ledger registration, owner
+review acceptance, contextless review acceptance, or evidence recording. It
+also does not treat resolution plan
 step review input store record-validation remediation dependency presence,
 resolution plan step review input store record-validation remediation presence,
 resolution plan step review input store record-validation presence, resolution

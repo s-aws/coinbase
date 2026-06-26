@@ -13,9 +13,11 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7181-7200"`. Futures/perpetual command-suite reads
+`"approved_phase_range": "7201-7220"`. Futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input
-store record-validation remediation dependency evidence while carrying forward
+store record-validation remediation dependency work-item evidence while
+carrying forward execution-eligibility resolution-plan step review input store
+record-validation remediation dependency evidence,
 execution-eligibility resolution-plan step review input store record-validation
 remediation evidence,
 execution-eligibility resolution-plan step review input store record-validation
@@ -27,10 +29,26 @@ execution-eligibility resolution-plan step review evidence,
 execution-eligibility resolution-plan step evidence, execution-eligibility
 resolution-plan evidence, execution-eligibility semantic closure evidence,
 disabled reconciliation semantics, cancel semantics, order semantics, and
-earlier evidence. Active M57 `7181-7200` evidence adds futures request payload
+earlier evidence. Active M57 `7201-7220` evidence adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
-record-validation remediation dependency evidence while completed M57
-`7161-7180` carries forward futures request payload validation record
+record-validation remediation dependency work-item evidence while completed M57
+`7181-7200` carries forward futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency evidence.
+
+Active work-item rows expose `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`claim_ledger_registered=false`, `owner_review_accepted=false`,
+`contextless_review_passed=false`, `accepts_evidence=false`, and
+`writes_evidence=false`.
+
+Completed M57 `7181-7200` futures/perpetual command-suite reads expose
+backend-owned execution-eligibility resolution-plan step review input store
+record-validation remediation dependency evidence while carrying forward
 execution-eligibility resolution-plan step review input store
 record-validation remediation evidence.
 

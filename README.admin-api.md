@@ -735,9 +735,28 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 7181-7200 add futures request payload validation record
+Current M57 phases 7201-7220 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency evidence through
+remediation dependency work-item evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_kind`,
+`record_validation_remediation_dependency_work_item_gate`,
+`record_validation_remediation_dependency_work_item_action_refs`,
+`record_validation_remediation_dependency_work_item_blockers`,
+`record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`claim_ledger_registered=false`, `owner_review_accepted=false`,
+`contextless_review_passed=false`, `accepts_evidence=false`, and
+`writes_evidence=false` while carrying forward completed M57 phases 7181-7200
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency evidence
+through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend schema,
 and frontend display. Command-suite rows expose
@@ -818,11 +837,12 @@ evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7181-7200` evidence adds futures request payload validation record
+Active M57 `7201-7220` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency evidence while completed M57 `7161-7180` carries
-forward futures request payload validation record execution-eligibility
-resolution-plan step review input store record-validation remediation evidence.
+remediation dependency work-item evidence while completed M57 `7181-7200`
+carries forward futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency evidence.
 Completed M57 phases 7161-7180 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation evidence through
