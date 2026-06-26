@@ -16,7 +16,23 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7481-7500` futures/perpetual request payload validation record
+Current M57 `7501-7520` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-name evidence for
+`GET /api/v1/futures/command-suite` adds disabled clearance-step review input
+store record-validation check output schema field-name rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_names.py`.
+Completed M57 `7481-7500` clearance-step review input store
+record-validation check output schema field evidence is now carried forward
+history.
+The current rows are read-only/no-live evidence and do not declare field names,
+source refs, fields, schemas, acceptance contracts, or contextless review; they
+also do not ready validation-check output schema field names, accept or validate
+records, admit commands, execute reconciliation, call Coinbase, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+
+Completed M57 `7481-7500` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store
 record-validation check output schema field evidence for
@@ -25,7 +41,7 @@ store record-validation check output schema field rows through
 `application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_fields.py`.
 Completed M57 `7461-7480` clearance-step review input store
 record-validation check output schema evidence is now carried forward history.
-The current rows are read-only/no-live evidence and do not declare field names,
+Those rows are read-only/no-live evidence and do not declare field names,
 field types, constraints, source refs, acceptance contracts, or contextless
 review; they also do not ready validation-check output schema fields, accept or
 validate records, admit commands, execute reconciliation, call Coinbase, mutate

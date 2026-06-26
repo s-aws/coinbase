@@ -11,13 +11,20 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7481-7500 range targets explicit M57 futures/perpetual request
+The active 7501-7520 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation check output schema
+field-name evidence. Completed 7481-7500 clearance-step review input store
+record-validation check output schema field evidence remains carried-forward
+history.
+
+The completed 7481-7500 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
 clearance-step review input store record-validation check output schema field
 evidence. Completed 7461-7480 clearance-step review input store
-record-validation check output schema evidence remains carried-forward
-history.
+record-validation check output schema evidence remains carried-forward history.
 
 The completed 7461-7480 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
@@ -85,7 +92,16 @@ input store record-validation remediation dependency work-item claim-trace
 clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7481-7500"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field rows such
+`"approved_phase_range": "7501-7520"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-name rows such
+as `validation_check_output_schema_field_name_required=true`,
+`validation_check_output_schema_field_name_ready=false`,
+`validation_check_output_schema_field_name_declared=false`,
+`validation_check_output_schema_field_name_source_ref_declared=false`,
+`validation_check_output_schema_field_name_contextless_review_passed=false`,
+`validation_check_output_schema_field_name_accepted=false`, and
+`validation_check_output_schema_field_name_recorded=false`.
+
+Completed `"approved_phase_range": "7481-7500"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field rows such
 as `validation_check_output_schema_field_required=true`,
 `validation_check_output_schema_field_ready=false`,
 `validation_check_output_schema_field_declared=false`,
