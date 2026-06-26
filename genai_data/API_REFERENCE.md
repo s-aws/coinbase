@@ -16,21 +16,32 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7401-7420` futures/perpetual request payload validation record
+Current M57 `7421-7440` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store
-record-validation check contract evidence for `GET /api/v1/futures/command-suite`
-adds disabled clearance-step review input store record-validation check
-contract rows through
-`application/admin_api/futures_request_payload_validation_record_validation_check_contracts.py`.
-Completed M57 `7381-7400` clearance-step review input store
-record-validation check evidence is now carried forward history. The current
-rows are read-only/no-live evidence and do not declare validation-check
-contracts, declare input or output schemas, declare validation gates, declare
-replay guards, declare durable evidence records, bind idempotency, pass
-contextless review, accept or validate records, admit commands, execute
-reconciliation, call Coinbase, mutate futures/order/exchange state, or grant
-browser/BFF or spot-rule authority.
+record-validation check input schema evidence for `GET /api/v1/futures/command-suite`
+adds disabled clearance-step review input store record-validation check input
+schema rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_input_schemas.py`.
+Completed M57 `7401-7420` clearance-step review input store
+record-validation check contract evidence is now carried forward history. The
+current rows are read-only/no-live evidence and do not declare input schemas,
+fields, types, constraints, acceptance contracts, or contextless review; they
+also do not ready validation-check contracts, accept or validate records,
+admit commands, execute reconciliation, call Coinbase, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+
+Completed M57 `7401-7420` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check contract evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation check contract
+evidence; futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-validation check contract display.
 
 Completed M57 `7381-7400` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation

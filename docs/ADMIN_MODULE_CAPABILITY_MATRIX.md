@@ -4,14 +4,29 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7401-7420` adds futures request payload
+Current futures/perpetual M57 scope: `7421-7440` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema evidence on top of
+completed `7401-7420` futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check contract evidence. The current rows are
+backend-owned, display-only, no-live, and do not treat validation-check
+input-schema presence as schema declaration, field declaration, type
+declaration, constraint declaration, acceptance contract declaration,
+contextless review passage, validation-check contract readiness, command
+admission, Coinbase execution, reconciliation execution, browser/BFF
+authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7401-7420` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check contract evidence on top of
 completed `7381-7400` futures request payload validation record
 execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
-review input store record-validation check evidence. The current rows are
+review input store record-validation check evidence. The completed rows are
 backend-owned, display-only, no-live, and do not treat validation-check
 contract presence as contract declaration, schema declaration, validation-gate
 declaration, replay-guard declaration, evidence-record declaration,

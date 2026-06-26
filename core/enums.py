@@ -1576,6 +1576,37 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchema(
+    str,
+    Enum,
+):
+    """Backend-owned futures input-schema dependencies for validation checks."""
+
+    INPUT_SCHEMA_DECLARED = "input_schema_declared"
+    INPUT_SCHEMA_FIELDS_DECLARED = "input_schema_fields_declared"
+    INPUT_SCHEMA_TYPES_DECLARED = "input_schema_types_declared"
+    INPUT_SCHEMA_CONSTRAINTS_DECLARED = "input_schema_constraints_declared"
+    INPUT_SCHEMA_ACCEPTANCE_DECLARED = "input_schema_acceptance_declared"
+    INPUT_SCHEMA_CONTEXTLESS_REVIEW_DECLARED = (
+        "input_schema_contextless_review_declared"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaBlocker(
+    str,
+    Enum,
+):
+    """Blocked input-schema reasons before futures validation checks can run."""
+
+    VALIDATION_CHECK_CONTRACT_NOT_READY = "validation_check_contract_not_ready"
+    INPUT_SCHEMA_MISSING = "input_schema_missing"
+    INPUT_SCHEMA_FIELDS_MISSING = "input_schema_fields_missing"
+    INPUT_SCHEMA_TYPES_MISSING = "input_schema_types_missing"
+    INPUT_SCHEMA_CONSTRAINTS_MISSING = "input_schema_constraints_missing"
+    INPUT_SCHEMA_ACCEPTANCE_MISSING = "input_schema_acceptance_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

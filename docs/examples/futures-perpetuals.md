@@ -11,7 +11,14 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7401-7420 range targets explicit M57 futures/perpetual request
+The active 7421-7440 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation check input schema evidence.
+Completed 7401-7420 clearance-step review input store record-validation check
+contract evidence remains carried-forward history.
+
+The completed 7401-7420 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
 clearance-step review input store record-validation check contract evidence.
@@ -55,7 +62,19 @@ input store record-validation remediation dependency work-item claim-trace
 clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7401-7420"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check contract fields such
+`"approved_phase_range": "7421-7440"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check input schema fields such
+as `validation_check_input_schema_required=true`,
+`validation_check_input_schema_ready=false`,
+`validation_check_input_schema_declared=false`,
+`validation_check_input_schema_fields_declared=false`,
+`validation_check_input_schema_types_declared=false`,
+`validation_check_input_schema_constraints_declared=false`,
+`validation_check_input_schema_acceptance_declared=false`,
+`validation_check_input_schema_contextless_review_passed=false`,
+`validation_check_input_schema_accepted=false`, and
+`validation_check_input_schema_recorded=false`.
+
+Completed `"approved_phase_range": "7401-7420"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check contract fields such
 as `validation_check_contract_required=true`,
 `validation_check_contract_ready=false`,
 `validation_check_contract_declared=false`,
