@@ -49,12 +49,32 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7301-7320
+## Current Active Phases 7321-7340
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Inputs Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Requirements Evidence.
 
 Current M57 work adds backend-owned disabled resolution-plan step review input
 store record-validation remediation dependency work-item claim-trace
+clearance-step review input store requirement fields to futures request payload
+validation record execution-eligibility blocker rows after completed
+`7301-7320` remediation dependency work-item claim-trace clearance-step review
+input evidence. The backend-owned contract is implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements.py`,
+Admin API models/read-service serialization, and generated OpenAPI. The rows
+remain no-live display evidence only and do not make stores available,
+configure writers, bind record keys, pass validation or replay gates, accept or
+validate review inputs, pass review gates, complete reviews or steps, admit
+commands, execute reconciliation, call Coinbase, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7321-7340` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement evidence while completed M57 `7301-7320` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input evidence.
+
+## Completed Phases 7301-7320
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Inputs Evidence.
+
+Completed M57 work added backend-owned disabled resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
 clearance-step review input fields to futures request payload validation record
 execution-eligibility blocker rows after completed `7281-7300` remediation
 dependency work-item claim-trace clearance-step review evidence. The

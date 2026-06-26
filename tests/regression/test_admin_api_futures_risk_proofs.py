@@ -131,6 +131,9 @@ from application.admin_api.futures_request_payload_validation_record_execution_e
 from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_CONTRACTS,
 )
+from application.admin_api.futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_REQUIREMENT_CONTRACTS,
+)
 from application.admin_api.futures_request_payload_validation_record_semantic_artifacts import (
     FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS,
     iter_futures_request_payload_validation_record_semantic_artifacts,
@@ -5540,6 +5543,26 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         command_suite.validated_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count
         == 0
     )
+    assert (
+        command_suite.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_REQUIREMENT_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+        == len(
+            FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_REQUIREMENT_CONTRACTS
+        )
+    )
+    assert (
+        command_suite.available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+        == 0
+    )
+    assert (
+        command_suite.writer_available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+        == 0
+    )
     for command in command_suite.commands:
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_count
@@ -6479,6 +6502,167 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
                 == "forward_only_no_execution"
             )
             assert clearance_step_review_input.spot_rule_authority is False
+        expected_clearance_step_review_input_store_requirement_count = sum(
+            1
+            for contract in (
+                FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_RESOLUTION_PLAN_STEP_REVIEW_INPUT_STORE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_STEP_REVIEW_INPUT_STORE_REQUIREMENT_CONTRACTS
+            )
+            if contract.command == command.command
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+            == expected_clearance_step_review_input_store_requirement_count
+        )
+        assert (
+            command.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+            == expected_clearance_step_review_input_store_requirement_count
+        )
+        assert (
+            command.available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+            == 0
+        )
+        assert (
+            command.writer_available_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+            == 0
+        )
+        assert (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+            == min(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count,
+                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
+            )
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_detail_row_limit
+            == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+        )
+        assert (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_detail_rows_limited
+            is (
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+                > command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+            )
+        )
+        assert len(
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements
+        ) == (
+            command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
+        )
+        for clearance_step_review_input_store_requirement in (
+            command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements
+        ):
+            assert clearance_step_review_input_store_requirement.blocking is True
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_required
+                is True
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ready
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_available
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_writer_available
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_record_key_available
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_validation_gate_ready
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_replay_gate_ready
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_present
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_accepted
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_validated
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_gate_passed
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.predecessor_clearance_step_review_input_store_requirement_count
+                == len(
+                    clearance_step_review_input_store_requirement.predecessor_clearance_step_review_input_store_requirement_refs
+                )
+            )
+            assert (
+                clearance_step_review_input_store_requirement.successor_clearance_step_review_input_store_requirement_count
+                == len(
+                    clearance_step_review_input_store_requirement.successor_clearance_step_review_input_store_requirement_refs
+                )
+            )
+            assert (
+                clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_blocker_count
+                == len(
+                    clearance_step_review_input_store_requirement.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_blockers
+                )
+            )
+            assert (
+                clearance_step_review_input_store_requirement.inherited_clearance_step_review_input_blocker_count
+                == len(
+                    clearance_step_review_input_store_requirement.inherited_clearance_step_review_input_blockers
+                )
+            )
+            assert (
+                clearance_step_review_input_store_requirement.required_clearance_step_review_input_contract
+                == clearance_step_review_input_store_requirement.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_contract_ref
+            )
+            assert (
+                clearance_step_review_input_store_requirement.required_clearance_step_review_input_store_ref
+            )
+            assert (
+                clearance_step_review_input_store_requirement.clearance_step_review_input_store_requirement_target_ref
+                == clearance_step_review_input_store_requirement.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref
+            )
+            assert (
+                clearance_step_review_input_store_requirement.clearance_step_review_input_store_requirement_source_ref
+                == clearance_step_review_input_store_requirement.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref
+            )
+            assert (
+                clearance_step_review_input_store_requirement.blocker_resolved
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.validation_record_execution_eligible
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.execution_allowed
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.live_coinbase_orders_ran
+                is False
+            )
+            assert (
+                clearance_step_review_input_store_requirement.browser_authority
+                == "display_only"
+            )
+            assert (
+                clearance_step_review_input_store_requirement.bff_authority
+                == "forward_only_no_execution"
+            )
+            assert (
+                clearance_step_review_input_store_requirement.spot_rule_authority
+                is False
+            )
     assert (
         command_suite.request_payload_validation_record_semantic_artifact_count
         == len(FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS)

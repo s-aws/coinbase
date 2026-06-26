@@ -4,18 +4,32 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7301-7320` adds futures request payload
+Current futures/perpetual M57 scope: `7321-7340` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store requirement evidence on top of completed `7301-7320`
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input evidence. The current rows are
+backend-owned, display-only, no-live, and do not treat clearance-step review
+input store requirement presence as store availability, writer availability,
+record-key availability, validation-gate readiness, replay-gate readiness,
+review-input acceptance, review-input validation, review gate passage,
+clearance-step review completion, clearance-step completion, command
+admission, Coinbase execution, reconciliation execution, browser/BFF
+authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7301-7320` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input evidence on top of completed `7281-7300` futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
-review evidence. The current rows are backend-owned, display-only, no-live,
-and do not treat clearance-step review input presence as review-input
-acceptance, review-input validation, review gate passage, clearance-step
-review completion, clearance-step completion, command admission, Coinbase
-execution, reconciliation execution, browser/BFF authority, or spot-rule
-authority.
+review evidence. Those rows are backend-owned, display-only, no-live, and do
+not treat clearance-step review input presence as review-input acceptance,
+review-input validation, review gate passage, clearance-step review
+completion, clearance-step completion, command admission, Coinbase execution,
+reconciliation execution, browser/BFF authority, or spot-rule authority.
 
 Completed futures/perpetual M57 scope: `7281-7300` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
