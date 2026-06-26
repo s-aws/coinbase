@@ -1510,6 +1510,39 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheck(
+    str,
+    Enum,
+):
+    """Backend-owned futures clearance-step review input store record-validation checks."""
+
+    RECORD_CONTRACT_AVAILABLE = "record_contract_available"
+    RECORD_SCHEMA_AVAILABLE = "record_schema_available"
+    APPEND_ONLY_LOG_AVAILABLE = "append_only_log_available"
+    IDEMPOTENCY_KEY_BOUND = "idempotency_key_bound"
+    PAYLOAD_SCHEMA_VALIDATED = "payload_schema_validated"
+    REPLAY_PROTECTED = "replay_protected"
+    RECORD_VALIDATION_CONFIGURED = "record_validation_configured"
+    CLEARANCE_STEP_REVIEW_INPUT_ACCEPTED = (
+        "clearance_step_review_input_accepted"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckBlocker(
+    str,
+    Enum,
+):
+    """Blocked check reasons before futures clearance-step review input records can be validated."""
+
+    STORE_RECORD_VALIDATION_NOT_READY = "store_record_validation_not_ready"
+    VALIDATION_CHECK_MISSING = "validation_check_missing"
+    VALIDATION_CHECK_NOT_CONFIGURED = "validation_check_not_configured"
+    VALIDATION_CHECK_NOT_PASSED = "validation_check_not_passed"
+    VALIDATION_GATE_NOT_PASSED = "validation_gate_not_passed"
+    REPLAY_GATE_NOT_PASSED = "replay_gate_not_passed"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

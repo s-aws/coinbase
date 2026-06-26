@@ -11,12 +11,18 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7361-7380 range targets explicit M57 futures/perpetual request
+The active 7381-7400 range targets explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
-clearance-step review input store record-validation evidence. Completed
-7341-7360 clearance-step review input store record-contract evidence remains
+clearance-step review input store record-validation check evidence. Completed
+7361-7380 clearance-step review input store record-validation evidence remains
 carried-forward history.
+
+The completed 7361-7380 range targeted explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation evidence for
+`GET /api/v1/futures/command-suite` and the disabled command draft routes.
 
 The completed 7341-7360 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
@@ -42,7 +48,20 @@ input store record-validation remediation dependency work-item claim-trace
 clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7361-7380"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation fields such
+`"approved_phase_range": "7381-7400"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check fields such
+as `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_ready=false`,
+`validation_check_required=true`,
+`validation_check_ready=false`,
+`validation_check_configured=false`,
+`validation_check_passed=false`,
+`validation_check_recorded=false`,
+`validation_gate_ready=false`,
+`validation_gate_passed=false`,
+`replay_gate_ready=false`, and
+`replay_gate_passed=false`.
+
+Completed `"approved_phase_range": "7361-7380"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation fields such
 as `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_required=true`,
 `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ready=false`,
 `record_validation_required=true`,

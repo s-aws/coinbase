@@ -4,14 +4,30 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7361-7380` adds futures request payload
+Current futures/perpetual M57 scope: `7381-7400` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check evidence on top of completed
+`7361-7380`
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation evidence. The
+current rows are backend-owned, display-only, no-live, and do not treat
+clearance-step review input store record-validation check presence as
+validator configuration, validation check execution, validation gate readiness,
+replay gate readiness, schema availability, append-only log availability,
+idempotency binding, payload binding, record acceptance, record validation,
+command admission, Coinbase execution, reconciliation execution, browser/BFF
+authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7361-7380` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation evidence on top of completed `7341-7360`
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency work-item
 claim-trace clearance-step review input store record-contract evidence. The
-current rows are backend-owned, display-only, no-live, and do not treat
+completed rows are backend-owned, display-only, no-live, and do not treat
 clearance-step review input store record-validation presence as validator
 configuration, validation gate readiness, replay gate readiness, schema
 availability, append-only log availability, idempotency binding, payload

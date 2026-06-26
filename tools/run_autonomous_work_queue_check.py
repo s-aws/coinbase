@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7361-7380"
-APPROVED_PHASES = tuple(range(7361, 7381))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7341-7360"
+APPROVED_PHASE_RANGE = "7381-7400"
+APPROVED_PHASES = tuple(range(7381, 7401))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7361-7380"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7361-7380` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation evidence while completed M57 `7341-7360` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence.",
+            "Active M57 `7381-7400` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check evidence while completed M57 `7361-7380` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
