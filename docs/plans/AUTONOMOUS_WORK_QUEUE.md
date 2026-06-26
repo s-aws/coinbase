@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7541-7560**.
+- Approved phase range: **7561-7580**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7521-7540`.
+- Previous completed range: `7541-7560`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7540`.
+- `current_phase`: `7560`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,149 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7541-7560
+## Active Phases 7561-7580
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Output Schema Field-Constraint Source-Ref Evidence.
+
+These phases continue M57 after completed `7541-7560` exposed disabled
+clearance-step review input store record-validation check output schema
+field-constraint evidence. The concrete gap is that field-constraint rows now
+name `validation_check_output_schema_field_constraint_source_ref` while still
+reporting `validation_check_output_schema_field_constraint_source_ref_declared=false`.
+Active `7561-7580` must expose disabled backend-owned field-constraint
+source-ref dependency rows derived from existing validation-check output schema
+field-constraint rows. The rows are evidence only: validation-check
+output-schema-field-constraint-source-ref presence is not source-ref
+declaration, not constraint declaration, not field-type declaration, not field
+declaration, not schema declaration, not contextless review passage, not
+record acceptance, not command admission, not reconciliation execution, not
+Coinbase execution, not browser execution authority, not BFF execution
+authority, not futures/order/exchange mutation, and not spot-rule authority.
+
+Active M57 `7561-7580` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint
+source-ref evidence while completed M57 `7541-7560` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation check output schema field-constraint
+evidence.
+
+Active `7561-7580` source-ref evidence is planned through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_refs.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/view-model display, and bounded mock fixtures.
+
+Exact autonomous phrase: Active M57 `7561-7580` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref evidence while completed M57 `7541-7560` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema field-constraint evidence.
+
+### Phase 7561 - Prior Range Closure
+
+- Record completed `7541-7560` validation-check output schema field-constraint
+  evidence as historical and move active metadata to `7561-7580`.
+
+### Phase 7562 - Validation-Check Output Schema Field-Constraint Source-Ref Enum Contract
+
+- Add backend enums for disabled validation-check output schema
+  field-constraint source-ref kinds and blockers.
+
+### Phase 7563 - Validation-Check Output Schema Field-Constraint Source-Ref Registry
+
+- Add the backend validation-check output schema field-constraint source-ref
+  registry and iterator derived from existing validation-check output schema
+  field-constraint rows.
+
+### Phase 7564 - Pydantic Model
+
+- Add the Admin API validation-check output schema field-constraint source-ref
+  item and per-command/suite count fields with `extra="forbid"` coverage.
+
+### Phase 7565 - Read Service Materialization
+
+- Serialize disabled validation-check output schema field-constraint
+  source-ref rows through the futures command-suite read service without
+  creating command authority, validators, schemas, source-ref declarations,
+  constraint declarations, or execution authority.
+
+### Phase 7566 - Bounded Fixture Compaction
+
+- Keep frontend fixture payloads bounded for the new source-ref detail rows
+  while preserving full count and limit evidence.
+
+### Phase 7567 - Backend Focused Regression
+
+- Extend focused futures command-suite regression assertions for counts,
+  disabled flags, refs, blockers, inherited field-constraint blockers, and
+  no-live authority.
+
+### Phase 7568 - OpenAPI Generation
+
+- Regenerate Admin API OpenAPI after backend model changes.
+
+### Phase 7569 - Frontend Schema Sync
+
+- Regenerate the frontend API schema/client from backend-owned OpenAPI.
+
+### Phase 7570 - Frontend Adapter Mapping
+
+- Map generated validation-check output schema field-constraint source-ref
+  rows into the futures/perpetual read model using the existing
+  generated-client/wrapper path.
+
+### Phase 7571 - Summary Counts
+
+- Surface suite and command summary counts for total, blocking, ready,
+  declared, accepted, and recorded validation-check output schema
+  field-constraint source-ref evidence.
+
+### Phase 7572 - Validation-Check Output Schema Field-Constraint Source-Ref Display
+
+- Display validation-check output schema field-constraint source-ref counts
+  and disabled readiness posture without creating browser/BFF command, schema,
+  validator, source-ref declaration, constraint declaration, or execution
+  authority.
+
+### Phase 7573 - Mock Backend Sync
+
+- Extend mock backend fixtures for deterministic validation-check output schema
+  field-constraint source-ref evidence.
+
+### Phase 7574 - Frontend Focused Tests
+
+- Extend focused frontend tests for adapter mapping, summary counts,
+  materialized rows, source-ref detail rendering, and no-live/no-BFF authority
+  display.
+
+### Phase 7575 - Quality Metadata Sync
+
+- Update frontend artifact contracts and deployment/autonomous quality metadata
+  to `7561-7580`.
+
+### Phase 7576 - Roadmap And Handoff Sync
+
+- Update backend/frontend roadmaps, examples, capability matrix, and handoff
+  docs for the new validation-check output schema field-constraint source-ref
+  evidence layer.
+
+### Phase 7577 - Contextless Review Log
+
+- Record blind/contextless review evidence and remediation status for backend
+  and frontend understanding.
+
+### Phase 7578 - Backend Autonomous Validation
+
+- Run backend focused validators and autonomous queue checks for this range.
+
+### Phase 7579 - Frontend Autonomous Validation
+
+- Run frontend type/schema/focused test and autonomous queue checks for this
+  range.
+
+### Phase 7580 - Commit And Push
+
+- Commit and push both repos after validation passes and record phase-end
+  stale-subagent sweep evidence.
+
+## Completed Phases 7541-7560
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Output Schema Field-Constraint Evidence.
 
@@ -91,8 +233,8 @@ field-type evidence. The concrete gap is that validation-check output schema
 field-type rows can now expose canonical field-type dependencies without
 separately exposing backend-owned field-constraint dependencies required before
 later source refs, acceptance contracts, contextless review, record acceptance,
-command admission, or command-route enablement can be reviewed. Active
-`7541-7560` adds disabled clearance-step review input store record-validation
+command admission, or command-route enablement can be reviewed. Completed
+`7541-7560` added disabled clearance-step review input store record-validation
 check output schema field-constraint rows derived from each existing
 validation-check output schema field-type row. The rows are evidence only:
 validation-check output-schema-field-constraint presence is not constraint
@@ -102,7 +244,7 @@ record acceptance, not command admission, not reconciliation execution, not
 Coinbase execution, not browser execution authority, not BFF execution
 authority, not futures/order/exchange mutation, and not spot-rule authority.
 
-Active M57 `7541-7560` evidence adds futures request payload validation record
+Completed M57 `7541-7560` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check output schema field-constraint
@@ -110,13 +252,13 @@ evidence while completed M57 `7521-7540` carries forward futures request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation check output schema field-type evidence.
 
-Active `7541-7560` clearance-step review input store record-validation check
+Completed `7541-7560` clearance-step review input store record-validation check
 output schema field-constraint evidence is implemented through
 `application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraints.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend
 schema, frontend adapter/view-model display, and bounded mock fixtures.
 
-Exact autonomous phrase: Active M57 `7541-7560` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint evidence while completed M57 `7521-7540` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema field-type evidence.
+Historical autonomous phrase: Completed M57 `7541-7560` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint evidence while completed M57 `7521-7540` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema field-type evidence.
 
 ### Phase 7541 - Prior Range Closure
 

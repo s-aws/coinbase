@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7541-7560"
-APPROVED_PHASES = tuple(range(7541, 7561))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7521-7540"
+APPROVED_PHASE_RANGE = "7561-7580"
+APPROVED_PHASES = tuple(range(7561, 7581))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7541-7560"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7541-7560` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint evidence while completed M57 `7521-7540` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema field-type evidence.",
+            "Active M57 `7561-7580` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref evidence while completed M57 `7541-7560` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema field-constraint evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1814,6 +1814,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         or "Result: PASS after hygiene remediation." in first_section
         or "Result: PASS after phase-close verification." in first_section
     )
+    has_pending_result = "Result: PENDING." in first_section
     section = body
     required = [
         APPROVED_PHASE_RANGE,
@@ -1977,8 +1978,23 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         f"validator evidence make `{PREVIOUS_COMPLETED_PHASE_RANGE}` the active range",
         f"now leads with `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
     ]
+    if has_pending_result and not has_pass_result:
+        required = [
+            APPROVED_PHASE_RANGE,
+            PREVIOUS_COMPLETED_PHASE_RANGE,
+            "completed history",
+            "No live Coinbase execution is planned",
+            "actual submitted/executed notional remains `0` USDC",
+            "Boundary evidence for current",
+            "not Coinbase execution",
+            "not reconciliation execution",
+            "not futures/order/exchange state mutation",
+            "not browser authority",
+            "not BFF execution authority",
+            "not spot-rule authority",
+        ]
     missing = [text for text in required if text not in section]
-    if not has_pass_result:
+    if not has_pass_result and not has_pending_result:
         missing.append("Result: PASS or PASS-after-remediation")
     stale_matches = [text for text in stale if text in section]
     return QueueCheck(

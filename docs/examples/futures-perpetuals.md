@@ -11,7 +11,15 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7541-7560 range targets explicit M57 futures/perpetual request
+The active 7561-7580 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation check output schema
+field-constraint source-ref evidence. Completed 7541-7560 clearance-step review input
+store record-validation check output schema field-constraint evidence remains
+carried-forward history.
+
+The completed 7541-7560 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
 clearance-step review input store record-validation check output schema
@@ -108,7 +116,15 @@ input store record-validation remediation dependency work-item claim-trace
 clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7541-7560"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint rows such
+`"approved_phase_range": "7561-7580"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref rows such
+as `validation_check_output_schema_field_constraint_source_ref_required=true`,
+`validation_check_output_schema_field_constraint_source_ref_ready=false`,
+`validation_check_output_schema_field_constraint_source_ref_declared=false`,
+`validation_check_output_schema_field_constraint_source_ref_contextless_review_passed=false`,
+`validation_check_output_schema_field_constraint_source_ref_accepted=false`, and
+`validation_check_output_schema_field_constraint_source_ref_recorded=false`.
+
+Completed `"approved_phase_range": "7541-7560"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint rows such
 as `validation_check_output_schema_field_constraint_required=true`,
 `validation_check_output_schema_field_constraint_ready=false`,
 `validation_check_output_schema_field_constraint_declared=false`,

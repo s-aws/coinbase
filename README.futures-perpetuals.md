@@ -54,15 +54,22 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7541-7560` evidence adds futures request payload validation
+- Active M57 `7561-7580` evidence adds futures request payload validation
+  record execution-eligibility resolution-plan step review input store
+  record-validation remediation dependency work-item claim-trace clearance-step
+  review input store record-validation check output schema field-constraint
+  source-ref evidence while completed M57 `7541-7560` carries forward futures request payload validation
+  record execution-eligibility resolution-plan step review input store
+  record-validation check output schema field-constraint evidence.
+
+Exact active M57 phrase: Active M57 `7561-7580` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref evidence while completed M57 `7541-7560` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema field-constraint evidence.
+- Completed M57 `7541-7560` evidence adds futures request payload validation
   record execution-eligibility resolution-plan step review input store
   record-validation remediation dependency work-item claim-trace clearance-step
   review input store record-validation check output schema field-constraint
   evidence while completed M57 `7521-7540` carries forward futures request payload validation
   record execution-eligibility resolution-plan step review input store
   record-validation check output schema field-type evidence.
-
-Exact active M57 phrase: Active M57 `7541-7560` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint evidence while completed M57 `7521-7540` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema field-type evidence.
 - Completed M57 `7521-7540` evidence adds futures request payload validation
   record execution-eligibility resolution-plan step review input store
   record-validation remediation dependency work-item claim-trace clearance-step
