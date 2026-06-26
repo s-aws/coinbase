@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7441-7460**.
+- Approved phase range: **7461-7480**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7421-7440`.
+- Previous completed range: `7441-7460`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7440`.
+- `current_phase`: `7460`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,143 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7441-7460
+## Active Phases 7461-7480
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Output Schema Evidence.
+
+These phases continue M57 after completed `7441-7460` exposed disabled
+clearance-step review input store record-validation check input schema field
+evidence. The concrete gap is that validation-check contract rows can now name
+required backend-owned input schemas and input-schema fields without separately
+exposing the output-schema evidence required before later output fields, output
+types, output constraints, output acceptance contracts, contextless review, or
+command-route enablement can be reviewed. Active `7461-7480` adds disabled
+clearance-step review input store record-validation check output schema rows
+derived from each existing validation-check contract row. The rows are evidence
+only: validation-check output-schema presence is not schema declaration, field
+declaration, type declaration, constraint declaration, acceptance contract
+declaration, contextless review passage, validation-check readiness, command
+admission, reconciliation execution, Coinbase execution, browser execution
+authority, BFF execution authority, futures/order/exchange mutation, or
+spot-rule authority.
+
+Active M57 `7461-7480` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation check output schema
+evidence while completed M57 `7441-7460` carries forward futures request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation check input schema field evidence.
+
+Active `7461-7480` clearance-step review input store record-validation check
+output schema evidence is implemented through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schemas.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/view-model display, and bounded mock fixtures.
+
+Exact autonomous phrase: Active M57 `7461-7480` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema evidence while completed M57 `7441-7460` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check input schema field evidence.
+
+### Phase 7461 - Prior Range Closure
+
+- Record completed `7441-7460` clearance-step review input store
+  record-validation check input schema field evidence as historical and move
+  active metadata to `7461-7480`.
+
+### Phase 7462 - Clearance-Step Review Input Store Record Validation Check Output Schema Enum Contract
+
+- Add backend enums for disabled validation-check output schema kinds and
+  blockers.
+
+### Phase 7463 - Clearance-Step Review Input Store Record Validation Check Output Schema Registry
+
+- Add the backend validation-check output schema registry and iterator derived
+  from existing validation-check contract rows.
+
+### Phase 7464 - Pydantic Model
+
+- Add the Admin API validation-check output schema item and per-command/suite
+  count fields with `extra="forbid"` coverage.
+
+### Phase 7465 - Read Service Materialization
+
+- Serialize disabled validation-check output schema rows through the futures
+  command-suite read service without creating command authority, validators,
+  schemas, or output-schema declaration authority.
+
+### Phase 7466 - Bounded Fixture Compaction
+
+- Keep frontend fixture payloads bounded for the new output-schema detail rows
+  while preserving full count and limit evidence.
+
+### Phase 7467 - Backend Focused Regression
+
+- Extend focused futures command-suite regression assertions for counts,
+  disabled flags, refs, blockers, and no-live authority.
+
+### Phase 7468 - OpenAPI Generation
+
+- Regenerate Admin API OpenAPI after backend model changes.
+
+### Phase 7469 - Frontend Schema Sync
+
+- Regenerate the frontend API schema/client from backend-owned OpenAPI.
+
+### Phase 7470 - Frontend Adapter Mapping
+
+- Map generated validation-check output schema rows into the
+  futures/perpetual read model using the existing generated-client/wrapper path.
+
+### Phase 7471 - Summary Counts
+
+- Surface suite and command summary counts for total, blocking, ready,
+  declared, and accepted validation-check output schema evidence.
+
+### Phase 7472 - Validation-Check Output Schema Display
+
+- Display validation-check output schema counts and disabled readiness posture
+  without creating browser/BFF command, schema, validator, or execution
+  authority.
+
+### Phase 7473 - Mock Backend Sync
+
+- Extend mock backend fixtures for deterministic validation-check output schema
+  evidence.
+
+### Phase 7474 - Frontend Focused Tests
+
+- Extend focused frontend tests for adapter mapping, summary counts,
+  materialized rows, and no-live/no-BFF authority display.
+
+### Phase 7475 - Quality Metadata Sync
+
+- Update frontend artifact contracts and deployment/autonomous quality metadata
+  to `7461-7480`.
+
+### Phase 7476 - Roadmap And Handoff Sync
+
+- Update backend/frontend roadmaps, examples, capability matrix, and handoff
+  docs for the new validation-check output schema evidence layer.
+
+### Phase 7477 - Contextless Review Log
+
+- Record blind/contextless review evidence and remediation status for backend
+  and frontend understanding.
+
+### Phase 7478 - Backend Autonomous Validation
+
+- Run backend focused validators and autonomous queue checks for this range.
+
+### Phase 7479 - Frontend Autonomous Validation
+
+- Run frontend type/schema/focused test and autonomous queue checks for this
+  range.
+
+### Phase 7480 - Commit And Push
+
+- Commit and push both repos after validation passes and record phase-end
+  stale-subagent sweep evidence.
+
+## Completed Phases 7441-7460
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Input Schema Field Evidence.
 

@@ -1607,6 +1607,37 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchema(
+    str,
+    Enum,
+):
+    """Backend-owned futures output-schema dependencies for validation checks."""
+
+    OUTPUT_SCHEMA_DECLARED = "output_schema_declared"
+    OUTPUT_SCHEMA_FIELDS_DECLARED = "output_schema_fields_declared"
+    OUTPUT_SCHEMA_TYPES_DECLARED = "output_schema_types_declared"
+    OUTPUT_SCHEMA_CONSTRAINTS_DECLARED = "output_schema_constraints_declared"
+    OUTPUT_SCHEMA_ACCEPTANCE_DECLARED = "output_schema_acceptance_declared"
+    OUTPUT_SCHEMA_CONTEXTLESS_REVIEW_DECLARED = (
+        "output_schema_contextless_review_declared"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaBlocker(
+    str,
+    Enum,
+):
+    """Blocked output-schema reasons before futures validation checks can run."""
+
+    VALIDATION_CHECK_CONTRACT_NOT_READY = "validation_check_contract_not_ready"
+    OUTPUT_SCHEMA_MISSING = "output_schema_missing"
+    OUTPUT_SCHEMA_FIELDS_MISSING = "output_schema_fields_missing"
+    OUTPUT_SCHEMA_TYPES_MISSING = "output_schema_types_missing"
+    OUTPUT_SCHEMA_CONSTRAINTS_MISSING = "output_schema_constraints_missing"
+    OUTPUT_SCHEMA_ACCEPTANCE_MISSING = "output_schema_acceptance_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField(
     str,
     Enum,

@@ -13,14 +13,14 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7441-7460"`. Futures/perpetual command-suite reads
+`"approved_phase_range": "7461-7480"`. Futures/perpetual command-suite reads
 now expose backend-owned clearance-step review input store record-validation
-check input schema field evidence for active M57 `7441-7460` while completed
-`7421-7440` clearance-step review input store record-validation check input
-schema evidence remains carried-forward history. The current rows are
-disabled, no-live evidence only and do not declare field names, field types,
-constraints, source refs, acceptance contracts, pass contextless review, ready
-validation-check input schemas, admit commands, call Coinbase, execute
+check output schema evidence for active M57 `7461-7480` while completed
+`7441-7460` clearance-step review input store record-validation check input
+schema field evidence remains carried-forward history. The current rows are
+disabled, no-live evidence only and do not declare schemas, fields, types,
+constraints, acceptance contracts, pass contextless review, ready
+validation-check output schemas, admit commands, call Coinbase, execute
 reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
 
 Completed `"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
@@ -57,8 +57,16 @@ execution-eligibility resolution-plan step review evidence,
 execution-eligibility resolution-plan step evidence, execution-eligibility
 resolution-plan evidence, execution-eligibility semantic closure evidence,
 disabled reconciliation semantics, cancel semantics, order semantics, and
-earlier evidence. Active M57 `7441-7460` evidence adds futures request payload
+earlier evidence. Active M57 `7461-7480` evidence adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema evidence while
+completed M57 `7441-7460` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema field evidence. Completed
+M57 `7441-7460` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check input schema field evidence while
 completed M57 `7421-7440` carries forward futures request payload validation
