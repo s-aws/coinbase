@@ -1,4 +1,4 @@
-# API Reference
+﻿# API Reference
 
 This file covers active API surfaces in the codebase:
 - Coinbase REST wrapper (`external/coinbase_client.py`)
@@ -16,14 +16,18 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7221-7240` futures/perpetual request payload validation record
+Current M57 `7241-7260` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim trace evidence for `GET /api/v1/futures/command-suite`:
+remediation dependency work-item claim-trace clearance plan evidence for
+`GET /api/v1/futures/command-suite`:
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency work-item
-claim trace evidence; futures request payload validation record
+claim-trace clearance plan evidence; futures request payload validation record
 execution-eligibility resolution-plan step review input store
-record-validation remediation dependency work-item claim trace display;
+record-validation remediation dependency work-item claim-trace clearance plan
+display; carried-forward completed `7221-7240` futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace evidence;
 carried-forward completed `7201-7220`
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency work-item

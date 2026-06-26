@@ -1,4 +1,4 @@
-# Admin API
+﻿# Admin API
 
 This repository exposes the professional backend API for the separate
 enterprise admin platform at `C:\coinbase-frontend`.
@@ -735,27 +735,31 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 7221-7240 add futures request payload validation record
+Current M57 phases 7241-7260 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim trace evidence through
-`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces.py`,
+remediation dependency work-item claim-trace clearance plan evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend schema,
 and frontend display. Command-suite rows expose
-`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref`,
-`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref`,
-`review_input_store_record_validation_remediation_dependency_work_item_claim_trace_kind`,
-`record_validation_remediation_dependency_work_item_claim_trace_gate`,
-`record_validation_remediation_dependency_work_item_claim_trace_action_refs`,
-`record_validation_remediation_dependency_work_item_claim_trace_blockers`,
-`record_validation_remediation_dependency_work_item_claim_trace_required=true`,
-`record_validation_remediation_dependency_work_item_claim_trace_ready=false`,
-`record_validation_remediation_dependency_work_item_claim_trace_created=false`,
-`claim_trace_created=false`, `claim_trace_ready=false`,
-`claim_allowed=false`, `claim_resolved=false`, and
-`claim_review_accepted=false` while carrying forward completed M57 phases
-7201-7220 futures request payload validation record execution-eligibility
-resolution-plan step review input store record-validation remediation
-dependency work-item evidence through
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate`,
+`required_claim_trace_contract`,
+`required_clearance_plan_store_ref`,
+`clearance_plan_claim`, `clearance_plan_target_ref`,
+`clearance_plan_source_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_created=false`,
+`claim_trace_ready=false`, `claim_allowed=false`, `claim_resolved=false`,
+`claim_review_accepted=false`, `contextless_review_passed=false`,
+`execution_allowed=false`, and `live_order_submitted=false` while carrying
+forward completed M57 phases 7221-7240 futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces.py`
+and completed M57 phases 7201-7220 futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item evidence through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend schema,
 and frontend display. Carried-forward command-suite rows expose
@@ -855,15 +859,18 @@ evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7221-7240` evidence adds futures request payload validation record
+Active M57 `7241-7260` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item claim trace evidence while completed M57
-`7201-7220` carries forward futures request payload validation record
+remediation dependency work-item claim-trace clearance plan evidence while
+completed M57 `7221-7240` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace evidence,
+completed M57 `7201-7220` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item evidence, and completed M57
+`7181-7200` carries forward futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
-remediation dependency work-item evidence and completed M57 `7181-7200`
-carries forward futures request payload validation record execution-eligibility
-resolution-plan step review input store record-validation remediation
-dependency evidence.
+remediation dependency evidence.
 Completed M57 phases 7161-7180 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation evidence through

@@ -1,15 +1,18 @@
-# Admin Module Capability Matrix
+﻿# Admin Module Capability Matrix
 
 This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7221-7240` adds futures request payload
-validation record execution-eligibility resolution-plan step review input
-store record-validation remediation dependency work-item claim trace evidence
-on top of completed `7201-7220` futures request payload validation record
+Current futures/perpetual M57 scope: `7241-7260` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance plan
+evidence on top of completed `7221-7240` futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace evidence,
+completed `7201-7220` futures request payload validation record
 execution-eligibility resolution-plan step review input store
-record-validation remediation dependency work-item evidence and completed
+record-validation remediation dependency work-item evidence, and completed
 `7181-7200` futures request payload validation record
 execution-eligibility resolution-plan step review input store
 record-validation remediation dependency evidence, completed `7161-7180`
@@ -62,15 +65,21 @@ accept position semantics, bind live position evidence, accept or bind runtime
 evidence, define executable futures semantics, pass contextless reviews as
 execution authority, validate payloads, resolve blockers, admit commands, call
 Coinbase, execute reconciliation, mutate futures/order/exchange state, or grant
-browser/BFF authority.
+browser/BFF authority. They also do not treat claim-trace clearance-plan
+presence as claim-trace clearance, clearance-plan creation, clearance-plan
+readiness, claim allowance, claim resolution, claim-review acceptance,
+contextless review acceptance, evidence recording, reconciliation execution,
+Coinbase execution, or futures/order/exchange mutation authority.
 
-Machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim trace evidence.
+Machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance plan evidence.
+Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim trace evidence.
 Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item evidence.
 Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency evidence.
 Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence.
 Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence.
 Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence.
 Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence.
+Boundary token: dependency work-item claim-trace clearance-plan presence is not claim-trace clearance.
 Boundary token: resolution plan step review input store record-validation remediation dependency work-item claim-trace presence is not dependency resolution.
 Boundary token: resolution plan step review input store record-validation remediation dependency work-item presence is not dependency resolution.
 Boundary token: resolution plan step review input store record-validation remediation dependency presence is not blocker resolution.
