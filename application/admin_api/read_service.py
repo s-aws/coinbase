@@ -165,6 +165,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckInputSchemaItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckInputSchemaFieldItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaItem,
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRequirementItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityItem,
@@ -477,6 +478,10 @@ from .futures_request_payload_validation_record_validation_check_output_schemas 
     count_futures_request_payload_validation_record_validation_check_output_schemas,
     iter_futures_request_payload_validation_record_validation_check_output_schemas,
 )
+from .futures_request_payload_validation_record_validation_check_output_schema_fields import (
+    count_futures_request_payload_validation_record_validation_check_output_schema_fields,
+    iter_futures_request_payload_validation_record_validation_check_output_schema_fields,
+)
 from .futures_request_payload_validation_record_semantic_artifacts import (
     iter_futures_request_payload_validation_record_semantic_artifacts,
 )
@@ -643,7 +648,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7461-7480"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7481-7500"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -780,6 +785,7 @@ FUTURES_COMMAND_SUITE_API_DETAIL_COMPACT_ARRAYS = frozenset(
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schemas",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_fields",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas",
+        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields",
         "request_payload_validation_record_semantic_artifacts",
         "request_payload_validation_record_semantic_artifact_definitions",
         "request_payload_validation_record_semantic_artifact_definition_reviews",
@@ -825,6 +831,7 @@ FUTURES_COMMAND_SUITE_API_DETAIL_ROW_SHAPE_ARRAYS = frozenset(
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schemas",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_fields",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas",
+        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields",
     }
 )
 
@@ -878,6 +885,7 @@ FUTURES_COMMAND_SUITE_FRONTEND_FIXTURE_OMIT_ARRAYS = frozenset(
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schemas",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_fields",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas",
+        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields",
     }
 )
 FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT = 8
@@ -27520,6 +27528,182 @@ class AdminApiReadService:
                 full_count,
             )
 
+        @lru_cache(maxsize=None)
+        def request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> list[
+            AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem
+        ]:
+            parent_output_schemas_by_ref = {
+                item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_evidence_ref: item
+                for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas_for(
+                    command_id
+                )
+            }
+            validation_check_output_schema_field_items: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem
+            ] = []
+            full_count = count_futures_request_payload_validation_record_validation_check_output_schema_fields(
+                command_id
+            )
+            for output_schema_field in iter_futures_request_payload_validation_record_validation_check_output_schema_fields(
+                command_id
+            ):
+                if (
+                    len(validation_check_output_schema_field_items)
+                    >= FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ):
+                    break
+                payload = parent_output_schemas_by_ref[
+                    output_schema_field.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_evidence_ref
+                ].model_dump(mode="python")
+                payload.update(
+                    {
+                        "clearance_step_review_input_store_record_validation_check_output_schema_field_kind": (
+                            output_schema_field.clearance_step_review_input_store_record_validation_check_output_schema_field_kind
+                        ),
+                        "clearance_step_review_input_store_record_validation_check_output_schema_field_index": (
+                            output_schema_field.clearance_step_review_input_store_record_validation_check_output_schema_field_index
+                        ),
+                        "status": output_schema_field.status,
+                        "source": output_schema_field.source,
+                        "required": output_schema_field.required,
+                        "blocking": output_schema_field.blocking,
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_ref": (
+                            output_schema_field.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_ref
+                        ),
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_contract_ref": (
+                            output_schema_field.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_contract_ref
+                        ),
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_gate": (
+                            output_schema_field.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_gate
+                        ),
+                        "required_clearance_step_review_input_store_record_validation_check_output_schema_field": (
+                            output_schema_field.required_clearance_step_review_input_store_record_validation_check_output_schema_field
+                        ),
+                        "validation_check_output_schema_field_claim": (
+                            output_schema_field.validation_check_output_schema_field_claim
+                        ),
+                        "validation_check_output_schema_field_target_ref": (
+                            output_schema_field.validation_check_output_schema_field_target_ref
+                        ),
+                        "validation_check_output_schema_field_source_ref": (
+                            output_schema_field.validation_check_output_schema_field_source_ref
+                        ),
+                        "predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs": list(
+                            output_schema_field.predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs
+                        ),
+                        "predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_count": len(
+                            output_schema_field.predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs
+                        ),
+                        "successor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs": list(
+                            output_schema_field.successor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs
+                        ),
+                        "successor_clearance_step_review_input_store_record_validation_check_output_schema_field_count": len(
+                            output_schema_field.successor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs
+                        ),
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_blockers": list(
+                            output_schema_field.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_blockers
+                        ),
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_blocker_count": len(
+                            output_schema_field.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_blockers
+                        ),
+                        "inherited_clearance_step_review_input_store_record_validation_check_output_schema_blockers": list(
+                            output_schema_field.inherited_clearance_step_review_input_store_record_validation_check_output_schema_blockers
+                        ),
+                        "inherited_clearance_step_review_input_store_record_validation_check_output_schema_blocker_count": len(
+                            output_schema_field.inherited_clearance_step_review_input_store_record_validation_check_output_schema_blockers
+                        ),
+                        "required_backend_contract": output_schema_field.required_backend_contract,
+                        "missing_backend_contract": output_schema_field.missing_backend_contract,
+                        "missing_reason": output_schema_field.missing_reason,
+                        "required_evidence_refs": list(
+                            output_schema_field.required_evidence_refs
+                        ),
+                        "required_evidence_count": len(
+                            output_schema_field.required_evidence_refs
+                        ),
+                        "missing_evidence_refs": list(
+                            output_schema_field.missing_evidence_refs
+                        ),
+                        "missing_evidence_count": len(
+                            output_schema_field.missing_evidence_refs
+                        ),
+                        "forbidden_execution_claims": list(
+                            output_schema_field.forbidden_execution_claims
+                        ),
+                        "forbidden_execution_claim_count": len(
+                            output_schema_field.forbidden_execution_claims
+                        ),
+                        "backend_owned": output_schema_field.backend_owned,
+                        "read_only": output_schema_field.read_only,
+                        "contextless_review_required": (
+                            output_schema_field.contextless_review_required
+                        ),
+                        "spot_rule_authority": output_schema_field.spot_rule_authority,
+                        "validation_check_output_schema_field_required": (
+                            output_schema_field.validation_check_output_schema_field_required
+                        ),
+                        "validation_check_output_schema_field_ready": (
+                            output_schema_field.validation_check_output_schema_field_ready
+                        ),
+                        "validation_check_output_schema_field_declared": (
+                            output_schema_field.validation_check_output_schema_field_declared
+                        ),
+                        "validation_check_output_schema_field_name_declared": (
+                            output_schema_field.validation_check_output_schema_field_name_declared
+                        ),
+                        "validation_check_output_schema_field_type_declared": (
+                            output_schema_field.validation_check_output_schema_field_type_declared
+                        ),
+                        "validation_check_output_schema_field_constraints_declared": (
+                            output_schema_field.validation_check_output_schema_field_constraints_declared
+                        ),
+                        "validation_check_output_schema_field_source_ref_declared": (
+                            output_schema_field.validation_check_output_schema_field_source_ref_declared
+                        ),
+                        "validation_check_output_schema_field_acceptance_declared": (
+                            output_schema_field.validation_check_output_schema_field_acceptance_declared
+                        ),
+                        "validation_check_output_schema_field_contextless_review_passed": (
+                            output_schema_field.validation_check_output_schema_field_contextless_review_passed
+                        ),
+                        "validation_check_output_schema_field_accepted": (
+                            output_schema_field.validation_check_output_schema_field_accepted
+                        ),
+                        "validation_check_output_schema_field_recorded": (
+                            output_schema_field.validation_check_output_schema_field_recorded
+                        ),
+                        "runtime_evidence_observed": output_schema_field.runtime_evidence_observed,
+                        "runtime_evidence_satisfies_semantic_contract": (
+                            output_schema_field.runtime_evidence_satisfies_semantic_contract
+                        ),
+                        "validation_record_admission_link_ready": (
+                            output_schema_field.validation_record_admission_link_ready
+                        ),
+                        "blocker_resolved": output_schema_field.blocker_resolved,
+                        "validation_record_execution_eligible": (
+                            output_schema_field.validation_record_execution_eligible
+                        ),
+                        "execution_allowed": output_schema_field.execution_allowed,
+                        "live_coinbase_orders_ran": (
+                            output_schema_field.live_coinbase_orders_ran
+                        ),
+                        "browser_authority": output_schema_field.browser_authority,
+                        "bff_authority": output_schema_field.bff_authority,
+                        "detail": output_schema_field.detail,
+                    }
+                )
+                validation_check_output_schema_field_items.append(
+                    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem(
+                        **payload
+                    )
+                )
+            return _BoundedEvidenceRows(
+                validation_check_output_schema_field_items,
+                full_count,
+            )
+
         def request_payload_validation_record_semantic_artifacts_for(
             command_id: AdminFuturesCommandAction,
         ) -> list[AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem]:
@@ -38333,6 +38517,9 @@ class AdminApiReadService:
             request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas: list[
                 AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaItem
             ],
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem
+            ],
             request_payload_validation_record_semantic_artifacts: list[
                 AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem
             ],
@@ -38525,6 +38712,11 @@ class AdminApiReadService:
                     :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
                 ]
             )
+            materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields = (
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields[
+                    :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ]
+            )
             full_resolution_plan_step_review_input_store_record_contract_count = sum(
                 1
                 for contract in (
@@ -38569,6 +38761,11 @@ class AdminApiReadService:
             )
             full_resolution_plan_step_review_input_store_record_validation_check_output_schema_count = (
                 count_futures_request_payload_validation_record_validation_check_output_schemas(
+                    command_id
+                )
+            )
+            full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_count = (
+                count_futures_request_payload_validation_record_validation_check_output_schema_fields(
                     command_id
                 )
             )
@@ -39673,6 +39870,30 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas=(
                     materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=(
+                    full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_count
+                ),
+                blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=(
+                    full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_count
+                ),
+                ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=0,
+                declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=0,
+                accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=0,
+                materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=len(
+                    materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_detail_row_limit=(
+                    FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_detail_rows_limited=(
+                    full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_count
+                    > len(
+                        materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields=(
+                    materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields
                 ),
                 request_payload_validation_record_semantic_artifact_count=len(
                     request_payload_validation_record_semantic_artifacts
@@ -40969,6 +41190,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.PLACE
@@ -41248,6 +41474,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -41534,6 +41765,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.CANCEL
@@ -41815,6 +42051,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -42996,6 +43237,26 @@ class AdminApiReadService:
             ),
             accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_count=sum(
                 command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_count
+                for command in commands
+            ),
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=sum(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count
+                for command in commands
+            ),
+            blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=sum(
+                command.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count
+                for command in commands
+            ),
+            ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=sum(
+                command.ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count
+                for command in commands
+            ),
+            declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=sum(
+                command.declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count
+                for command in commands
+            ),
+            accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count=sum(
+                command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_count
                 for command in commands
             ),
             request_payload_validation_record_semantic_artifact_count=sum(

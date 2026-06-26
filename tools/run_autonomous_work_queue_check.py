@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7461-7480"
-APPROVED_PHASES = tuple(range(7461, 7481))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7441-7460"
+APPROVED_PHASE_RANGE = "7481-7500"
+APPROVED_PHASES = tuple(range(7481, 7501))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7461-7480"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7461-7480` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema evidence while completed M57 `7441-7460` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check input schema field evidence.",
+            "Active M57 `7481-7500` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field evidence while completed M57 `7461-7480` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check output schema evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
