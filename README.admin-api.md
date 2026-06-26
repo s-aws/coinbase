@@ -930,7 +930,14 @@ evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7321-7340` evidence adds futures request payload validation record
+Active M57 `7341-7360` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-contract evidence while completed M57 `7321-7340` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store requirement evidence.
+Completed M57 `7321-7340` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store
 requirement evidence while completed M57 `7301-7320` carries forward futures

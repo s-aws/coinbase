@@ -4,13 +4,28 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7321-7340` adds futures request payload
+Current futures/perpetual M57 scope: `7341-7360` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-contract evidence on top of completed `7321-7340`
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store requirement evidence. The current
+rows are backend-owned, display-only, no-live, and do not treat
+clearance-step review input store record-contract presence as record contract
+availability, record schema availability, append-only log availability,
+idempotency binding, payload schema validation, replay protection, store
+availability, writer availability, write allowance, record acceptance, record
+validation, command admission, Coinbase execution, reconciliation execution,
+browser/BFF authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7321-7340` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store requirement evidence on top of completed `7301-7320`
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency work-item
-claim-trace clearance-step review input evidence. The current rows are
+claim-trace clearance-step review input evidence. Those rows are
 backend-owned, display-only, no-live, and do not treat clearance-step review
 input store requirement presence as store availability, writer availability,
 record-key availability, validation-gate readiness, replay-gate readiness,

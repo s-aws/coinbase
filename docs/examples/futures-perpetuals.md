@@ -11,11 +11,18 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7321-7340 range targets explicit M57 futures/perpetual request
+The active 7341-7360 range targets explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
-clearance-step review input store requirement evidence. Completed 7301-7320
-clearance-step review input evidence remains carried-forward history.
+clearance-step review input store record-contract evidence. Completed
+7321-7340 clearance-step review input store requirement evidence remains
+carried-forward history.
+
+The completed 7321-7340 range targeted explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store requirement evidence for
+`GET /api/v1/futures/command-suite` and the disabled command draft routes.
 
 The completed 7301-7320 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
@@ -29,7 +36,19 @@ input store record-validation remediation dependency work-item claim-trace
 clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7321-7340"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement fields such
+`"approved_phase_range": "7341-7360"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract fields such
+as `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_available=false`,
+`record_contract_available=false`,
+`record_schema_available=false`,
+`append_only_log_available=false`,
+`idempotency_key_bound=false`,
+`payload_schema_validated=false`,
+`replay_protected=false`,
+`write_allowed=false`, and
+`record_validated=false`.
+
+Completed `"approved_phase_range": "7321-7340"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement fields such
 as `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_required=true`,
 `clearance_step_review_input_store_available=false`,
 `clearance_step_review_input_writer_available=false`,
@@ -249,13 +268,14 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7321-7340 range is display-only and does not treat dependency
-work-item claim-trace clearance-step review input store requirement presence as
-store availability, writer availability, record-key availability,
-validation-gate readiness, replay-gate readiness, review-input acceptance,
-review-input validation, review gate passage, clearance-step review completion,
-command admission, Coinbase execution, reconciliation execution, browser
-authority, BFF authority, or spot-rule authority.
+The active 7341-7360 range is display-only and does not treat dependency
+work-item claim-trace clearance-step review input store record-contract
+presence as record contract availability, record schema availability,
+append-only log availability, idempotency binding, payload schema validation,
+replay protection, store availability, writer availability, write allowance,
+record acceptance, record validation, command admission, Coinbase execution,
+reconciliation execution, browser authority, BFF authority, or spot-rule
+authority.
 
 The completed 7301-7320 range is display-only and does not treat dependency
 work-item claim-trace clearance-step review input presence as review-input
