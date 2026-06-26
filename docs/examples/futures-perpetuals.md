@@ -11,13 +11,26 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7281-7300 range targets explicit M57 futures/perpetual request
+The active 7301-7320 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input evidence. Completed 7281-7300 clearance-step
+review evidence remains carried-forward history.
+
+The completed 7281-7300 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
 clearance-step review evidence for
 `GET /api/v1/futures/command-suite` and the disabled command draft routes.
 Representative response metadata includes
-`"approved_phase_range": "7281-7300"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review fields such
+`"approved_phase_range": "7301-7320"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input fields such
+as `record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_present=false`,
+`clearance_step_review_input_accepted=false`,
+`clearance_step_review_input_validated=false`, and
+`clearance_step_review_input_gate_passed=false`.
+
+Completed `"approved_phase_range": "7281-7300"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review fields such
 as `execution_eligibility_resolution_plan_ref`,
 `execution_eligibility_resolution_plan_contract_ref`,
 `execution_eligibility_resolution_plan_step_ref`,
@@ -219,7 +232,13 @@ as
 `"ready_request_payload_validation_record_reconciliation_semantic_count"`,
 `"runtime_observed_request_payload_validation_record_reconciliation_semantic_count"`,
 and `"request_payload_validation_record_reconciliation_semantics"`.
-The active 7281-7300 range is display-only and does not treat dependency
+The active 7301-7320 range is display-only and does not treat dependency
+work-item claim-trace clearance-step review input presence as review-input
+acceptance, review-input validation, review gate passage, clearance-step review
+completion, command admission, Coinbase execution, reconciliation execution,
+browser authority, BFF authority, or spot-rule authority.
+
+The completed 7281-7300 range is display-only and does not treat dependency
 work-item claim-trace clearance-step review presence as clearance-step review
 completion, review input presence, review gate passage, clearance-step
 completion, claim-trace clearance, command admission, Coinbase execution,

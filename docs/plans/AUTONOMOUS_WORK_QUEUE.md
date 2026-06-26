@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7281-7300**.
+- Approved phase range: **7301-7320**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7261-7280`.
+- Previous completed range: `7281-7300`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7280`.
+- `current_phase`: `7300`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,142 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7281-7300
+## Active Phases 7301-7320
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Inputs Evidence.
+
+These phases continue M57 after completed `7281-7300` exposed disabled
+claim-trace clearance-step review evidence. The concrete gap is that a
+clearance-step review can now be named without separately exposing the
+backend-owned review input rows required before later input-store, validator,
+acceptance, or command-route enablement work can be reviewed. Active
+`7301-7320` adds disabled clearance-step review input rows derived from each
+existing clearance-step review row. The rows are evidence only: dependency
+work-item claim-trace clearance-step review input presence is not review-input
+presence, input acceptance, input validation, review gate passage,
+clearance-step review completion, clearance-step completion, claim-trace
+clearance, evidence recording, command admission, reconciliation execution,
+Coinbase execution, browser execution authority, BFF execution authority, or
+spot-rule authority.
+
+Active M57 `7301-7320` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace
+clearance-step review input evidence while completed M57 `7281-7300` carries
+forward futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review evidence.
+
+Active `7301-7320` clearance-step review input evidence is implemented through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/view-model display, and bounded mock fixtures.
+
+Exact autonomous phrase: Active M57 `7301-7320` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input evidence while completed M57 `7281-7300` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review evidence.
+
+### Phase 7301 - Prior Range Closure
+
+- Record completed `7281-7300` claim-trace clearance-step review evidence as
+  historical and move active metadata to `7301-7320`.
+
+### Phase 7302 - Clearance-Step Review Input Enum Contract
+
+- Add backend enums for disabled dependency work-item claim-trace
+  clearance-step review input kind and blocker reasons.
+
+### Phase 7303 - Clearance-Step Review Input Contract Registry
+
+- Add the backend clearance-step review input contract registry and iterator
+  derived from existing claim-trace clearance-step review rows.
+
+### Phase 7304 - Pydantic Model
+
+- Add the Admin API clearance-step review input item model with explicit false
+  authority, input-present, input-accepted, input-validated, review-gate,
+  readiness, and completion fields.
+
+### Phase 7305 - Read Service Materialization
+
+- Add bounded read-service materialization, per-command counts, and suite
+  aggregate counts for claim-trace clearance-step review inputs.
+
+### Phase 7306 - OpenAPI Generation
+
+- Regenerate OpenAPI so the frontend consumes the clearance-step review input
+  contract from backend source.
+
+### Phase 7307 - Backend Focused Regression
+
+- Add focused regression coverage for disabled clearance-step review input rows
+  and bounded frontend fixture payloads.
+
+### Phase 7308 - Frontend Schema Sync
+
+- Regenerate frontend schema from backend OpenAPI and verify API parity.
+
+### Phase 7309 - Frontend Adapter Mapping
+
+- Map clearance-step review input fields into typed futures view models
+  without adding browser, BFF, evidence-write, or execution authority.
+
+### Phase 7310 - Summary Counts
+
+- Render total, blocking, present, accepted, and validated clearance-step
+  review input counts in the command-suite summary.
+
+### Phase 7311 - Detail Table Clearance-Step Review Inputs
+
+- Render clearance-step review input refs, parent review refs, parent
+  clearance-step refs, predecessor/successor input refs, blockers, inherited
+  blockers, required store refs, false input state, false review-gate state,
+  and display-only authority.
+
+### Phase 7312 - Mock Backend Sync
+
+- Update mock backend command-suite fixtures to emit backend-equivalent
+  clearance-step review input fields and counts.
+
+### Phase 7313 - Frontend Focused Tests
+
+- Extend futures/perpetual read-model tests for clearance-step review input
+  summary, detail rendering, and false authority flags.
+
+### Phase 7314 - Quality Metadata Sync
+
+- Update frontend artifact, deployment readiness, and autonomous queue
+  metadata to `7301-7320` with `current_phase=7300`.
+
+### Phase 7315 - Roadmap And Handoff Sync
+
+- Update backend/frontend roadmap, handoff, examples, capability matrix, and
+  agent-state docs so contextless readers land on this active scope first.
+
+### Phase 7316 - Contextless Review Log
+
+- Prepend backend and frontend review-log evidence for the clearance-step
+  review input slice and record no-live notional.
+
+### Phase 7317 - Backend Autonomous Validation
+
+- Run focused backend validators and autonomous queue check for the active
+  range.
+
+### Phase 7318 - Frontend Autonomous Validation
+
+- Run typecheck, focused frontend tests, API check, and autonomous queue check
+  for the active range.
+
+### Phase 7319 - Phase-End Hygiene
+
+- Run stale-process/runtime-artifact checks and record phase-end subagent
+  hygiene evidence.
+
+### Phase 7320 - Commit And Push
+
+- Commit and push the backend and frontend range work after focused validation
+  passes.
+
+## Completed Phases 7281-7300
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Reviews Evidence.
 

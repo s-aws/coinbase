@@ -735,7 +735,23 @@ browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
 6521-6540 remains exposed through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
 `iter_futures_request_payload_validation_record_schemas`.
-Current M57 phases 7281-7300 add futures request payload validation record
+Current M57 phases 7301-7320 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, and frontend display. These rows are disabled evidence only: they do
+not make review inputs present, accept or validate inputs, pass review gates,
+complete clearance-step reviews, complete clearance steps, clear claim traces,
+admit commands, execute reconciliation, call Coinbase, mutate futures/order/
+exchange state, or grant browser/BFF or spot-rule authority. Completed M57
+phases 7281-7300 carry forward futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review evidence.
+
+Completed M57 phases 7281-7300 add futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review evidence through
 `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews.py`,
@@ -901,7 +917,14 @@ evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7281-7300` evidence adds futures request payload validation record
+Active M57 `7301-7320` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input evidence
+while completed M57 `7281-7300` carries forward futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review evidence.
+Completed M57 `7281-7300` evidence adds futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review evidence while
 completed M57 `7261-7280` carries forward futures request payload validation

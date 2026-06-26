@@ -13,7 +13,15 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7281-7300"`. Futures/perpetual command-suite reads
+`"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
+now expose backend-owned clearance-step review input evidence for active M57
+`7301-7320` while completed `7281-7300` clearance-step review evidence remains
+carried-forward history. The current rows are disabled, no-live evidence only
+and do not make review inputs present, accepted, or validated; pass review
+gates; admit commands; call Coinbase; execute reconciliation; mutate state; or
+grant browser/BFF or spot-rule authority.
+
+Completed `"approved_phase_range": "7281-7300"`. Futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input
 store record-validation remediation dependency work-item claim-trace clearance
 step review evidence while carrying forward execution-eligibility resolution-plan step
@@ -40,7 +48,13 @@ execution-eligibility resolution-plan step review evidence,
 execution-eligibility resolution-plan step evidence, execution-eligibility
 resolution-plan evidence, execution-eligibility semantic closure evidence,
 disabled reconciliation semantics, cancel semantics, order semantics, and
-earlier evidence. Active M57 `7281-7300` evidence adds futures request payload
+earlier evidence. Active M57 `7301-7320` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input evidence while completed M57 `7281-7300` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review evidence. Completed M57 `7281-7300` evidence adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review evidence while completed M57 `7261-7280` carries forward futures request

@@ -123,26 +123,27 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7261-7280` under M57.
-- Active autonomous range: `7281-7300` under M57.
+- Latest completed autonomous range: `7281-7300` under M57.
+- Active autonomous range: `7301-7320` under M57.
 - Current range validation: in progress for execution-eligibility
   resolution-plan step review input store record-validation remediation
-  dependency work-item claim-trace clearance-step review evidence and bounded
-  command-suite materialized samples. Completed `7261-7280`
-  record-validation remediation dependency work-item claim-trace clearance-step
-  evidence remains carried forward.
+  dependency work-item claim-trace clearance-step review input evidence and
+  bounded command-suite materialized samples. Completed `7281-7300`
+  record-validation remediation dependency work-item claim-trace
+  clearance-step review evidence remains carried forward.
   No live Coinbase
   execution is planned; submitted/executed notional remains `0` USDC.
-- Current `7281-7300` blind/contextless review: phase-close local verification
+- Current `7301-7320` blind/contextless review: phase-close local verification
   is in progress for the newly added store record-validation remediation
-  dependency work-item claim-trace clearance-step review evidence. Fresh
+  dependency work-item claim-trace clearance-step review input evidence. Fresh
   blind/contextless backend and frontend re-review could not be started earlier
   because Codex subagent usage was exhausted, so this handoff must not be read
   as completed fresh subagent evidence until the review log says so. The
   required boundary is that record-validation remediation dependency work-item
-  claim-trace clearance-step review rows are backend-owned disabled evidence
-  only; they do not mark reviews ready or complete, accept review inputs, pass
-  review gates, execute or complete clearance steps, clear claim traces, create
+  claim-trace clearance-step review input rows are backend-owned disabled evidence
+  only; they do not mark review inputs present, accept review inputs, validate
+  review inputs, mark reviews ready or complete, pass review gates, execute or
+  complete clearance steps, clear claim traces, create
   clearance plans, mark clearance plans ready, create dependency graphs, claim
   work items, register claim ledgers, create ready claim traces, allow or
   resolve claims, pass claim review, pass contextless review, write evidence,
