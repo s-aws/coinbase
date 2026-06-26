@@ -1543,6 +1543,39 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContract(
+    str,
+    Enum,
+):
+    """Backend-owned futures contracts required before validation checks can run."""
+
+    CHECK_CONTRACT_DECLARED = "check_contract_declared"
+    CHECK_INPUT_SCHEMA_DECLARED = "check_input_schema_declared"
+    CHECK_OUTPUT_SCHEMA_DECLARED = "check_output_schema_declared"
+    CHECK_GATE_DECLARED = "check_gate_declared"
+    CHECK_REPLAY_GUARD_DECLARED = "check_replay_guard_declared"
+    CHECK_EVIDENCE_RECORD_DECLARED = "check_evidence_record_declared"
+    CHECK_IDEMPOTENCY_BINDING_DECLARED = "check_idempotency_binding_declared"
+    CHECK_CONTEXTLESS_REVIEW_DECLARED = "check_contextless_review_declared"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContractBlocker(
+    str,
+    Enum,
+):
+    """Blocked contract reasons before futures validation checks can be configured."""
+
+    VALIDATION_CHECK_NOT_READY = "validation_check_not_ready"
+    CHECK_CONTRACT_MISSING = "check_contract_missing"
+    CHECK_INPUT_SCHEMA_MISSING = "check_input_schema_missing"
+    CHECK_OUTPUT_SCHEMA_MISSING = "check_output_schema_missing"
+    CHECK_GATE_MISSING = "check_gate_missing"
+    CHECK_REPLAY_GUARD_MISSING = "check_replay_guard_missing"
+    CHECK_EVIDENCE_RECORD_MISSING = "check_evidence_record_missing"
+    CHECK_IDEMPOTENCY_BINDING_MISSING = "check_idempotency_binding_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
 class AdminFuturesCommandSemanticArtifact(str, Enum):
     """Backend-owned futures semantic artifacts required before execution."""
 

@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7381-7400**.
+- Approved phase range: **7401-7420**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7361-7380`.
+- Previous completed range: `7381-7400`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7380`.
+- `current_phase`: `7400`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,141 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7381-7400
+## Active Phases 7401-7420
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Contract Evidence.
+
+These phases continue M57 after completed `7381-7400` exposed disabled
+clearance-step review input store record-validation check evidence. The
+concrete gap is that validation-check rows can now name required backend-owned
+checks without separately exposing the contract evidence required before later
+validator schemas, validation gates, replay guards, durable evidence records,
+idempotency bindings, contextless review, or command-route enablement can be
+reviewed. Active `7401-7420` adds disabled clearance-step review input store
+record-validation check contract rows derived from each existing
+record-validation check row. The rows are evidence only: validation-check
+contract presence is not contract declaration, input schema declaration,
+output schema declaration, validation-gate declaration, replay-guard
+declaration, evidence-record declaration, idempotency binding, contextless
+review passage, record acceptance, command admission, reconciliation
+execution, Coinbase execution, browser execution authority, BFF execution
+authority, futures/order/exchange mutation, or spot-rule authority.
+
+Active M57 `7401-7420` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation check contract evidence
+while completed M57 `7381-7400` carries forward futures request payload
+validation record execution-eligibility resolution-plan step review input
+store record-validation check evidence.
+
+Active `7401-7420` clearance-step review input store record-validation check
+contract evidence is implemented through
+`application/admin_api/futures_request_payload_validation_record_validation_check_contracts.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/view-model display, and bounded mock fixtures.
+
+Exact autonomous phrase: Active M57 `7401-7420` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check contract evidence while completed M57 `7381-7400` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check evidence.
+
+### Phase 7401 - Prior Range Closure
+
+- Record completed `7381-7400` clearance-step review input store
+  record-validation check evidence as historical and move active metadata to
+  `7401-7420`.
+
+### Phase 7402 - Clearance-Step Review Input Store Record Validation Check Contract Enum Contract
+
+- Add backend enums for disabled validation-check contract kinds and blockers.
+
+### Phase 7403 - Clearance-Step Review Input Store Record Validation Check Contract Registry
+
+- Add the backend validation-check contract registry and iterator derived from
+  existing clearance-step review input store record-validation check rows.
+
+### Phase 7404 - Pydantic Model
+
+- Add the Admin API validation-check contract item and per-command/suite count
+  fields with `extra="forbid"` coverage.
+
+### Phase 7405 - Read Service Materialization
+
+- Serialize disabled validation-check contract rows through the futures
+  command-suite read service without creating command authority, validators,
+  or contract declaration authority.
+
+### Phase 7406 - Bounded Fixture Compaction
+
+- Keep frontend fixture payloads bounded for the new detail rows while
+  preserving count and limit evidence.
+
+### Phase 7407 - Backend Focused Regression
+
+- Extend focused futures command-suite regression assertions for counts,
+  disabled flags, refs, blockers, and no-live authority.
+
+### Phase 7408 - OpenAPI Generation
+
+- Regenerate Admin API OpenAPI after backend model changes.
+
+### Phase 7409 - Frontend Schema Sync
+
+- Regenerate the frontend API schema/client from backend-owned OpenAPI.
+
+### Phase 7410 - Frontend Adapter Mapping
+
+- Map generated validation-check contract fields into the futures/perpetual
+  read model using the existing generated-client/wrapper path.
+
+### Phase 7411 - Summary Counts
+
+- Surface suite and command summary counts for total, blocking, ready,
+  declared, and accepted validation-check contract evidence.
+
+### Phase 7412 - Validation-Check Contract Display
+
+- Display validation-check contract counts and disabled readiness posture
+  without creating browser/BFF command or validator authority.
+
+### Phase 7413 - Mock Backend Sync
+
+- Extend mock backend fixtures for deterministic validation-check contract
+  evidence.
+
+### Phase 7414 - Frontend Focused Tests
+
+- Extend focused frontend tests for adapter mapping, summary counts,
+  materialized rows, and no-live/no-BFF authority display.
+
+### Phase 7415 - Quality Metadata Sync
+
+- Update frontend artifact contracts and deployment/autonomous quality
+  metadata to `7401-7420`.
+
+### Phase 7416 - Roadmap And Handoff Sync
+
+- Update backend/frontend roadmaps, examples, capability matrix, and handoff
+  docs for the new validation-check contract evidence layer.
+
+### Phase 7417 - Contextless Review Log
+
+- Record blind/contextless review evidence and remediation status for backend
+  and frontend understanding.
+
+### Phase 7418 - Backend Autonomous Validation
+
+- Run backend focused validators and autonomous queue checks for this range.
+
+### Phase 7419 - Frontend Autonomous Validation
+
+- Run frontend type/schema/focused test and autonomous queue checks for this
+  range.
+
+### Phase 7420 - Commit And Push
+
+- Commit and push both repos after validation passes and record phase-end
+  stale-subagent sweep evidence.
+
+## Completed Phases 7381-7400
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Evidence.
 

@@ -4,7 +4,22 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7381-7400` adds futures request payload
+Current futures/perpetual M57 scope: `7401-7420` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check contract evidence on top of
+completed `7381-7400` futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check evidence. The current rows are
+backend-owned, display-only, no-live, and do not treat validation-check
+contract presence as contract declaration, schema declaration, validation-gate
+declaration, replay-guard declaration, evidence-record declaration,
+idempotency binding, contextless review passage, record acceptance, command
+admission, Coinbase execution, reconciliation execution, browser/BFF
+authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7381-7400` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check evidence on top of completed
@@ -12,7 +27,7 @@ review input store record-validation check evidence on top of completed
 futures request payload validation record execution-eligibility resolution-plan
 step review input store record-validation remediation dependency work-item
 claim-trace clearance-step review input store record-validation evidence. The
-current rows are backend-owned, display-only, no-live, and do not treat
+completed rows are backend-owned, display-only, no-live, and do not treat
 clearance-step review input store record-validation check presence as
 validator configuration, validation check execution, validation gate readiness,
 replay gate readiness, schema availability, append-only log availability,
