@@ -180,7 +180,7 @@ not independent roadmaps.
 | M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | In Progress | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
-| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress; active range 7841-7860; latest completed range 7821-7840 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress; active range 7861-7880; latest completed range 7841-7860 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
@@ -3281,16 +3281,18 @@ Current backend evidence:
   readiness-decision summary evidence derived from existing per-command
   readiness decisions. Completed phases 7821-7840 add read-only futures
   risk-proof record resolver summary evidence derived from existing
-  per-command risk-proof requirement rows. Active phases 7841-7860 add
+  per-command risk-proof requirement rows. Completed phases 7841-7860 add
   read-only futures risk-proof acceptance blocker summary evidence derived
-  from existing per-command risk-proof requirement rows. The latest completed
-  API/frontend range is 7821-7840; the active API/frontend range is
-  7841-7860. None of this
+  from existing per-command risk-proof requirement rows. Active phases
+  7861-7880 add read-only futures risk-proof acceptance criterion summary
+  evidence derived from existing per-command risk-proof acceptance criteria.
+  The latest completed API/frontend range is 7841-7860; the active
+  API/frontend range is 7861-7880. None of this
   evidence is semantic guard evaluation, proof acceptance resolution,
-  risk-proof acceptance, proof-route registration, proof-writer enablement,
-  readiness-decision clearance, command enablement clearance, command
-  admission, Coinbase execution, reconciliation execution, browser/BFF
-  authority, or spot-rule authority.
+  acceptance criteria acceptance, risk-proof acceptance, proof-route
+  registration, proof-writer enablement, readiness-decision clearance, command
+  enablement clearance, command admission, Coinbase execution, reconciliation
+  execution, browser/BFF authority, or spot-rule authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

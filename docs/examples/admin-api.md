@@ -13,17 +13,21 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7841-7860"`. Futures/perpetual command-suite reads
-now expose backend-owned `risk_proof_acceptance_blocker_summary_count`,
-`risk_proof_acceptance_blocker_summary_blocking_count`, and
-`risk_proof_acceptance_blocker_summaries` evidence for current M57
-`7841-7860` while completed `7821-7840` risk-proof record resolver summary
-evidence
-remains carried-forward history. The current rows are disabled, no-live
-evidence only and must not resolve proof acceptance, accept risk proofs,
-register proof routes, enable proof writers, pass command readiness, admit
-commands, pass approval/cap/guard/reconciliation gates, call Coinbase, execute
-reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
+`"approved_phase_range": "7861-7880"`. Futures/perpetual command-suite reads
+now expose backend-owned `risk_proof_acceptance_criterion_summary_count`,
+`risk_proof_acceptance_criterion_summary_blocking_count`, and
+`risk_proof_acceptance_criterion_summaries` evidence for current M57
+`7861-7880` while completed `7841-7860` risk-proof acceptance blocker summary
+evidence remains carried-forward history. The current rows are disabled,
+no-live evidence only and must not accept criteria, resolve proof acceptance,
+accept risk proofs, register proof routes, enable proof writers, pass command
+readiness, admit commands, pass approval/cap/guard/reconciliation gates, call
+Coinbase, execute reconciliation, mutate state, or grant browser/BFF or
+spot-rule authority.
+
+Completed `"approved_phase_range": "7841-7860"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof acceptance blocker summary
+evidence while carrying forward risk-proof record resolver summary evidence.
 
 Completed `"approved_phase_range": "7821-7840"`. Futures/perpetual
 command-suite reads expose backend-owned risk-proof record resolver summary

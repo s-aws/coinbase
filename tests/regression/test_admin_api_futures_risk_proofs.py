@@ -335,6 +335,7 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptanceBlocker as SourceRefValidationRecordAcceptanceContextlessReviewAcceptanceBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewBlocker as SourceRefValidationRecordAcceptanceContextlessReviewBlocker,
     AdminFuturesCommandRiskProofAcceptanceBlocker,
+    AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandRiskProofRecordLookupStatus,
     AdminFuturesCommandSemanticArtifact,
@@ -11314,6 +11315,74 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         acceptance_blocker_summaries_by_id[
             AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED
         ].proof_acceptance_blocker_refs
+    )
+
+    acceptance_criterion_summaries_by_check = {
+        item.check: item
+        for item in command_suite.risk_proof_acceptance_criterion_summaries
+    }
+    assert set(acceptance_criterion_summaries_by_check) == set(
+        AdminFuturesCommandRiskProofAcceptanceCheck
+    )
+    assert command_suite.risk_proof_acceptance_criterion_summary_count == 5
+    assert (
+        command_suite.risk_proof_acceptance_criterion_summary_blocking_count
+        == 5
+    )
+    for check, criterion_summary in acceptance_criterion_summaries_by_check.items():
+        assert criterion_summary.status == AdminApiGateStatus.BLOCKED
+        assert criterion_summary.blocking is True
+        assert criterion_summary.command_count == 4
+        assert criterion_summary.affected_commands == affected_commands
+        assert criterion_summary.proof_requirement_count == 20
+        assert criterion_summary.criterion_count == 20
+        assert criterion_summary.blocking_criterion_count == 20
+        assert criterion_summary.accepted_criterion_count == 0
+        assert criterion_summary.required_evidence_ref_count == len(
+            criterion_summary.required_evidence_refs
+        )
+        assert criterion_summary.required_evidence_refs
+        assert criterion_summary.missing_evidence_ref_count == len(
+            criterion_summary.missing_evidence_refs
+        )
+        assert criterion_summary.missing_evidence_refs == (
+            criterion_summary.required_evidence_refs
+        )
+        assert criterion_summary.satisfies_risk_proof_count == 0
+        assert criterion_summary.command_route_registered_count == 0
+        assert criterion_summary.command_draft_allowed_count == 0
+        assert criterion_summary.execution_allowed_count == 0
+        assert criterion_summary.proof_route_registered_count == 0
+        assert criterion_summary.proof_writer_enabled_count == 0
+        assert criterion_summary.live_coinbase_orders_ran_count == 0
+        assert criterion_summary.backend_owned is True
+        assert criterion_summary.read_only is True
+        assert criterion_summary.spot_rule_authority is False
+        assert criterion_summary.browser_authority == "display_only"
+        assert criterion_summary.bff_authority == "forward_only_no_execution"
+        assert "cannot accept criteria" in criterion_summary.detail
+        assert "cannot" in criterion_summary.detail
+        if check in {
+            AdminFuturesCommandRiskProofAcceptanceCheck.SPOT_RULE_BOUNDARY_REVIEWED,
+            AdminFuturesCommandRiskProofAcceptanceCheck.BROWSER_BFF_AUTHORITY_REVIEWED,
+        }:
+            assert criterion_summary.negative_check_count == 20
+        else:
+            assert criterion_summary.negative_check_count == 0
+
+    required_evidence_summary = acceptance_criterion_summaries_by_check[
+        AdminFuturesCommandRiskProofAcceptanceCheck.REQUIRED_EVIDENCE_PRESENT
+    ]
+    assert required_evidence_summary.required_evidence_ref_count == 9
+    assert "futures_margin_collateral_risk_contract" in (
+        required_evidence_summary.required_evidence_refs
+    )
+    proof_route_summary = acceptance_criterion_summaries_by_check[
+        AdminFuturesCommandRiskProofAcceptanceCheck.PROOF_ROUTE_REGISTERED
+    ]
+    assert proof_route_summary.required_evidence_ref_count == 20
+    assert "futures_cancel_product_scope_proof_route_registered" in (
+        proof_route_summary.required_evidence_refs
     )
 
     for blocker, summary in summaries_by_blocker.items():

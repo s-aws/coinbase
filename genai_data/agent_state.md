@@ -24,51 +24,63 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7821-7840`.
-- Active approved range: `7841-7860`.
-- Scope: futures risk-proof acceptance blocker summary evidence and frontend
+- Latest completed and pushed range before this work: `7841-7860`.
+- Active approved range: `7861-7880`.
+- Scope: futures risk-proof acceptance criterion summary evidence and frontend
   display. This continues M57 by aggregating existing per-command risk-proof
-  requirement rows into `risk_proof_acceptance_blocker_summaries` so blocker
-  reason, affected commands, proof kinds, lookup statuses, latest proof ids,
-  blocker refs, command-route posture, proof-route posture, proof-writer
-  posture, execution flags, and no-live authority flags are visible without
-  enabling proof acceptance or any command path.
-- Backend implementation status: complete for `7841-7860`; focused validation
-  passed.
-- Frontend implementation status: complete for `7841-7860`; generated schema,
-  display mapping, mock evidence, and focused validation passed.
-- Contextless review status: PASS for `7841-7860`.
-- Commit/push status: pending for `7841-7860`.
+  requirement acceptance-criteria rows into
+  `risk_proof_acceptance_criterion_summaries` so check id, affected commands,
+  proof kinds, required/missing evidence refs, negative-check posture,
+  accepted/blocked counts, proof-route posture, proof-writer posture,
+  execution flags, and no-live authority flags are visible without accepting
+  criteria, resolving proof acceptance, or enabling any command path.
+- Backend implementation status: complete for `7861-7880`; focused backend
+  validation passed.
+- Frontend implementation status: complete for `7861-7880`; schema sync,
+  adapter mapping, mock derivation, display mapping, and focused frontend
+  validation passed.
+- Contextless review status: PASS for `7861-7880`; backend reviewer
+  `019f09e8-3430-7111-ae9d-0e594cdfbdd3` and frontend reviewer
+  `019f09e8-63ba-7e81-b0c2-a0f23acfb32f` found no blocking ambiguity.
+- Commit/push status: pending final commit/push for `7861-7880`.
 - Prior phase-end subagent sweep: reviewers
-  `019f0963-bc60-72d0-864a-fed3c9382d14` and
-  `019f0964-12de-7621-87f1-f942cffb53c6` were closed after `7821-7840`
+  `019f09b3-c679-7e63-90ce-f4a4ecb25cc2`,
+  `019f09bb-cb84-72b1-b515-f38185c6a858`, and
+  `019f09b3-da78-7dc3-973d-c30b02633fbe` were closed after `7841-7860`
   findings were consumed. No prior phase-scoped subagents remain intentionally
   open.
+- Current phase-end subagent sweep: backend reviewer
+  `019f09e8-3430-7111-ae9d-0e594cdfbdd3` and frontend reviewer
+  `019f09e8-63ba-7e81-b0c2-a0f23acfb32f` were closed after `7861-7880`
+  findings were consumed. No current phase-scoped subagents remain
+  intentionally open.
 
 ## Phase Contract
 
-- The `7841-7860` fields are backend-owned disabled evidence on the existing
+- The `7861-7880` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing risk-proof
-  requirement rows and do not resolve proof acceptance.
-- Presence of futures risk-proof acceptance blocker summary evidence is not
-  proof acceptance resolution, risk proof acceptance, proof-route
-  registration, proof-writer enablement, command readiness passage, command
-  enablement clearance, risk proof acceptance passage, approval passage,
-  cap/guard passage, reconciliation passage, command admission, Coinbase
-  execution, reconciliation execution, browser/BFF authority, or spot-rule
-  authority.
-- The summary evidence can report blocker reason, affected commands, proof
-  kinds, lookup statuses, latest proof ids, blocker refs, command-route
-  posture, proof-route posture, proof-writer posture, execution flags, and
-  authority flags, but it cannot resolve proof acceptance, accept risk proofs,
-  register proof routes, enable proof writers, clear command readiness, admit
-  commands, call Coinbase, execute reconciliation, mutate futures/order state,
-  grant browser/BFF authority, or import spot-rule authority.
-- Exact boundary phrase: risk-proof acceptance blocker summaries cannot resolve
+  requirement acceptance-criteria rows and do not accept criteria or resolve
   proof acceptance.
-- Exact passage phrase: acceptance blocker summary presence is not cap/guard
-  passage.
-- Exact validator phrase: risk-proof acceptance blocker summaries cannot resolve proof acceptance; they do not accept risk proofs, register proof routes, enable proof writers, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+- Presence of futures risk-proof acceptance criterion summary evidence is not
+  acceptance criteria acceptance, not proof acceptance resolution, not risk
+  proof acceptance, not proof-route registration, not proof-writer enablement,
+  not command readiness passage, not command enablement clearance, not risk
+  proof acceptance passage, not approval passage, not cap/guard passage, not
+  reconciliation passage, not command admission, not admission, Coinbase
+  execution, not reconciliation execution, not browser/BFF authority, and not
+  spot-rule authority.
+- The summary evidence can report check id, affected commands, proof kinds,
+  required/missing evidence refs, negative-check posture, accepted/blocked
+  counts, proof-route posture, proof-writer posture, execution flags, and
+  authority flags, but it cannot accept criteria, resolve proof acceptance,
+  accept risk proofs, register proof routes, enable proof writers, clear
+  command readiness, admit commands, call Coinbase, execute reconciliation,
+  mutate futures/order state, grant browser/BFF authority, or import
+  spot-rule authority.
+- Exact boundary phrase: risk-proof acceptance criterion summaries cannot
+  accept criteria.
+- Exact passage phrase: acceptance criterion summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
+- Exact validator phrase: risk-proof acceptance criterion summaries cannot accept criteria; they do not resolve proof acceptance, accept risk proofs, register proof routes, enable proof writers, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or

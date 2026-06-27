@@ -204,6 +204,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem,
     AdminFuturesCommandRiskProofAcceptanceCriterionItem,
     AdminFuturesCommandRiskProofAcceptanceBlockerSummaryItem,
+    AdminFuturesCommandRiskProofAcceptanceCriterionSummaryItem,
     AdminFuturesCommandRiskProofContractItem,
     AdminFuturesCommandRiskProofPayloadFieldItem,
     AdminFuturesCommandRiskProofRecordContractItem,
@@ -706,7 +707,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7841-7860"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7861-7880"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -45515,6 +45516,166 @@ class AdminApiReadService:
             risk_proof_acceptance_blocker_summaries_for(commands)
         )
 
+        def risk_proof_acceptance_criterion_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandRiskProofAcceptanceCriterionSummaryItem]:
+            rows: list[
+                AdminFuturesCommandRiskProofAcceptanceCriterionSummaryItem
+            ] = []
+            for check_id in AdminFuturesCommandRiskProofAcceptanceCheck:
+                criterion_pairs = [
+                    (command_item, proof_requirement, criterion)
+                    for command_item in command_items
+                    for proof_requirement in command_item.risk_proof_requirements
+                    for criterion in proof_requirement.acceptance_criteria
+                    if criterion.check == check_id
+                ]
+                if not criterion_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _proof_requirement, _criterion in (
+                            criterion_pairs
+                        )
+                    )
+                )
+                proof_kinds = unique_enum_values(
+                    [
+                        proof_requirement.proof_kind
+                        for _command_item, proof_requirement, _criterion in (
+                            criterion_pairs
+                        )
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        criterion.required_evidence_ref
+                        for _command_item, _proof_requirement, criterion in (
+                            criterion_pairs
+                        )
+                    ]
+                )
+                missing_evidence_refs = unique_strings(
+                    [
+                        criterion.missing_evidence_ref
+                        for _command_item, _proof_requirement, criterion in (
+                            criterion_pairs
+                        )
+                        if criterion.blocking
+                    ]
+                )
+                blocking_criterion_count = sum(
+                    1
+                    for _command_item, _proof_requirement, criterion in (
+                        criterion_pairs
+                    )
+                    if criterion.blocking
+                )
+                accepted_criterion_count = sum(
+                    1
+                    for _command_item, _proof_requirement, criterion in (
+                        criterion_pairs
+                    )
+                    if criterion.accepted
+                )
+                blocking = blocking_criterion_count > 0
+                rows.append(
+                    AdminFuturesCommandRiskProofAcceptanceCriterionSummaryItem(
+                        check=check_id,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        proof_requirement_count=len(criterion_pairs),
+                        proof_kinds=proof_kinds,
+                        criterion_count=len(criterion_pairs),
+                        blocking_criterion_count=blocking_criterion_count,
+                        accepted_criterion_count=accepted_criterion_count,
+                        negative_check_count=sum(
+                            1
+                            for _command_item, _proof_requirement, criterion in (
+                                criterion_pairs
+                            )
+                            if criterion.negative_check
+                        ),
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        missing_evidence_ref_count=len(missing_evidence_refs),
+                        missing_evidence_refs=missing_evidence_refs,
+                        satisfies_risk_proof_count=sum(
+                            1
+                            for _command_item, _proof_requirement, criterion in (
+                                criterion_pairs
+                            )
+                            if criterion.satisfies_risk_proof
+                        ),
+                        command_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, criterion in (
+                                criterion_pairs
+                            )
+                            if criterion.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, criterion in (
+                                criterion_pairs
+                            )
+                            if criterion.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, criterion in (
+                                criterion_pairs
+                            )
+                            if criterion.execution_allowed
+                        ),
+                        proof_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, criterion in (
+                                criterion_pairs
+                            )
+                            if criterion.proof_route_registered
+                        ),
+                        proof_writer_enabled_count=sum(
+                            1
+                            for _command_item, _proof_requirement, criterion in (
+                                criterion_pairs
+                            )
+                            if criterion.proof_writer_enabled
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for _command_item, proof_requirement, _criterion in (
+                                criterion_pairs
+                            )
+                            if proof_requirement.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{check_id.value} acceptance criteria cover "
+                            f"{len(criterion_pairs)} futures/perpetual proof "
+                            "requirement(s). This aggregate summary is "
+                            "backend-owned read-only evidence and cannot "
+                            "accept criteria, resolve proof acceptance, accept "
+                            "risk proofs, register proof routes, enable proof "
+                            "writers, clear command readiness, admit commands, "
+                            "call Coinbase, execute reconciliation, mutate "
+                            "futures/order state, grant browser/BFF authority, "
+                            "or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        risk_proof_acceptance_criterion_summaries = (
+            risk_proof_acceptance_criterion_summaries_for(commands)
+        )
+
         def readiness_decision_summaries_for(
             command_items: list[AdminFuturesCommandContractItem],
         ) -> list[AdminFuturesCommandReadinessDecisionSummaryItem]:
@@ -47351,6 +47512,17 @@ class AdminApiReadService:
             ),
             risk_proof_acceptance_blocker_summaries=(
                 risk_proof_acceptance_blocker_summaries
+            ),
+            risk_proof_acceptance_criterion_summary_count=len(
+                risk_proof_acceptance_criterion_summaries
+            ),
+            risk_proof_acceptance_criterion_summary_blocking_count=sum(
+                1
+                for item in risk_proof_acceptance_criterion_summaries
+                if item.blocking
+            ),
+            risk_proof_acceptance_criterion_summaries=(
+                risk_proof_acceptance_criterion_summaries
             ),
             risk_proof_acceptance_blocker_count=sum(
                 command.risk_proof_acceptance_blocker_count

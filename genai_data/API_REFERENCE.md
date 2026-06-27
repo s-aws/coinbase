@@ -16,20 +16,26 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7841-7860` futures/perpetual risk-proof acceptance blocker
+Current M57 `7861-7880` futures/perpetual risk-proof acceptance criterion
 summary evidence for `GET /api/v1/futures/command-suite` is the active slice.
-It adds read-only `risk_proof_acceptance_blocker_summary_count`,
-`risk_proof_acceptance_blocker_summary_blocking_count`, and
-`risk_proof_acceptance_blocker_summaries` fields derived from existing
-per-command risk-proof requirement rows and carries forward completed
-`7821-7840` risk-proof record resolver summary evidence. The fields are
-read-only/no-live evidence and must not resolve proof acceptance, accept risk
-proofs, register proof routes, enable proof writers, pass command readiness,
-clear command readiness, admit commands, pass approval, cap/guard, or
-reconciliation gates, execute reconciliation, call Coinbase, mutate
-futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Exact boundary phrase: acceptance blocker summaries cannot accept risk proofs.
-Exact validator phrase: risk-proof acceptance blocker summaries cannot resolve proof acceptance.
+It adds read-only `risk_proof_acceptance_criterion_summary_count`,
+`risk_proof_acceptance_criterion_summary_blocking_count`, and
+`risk_proof_acceptance_criterion_summaries` fields derived from existing
+per-command risk-proof acceptance criteria and carries forward completed
+`7841-7860` risk-proof acceptance blocker summary evidence. The fields are
+read-only/no-live evidence and must not accept criteria, resolve proof
+acceptance, accept risk proofs, register proof routes, enable proof writers,
+pass command readiness, clear command readiness, admit commands, pass
+approval, cap/guard, or reconciliation gates, execute reconciliation, call
+Coinbase, mutate futures/order/exchange state, or grant browser/BFF or
+spot-rule authority.
+Exact boundary phrase: risk-proof acceptance criterion summaries cannot accept criteria.
+Exact validator phrase: risk-proof acceptance criterion summaries cannot accept criteria; they do not resolve proof acceptance, accept risk proofs, register proof routes, enable proof writers, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+
+Completed M57 `7841-7860` futures/perpetual risk-proof acceptance blocker
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only acceptance blocker summary fields derived from
+existing per-command risk-proof requirement rows.
 
 Completed M57 `7821-7840` futures/perpetual risk-proof record resolver
 summary evidence for `GET /api/v1/futures/command-suite` is carried forward
