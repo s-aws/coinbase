@@ -24,34 +24,32 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7881-7900`.
-- Active approved range: `7901-7920`.
-- Scope: futures risk-proof payload field summary evidence and frontend
+- Latest completed and pushed range before this work: `7901-7920`.
+- Active approved range: `7921-7940`.
+- Scope: futures risk-proof record contract summary evidence and frontend
   display. This continues M57 by aggregating existing per-command risk-proof
-  requirement payload-field rows into `risk_proof_payload_field_summaries` so
-  payload field id, affected commands, proof kinds, payload paths, validation
-  rules, required/missing evidence refs, validation posture, route/writer
-  posture, execution flags, and no-live authority flags are visible without
-  validating submitted payloads, registering payload validation, writing proof
-  records, registering proof routes, enabling proof writers, accepting
-  criteria, resolving proof acceptance, or enabling any command path.
-- Backend implementation status: complete for `7901-7920`; generated OpenAPI
-  includes `risk_proof_payload_field_summaries`.
-- Frontend implementation status: complete for `7901-7920`; generated schema,
+  requirement record-contract rows into `risk_proof_record_contract_summaries`
+  so contract kind, affected commands, proof kinds, backend contracts, store
+  refs, record keys, payload fields, validation gates, required/missing
+  evidence refs, disabled record posture, route/writer posture, execution
+  flags, and no-live authority flags are visible without creating stores,
+  configuring append-only logs, binding idempotency, registering payload
+  validation, registering replay guards, linking audit evidence, writing proof
+  records, accepting proof records, resolving proof acceptance, or enabling
+  any command path.
+- Backend implementation status: complete for `7921-7940`;
+  `application/admin_api/models.py` and `application/admin_api/read_service.py`
+  currently add `risk_proof_record_contract_summaries`.
+- Frontend implementation status: complete for `7921-7940`; generated schema,
   adapter mapping, mock derivation, read-model display, examples, and quality
-  metadata consume payload-field summary evidence.
-- Contextless review status: PASS for `7901-7920`. Backend reviewer Ptolemy
-  (`019f0a55-56f9-72c2-890c-8caf9466ad92`) and frontend reviewer Hubble
-  (`019f0a55-896b-7d02-8124-604167be6c63`) found no blockers. Replacement
-  backend reviewer `019f0a61-fd33-7263-b3cf-8b0a1f082e9a` was closed as
-  superseded.
-- Focused validation status: PASS for `7901-7920`. Backend py_compile,
-  backend autonomous checker, focused futures risk-proof regression, focused
-  Admin API contract bundle, frontend typecheck, frontend focused unit tests,
-  frontend API check, frontend autonomous check, ownership check, diff
-  whitespace checks, and stale test-process checker passed.
-- Commit/push status: ready for `7901-7920` closeout after this evidence file
-  is committed with the backend/frontend changes.
+  metadata consume record-contract summary evidence.
+- Contextless review status: PASS after remediation for `7921-7940`.
+- Focused validation status: passed for `7921-7940`; backend py_compile,
+  backend queue checker, frontend typecheck, frontend focused unit tests,
+  frontend API check, frontend autonomous checker, and stale test-process
+  checkers passed.
+- Commit/push status: pending for `7921-7940` after backend/frontend sync,
+  focused validation, contextless reviews, and phase-end subagent cleanup.
 - Prior phase-end subagent sweep: reviewers
   `019f09b3-c679-7e63-90ce-f4a4ecb25cc2`,
   `019f09bb-cb84-72b1-b515-f38185c6a858`, and
@@ -69,37 +67,46 @@ work. Historical milestone detail belongs in
   findings were consumed. Replacement backend reviewer
   `019f0a61-fd33-7263-b3cf-8b0a1f082e9a` was closed as superseded. No current
   phase-scoped subagent remains intentionally open.
+- Current phase-end subagent sweep: backend reviewer
+  `019f0a98-9c72-7c60-badf-b830a62d843f` and frontend reviewer
+  `019f0a98-b07a-73e2-b7f9-adf37d6afc37` were closed after `7921-7940`
+  findings were consumed and remediated. No current phase-scoped subagent
+  remains intentionally open.
 
 ## Phase Contract
 
-- The `7901-7920` fields are backend-owned disabled evidence on the existing
+- The `7921-7940` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing risk-proof
-  requirement payload-field rows and do not validate submitted payloads,
-  register payload validation, write proof records, register proof routes, or
-  enable proof writers.
-- Presence of futures risk-proof payload field summary evidence is not
-  submitted payload validation, not payload validation registration, not proof
-  record writes, not proof route registration, not proof writer enablement,
-  not acceptance criteria
-  acceptance, not proof acceptance resolution, not risk proof acceptance, not
-  command readiness passage, not command enablement clearance, not risk proof
-  acceptance passage, not approval passage, not cap/guard passage, not
-  reconciliation passage, not command admission, not admission, Coinbase
-  execution, not reconciliation execution, not browser/BFF authority, and not
+  requirement record-contract rows and do not create stores, configure
+  append-only logs, bind idempotency, register payload validation, register
+  replay guards, link audit evidence, write proof records, or accept proof
+  records.
+- Presence of futures risk-proof record contract summary evidence is not store
+  creation, not append-only log configuration, not idempotency binding, not
+  payload validation registration, not replay-guard registration, not audit
+  linkage, not proof record writes, not proof record acceptance, not proof
+  route registration, not proof writer enablement, not proof acceptance
+  resolution, not risk proof acceptance, not command readiness passage, not
+  command enablement clearance, not risk proof acceptance passage, not
+  approval passage, not cap/guard passage, not reconciliation passage, not
+  command admission, not admission, Coinbase execution, not reconciliation
+  execution, not futures/order/exchange state mutation, not browser/BFF
+  authority, and not spot-rule authority.
+- The summary evidence can report contract kind, affected commands, proof
+  kinds, required backend contracts, store refs, record keys, payload fields,
+  validation gates, required/missing evidence refs, disabled record posture,
+  route/writer posture, execution flags, and authority flags, but it cannot
+  create stores, configure append-only logs, bind idempotency, register
+  payload validation, register replay guards, link audit evidence, write proof
+  records, accept proof records, register proof routes, enable proof writers,
+  resolve proof acceptance, accept risk proofs, clear command readiness, admit
+  commands, call Coinbase, execute reconciliation, mutate
+  futures/order/exchange state, grant browser/BFF authority, or import
   spot-rule authority.
-- The summary evidence can report payload field id, affected commands, proof
-  kinds, payload paths, validation rules, required/missing evidence refs,
-  validation posture, route/writer posture, execution flags, and authority
-  flags, but it cannot validate submitted payloads, register payload
-  validation, write proof records, register proof routes, enable proof
-  writers, accept criteria, resolve proof acceptance, accept risk proofs, clear
-  command readiness, admit commands, call Coinbase, execute reconciliation,
-  mutate futures/order state, grant browser/BFF authority, or import spot-rule
-  authority.
-- Exact boundary phrase: risk-proof payload field summaries cannot validate
-  submitted payloads.
-- Exact passage phrase: proof payload field summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
-- Exact validator phrase: risk-proof payload field summaries cannot validate submitted payloads; they are not payload validation registration, not proof record writes, do not register proof routes, enable proof writers, accept criteria, resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+- Exact boundary phrase: risk-proof record contract summaries cannot create
+  stores.
+- Exact passage phrase: proof record contract summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
+- Exact validator phrase: risk-proof record contract summaries cannot create stores; they are not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay guard registration, not audit link creation, not proof record writes, not proof record acceptance, not proof route registration, not proof writer enablement, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order/exchange state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or

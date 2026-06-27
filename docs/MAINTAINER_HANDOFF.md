@@ -123,17 +123,22 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7881-7900` under M57.
-- Active autonomous range: `7901-7920` under M57.
-- Current active range: `7901-7920` adds futures risk-proof payload field
-  summary evidence derived from existing per-command risk-proof payload-field
-  rows. It remains disabled, no-live, backend-owned evidence only and cannot
-  validate submitted payloads, register payload validation, write proof
-  records, register proof routes, enable proof writers, accept criteria,
-  resolve proof acceptance, accept risk proofs, pass command readiness, admit
-  commands, pass approval, cap/guard, or reconciliation gates, execute
-  reconciliation, call Coinbase, mutate futures/order/exchange state, grant
-  browser/BFF authority, or import spot-only rules.
+- Latest completed autonomous range: `7901-7920` under M57.
+- Active autonomous range: `7921-7940` under M57.
+- Current active range: `7921-7940` adds futures risk-proof record contract
+  summary evidence derived from existing per-command risk-proof
+  record-contract rows. It remains disabled, no-live, backend-owned evidence
+  only and cannot create stores, configure append-only logs, bind
+  idempotency, register payload validation, register replay guards, link audit
+  evidence, write proof records, accept proof records, register proof routes,
+  enable proof writers, resolve proof acceptance, accept risk proofs, pass
+  command readiness, admit commands, pass approval, cap/guard, or
+  reconciliation gates, execute reconciliation, call Coinbase, mutate
+  futures/order/exchange state, grant browser/BFF authority, or import
+  spot-only rules.
+- Completed `7901-7920` added risk-proof payload field summary evidence
+  derived from existing per-command risk-proof payload-field rows and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
 - Completed `7881-7900` added risk-proof contract summary evidence derived
   from existing per-command risk-proof proof contracts and remains
   carried-forward disabled, no-live, backend-owned evidence only.

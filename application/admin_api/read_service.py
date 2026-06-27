@@ -210,6 +210,7 @@ from .models import (
     AdminFuturesCommandRiskProofPayloadFieldItem,
     AdminFuturesCommandRiskProofPayloadFieldSummaryItem,
     AdminFuturesCommandRiskProofRecordContractItem,
+    AdminFuturesCommandRiskProofRecordContractSummaryItem,
     AdminFuturesCommandRiskProofRecordResolverSummaryItem,
     AdminFuturesCommandRiskProofRecordValidationItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem,
@@ -709,7 +710,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7901-7920"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7921-7940"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -46043,6 +46044,266 @@ class AdminApiReadService:
             risk_proof_payload_field_summaries_for(commands)
         )
 
+        def risk_proof_record_contract_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandRiskProofRecordContractSummaryItem]:
+            rows: list[AdminFuturesCommandRiskProofRecordContractSummaryItem] = []
+            for contract_kind in AdminFuturesCommandRiskProofRecordContractKind:
+                contract_pairs = [
+                    (command_item, proof_requirement, record_contract)
+                    for command_item in command_items
+                    for proof_requirement in command_item.risk_proof_requirements
+                    for record_contract in proof_requirement.record_contracts
+                    if record_contract.contract_kind == contract_kind
+                ]
+                if not contract_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _proof_requirement, _contract in (
+                            contract_pairs
+                        )
+                    )
+                )
+                proof_kinds = unique_enum_values(
+                    [
+                        proof_requirement.proof_kind
+                        for _command_item, proof_requirement, _contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                proof_requirement_refs = unique_strings(
+                    [
+                        (
+                            f"{command_item.command.value}:"
+                            f"{proof_requirement.proof_kind.value}"
+                        )
+                        for command_item, proof_requirement, _contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_backend_contracts = unique_strings(
+                    [
+                        record_contract.required_backend_contract
+                        for _command_item, _proof_requirement, record_contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_store_refs = unique_strings(
+                    [
+                        record_contract.required_store_ref
+                        for _command_item, _proof_requirement, record_contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_record_keys = unique_strings(
+                    [
+                        record_contract.required_record_key
+                        for _command_item, _proof_requirement, record_contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_payload_fields = unique_enum_values(
+                    [
+                        payload_field
+                        for _command_item, _proof_requirement, record_contract in (
+                            contract_pairs
+                        )
+                        for payload_field in record_contract.required_payload_fields
+                    ]
+                )
+                validation_gates = unique_strings(
+                    [
+                        record_contract.validation_gate
+                        for _command_item, _proof_requirement, record_contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        record_contract.required_evidence_ref
+                        for _command_item, _proof_requirement, record_contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                missing_evidence_refs = unique_strings(
+                    [
+                        record_contract.missing_evidence_ref
+                        for _command_item, _proof_requirement, record_contract in (
+                            contract_pairs
+                        )
+                        if record_contract.blocking
+                    ]
+                )
+                blocking_record_contract_count = sum(
+                    1
+                    for _command_item, _proof_requirement, record_contract in (
+                        contract_pairs
+                    )
+                    if record_contract.blocking
+                )
+                blocking = blocking_record_contract_count > 0
+                rows.append(
+                    AdminFuturesCommandRiskProofRecordContractSummaryItem(
+                        contract_kind=contract_kind,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        proof_requirement_count=len(proof_requirement_refs),
+                        proof_kinds=proof_kinds,
+                        record_contract_count=len(contract_pairs),
+                        blocking_record_contract_count=blocking_record_contract_count,
+                        accepted_record_contract_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.proof_record_accepted
+                        ),
+                        required_backend_contract_count=len(
+                            required_backend_contracts
+                        ),
+                        required_backend_contracts=required_backend_contracts,
+                        required_store_ref_count=len(required_store_refs),
+                        required_store_refs=required_store_refs,
+                        required_record_key_count=len(required_record_keys),
+                        required_record_keys=required_record_keys,
+                        required_payload_field_count=len(required_payload_fields),
+                        required_payload_fields=required_payload_fields,
+                        validation_gate_count=len(validation_gates),
+                        validation_gates=validation_gates,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        missing_evidence_ref_count=len(missing_evidence_refs),
+                        missing_evidence_refs=missing_evidence_refs,
+                        store_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.store_registered
+                        ),
+                        append_only_log_configured_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.append_only_log_configured
+                        ),
+                        idempotency_bound_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.idempotency_bound
+                        ),
+                        payload_validation_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.payload_validation_registered
+                        ),
+                        replay_guard_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.replay_guard_registered
+                        ),
+                        audit_linked_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.audit_linked
+                        ),
+                        proof_record_accepted_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.proof_record_accepted
+                        ),
+                        command_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.execution_allowed
+                        ),
+                        proof_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.proof_route_registered
+                        ),
+                        proof_writer_enabled_count=sum(
+                            1
+                            for _command_item, _proof_requirement, record_contract in (
+                                contract_pairs
+                            )
+                            if record_contract.proof_writer_enabled
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for _command_item, proof_requirement, _record_contract in (
+                                contract_pairs
+                            )
+                            if proof_requirement.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{contract_kind.value} proof record contracts "
+                            f"cover {len(contract_pairs)} futures/perpetual "
+                            "proof record contract row(s). This aggregate "
+                            "summary is backend-owned read-only evidence and "
+                            "cannot create stores, configure append-only logs, "
+                            "bind idempotency, register payload validation, "
+                            "register replay guards, link audit evidence, "
+                            "write proof records, accept proof records, "
+                            "register proof routes, enable proof writers, "
+                            "resolve proof acceptance, accept risk proofs, "
+                            "clear command readiness, admit commands, call "
+                            "Coinbase, execute reconciliation, mutate "
+                            "futures/order/exchange state, grant browser/BFF "
+                            "authority, or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        risk_proof_record_contract_summaries = (
+            risk_proof_record_contract_summaries_for(commands)
+        )
+
         def readiness_decision_summaries_for(
             command_items: list[AdminFuturesCommandContractItem],
         ) -> list[AdminFuturesCommandReadinessDecisionSummaryItem]:
@@ -47904,6 +48165,15 @@ class AdminApiReadService:
             ),
             risk_proof_payload_field_summaries=(
                 risk_proof_payload_field_summaries
+            ),
+            risk_proof_record_contract_summary_count=len(
+                risk_proof_record_contract_summaries
+            ),
+            risk_proof_record_contract_summary_blocking_count=sum(
+                1 for item in risk_proof_record_contract_summaries if item.blocking
+            ),
+            risk_proof_record_contract_summaries=(
+                risk_proof_record_contract_summaries
             ),
             risk_proof_acceptance_blocker_count=sum(
                 command.risk_proof_acceptance_blocker_count

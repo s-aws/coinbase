@@ -16,21 +16,27 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7901-7920` futures/perpetual risk-proof payload field summary
+Current M57 `7921-7940` futures/perpetual risk-proof record contract summary
 evidence for `GET /api/v1/futures/command-suite` is the active slice. It adds
-read-only `risk_proof_payload_field_summary_count`,
-`risk_proof_payload_field_summary_blocking_count`, and
-`risk_proof_payload_field_summaries` fields derived from existing per-command
-risk-proof payload-field rows and carries forward completed `7881-7900`
-risk-proof contract summary evidence. The fields are read-only/no-live
-evidence and must not validate submitted payloads, register payload
-validation, write proof records, register proof routes, enable proof writers,
-accept criteria, resolve proof acceptance, accept risk proofs, pass command
-readiness, clear command readiness, admit commands, pass approval, cap/guard,
-or reconciliation gates, execute reconciliation, call Coinbase, mutate
-futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Exact boundary phrase: risk-proof payload field summaries cannot validate submitted payloads.
-Exact validator phrase: risk-proof payload field summaries cannot validate submitted payloads; they are not payload validation registration, not proof record writes, do not register proof routes, enable proof writers, accept criteria, resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+read-only `risk_proof_record_contract_summary_count`,
+`risk_proof_record_contract_summary_blocking_count`, and
+`risk_proof_record_contract_summaries` fields derived from existing
+per-command risk-proof record-contract rows and carries forward completed
+`7901-7920` risk-proof payload field summary evidence. The fields are
+read-only/no-live evidence and must not create stores, configure append-only
+logs, bind idempotency, register payload validation, register replay guards,
+link audit evidence, write proof records, accept proof records, resolve proof
+acceptance, accept risk proofs, pass command readiness, clear command
+readiness, admit commands, pass approval, cap/guard, or reconciliation gates,
+execute reconciliation, call Coinbase, mutate futures/order/exchange state,
+or grant browser/BFF or spot-rule authority.
+Exact boundary phrase: risk-proof record contract summaries cannot create stores.
+Exact validator phrase: risk-proof record contract summaries cannot create stores; they are not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay-guard registration, not audit linkage, not proof record writes, not proof record acceptance, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+
+Completed M57 `7901-7920` futures/perpetual risk-proof payload field summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only payload-field summary fields derived from existing
+per-command risk-proof payload-field rows.
 
 Completed M57 `7881-7900` futures/perpetual risk-proof contract summary
 evidence for `GET /api/v1/futures/command-suite` is carried forward history.

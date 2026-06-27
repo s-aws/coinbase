@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7901-7920"
-APPROVED_PHASES = tuple(range(7901, 7921))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7881-7900"
+APPROVED_PHASE_RANGE = "7921-7940"
+APPROVED_PHASES = tuple(range(7921, 7941))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7901-7920"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7901-7920` evidence adds futures risk-proof payload field summary evidence while completed M57 `7881-7900` carries forward futures risk-proof contract summary evidence.",
+            "Active M57 `7921-7940` evidence adds futures risk-proof record contract summary evidence while completed M57 `7901-7920` carries forward futures risk-proof payload field summary evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1582,11 +1582,19 @@ def _check_agent_state_docs() -> QueueCheck:
     required = [
         f"Active approved range: `{APPROVED_PHASE_RANGE}`",
         f"Latest completed and pushed range before this work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
-        "futures risk-proof payload field summary evidence",
-        "risk_proof_payload_field_summaries",
-        "risk-proof payload field summaries cannot validate submitted payloads",
+        "futures risk-proof record contract summary evidence",
+        "risk_proof_record_contract_summaries",
+        "risk-proof record contract summaries cannot create stores",
+        "not store creation",
+        "not append-only log configuration",
+        "not idempotency binding",
         "not payload validation registration",
+        "not replay guard registration",
+        "not audit link creation",
         "not proof record writes",
+        "not proof record acceptance",
+        "not proof route registration",
+        "not proof writer enablement",
         "resolve proof acceptance",
         "risk proof acceptance passage",
         "approval passage",
@@ -1807,11 +1815,16 @@ def _check_contextless_review_log_docs() -> QueueCheck:
             "No live Coinbase execution is planned",
             "actual submitted/executed notional remains `0` USDC",
             "Boundary evidence for current",
-            "futures risk-proof payload field summary evidence",
-            "risk_proof_payload_field_summaries",
-            "not submitted payload validation",
+            "futures risk-proof record contract summary evidence",
+            "risk_proof_record_contract_summaries",
+            "not store creation",
+            "not append-only log configuration",
+            "not idempotency binding",
             "not payload validation registration",
+            "not replay guard registration",
+            "not audit link creation",
             "not proof record writes",
+            "not proof record acceptance",
             "not proof route registration",
             "not proof writer enablement",
             "not proof acceptance resolution",

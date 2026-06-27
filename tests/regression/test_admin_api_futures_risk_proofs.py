@@ -339,6 +339,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandRiskProofPayloadField,
+    AdminFuturesCommandRiskProofRecordContractKind,
     AdminFuturesCommandRiskProofRecordLookupStatus,
     AdminFuturesCommandSemanticArtifact,
     AdminFuturesCommandSemanticGuard,
@@ -11490,6 +11491,90 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         AdminFuturesCommandRiskProofPayloadField.PROOF_KIND
     ]
     assert "proof_payload.proof_kind" in proof_kind_payload_summary.payload_paths
+
+    record_contract_summaries_by_kind = {
+        item.contract_kind: item
+        for item in command_suite.risk_proof_record_contract_summaries
+    }
+    assert set(record_contract_summaries_by_kind) == set(
+        AdminFuturesCommandRiskProofRecordContractKind
+    )
+    assert command_suite.risk_proof_record_contract_summary_count == 6
+    assert command_suite.risk_proof_record_contract_summary_blocking_count == 6
+    for (
+        contract_kind,
+        record_contract_summary,
+    ) in record_contract_summaries_by_kind.items():
+        assert record_contract_summary.status == AdminApiGateStatus.BLOCKED
+        assert record_contract_summary.blocking is True
+        assert record_contract_summary.command_count == 4
+        assert record_contract_summary.affected_commands == affected_commands
+        assert record_contract_summary.proof_requirement_count == 20
+        assert record_contract_summary.record_contract_count == 20
+        assert record_contract_summary.blocking_record_contract_count == 20
+        assert record_contract_summary.accepted_record_contract_count == 0
+        assert record_contract_summary.required_backend_contract_count == 20
+        assert record_contract_summary.required_backend_contracts
+        assert record_contract_summary.required_store_ref_count == 20
+        assert record_contract_summary.required_store_refs
+        assert record_contract_summary.required_record_key_count == 20
+        assert record_contract_summary.required_record_keys
+        assert record_contract_summary.required_payload_field_count == 10
+        assert record_contract_summary.required_payload_fields == list(
+            AdminFuturesCommandRiskProofPayloadField
+        )
+        assert record_contract_summary.validation_gate_count == 20
+        assert record_contract_summary.validation_gates
+        assert record_contract_summary.required_evidence_ref_count == 20
+        assert record_contract_summary.required_evidence_refs
+        assert record_contract_summary.missing_evidence_ref_count == 20
+        assert record_contract_summary.missing_evidence_refs == (
+            record_contract_summary.required_evidence_refs
+        )
+        assert record_contract_summary.store_registered_count == 0
+        assert record_contract_summary.append_only_log_configured_count == 0
+        assert record_contract_summary.idempotency_bound_count == 0
+        assert record_contract_summary.payload_validation_registered_count == 0
+        assert record_contract_summary.replay_guard_registered_count == 0
+        assert record_contract_summary.audit_linked_count == 0
+        assert record_contract_summary.proof_record_accepted_count == 0
+        assert record_contract_summary.command_route_registered_count == 0
+        assert record_contract_summary.command_draft_allowed_count == 0
+        assert record_contract_summary.execution_allowed_count == 0
+        assert record_contract_summary.proof_route_registered_count == 0
+        assert record_contract_summary.proof_writer_enabled_count == 0
+        assert record_contract_summary.live_coinbase_orders_ran_count == 0
+        assert record_contract_summary.backend_owned is True
+        assert record_contract_summary.read_only is True
+        assert record_contract_summary.spot_rule_authority is False
+        assert record_contract_summary.browser_authority == "display_only"
+        assert record_contract_summary.bff_authority == "forward_only_no_execution"
+        assert "cannot create stores" in record_contract_summary.detail
+        assert "write proof records" in record_contract_summary.detail
+        assert "accept proof records" in record_contract_summary.detail
+        assert "call Coinbase" in record_contract_summary.detail
+        if (
+            contract_kind
+            == AdminFuturesCommandRiskProofRecordContractKind.STORE_SCHEMA
+        ):
+            assert (
+                "application/admin_api/futures_proof_records.py::"
+                "futures_place_product_scope_store_schema"
+            ) in record_contract_summary.required_backend_contracts
+            assert "futures_proof_records.futures_cancel.product_scope" in (
+                record_contract_summary.required_store_refs
+            )
+            assert (
+                "proof_record.futures_cancel.product_scope."
+                "client_order_id.idempotency_key.correlation_id"
+            ) in record_contract_summary.required_record_keys
+            assert (
+                "futures_place_margin_collateral_record_store_schema_gate"
+                in record_contract_summary.validation_gates
+            )
+            assert "futures_cancel_product_scope_record_store_schema_ready" in (
+                record_contract_summary.required_evidence_refs
+            )
 
     for blocker, summary in summaries_by_blocker.items():
         assert summary.status == AdminApiGateStatus.BLOCKED
