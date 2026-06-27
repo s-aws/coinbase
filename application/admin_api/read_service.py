@@ -167,6 +167,7 @@ from .models import (
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintItem,
+    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewItem,
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldNameItem,
@@ -508,6 +509,10 @@ from .futures_request_payload_validation_record_validation_check_output_schema_f
     count_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews,
     iter_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews,
 )
+from .futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_acceptances import (
+    count_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_acceptances,
+    iter_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_acceptances,
+)
 from .futures_request_payload_validation_record_semantic_artifacts import (
     iter_futures_request_payload_validation_record_semantic_artifacts,
 )
@@ -674,7 +679,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7581-7600"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7601-7620"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -817,6 +822,7 @@ FUTURES_COMMAND_SUITE_API_DETAIL_COMPACT_ARRAYS = frozenset(
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraints",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_refs",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews",
+        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances",
         "request_payload_validation_record_semantic_artifacts",
         "request_payload_validation_record_semantic_artifact_definitions",
         "request_payload_validation_record_semantic_artifact_definition_reviews",
@@ -868,6 +874,7 @@ FUTURES_COMMAND_SUITE_API_DETAIL_ROW_SHAPE_ARRAYS = frozenset(
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraints",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_refs",
         "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews",
+        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances",
     }
 )
 
@@ -28595,6 +28602,184 @@ class AdminApiReadService:
                 full_count,
             )
 
+        def request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances_for(
+            command_id: AdminFuturesCommandAction,
+        ) -> _BoundedEvidenceRows[
+            AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceItem
+        ]:
+            parent_output_schema_field_constraint_source_ref_contextless_reviews = list(
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews_for(
+                    command_id
+                )
+            )
+            parent_output_schema_field_constraint_source_ref_contextless_reviews_by_ref = {
+                item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_ref: item
+                for item in parent_output_schema_field_constraint_source_ref_contextless_reviews
+            }
+            validation_check_output_schema_field_constraint_source_ref_acceptance_items: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceItem
+            ] = []
+            full_count = count_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_acceptances(
+                command_id
+            )
+            for output_schema_field_constraint_source_ref_acceptance in iter_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_acceptances(
+                command_id
+            ):
+                if (
+                    len(
+                        validation_check_output_schema_field_constraint_source_ref_acceptance_items
+                    )
+                    >= FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ):
+                    break
+                parent = (
+                    parent_output_schema_field_constraint_source_ref_contextless_reviews_by_ref.get(
+                        output_schema_field_constraint_source_ref_acceptance.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_ref
+                    )
+                )
+                if parent is None:
+                    continue
+                payload = parent.model_dump(mode="python")
+                payload.update(
+                    {
+                        "clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_kind": (
+                            output_schema_field_constraint_source_ref_acceptance.clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_kind
+                        ),
+                        "clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_index": (
+                            output_schema_field_constraint_source_ref_acceptance.clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_index
+                        ),
+                        "status": output_schema_field_constraint_source_ref_acceptance.status,
+                        "source": output_schema_field_constraint_source_ref_acceptance.source,
+                        "required": output_schema_field_constraint_source_ref_acceptance.required,
+                        "blocking": output_schema_field_constraint_source_ref_acceptance.blocking,
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_ref": (
+                            output_schema_field_constraint_source_ref_acceptance.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_ref
+                        ),
+                        "execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_contract_ref": (
+                            output_schema_field_constraint_source_ref_acceptance.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_contract_ref
+                        ),
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_gate": (
+                            output_schema_field_constraint_source_ref_acceptance.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_gate
+                        ),
+                        "required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance": (
+                            output_schema_field_constraint_source_ref_acceptance.required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_claim": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_claim
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_target_ref": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_target_ref
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_source_ref": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_source_ref
+                        ),
+                        "predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs": list(
+                            output_schema_field_constraint_source_ref_acceptance.predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs
+                        ),
+                        "predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count": len(
+                            output_schema_field_constraint_source_ref_acceptance.predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs
+                        ),
+                        "successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs": list(
+                            output_schema_field_constraint_source_ref_acceptance.successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs
+                        ),
+                        "successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count": len(
+                            output_schema_field_constraint_source_ref_acceptance.successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs
+                        ),
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blockers": list(
+                            output_schema_field_constraint_source_ref_acceptance.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blockers
+                        ),
+                        "record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blocker_count": len(
+                            output_schema_field_constraint_source_ref_acceptance.record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blockers
+                        ),
+                        "inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blockers": list(
+                            output_schema_field_constraint_source_ref_acceptance.inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blockers
+                        ),
+                        "inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blocker_count": len(
+                            output_schema_field_constraint_source_ref_acceptance.inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blockers
+                        ),
+                        "required_backend_contract": output_schema_field_constraint_source_ref_acceptance.required_backend_contract,
+                        "missing_backend_contract": output_schema_field_constraint_source_ref_acceptance.missing_backend_contract,
+                        "missing_reason": output_schema_field_constraint_source_ref_acceptance.missing_reason,
+                        "required_evidence_refs": list(
+                            output_schema_field_constraint_source_ref_acceptance.required_evidence_refs
+                        ),
+                        "required_evidence_count": len(
+                            output_schema_field_constraint_source_ref_acceptance.required_evidence_refs
+                        ),
+                        "missing_evidence_refs": list(
+                            output_schema_field_constraint_source_ref_acceptance.missing_evidence_refs
+                        ),
+                        "missing_evidence_count": len(
+                            output_schema_field_constraint_source_ref_acceptance.missing_evidence_refs
+                        ),
+                        "forbidden_execution_claims": list(
+                            output_schema_field_constraint_source_ref_acceptance.forbidden_execution_claims
+                        ),
+                        "forbidden_execution_claim_count": len(
+                            output_schema_field_constraint_source_ref_acceptance.forbidden_execution_claims
+                        ),
+                        "backend_owned": output_schema_field_constraint_source_ref_acceptance.backend_owned,
+                        "read_only": output_schema_field_constraint_source_ref_acceptance.read_only,
+                        "contextless_review_required": (
+                            output_schema_field_constraint_source_ref_acceptance.contextless_review_required
+                        ),
+                        "spot_rule_authority": (
+                            output_schema_field_constraint_source_ref_acceptance.spot_rule_authority
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_required": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_required
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_ready": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_ready
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_declared": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_declared
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_passed": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_passed
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_accepted": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_accepted
+                        ),
+                        "validation_check_output_schema_field_constraint_source_ref_acceptance_recorded": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_check_output_schema_field_constraint_source_ref_acceptance_recorded
+                        ),
+                        "runtime_evidence_observed": (
+                            output_schema_field_constraint_source_ref_acceptance.runtime_evidence_observed
+                        ),
+                        "runtime_evidence_satisfies_semantic_contract": (
+                            output_schema_field_constraint_source_ref_acceptance.runtime_evidence_satisfies_semantic_contract
+                        ),
+                        "validation_record_admission_link_ready": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_record_admission_link_ready
+                        ),
+                        "blocker_resolved": (
+                            output_schema_field_constraint_source_ref_acceptance.blocker_resolved
+                        ),
+                        "validation_record_execution_eligible": (
+                            output_schema_field_constraint_source_ref_acceptance.validation_record_execution_eligible
+                        ),
+                        "execution_allowed": (
+                            output_schema_field_constraint_source_ref_acceptance.execution_allowed
+                        ),
+                        "live_coinbase_orders_ran": (
+                            output_schema_field_constraint_source_ref_acceptance.live_coinbase_orders_ran
+                        ),
+                        "browser_authority": output_schema_field_constraint_source_ref_acceptance.browser_authority,
+                        "bff_authority": output_schema_field_constraint_source_ref_acceptance.bff_authority,
+                        "detail": output_schema_field_constraint_source_ref_acceptance.detail,
+                    }
+                )
+                validation_check_output_schema_field_constraint_source_ref_acceptance_items.append(
+                    AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceItem(
+                        **payload
+                    )
+                )
+            return _BoundedEvidenceRows(
+                validation_check_output_schema_field_constraint_source_ref_acceptance_items,
+                full_count,
+            )
+
         def request_payload_validation_record_semantic_artifacts_for(
             command_id: AdminFuturesCommandAction,
         ) -> list[AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem]:
@@ -39426,6 +39611,9 @@ class AdminApiReadService:
             request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews: list[
                 AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewItem
             ],
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances: list[
+                AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceItem
+            ],
             request_payload_validation_record_semantic_artifacts: list[
                 AdminFuturesCommandRequestPayloadValidationRecordSemanticArtifactItem
             ],
@@ -39648,6 +39836,11 @@ class AdminApiReadService:
                     :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
                 ]
             )
+            materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances = (
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances[
+                    :FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ]
+            )
             full_resolution_plan_step_review_input_store_record_contract_count = sum(
                 1
                 for contract in (
@@ -39718,6 +39911,11 @@ class AdminApiReadService:
             )
             full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count = (
                 count_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews(
+                    command_id
+                )
+            )
+            full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count = (
+                count_futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_acceptances(
                     command_id
                 )
             )
@@ -40967,6 +41165,31 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews=(
                     materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=(
+                    full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                ),
+                blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=(
+                    full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                ),
+                ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=0,
+                declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=0,
+                passed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=0,
+                accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=0,
+                materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=len(
+                    materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_detail_row_limit=(
+                    FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_detail_rows_limited=(
+                    full_resolution_plan_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                    > len(
+                        materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances=(
+                    materialized_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances
                 ),
                 request_payload_validation_record_semantic_artifact_count=len(
                     request_payload_validation_record_semantic_artifacts
@@ -42293,6 +42516,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.PLACE
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances_for(
+                        AdminFuturesCommandAction.PLACE
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.PLACE
@@ -42602,6 +42830,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews_for(
+                        AdminFuturesCommandAction.CLOSE_REDUCE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances_for(
                         AdminFuturesCommandAction.CLOSE_REDUCE
                     )
                 ),
@@ -42918,6 +43151,11 @@ class AdminApiReadService:
                         AdminFuturesCommandAction.CANCEL
                     )
                 ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances_for(
+                        AdminFuturesCommandAction.CANCEL
+                    )
+                ),
                 request_payload_validation_record_semantic_artifacts=(
                     request_payload_validation_record_semantic_artifacts_for(
                         AdminFuturesCommandAction.CANCEL
@@ -43229,6 +43467,11 @@ class AdminApiReadService:
                 ),
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews=(
                     request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews_for(
+                        AdminFuturesCommandAction.RECONCILE
+                    )
+                ),
+                request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances=(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances_for(
                         AdminFuturesCommandAction.RECONCILE
                     )
                 ),
@@ -44534,6 +44777,30 @@ class AdminApiReadService:
             ),
             accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count=sum(
                 command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count
+                for command in commands
+            ),
+            request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=sum(
+                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                for command in commands
+            ),
+            blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=sum(
+                command.blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                for command in commands
+            ),
+            ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=sum(
+                command.ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                for command in commands
+            ),
+            declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=sum(
+                command.declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                for command in commands
+            ),
+            passed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=sum(
+                command.passed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+                for command in commands
+            ),
+            accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count=sum(
+                command.accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
                 for command in commands
             ),
             request_payload_validation_record_semantic_artifact_count=sum(

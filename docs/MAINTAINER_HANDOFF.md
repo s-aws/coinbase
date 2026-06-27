@@ -123,32 +123,30 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7561-7580` under M57.
-- Active autonomous range: `7581-7600` under M57.
-- Current range validation: completed for execution-eligibility
+- Latest completed autonomous range: `7581-7600` under M57.
+- Active autonomous range: `7601-7620` under M57.
+- Current range validation: in progress for execution-eligibility
   resolution-plan step review input store record-validation remediation
   dependency work-item claim-trace clearance-step review input store
-  record-validation check output schema field-constraint source-ref
-  contextless-review evidence and bounded
-  command-suite materialized samples.
-  Focused backend contract/risk checks, frontend type/API checks, and targeted
-  frontend unit tests passed. Backend/frontend autonomous validation passed
-  after the PASS-after-remediation review log updates.
+  record-validation check output schema field-constraint source-ref acceptance
+  evidence and bounded command-suite materialized samples. Backend source
+  serialization, OpenAPI generation, frontend schema sync, adapter/display,
+  and focused futures read-model/mock tests are being closed through the active
+  slice. Full regression remains a durable milestone closeout gate, not an
+  ordinary phase gate.
 - Latest completed range validation: completed for execution-eligibility
   resolution-plan step review input store record-validation remediation
   dependency work-item claim-trace clearance-step review input store
-  record-validation check output schema field-constraint source-ref evidence
-  and bounded command-suite materialized samples. Focused backend contract
-  checks, futures risk-proof regression, autonomous queue validation, generic
-  ownership validation, frontend type/API checks, targeted frontend unit tests,
-  and frontend autonomous validation passed. Completed `7561-7580`
+  record-validation check output schema field-constraint source-ref
+  contextless-review evidence and bounded command-suite materialized samples.
+  Focused backend contract/risk checks, frontend type/API checks, targeted
+  frontend unit tests, and autonomous validation passed. Completed `7561-7580`
   record-validation remediation dependency work-item claim-trace clearance-step
   review input store record-validation check output schema field-constraint
-  source-ref evidence remains carried forward. Completed `7541-7560`
-  field-constraint evidence also remains carried forward.
+  source-ref evidence remains carried forward.
   No live Coinbase execution was run; submitted/executed notional remains `0`
   USDC.
-- Current `7581-7600` blind/contextless review: PASS after remediation for
+- Completed `7581-7600` blind/contextless review: PASS after remediation for
   the newly added validation-check output schema field-constraint source-ref
   contextless-review evidence. Backend reviewer
   `019f0627-830e-77a3-9b59-838303b5b891` initially blocked on stale

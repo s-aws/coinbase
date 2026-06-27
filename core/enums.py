@@ -1798,6 +1798,35 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptance(
+    str,
+    Enum,
+):
+    """Backend-owned acceptance evidence for validation-check output schema field constraint source refs."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_ACCEPTANCE = (
+        "output_schema_field_constraint_source_ref_acceptance"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceBlocker(
+    str,
+    Enum,
+):
+    """Blocked acceptance reasons before futures validation-check output schema field constraint source refs can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_NOT_READY = (
+        "output_schema_field_constraint_source_ref_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_CONTEXTLESS_REVIEW_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_contextless_review_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_ACCEPTANCE_MISSING = (
+        "output_schema_field_constraint_source_ref_acceptance_missing"
+    )
+    ACCEPTANCE_MISSING = "acceptance_missing"
+
+
 class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField(
     str,
     Enum,
