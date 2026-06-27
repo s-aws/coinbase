@@ -16,17 +16,23 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7741-7760` futures/perpetual command request-field summary
+Current M57 `7761-7780` futures/perpetual command semantic-guard summary
 evidence for `GET /api/v1/futures/command-suite` is the active slice. It adds
-read-only `request_field_summary_count`,
-`request_field_summary_blocking_count`, and `request_field_summaries` fields
-derived from existing per-command request-field rows and carries forward
-completed `7721-7740` command prerequisite summary evidence. The fields are
-read-only/no-live evidence and must not validate payloads, register validators,
-clear command enablement, pass command readiness, admit commands, pass
-approval, cap/guard, or reconciliation gates, execute reconciliation, call
-Coinbase, mutate futures/order/exchange state, or grant browser/BFF or
-spot-rule authority.
+read-only `semantic_guard_summary_count`,
+`semantic_guard_summary_blocking_count`, and `semantic_guard_summaries` fields
+derived from existing per-command semantic guard rows and carries forward
+completed `7741-7760` command request-field summary evidence. The fields are
+read-only/no-live evidence and must not evaluate semantic guards, accept risk
+proofs, enable proof writers, clear command enablement, pass command
+readiness, admit commands, pass approval, cap/guard, or reconciliation gates,
+execute reconciliation, call Coinbase, mutate futures/order/exchange state, or
+grant browser/BFF or spot-rule authority.
+Exact validator phrase: semantic-guard summaries cannot accept risk proofs.
+
+Completed M57 `7741-7760` futures/perpetual command request-field summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only request-field summary fields derived from existing
+per-command request-field rows.
 
 Completed M57 `7721-7740` futures/perpetual command prerequisite summary
 evidence for `GET /api/v1/futures/command-suite` is carried forward history.

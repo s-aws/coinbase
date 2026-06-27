@@ -11,16 +11,18 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7741-7760 range targets explicit M57 futures/perpetual command
-request-field summary evidence. `GET /api/v1/futures/command-suite` reports
-`"approved_phase_range": "7741-7760"`, `request_field_summary_count`,
-`request_field_summary_blocking_count`, and `request_field_summaries` rows
-derived from existing per-command request fields and validator refs.
-These rows are display-only evidence and do not validate payloads, register
-validators, clear command enablement, admit commands, call Coinbase, execute
-reconciliation, mutate state, grant browser/BFF authority, or import spot-rule
-authority. Completed 7721-7740 command prerequisite summary evidence remains
-carried-forward history. Completed 7701-7720 command enablement contextless-review
+The active 7761-7780 range targets explicit M57 futures/perpetual command
+semantic-guard summary evidence. `GET /api/v1/futures/command-suite` reports
+`"approved_phase_range": "7761-7780"`, `semantic_guard_summary_count`,
+`semantic_guard_summary_blocking_count`, and `semantic_guard_summaries` rows
+derived from existing per-command semantic guard rows. These rows are
+display-only evidence and do not evaluate semantic guards, accept risk proofs,
+enable proof writers, clear command enablement, admit commands, call Coinbase,
+execute reconciliation, mutate state, grant browser/BFF authority, or import
+spot-rule authority. Completed 7741-7760 command request-field summary
+evidence remains carried-forward history. Completed 7721-7740 command
+prerequisite summary evidence remains carried-forward history. Completed
+7701-7720 command enablement contextless-review
 blocker summary evidence remains carried-forward history. Completed 7681-7700 request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store

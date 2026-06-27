@@ -336,6 +336,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandSemanticArtifact,
+    AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
     AdminFuturesRiskProofEvidenceSource,
     OrderSide,
@@ -11186,6 +11187,11 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert command_suite.prerequisite_summary_blocking_count == 11
     assert command_suite.request_field_summary_count == 13
     assert command_suite.request_field_summary_blocking_count == 13
+    assert command_suite.semantic_guard_count == 33
+    assert command_suite.blocking_semantic_guard_count == 33
+    assert command_suite.risk_semantic_guard_count == 12
+    assert command_suite.semantic_guard_summary_count == 13
+    assert command_suite.semantic_guard_summary_blocking_count == 13
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
@@ -11315,6 +11321,45 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert operator_notes_summary.command_count == 2
     assert operator_notes_summary.blocking_command_count == 2
     assert operator_notes_summary.request_payload_contract_ref_count == 2
+
+    semantic_guard_summaries_by_id = {
+        item.semantic_guard: item for item in command_suite.semantic_guard_summaries
+    }
+    assert set(semantic_guard_summaries_by_id) == set(
+        AdminFuturesCommandSemanticGuard
+    )
+    admission_audit_summary = semantic_guard_summaries_by_id[
+        AdminFuturesCommandSemanticGuard.ADMISSION_AUDIT
+    ]
+    assert admission_audit_summary.status == AdminApiGateStatus.BLOCKED
+    assert admission_audit_summary.blocking is True
+    assert admission_audit_summary.command_count == 4
+    assert admission_audit_summary.blocking_command_count == 4
+    assert admission_audit_summary.audit_semantic_command_count == 4
+    assert admission_audit_summary.applies_to_field_count == 13
+    assert admission_audit_summary.evidence_route_count == 1
+    assert admission_audit_summary.required_evidence_ref_count == 1
+    assert admission_audit_summary.missing_evidence_ref_count == 1
+    assert admission_audit_summary.proof_route_registered_count == 0
+    assert admission_audit_summary.proof_writer_enabled_count == 0
+    assert admission_audit_summary.backend_owned is True
+    assert admission_audit_summary.read_only is True
+    assert admission_audit_summary.spot_rule_authority is False
+    assert admission_audit_summary.browser_authority == "display_only"
+    assert admission_audit_summary.bff_authority == "forward_only_no_execution"
+    assert "cannot evaluate semantic guards" in admission_audit_summary.detail
+    live_boundary_summary = semantic_guard_summaries_by_id[
+        AdminFuturesCommandSemanticGuard.LIVE_EXECUTION_BOUNDARY
+    ]
+    assert live_boundary_summary.command_count == 4
+    assert live_boundary_summary.execution_semantic_command_count == 4
+    assert live_boundary_summary.applies_to_field_count == 13
+    product_scope_guard_summary = semantic_guard_summaries_by_id[
+        AdminFuturesCommandSemanticGuard.PRODUCT_SCOPE
+    ]
+    assert product_scope_guard_summary.command_count == 2
+    assert product_scope_guard_summary.identity_semantic_command_count == 2
+    assert product_scope_guard_summary.risk_semantic_command_count == 0
 
     contextless_summary = summaries_by_blocker[
         AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE

@@ -49,11 +49,26 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7741-7760
+## Current Active Phases 7761-7780
+
+Batch label: Futures/Perpetuals Command Semantic-Guard Summary Evidence.
+
+Current M57 `7761-7780` adds backend-owned read-only
+`semantic_guard_summaries` to `GET /api/v1/futures/command-suite` after
+completed `7741-7760` request-field summary evidence. The semantic-guard
+summary rows are derived from existing per-command semantic guard rows. They
+cannot evaluate semantic guards, accept risk proofs, enable proof writers,
+clear command enablement, admit commands, call Coinbase, execute
+reconciliation, mutate futures/order state, grant browser/BFF authority, or
+import spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7761-7780` evidence adds futures command semantic-guard summary evidence while completed M57 `7741-7760` carries forward futures command request-field summary evidence.
+
+## Completed Phases 7741-7760
 
 Batch label: Futures/Perpetuals Command Request-Field Summary Evidence.
 
-Current M57 `7741-7760` adds backend-owned read-only
+Completed M57 `7741-7760` added backend-owned read-only
 `request_field_summaries` to `GET /api/v1/futures/command-suite` after
 completed `7721-7740` prerequisite summary evidence. The request-field summary
 rows are derived from existing per-command request fields and validator refs.
@@ -61,7 +76,8 @@ They cannot validate payloads, register validators, clear command enablement,
 admit commands, call Coinbase, execute reconciliation, mutate futures/order
 state, grant browser/BFF authority, or import spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7741-7760` evidence adds futures command request-field summary evidence while completed M57 `7721-7740` carries forward futures command prerequisite summary evidence.
+Exact historical phrase: Completed M57 `7741-7760` evidence adds futures command request-field summary evidence while completed M57 `7721-7740` carries forward futures command prerequisite summary evidence.
+
 ## Completed Phases 7721-7740
 
 Batch label: Futures/Perpetuals Command Prerequisite Summary Evidence.

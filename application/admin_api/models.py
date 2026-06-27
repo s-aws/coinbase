@@ -7975,6 +7975,45 @@ class AdminFuturesCommandSemanticGuardItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandSemanticGuardSummaryItem(BaseModel):
+    """Backend-owned aggregate summary for one futures command semantic guard."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    semantic_guard: AdminFuturesCommandSemanticGuard
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    command_count: int = Field(default=0, ge=0)
+    affected_commands: list[AdminFuturesCommandAction] = Field(default_factory=list)
+    blocking_command_count: int = Field(default=0, ge=0)
+    identity_semantic_command_count: int = Field(default=0, ge=0)
+    risk_semantic_command_count: int = Field(default=0, ge=0)
+    audit_semantic_command_count: int = Field(default=0, ge=0)
+    execution_semantic_command_count: int = Field(default=0, ge=0)
+    applies_to_field_count: int = Field(default=0, ge=0)
+    applies_to_fields: list[AdminFuturesCommandRequestField] = Field(
+        default_factory=list
+    )
+    evidence_route_count: int = Field(default=0, ge=0)
+    evidence_routes: list[AdminFuturesCommandEvidenceRoute] = Field(
+        default_factory=list
+    )
+    required_evidence_ref_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_ref_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    proof_route_required_count: int = Field(default=0, ge=0)
+    proof_route_registered_count: int = Field(default=0, ge=0)
+    proof_writer_enabled_count: int = Field(default=0, ge=0)
+    proof_evidence_only_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandReadinessDecisionItem(BaseModel):
     """Backend-owned readiness decision for one futures/perpetual command."""
 
@@ -14410,16 +14449,36 @@ _FUTURES_COMMAND_SUITE_JSON_DUMP_OMIT_FIELDS = frozenset(
     }
 )
 
+_FUTURES_COMMAND_SUITE_JSON_DUMP_PRESERVE_FIELDS_BY_PARENT = {
+    "prerequisite_summaries": frozenset({"required_evidence_refs"}),
+    "semantic_guards": frozenset({"missing_evidence_refs", "required_evidence_refs"}),
+    "semantic_guard_summaries": frozenset(
+        {"missing_evidence_refs", "required_evidence_refs"}
+    ),
+}
 
-def _strip_futures_command_suite_json_dump(value: Any) -> Any:
+
+def _strip_futures_command_suite_json_dump(
+    value: Any,
+    *,
+    parent_key: str | None = None,
+) -> Any:
     if isinstance(value, dict):
+        preserve_fields = _FUTURES_COMMAND_SUITE_JSON_DUMP_PRESERVE_FIELDS_BY_PARENT.get(
+            parent_key,
+            frozenset(),
+        )
         return {
-            key: _strip_futures_command_suite_json_dump(item)
+            key: _strip_futures_command_suite_json_dump(item, parent_key=key)
             for key, item in value.items()
             if key not in _FUTURES_COMMAND_SUITE_JSON_DUMP_OMIT_FIELDS
+            or key in preserve_fields
         }
     if isinstance(value, list):
-        return [_strip_futures_command_suite_json_dump(item) for item in value]
+        return [
+            _strip_futures_command_suite_json_dump(item, parent_key=parent_key)
+            for item in value
+        ]
     return value
 
 
@@ -15535,6 +15594,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     semantic_guard_count: int = Field(default=0, ge=0)
     blocking_semantic_guard_count: int = Field(default=0, ge=0)
     risk_semantic_guard_count: int = Field(default=0, ge=0)
+    semantic_guard_summary_count: int = Field(default=0, ge=0)
+    semantic_guard_summary_blocking_count: int = Field(default=0, ge=0)
+    semantic_guard_summaries: list[AdminFuturesCommandSemanticGuardSummaryItem] = (
+        Field(default_factory=list)
+    )
     readiness_decision_count: int = Field(default=0, ge=0)
     blocked_readiness_decision_count: int = Field(default=0, ge=0)
     ready_readiness_decision_count: int = Field(default=0, ge=0)

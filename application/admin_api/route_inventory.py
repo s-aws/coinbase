@@ -766,7 +766,12 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="optional read audit",
         shared_method="build_futures_command_suite",
-        parity_test="read-only futures command contract matrix; no spot rules, command drafts, or live routes",
+        parity_test=(
+            "read-only futures command contract matrix; exposes route-bound "
+            "no-live command draft evidence, request payload contract refs, "
+            "semantic guard summaries, and blocked request fields while "
+            "execution remains false; no spot rules or live routes"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",

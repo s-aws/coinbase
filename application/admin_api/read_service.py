@@ -234,6 +234,7 @@ from .models import (
     AdminFuturesCommandRiskProofSemanticValidatorOutputSchemaItem,
     AdminFuturesCommandRiskProofSemanticValidatorRegistrationItem,
     AdminFuturesCommandSemanticGuardItem,
+    AdminFuturesCommandSemanticGuardSummaryItem,
     AdminFuturesCommandSuiteResponse,
     AdminLiveAdmissionAuditFactItem,
     AdminLiveAdmissionAuditTrailEvidence,
@@ -701,7 +702,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7741-7760"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7761-7780"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1002,7 +1003,7 @@ def _compact_futures_command_suite_api_payload(
         compacted: dict[str, Any] = {}
         for key, item in value.items():
             preserve_semantic_guard_refs = (
-                parent_key == "semantic_guards"
+                parent_key in {"semantic_guards", "semantic_guard_summaries"}
                 and key in FUTURES_COMMAND_SUITE_SEMANTIC_GUARD_REF_FIELDS
             )
             preserve_prerequisite_summary_refs = (
@@ -44792,6 +44793,159 @@ class AdminApiReadService:
 
         request_field_summaries = request_field_summaries_for(commands)
 
+        def unique_enum_values(values: list[Any]) -> list[Any]:
+            return list(dict.fromkeys(values))
+
+        def semantic_guard_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandSemanticGuardSummaryItem]:
+            rows: list[AdminFuturesCommandSemanticGuardSummaryItem] = []
+            for semantic_guard_id in AdminFuturesCommandSemanticGuard:
+                guard_pairs = [
+                    (command_item, semantic_guard)
+                    for command_item in command_items
+                    for semantic_guard in command_item.semantic_guards
+                    if semantic_guard.semantic_guard == semantic_guard_id
+                ]
+                if not guard_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _semantic_guard in guard_pairs
+                    )
+                )
+                blocking_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, semantic_guard in guard_pairs
+                        if semantic_guard.status != AdminApiGateStatus.PASSED
+                    )
+                )
+                applies_to_fields = unique_enum_values(
+                    [
+                        field
+                        for _command_item, semantic_guard in guard_pairs
+                        for field in semantic_guard.applies_to_fields
+                    ]
+                )
+                evidence_routes = unique_enum_values(
+                    [
+                        route
+                        for _command_item, semantic_guard in guard_pairs
+                        for route in semantic_guard.evidence_routes
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        evidence_ref
+                        for _command_item, semantic_guard in guard_pairs
+                        for evidence_ref in semantic_guard.required_evidence_refs
+                    ]
+                )
+                missing_evidence_refs = unique_strings(
+                    [
+                        evidence_ref
+                        for _command_item, semantic_guard in guard_pairs
+                        for evidence_ref in semantic_guard.missing_evidence_refs
+                    ]
+                )
+                blocking = bool(blocking_commands)
+                rows.append(
+                    AdminFuturesCommandSemanticGuardSummaryItem(
+                        semantic_guard=semantic_guard_id,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        blocking_command_count=len(blocking_commands),
+                        identity_semantic_command_count=len(
+                            list(
+                                dict.fromkeys(
+                                    command_item.command
+                                    for command_item, semantic_guard in guard_pairs
+                                    if semantic_guard.identity_semantic
+                                )
+                            )
+                        ),
+                        risk_semantic_command_count=len(
+                            list(
+                                dict.fromkeys(
+                                    command_item.command
+                                    for command_item, semantic_guard in guard_pairs
+                                    if semantic_guard.risk_semantic
+                                )
+                            )
+                        ),
+                        audit_semantic_command_count=len(
+                            list(
+                                dict.fromkeys(
+                                    command_item.command
+                                    for command_item, semantic_guard in guard_pairs
+                                    if semantic_guard.audit_semantic
+                                )
+                            )
+                        ),
+                        execution_semantic_command_count=len(
+                            list(
+                                dict.fromkeys(
+                                    command_item.command
+                                    for command_item, semantic_guard in guard_pairs
+                                    if semantic_guard.execution_semantic
+                                )
+                            )
+                        ),
+                        applies_to_field_count=len(applies_to_fields),
+                        applies_to_fields=applies_to_fields,
+                        evidence_route_count=len(evidence_routes),
+                        evidence_routes=evidence_routes,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        missing_evidence_ref_count=len(missing_evidence_refs),
+                        missing_evidence_refs=missing_evidence_refs,
+                        proof_route_required_count=sum(
+                            1
+                            for _command_item, semantic_guard in guard_pairs
+                            if semantic_guard.proof_route_required
+                        ),
+                        proof_route_registered_count=sum(
+                            1
+                            for _command_item, semantic_guard in guard_pairs
+                            if semantic_guard.proof_route_registered
+                        ),
+                        proof_writer_enabled_count=sum(
+                            1
+                            for _command_item, semantic_guard in guard_pairs
+                            if semantic_guard.proof_writer_enabled
+                        ),
+                        proof_evidence_only_count=sum(
+                            1
+                            for _command_item, semantic_guard in guard_pairs
+                            if semantic_guard.proof_evidence_only
+                        ),
+                        detail=(
+                            f"{semantic_guard_id.value} applies to "
+                            f"{len(affected_commands)} futures/perpetual "
+                            f"command contract(s); {len(blocking_commands)} "
+                            "remain blocked by semantic guard evidence. "
+                            "This aggregate summary is backend-owned read-only "
+                            "evidence and cannot evaluate semantic guards, "
+                            "accept risk proofs, enable proof writers, clear "
+                            "command enablement, admit commands, call Coinbase, "
+                            "execute reconciliation, mutate futures/order state, "
+                            "grant browser/BFF authority, or import spot-rule "
+                            "authority."
+                        ),
+                    )
+                )
+            return rows
+
+        semantic_guard_summaries = semantic_guard_summaries_for(commands)
+
         def blocker_summary(
             blocker: AdminFuturesCommandEnablementBlocker,
             *,
@@ -46426,6 +46580,11 @@ class AdminApiReadService:
             risk_semantic_guard_count=sum(
                 command.risk_semantic_guard_count for command in commands
             ),
+            semantic_guard_summary_count=len(semantic_guard_summaries),
+            semantic_guard_summary_blocking_count=sum(
+                1 for item in semantic_guard_summaries if item.blocking
+            ),
+            semantic_guard_summaries=semantic_guard_summaries,
             readiness_decision_count=len(commands),
             blocked_readiness_decision_count=sum(
                 1 for command in commands if not command.readiness_decision.ready

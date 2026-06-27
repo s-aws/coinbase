@@ -123,15 +123,21 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7721-7740` under M57.
-- Active autonomous range: `7741-7760` under M57.
-- Current active range: `7741-7760` adds futures command request-field summary
-  evidence derived from existing per-command request fields and validator refs.
-  It remains disabled, no-live, backend-owned evidence only and cannot validate
-  payloads, register validators, clear command enablement, pass command
-  readiness, admit commands, pass approval, cap/guard, or reconciliation gates,
-  execute reconciliation, call Coinbase, mutate futures/order/exchange state,
-  grant browser/BFF authority, or import spot-only rules.
+- Latest completed autonomous range: `7741-7760` under M57.
+- Active autonomous range: `7761-7780` under M57.
+- Current active range: `7761-7780` adds futures command semantic-guard
+  summary evidence derived from existing per-command semantic guard rows. It
+  remains disabled, no-live, backend-owned evidence only and cannot evaluate
+  semantic guards, accept risk proofs, enable proof writers, clear command
+  enablement, pass command readiness, admit commands, pass approval,
+  cap/guard, or reconciliation gates, execute reconciliation, call Coinbase,
+  mutate futures/order/exchange state, grant browser/BFF authority, or import
+  spot-only rules.
+- Completed `7741-7760` added command request-field summary evidence derived
+  from existing per-command request fields and validator refs. It remains
+  carried-forward disabled, no-live, backend-owned evidence only and must not
+  validate payloads, register validators, clear command enablement, or grant
+  execution authority.
 - Completed `7721-7740` added command prerequisite summary evidence derived
   from existing per-command prerequisites. It remains carried-forward disabled,
   no-live, backend-owned evidence only and must not resolve prerequisites or

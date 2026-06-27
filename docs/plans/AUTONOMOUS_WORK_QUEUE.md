@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7741-7760**.
+- Approved phase range: **7761-7780**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7721-7740`.
+- Previous completed range: `7741-7760`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7740`.
+- `current_phase`: `7760`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,26 +81,147 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7741-7760
+## Active Phases 7761-7780
+
+Batch label: Futures/Perpetuals Command Semantic-Guard Summary Evidence.
+
+These phases continue M57 after completed `7741-7760` exposed futures command
+request-field summary evidence. The concrete gap is that per-command semantic
+guard rows already exist, but operators and contextless agents cannot yet see a
+backend-owned aggregate per semantic guard family across all futures command
+contracts. Active `7761-7780` must add derived read-only
+`semantic_guard_summaries` to `GET /api/v1/futures/command-suite`, sync OpenAPI
+and the frontend, and prove that the summary cannot evaluate semantic guards,
+accept risk proofs, enable proof writers, clear command enablement, admit
+commands, call Coinbase, execute reconciliation, mutate state, grant browser/BFF
+authority, or import spot-rule authority.
+
+Active M57 `7761-7780` evidence adds futures command semantic-guard summary
+evidence while completed M57 `7741-7760` carries forward futures command
+request-field summary evidence.
+
+Exact autonomous phrase: Active M57 `7761-7780` evidence adds futures command semantic-guard summary evidence while completed M57 `7741-7760` carries forward futures command request-field summary evidence.
+
+### Phase 7761 - Prior Range Closure
+
+- Record completed/pushed `7741-7760` command request-field summary evidence
+  as historical and move active metadata to `7761-7780`.
+
+### Phase 7762 - Backend Summary Model
+
+- Add typed backend-owned semantic-guard summary rows to the futures command
+  suite response without adding guard evaluation or proof authority.
+
+### Phase 7763 - Read-Service Derivation
+
+- Derive semantic-guard summaries from existing per-command semantic guard
+  rows, including affected commands, semantic-role counts, evidence refs,
+  proof route posture, and authority flags.
+
+### Phase 7764 - No-Authority Boundary
+
+- Prove summaries remain read-only evidence and cannot evaluate semantic
+  guards, accept risk proofs, enable proof writers, clear command enablement,
+  admit commands, call Coinbase, execute reconciliation, mutate state, grant
+  browser/BFF authority, or import spot-rule authority.
+
+### Phase 7765 - OpenAPI Sync
+
+- Regenerate Admin API OpenAPI from the backend-owned contract.
+
+### Phase 7766 - Frontend Schema Sync
+
+- Regenerate the frontend generated schema from the updated Admin API OpenAPI.
+
+### Phase 7767 - Frontend Adapter Mapping
+
+- Map semantic-guard summary rows into the futures view model with generated
+  contract types.
+
+### Phase 7768 - Frontend Display
+
+- Render semantic-guard summaries as display-only table evidence without any
+  controls or execution affordances.
+
+### Phase 7769 - Mock Backend Derivation
+
+- Update mock backend command-suite fixtures so semantic-guard summaries are
+  derived from fixture command semantic guards instead of hand-maintained rows.
+
+### Phase 7770 - Backend Focused Tests
+
+- Assert summary counts, representative blocked semantic guards, authority
+  flags, and no-live posture.
+
+### Phase 7771 - Frontend Focused Tests
+
+- Assert mock parity, adapter/render behavior, active metadata, and
+  no-authority display.
+
+### Phase 7772 - API Documentation
+
+- Update API references and examples for semantic-guard summary fields and
+  no-live/no-authority semantics.
+
+### Phase 7773 - Capability Matrix
+
+- Update the capability matrix so M57 lists semantic-guard summaries as
+  backend-owned read-only evidence.
+
+### Phase 7774 - Maintainer Handoff
+
+- Update agent state, roadmap, and maintainer handoff docs for active
+  `7761-7780` and completed `7741-7760`.
+
+### Phase 7775 - Contextless Review Prep
+
+- Record planned review scope, exact phase phrase, and forbidden authority
+  claims before spawning reviewers.
+
+### Phase 7776 - Blind/Contextless Review
+
+- Run contextless review for the backend/frontend semantic-guard summary path
+  and remediate any blocker.
+
+### Phase 7777 - Autonomous Validation
+
+- Run backend and frontend autonomous queue validators after docs and metadata
+  are synchronized.
+
+### Phase 7778 - Focused Validation
+
+- Run focused backend contract tests and frontend type/API/unit checks covering
+  the changed behavior.
+
+### Phase 7779 - Phase-End Hygiene
+
+- Run final status/diff checks, stale process checks if needed, and close
+  phase-scoped or stale unused subagents after findings are consumed.
+
+### Phase 7780 - Commit And Push
+
+- Commit and push both repos after validation passes and record live Coinbase
+  execution as not run with submitted/executed notional `0` USDC.
+## Completed Phases 7741-7760
 
 Batch label: Futures/Perpetuals Command Request-Field Summary Evidence.
 
-These phases continue M57 after completed `7721-7740` exposed futures command
+These completed phases continued M57 after completed `7721-7740` exposed futures command
 prerequisite summary evidence. The concrete gap is that per-command request
 fields and validator refs exist, but operators and contextless agents cannot
 yet see a backend-owned aggregate per request field across all futures command
-contracts. Active `7741-7760` must add derived read-only
+contracts. Completed `7741-7760` added derived read-only
 `request_field_summaries` to `GET /api/v1/futures/command-suite`, sync OpenAPI
 and the frontend, and prove that the summary cannot validate payloads,
 register validators, clear command enablement, admit commands, call Coinbase,
 execute reconciliation, mutate state, grant browser/BFF authority, or import
 spot-rule authority.
 
-Active M57 `7741-7760` evidence adds futures command request-field summary
+Completed M57 `7741-7760` evidence adds futures command request-field summary
 evidence while completed M57 `7721-7740` carries forward futures command
 prerequisite summary evidence.
 
-Exact autonomous phrase: Active M57 `7741-7760` evidence adds futures command request-field summary evidence while completed M57 `7721-7740` carries forward futures command prerequisite summary evidence.
+Exact autonomous phrase: Completed M57 `7741-7760` evidence adds futures command request-field summary evidence while completed M57 `7721-7740` carries forward futures command prerequisite summary evidence.
 
 ### Phase 7741 - Prior Range Closure
 
