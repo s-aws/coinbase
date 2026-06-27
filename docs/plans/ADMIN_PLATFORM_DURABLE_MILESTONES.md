@@ -180,7 +180,7 @@ not independent roadmaps.
 | M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | In Progress | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
-| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress; active range 7701-7720; latest completed range 7681-7700 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
@@ -3231,6 +3231,48 @@ Current backend evidence:
   claim-review, claim-ledger, predecessor/successor claim-trace, and
   contextless-review blockers that must remain unresolved until backend-owned
   evidence exists.
+  Completed phases 5481-5980 continue that M57 futures/perpetual blocked
+  evidence chain through claim-trace clearance planning, clearance steps,
+  reviews, review inputs, store requirements, record contracts, record
+  validations, remediation dependencies, work-item claim traces, and route
+  enablement planning without resolving claims, registering executable routes,
+  invoking managers, calling Coinbase, executing reconciliation, mutating
+  futures/order/exchange state, or granting browser/BFF authority.
+  Completed phases 5981-6360 add disabled shared command-service, risk-guard,
+  reconciliation-plan, route-registration, live-adapter, proof-route/writer,
+  proof-payload-field, and route-bound no-live draft evidence for futures
+  placement, close/reduce, cancel, and reconciliation. Those rows prove
+  backend-owned contract targets only; they do not validate payloads, accept
+  proofs, construct adapters, submit/cancel Coinbase orders, execute
+  reconciliation, or import spot rules.
+  Completed phases 6361-6560 add disabled request-payload field contract,
+  validation-gate, validator contract/input/output schema, validator
+  registration, validation evidence, validation-record contract/schema, and
+  replay-guard evidence. These rows keep validation, append-only storage,
+  replay protection, idempotency binding, and request acceptance false.
+  Completed phases 6561-7080 add disabled validation-record audit/admission
+  links, execution-eligibility blockers, semantic artifacts, semantic review
+  inputs/outputs/acceptances, runtime-evidence binding, futures-specific
+  position, margin, collateral, liquidation, reduce-only, close-only, funding,
+  order, cancel, and reconciliation semantic rows, plus execution-eligibility
+  semantic-closure evidence. These rows explicitly avoid spot wallet,
+  no-shorting, cost-basis, or USDC-only assumptions.
+  Completed phases 7081-7700 add disabled execution-eligibility resolution
+  plan steps, reviews, review inputs, store requirements, record contracts,
+  record validations, remediations, dependencies, work items, claim traces,
+  clearance plans/steps/reviews/inputs/stores, validation-check contracts,
+  input/output schema field evidence, output schema field constraint source
+  refs, source-ref contextless reviews, source-ref acceptances,
+  record-acceptances, validation-record acceptances, validation-record
+  acceptance contextless reviews, and validation-record acceptance
+  contextless-review acceptance evidence.
+  Active phases 7701-7720 add read-only command enablement
+  contextless-review blocker summary evidence carrying the latest blind-review
+  result without clearing command enablement. The latest completed
+  API/frontend range is 7681-7700; the active API/frontend range is
+  7701-7720. None of this evidence is passage,
+  acceptance, command admission, Coinbase execution, reconciliation execution,
+  browser/BFF authority, or spot-rule authority.
   Contracts and decision evidence remain
   blocked: Coinbase, manager, reconciliation, active-placement, state
   mutation, browser, and BFF authority remain disabled.

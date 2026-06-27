@@ -123,33 +123,29 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7661-7680` under M57.
-- Active autonomous range: `7681-7700` under M57.
-- Completed range validation: PASS after remediation for execution-eligibility
-  resolution-plan step review input store record-validation remediation
-  dependency work-item claim-trace clearance-step review input store
-  record-validation check output schema field-constraint source-ref
-  validation-record acceptance contextless-review evidence and bounded
-  command-suite materialized samples. Backend source serialization, OpenAPI
-  generation, frontend schema sync, adapter/display, and focused futures
-  read-model/mock tests are closed for this slice. Initial blind/contextless
-  review blocked on the untracked registry, stale active-range docs, and
-  missing direct frontend assertions. Remediation staged the registry, updated
-  active docs and runtime phase metadata, regenerated OpenAPI, added direct
-  tests, and reran focused backend/frontend checks. Fresh backend/frontend
-  re-review passed, and phase-end subagent cleanup closed the current-slice
+- Latest completed autonomous range: `7681-7700` under M57.
+- Active autonomous range: `7701-7720` under M57.
+- Current active range: `7701-7720` adds command enablement
+  contextless-review blocker summary evidence derived from the latest
+  `7681-7700` blind-review result. It remains disabled, no-live,
+  backend-owned evidence only and must not clear command enablement, pass
+  contextless review for command readiness, admit commands, pass approval,
+  cap/guard, or reconciliation gates, execute reconciliation, call Coinbase,
+  mutate futures/order/exchange state, grant browser/BFF authority, or import
+  spot-only rules.
+- Completed range validation: PASS after remediation for
+  validation-record acceptance contextless-review acceptance evidence and
+  bounded command-suite materialized samples. Backend source serialization,
+  OpenAPI generation, frontend schema sync, adapter/display, and focused
+  futures read-model/mock tests are closed for `7681-7700`. Initial
+  blind/contextless review blocked on the untracked registry, stale
+  active-range docs, and missing direct frontend assertions. Remediation staged
+  the registry, updated active docs and runtime phase metadata, regenerated
+  OpenAPI, added direct tests, and reran focused backend/frontend checks. Fresh
+  backend/frontend re-review passed, and phase-end subagent cleanup closed the
   reviewer. Full regression remains a durable milestone closeout gate, not an
-  ordinary phase gate.
-  No live Coinbase execution was run; submitted/executed notional remains `0`
-  USDC.
-- Current active range: `7681-7700` adds validation-record acceptance
-  contextless-review acceptance evidence derived from the completed
-  validation-record acceptance contextless-review rows. It remains planned as
-  disabled, no-live, backend-owned evidence only and must not pass
-  contextless-review acceptance, pass contextless review, admit commands,
-  accept validation records, pass validation-record acceptance, execute
-  reconciliation, call Coinbase, mutate futures/order/exchange state, grant
-  browser/BFF authority, or import spot-only rules.
+  ordinary phase gate. No live Coinbase execution was run; submitted/executed
+  notional remains `0` USDC.
 - Completed range `7661-7680` added validation-record acceptance
   contextless-review evidence derived from the completed validation-record
   acceptance rows. Focused backend/frontend checks passed after remediation for

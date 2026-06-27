@@ -17256,6 +17256,33 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        contextless_review_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contextless Review Evidence Ref
+        contextless_review_agent_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contextless Review Agent Id
+        contextless_review_phase_range:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contextless Review Phase Range
+        contextless_review_passed:
+          type: boolean
+          title: Contextless Review Passed
+          default: false
+        contextless_review_applies_to_command_enablement:
+          type: boolean
+          title: Contextless Review Applies To Command Enablement
+          default: false
+        phase_end_subagent_sweep_recorded:
+          type: boolean
+          title: Phase End Subagent Sweep Recorded
+          default: false
         backend_owned:
           type: boolean
           title: Backend Owned

@@ -7989,6 +7989,12 @@ class AdminFuturesCommandEnablementBlockerSummaryItem(BaseModel):
     command_draft_allowed: bool = False
     execution_allowed: bool = False
     live_coinbase_orders_ran: bool = False
+    contextless_review_evidence_ref: str | None = None
+    contextless_review_agent_id: str | None = None
+    contextless_review_phase_range: str | None = None
+    contextless_review_passed: bool = False
+    contextless_review_applies_to_command_enablement: bool = False
+    phase_end_subagent_sweep_recorded: bool = False
     backend_owned: bool = True
     read_only: bool = True
     spot_rule_authority: bool = False

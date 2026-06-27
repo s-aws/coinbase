@@ -699,7 +699,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7681-7700"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7701-7720"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -44584,6 +44584,12 @@ class AdminApiReadService:
             required_evidence_refs: list[str | None],
             detail: str,
             required_backend_contracts: list[str] | None = None,
+            contextless_review_evidence_ref: str | None = None,
+            contextless_review_agent_id: str | None = None,
+            contextless_review_phase_range: str | None = None,
+            contextless_review_passed: bool = False,
+            contextless_review_applies_to_command_enablement: bool = False,
+            phase_end_subagent_sweep_recorded: bool = False,
         ) -> AdminFuturesCommandEnablementBlockerSummaryItem:
             evidence_refs = unique_strings(required_evidence_refs)
             is_blocking = bool(affected)
@@ -44619,6 +44625,14 @@ class AdminApiReadService:
                     if affected
                     else False
                 ),
+                contextless_review_evidence_ref=contextless_review_evidence_ref,
+                contextless_review_agent_id=contextless_review_agent_id,
+                contextless_review_phase_range=contextless_review_phase_range,
+                contextless_review_passed=contextless_review_passed,
+                contextless_review_applies_to_command_enablement=(
+                    contextless_review_applies_to_command_enablement
+                ),
+                phase_end_subagent_sweep_recorded=phase_end_subagent_sweep_recorded,
                 detail=detail,
             )
 
@@ -44753,11 +44767,21 @@ class AdminApiReadService:
                     "phase_end_subagent_sweep",
                 ],
                 required_backend_contracts=backend_contracts,
+                contextless_review_evidence_ref=(
+                    "genai_data/agent_state.md::m57_7681_7700_blind_review"
+                ),
+                contextless_review_agent_id="019f07a2-87db-75a1-99eb-bc34c30927d3",
+                contextless_review_phase_range="7681-7700",
+                contextless_review_passed=True,
+                contextless_review_applies_to_command_enablement=False,
+                phase_end_subagent_sweep_recorded=True,
                 detail=(
                     "Future enablement still requires focused tests, frontend "
                     "contract sync, and blind/contextless review proving that "
                     "humans and smaller agents can identify the no-live "
-                    "boundary without chat history."
+                    "boundary without chat history. The latest recorded blind "
+                    "review covers the 7681-7700 display-only evidence slice "
+                    "and does not clear command enablement."
                 ),
             ),
         ]

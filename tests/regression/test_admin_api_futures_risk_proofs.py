@@ -11233,6 +11233,22 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert "blind_contextless_agent_review" in (
         contextless_summary.required_evidence_refs
     )
+    assert (
+        contextless_summary.contextless_review_evidence_ref
+        == "genai_data/agent_state.md::m57_7681_7700_blind_review"
+    )
+    assert (
+        contextless_summary.contextless_review_agent_id
+        == "019f07a2-87db-75a1-99eb-bc34c30927d3"
+    )
+    assert contextless_summary.contextless_review_phase_range == "7681-7700"
+    assert contextless_summary.contextless_review_passed is True
+    assert (
+        contextless_summary.contextless_review_applies_to_command_enablement
+        is False
+    )
+    assert contextless_summary.phase_end_subagent_sweep_recorded is True
+    assert "does not clear command enablement" in contextless_summary.detail
 
     sequence_steps_by_step = {
         item.step: item for item in command_suite.command_enablement_sequence_steps

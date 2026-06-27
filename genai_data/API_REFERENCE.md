@@ -16,26 +16,27 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7681-7700` futures/perpetual request payload validation record
+Current M57 `7701-7720` futures/perpetual command enablement
+contextless-review blocker summary evidence for
+`GET /api/v1/futures/command-suite` is the active slice. It adds read-only
+review evidence fields to the existing command enablement blocker summary and
+carries the latest completed `7681-7700` blind-review result. The fields are
+read-only/no-live evidence and must not clear command enablement, pass
+contextless review for command readiness, admit commands, pass approval,
+cap/guard, or reconciliation gates, execute reconciliation, call Coinbase,
+mutate futures/order/exchange state, or grant browser/BFF or spot-rule
+authority.
+
+Completed M57 `7681-7700` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store
 record-validation check output schema field-constraint source-ref
 validation-record acceptance contextless-review acceptance evidence for
-`GET /api/v1/futures/command-suite` is the active planned slice. It will add
+`GET /api/v1/futures/command-suite` is carried forward history. It added
 disabled clearance-step review input store record-validation check output
 schema field-constraint source-ref validation-record acceptance
 contextless-review acceptance rows through a registry derived from
 `application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_reviews.py`.
-Completed M57 `7661-7680` clearance-step review input store
-record-validation check output schema field-constraint source-ref
-validation-record acceptance contextless-review evidence is now carried
-forward history. The planned rows are read-only/no-live evidence and must not
-pass contextless-review acceptance, pass contextless review, accept validation
-records, pass validation-record acceptance, pass source-ref record acceptance,
-pass source-ref acceptance, declare source refs, declare constraints, declare
-field types, declare field names, declare fields, declare schemas, admit
-commands, execute reconciliation, call Coinbase, mutate futures/order/exchange
-state, or grant browser/BFF or spot-rule authority.
 
 Completed M57 `7661-7680` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
