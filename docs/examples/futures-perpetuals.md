@@ -11,14 +11,21 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7701-7720 range targets explicit M57 futures/perpetual command
-enablement contextless-review blocker summary evidence. Completed 7681-7700
-request
-payload validation record execution-eligibility resolution-plan step review
-input store record-validation remediation dependency work-item claim-trace
-clearance-step review input store record-validation check output schema
-field-constraint source-ref validation-record acceptance contextless-review
-acceptance evidence remains carried-forward history. Completed 7661-7680 clearance-step review input store
+The active 7721-7740 range targets explicit M57 futures/perpetual command
+prerequisite summary evidence. `GET /api/v1/futures/command-suite` reports
+`"approved_phase_range": "7721-7740"`, `prerequisite_summary_count`,
+`prerequisite_summary_blocking_count`, and `prerequisite_summaries` rows
+derived from existing per-command prerequisites.
+These rows are display-only evidence and do not resolve prerequisites, clear
+command enablement, call Coinbase, execute reconciliation, mutate state, grant
+browser/BFF authority, or import spot-rule authority. Completed 7701-7720
+command enablement contextless-review blocker summary evidence remains
+carried-forward history. Completed 7681-7700 request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-constraint source-ref
+validation-record acceptance contextless-review acceptance evidence remains
+carried-forward history. Completed 7661-7680 clearance-step review input store
 record-validation check output schema field-constraint source-ref
 validation-record acceptance contextless-review evidence remains
 carried-forward history.

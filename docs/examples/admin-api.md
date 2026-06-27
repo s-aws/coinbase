@@ -13,12 +13,13 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7701-7720"`. Futures/perpetual command-suite reads
-now expose backend-owned command enablement contextless-review blocker summary
-evidence for current M57 `7701-7720` while completed `7681-7700`
-validation-record acceptance contextless-review acceptance evidence remains
-carried-forward history. The current rows are disabled, no-live evidence only
-and must not clear command enablement, pass contextless review for command
+`"approved_phase_range": "7721-7740"`. Futures/perpetual command-suite reads
+now expose backend-owned `prerequisite_summary_count`,
+`prerequisite_summary_blocking_count`, and `prerequisite_summaries` evidence
+for current M57 `7721-7740` while completed `7701-7720` command enablement
+contextless-review blocker summary evidence remains carried-forward history.
+The current rows are disabled, no-live evidence only and must not resolve
+prerequisites, clear command enablement, pass contextless review for command
 readiness, admit commands, pass approval/cap/guard/reconciliation gates, call
 Coinbase, execute reconciliation, mutate state, or grant browser/BFF or
 spot-rule authority.

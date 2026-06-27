@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7701-7720**.
+- Approved phase range: **7721-7740**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7681-7700`.
+- Previous completed range: `7701-7720`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7700`.
+- `current_phase`: `7720`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,16 +81,137 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7701-7720
+## Active Phases 7721-7740
+
+Batch label: Futures/Perpetuals Command Prerequisite Summary Evidence.
+
+These phases continue M57 after completed `7701-7720` exposed command
+enablement contextless-review blocker summary evidence. The concrete gap is
+that `UNRESOLVED_PREREQUISITES` identifies blocked commands and refs, but
+operators and contextless agents cannot yet see a backend-owned aggregate per
+prerequisite family. Active `7721-7740` must add derived read-only
+`prerequisite_summaries` to `GET /api/v1/futures/command-suite`, sync OpenAPI
+and the frontend, and prove that the summary cannot resolve prerequisites,
+clear command enablement, call Coinbase, execute reconciliation, mutate state,
+grant browser/BFF authority, or import spot-rule authority.
+
+Active M57 `7721-7740` evidence adds futures command prerequisite summary
+evidence while completed M57 `7701-7720` carries forward futures command
+enablement contextless-review blocker summary evidence.
+
+Exact autonomous phrase: Active M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.
+
+### Phase 7721 - Prior Range Closure
+
+- Record completed/pushed `7701-7720` command enablement contextless-review
+  blocker summary evidence as historical and move active metadata to
+  `7721-7740`.
+
+### Phase 7722 - Backend Summary Model
+
+- Add typed backend-owned prerequisite summary rows to the futures command
+  suite response without adding command authority.
+
+### Phase 7723 - Read-Service Derivation
+
+- Derive prerequisite summaries from existing per-command prerequisite rows,
+  including affected commands, resolved/blocking counts, evidence routes, and
+  required evidence refs.
+
+### Phase 7724 - No-Authority Boundary
+
+- Prove summaries remain read-only evidence and cannot resolve prerequisites,
+  enable commands, call Coinbase, execute reconciliation, mutate state, grant
+  browser/BFF authority, or import spot-rule authority.
+
+### Phase 7725 - OpenAPI Sync
+
+- Regenerate Admin API OpenAPI from the backend-owned contract.
+
+### Phase 7726 - Frontend Schema Sync
+
+- Regenerate the frontend generated schema from the updated Admin API OpenAPI.
+
+### Phase 7727 - Frontend Adapter Mapping
+
+- Map prerequisite summary rows into the futures view model with generated
+  contract types.
+
+### Phase 7728 - Frontend Display
+
+- Render prerequisite summaries as display-only table evidence without any
+  controls or execution affordances.
+
+### Phase 7729 - Mock Backend Derivation
+
+- Update mock backend command-suite fixtures so prerequisite summaries are
+  derived from fixture command prerequisites instead of hand-maintained rows.
+
+### Phase 7730 - Backend Focused Tests
+
+- Assert summary counts, representative blocked/passed prerequisite families,
+  authority flags, and no-live posture.
+
+### Phase 7731 - Frontend Focused Tests
+
+- Assert mock parity, adapter/render behavior, active metadata, and
+  no-authority display.
+
+### Phase 7732 - API Documentation
+
+- Update API references and examples for prerequisite summary fields and
+  no-live/no-authority semantics.
+
+### Phase 7733 - Capability Matrix
+
+- Update the capability matrix so M57 lists prerequisite summaries as
+  backend-owned read-only evidence.
+
+### Phase 7734 - Maintainer Handoff
+
+- Update agent state, roadmap, and maintainer handoff docs for active
+  `7721-7740` and completed `7701-7720`.
+
+### Phase 7735 - Contextless Review Prep
+
+- Record planned review scope, exact phase phrase, and forbidden authority
+  claims before spawning reviewers.
+
+### Phase 7736 - Blind/Contextless Review
+
+- Run contextless review for the backend/frontend prerequisite summary path and
+  remediate any blocker.
+
+### Phase 7737 - Autonomous Validation
+
+- Run backend and frontend autonomous queue validators after docs and metadata
+  are synchronized.
+
+### Phase 7738 - Focused Validation
+
+- Run focused backend contract tests and frontend type/API/unit checks covering
+  the changed behavior.
+
+### Phase 7739 - Phase-End Hygiene
+
+- Run final status/diff checks, stale process checks if needed, and close
+  phase-scoped or stale unused subagents after findings are consumed.
+
+### Phase 7740 - Commit And Push
+
+- Commit and push both repos after validation passes and record live Coinbase
+  execution as not run with submitted/executed notional `0` USDC.
+
+## Completed Phases 7701-7720
 
 Batch label: Futures/Perpetuals Command Enablement Contextless-Review Blocker Summary Evidence.
 
-These phases continue M57 after completed `7681-7700` exposed disabled
+These completed phases continued M57 after completed `7681-7700` exposed disabled
 validation-record acceptance contextless-review acceptance evidence. The
 concrete gap is that command enablement blockers already require
 `CONTEXTLESS_REVIEW_GATE`, but the command-suite blocker summary did not expose
-the latest blind-review evidence as typed backend-owned readback. Active
-`7701-7720` must add read-only command enablement contextless-review evidence
+the latest blind-review evidence as typed backend-owned readback. Completed
+`7701-7720` added read-only command enablement contextless-review evidence
 to the existing blocker summary, carry the latest `7681-7700` blind-review
 result, and make clear that this evidence does not clear command enablement.
 The evidence is display-only: review passage is not command admission,
@@ -98,7 +219,7 @@ approval, cap/guard passage, reconciliation execution, Coinbase execution,
 futures/order state mutation, browser authority, BFF execution authority, or
 spot-rule authority.
 
-Active M57 `7701-7720` evidence adds futures command enablement
+Completed M57 `7701-7720` evidence adds futures command enablement
 contextless-review blocker summary evidence while completed M57 `7681-7700`
 carries forward futures request payload validation record execution-eligibility
 resolution-plan step review input store record-validation remediation
@@ -106,14 +227,14 @@ dependency work-item claim-trace clearance-step review input store
 record-validation check output schema field-constraint source-ref
 validation-record acceptance contextless-review acceptance evidence.
 
-Active `7701-7720` command enablement contextless-review evidence must be
+Completed `7701-7720` command enablement contextless-review evidence was
 implemented through the existing command-suite read service, Admin API models,
 OpenAPI, generated frontend schema, frontend adapter/view-model display,
 bounded mock fixtures, focused backend/frontend tests, docs, and
 blind/contextless review. It must not introduce a new registry ladder unless a
 new blocker demands it.
 
-Exact autonomous phrase: Active M57 `7701-7720` evidence adds futures command enablement contextless-review blocker summary evidence while completed M57 `7681-7700` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence.
+Exact historical phrase: Completed M57 `7701-7720` evidence adds futures command enablement contextless-review blocker summary evidence while completed M57 `7681-7700` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence.
 
 ### Phase 7701 - Prior Range Closure
 

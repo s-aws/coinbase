@@ -4238,6 +4238,30 @@ class AdminFuturesCommandPrerequisiteItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandPrerequisiteSummaryItem(BaseModel):
+    """Backend-owned aggregate summary for one futures command prerequisite."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    prerequisite: AdminFuturesCommandPrerequisite
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    command_count: int = Field(default=0, ge=0)
+    affected_commands: list[AdminFuturesCommandAction] = Field(default_factory=list)
+    resolved_command_count: int = Field(default=0, ge=0)
+    blocking_command_count: int = Field(default=0, ge=0)
+    evidence_route_count: int = Field(default=0, ge=0)
+    evidence_routes: list[str] = Field(default_factory=list)
+    required_evidence_ref_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRequestFieldItem(BaseModel):
     """One planned futures/perpetual command request field row."""
 
@@ -14381,6 +14405,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     command_draft_allowed_count: int = Field(default=0, ge=0)
     prerequisite_count: int = Field(default=0, ge=0)
     blocking_prerequisite_count: int = Field(default=0, ge=0)
+    prerequisite_summary_count: int = Field(default=0, ge=0)
+    prerequisite_summary_blocking_count: int = Field(default=0, ge=0)
+    prerequisite_summaries: list[AdminFuturesCommandPrerequisiteSummaryItem] = Field(
+        default_factory=list
+    )
     request_field_count: int = Field(default=0, ge=0)
     required_request_field_count: int = Field(default=0, ge=0)
     blocking_request_field_count: int = Field(default=0, ge=0)

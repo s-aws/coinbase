@@ -123,16 +123,19 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7681-7700` under M57.
-- Active autonomous range: `7701-7720` under M57.
-- Current active range: `7701-7720` adds command enablement
-  contextless-review blocker summary evidence derived from the latest
-  `7681-7700` blind-review result. It remains disabled, no-live,
-  backend-owned evidence only and must not clear command enablement, pass
-  contextless review for command readiness, admit commands, pass approval,
-  cap/guard, or reconciliation gates, execute reconciliation, call Coinbase,
-  mutate futures/order/exchange state, grant browser/BFF authority, or import
-  spot-only rules.
+- Latest completed autonomous range: `7701-7720` under M57.
+- Active autonomous range: `7721-7740` under M57.
+- Current active range: `7721-7740` adds futures command prerequisite summary
+  evidence derived from existing per-command prerequisites. It remains
+  disabled, no-live, backend-owned evidence only and cannot resolve
+  prerequisites, clear command enablement, pass contextless review for command
+  readiness, admit commands, pass approval, cap/guard, or reconciliation gates,
+  execute reconciliation, call Coinbase, mutate futures/order/exchange state,
+  grant browser/BFF authority, or import spot-only rules.
+- Completed `7701-7720` added command enablement contextless-review blocker
+  summary evidence derived from the latest `7681-7700` blind-review result. It
+  remains carried-forward disabled, no-live, backend-owned evidence only and
+  must not clear command enablement or grant execution authority.
 - Completed range validation: PASS after remediation for
   validation-record acceptance contextless-review acceptance evidence and
   bounded command-suite materialized samples. Backend source serialization,

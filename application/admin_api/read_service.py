@@ -132,6 +132,7 @@ from .models import (
     AdminFuturesCommandEnablementSequenceCommandTraceItem,
     AdminFuturesCommandEnablementSequenceStepItem,
     AdminFuturesCommandPrerequisiteItem,
+    AdminFuturesCommandPrerequisiteSummaryItem,
     AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
@@ -699,7 +700,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7701-7720"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7721-7740"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1003,9 +1004,14 @@ def _compact_futures_command_suite_api_payload(
                 parent_key == "semantic_guards"
                 and key in FUTURES_COMMAND_SUITE_SEMANTIC_GUARD_REF_FIELDS
             )
+            preserve_prerequisite_summary_refs = (
+                parent_key == "prerequisite_summaries"
+                and key == "required_evidence_refs"
+            )
             if (
                 key in FUTURES_COMMAND_SUITE_API_COMPACT_FIELDS
                 and not preserve_semantic_guard_refs
+                and not preserve_prerequisite_summary_refs
             ):
                 continue
             if (
@@ -44577,6 +44583,88 @@ class AdminApiReadService:
                 ]
             )
 
+        def prerequisite_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandPrerequisiteSummaryItem]:
+            rows: list[AdminFuturesCommandPrerequisiteSummaryItem] = []
+            for prerequisite_id in AdminFuturesCommandPrerequisite:
+                prerequisite_pairs = [
+                    (command_item, prerequisite_item)
+                    for command_item in command_items
+                    for prerequisite_item in command_item.prerequisites
+                    if prerequisite_item.prerequisite == prerequisite_id
+                ]
+                if not prerequisite_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _prerequisite_item in prerequisite_pairs
+                    )
+                )
+                resolved_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, prerequisite_item in prerequisite_pairs
+                        if prerequisite_item.resolved
+                    )
+                )
+                blocking_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, prerequisite_item in prerequisite_pairs
+                        if prerequisite_item.blocking
+                    )
+                )
+                evidence_routes = unique_strings(
+                    [
+                        prerequisite_item.evidence_route
+                        for _command_item, prerequisite_item in prerequisite_pairs
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        prerequisite_item.evidence_route
+                        or prerequisite_item.prerequisite.value
+                        for _command_item, prerequisite_item in prerequisite_pairs
+                        if prerequisite_item.blocking
+                    ]
+                )
+                blocking = bool(blocking_commands)
+                rows.append(
+                    AdminFuturesCommandPrerequisiteSummaryItem(
+                        prerequisite=prerequisite_id,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        resolved_command_count=len(resolved_commands),
+                        blocking_command_count=len(blocking_commands),
+                        evidence_route_count=len(evidence_routes),
+                        evidence_routes=evidence_routes,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        detail=(
+                            f"{prerequisite_id.value} applies to "
+                            f"{len(affected_commands)} futures/perpetual "
+                            f"command contract(s); {len(blocking_commands)} "
+                            "remain blocked. This aggregate summary is "
+                            "backend-owned read-only evidence and cannot "
+                            "resolve prerequisites, clear command enablement, "
+                            "call Coinbase, execute reconciliation, mutate "
+                            "futures/order state, grant browser/BFF authority, "
+                            "or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        prerequisite_summaries = prerequisite_summaries_for(commands)
+
         def blocker_summary(
             blocker: AdminFuturesCommandEnablementBlocker,
             *,
@@ -45005,6 +45093,11 @@ class AdminApiReadService:
             blocking_prerequisite_count=sum(
                 command.blocking_prerequisite_count for command in commands
             ),
+            prerequisite_summary_count=len(prerequisite_summaries),
+            prerequisite_summary_blocking_count=sum(
+                1 for item in prerequisite_summaries if item.blocking
+            ),
+            prerequisite_summaries=prerequisite_summaries,
             request_field_count=sum(command.request_field_count for command in commands),
             required_request_field_count=sum(
                 command.required_request_field_count for command in commands

@@ -326,6 +326,7 @@ from core.enums import (
     AdminFuturesCommandEnablementBlocker,
     AdminFuturesCommandEvidenceRoute,
     AdminFuturesCommandExecutionEligibilityBlocker,
+    AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptanceBlocker as SourceRefRecordAcceptanceBlocker,
@@ -11181,6 +11182,8 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert command_suite.command_enablement_sequence_step_blocking_count == 5
     assert command_suite.command_enablement_sequence_command_trace_count == 20
     assert command_suite.command_enablement_sequence_command_trace_blocking_count == 20
+    assert command_suite.prerequisite_summary_count == 13
+    assert command_suite.prerequisite_summary_blocking_count == 11
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
@@ -11226,6 +11229,49 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         AdminFuturesCommandEnablementBlocker.ADMIN_COMMAND_ROUTE
         not in summaries_by_blocker
     )
+
+    prerequisite_summaries_by_id = {
+        item.prerequisite: item for item in command_suite.prerequisite_summaries
+    }
+    assert set(prerequisite_summaries_by_id) == set(AdminFuturesCommandPrerequisite)
+    position_scope_summary = prerequisite_summaries_by_id[
+        AdminFuturesCommandPrerequisite.POSITION_SCOPE
+    ]
+    assert position_scope_summary.status == AdminApiGateStatus.BLOCKED
+    assert position_scope_summary.command_count == 4
+    assert position_scope_summary.resolved_command_count == 1
+    assert position_scope_summary.blocking_command_count == 3
+    assert position_scope_summary.evidence_routes == ["/api/v1/futures/positions"]
+    assert position_scope_summary.required_evidence_refs == [
+        "/api/v1/futures/positions",
+        "position_scope",
+    ]
+    assert position_scope_summary.backend_owned is True
+    assert position_scope_summary.read_only is True
+    assert position_scope_summary.spot_rule_authority is False
+    assert position_scope_summary.browser_authority == "display_only"
+    assert position_scope_summary.bff_authority == "forward_only_no_execution"
+    assert "cannot resolve prerequisites" in position_scope_summary.detail
+    margin_summary = prerequisite_summaries_by_id[
+        AdminFuturesCommandPrerequisite.MARGIN
+    ]
+    assert margin_summary.status == AdminApiGateStatus.PASSED
+    assert margin_summary.blocking is False
+    assert margin_summary.resolved_command_count == 3
+    assert margin_summary.blocking_command_count == 0
+    assert margin_summary.required_evidence_refs == []
+    adapter_summary = prerequisite_summaries_by_id[
+        AdminFuturesCommandPrerequisite.LIVE_EXECUTION_ADAPTER
+    ]
+    assert adapter_summary.status == AdminApiGateStatus.BLOCKED
+    assert adapter_summary.command_count == 4
+    assert adapter_summary.required_evidence_refs == ["live_execution_adapter"]
+    backend_service_summary = prerequisite_summaries_by_id[
+        AdminFuturesCommandPrerequisite.BACKEND_COMMAND_SERVICE
+    ]
+    assert backend_service_summary.status == AdminApiGateStatus.PASSED
+    assert backend_service_summary.resolved_command_count == 4
+    assert backend_service_summary.required_evidence_refs == []
 
     contextless_summary = summaries_by_blocker[
         AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE

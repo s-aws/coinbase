@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7701-7720"
-APPROVED_PHASES = tuple(range(7701, 7721))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7681-7700"
+APPROVED_PHASE_RANGE = "7721-7740"
+APPROVED_PHASES = tuple(range(7721, 7741))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7701-7720"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7701-7720` evidence adds futures command enablement contextless-review blocker summary evidence while completed M57 `7681-7700` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence.",
+            "Active M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1582,11 +1582,10 @@ def _check_agent_state_docs() -> QueueCheck:
     required = [
         f"Active approved range: `{APPROVED_PHASE_RANGE}`",
         f"Latest completed and pushed range before this work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
-        "futures command enablement contextless-review blocker summary evidence",
-        "CONTEXTLESS_REVIEW_GATE",
-        "do not resolve command readiness",
-        "enablement clearance",
-        "contextless review passage for command readiness",
+        "futures command prerequisite summary evidence",
+        "prerequisite_summaries",
+        "cannot resolve prerequisites",
+        "clear command enablement",
         "approval passage",
         "cap/guard passage",
         "reconciliation passage",
@@ -1803,9 +1802,9 @@ def _check_contextless_review_log_docs() -> QueueCheck:
             "No live Coinbase execution is planned",
             "actual submitted/executed notional remains `0` USDC",
             "Boundary evidence for current",
-            "command enablement contextless-review blocker summary evidence",
+            "futures command prerequisite summary evidence",
+            "not prerequisite resolution",
             "not command enablement clearance",
-            "not contextless review passage for command readiness",
             "not Coinbase execution",
             "not reconciliation execution",
             "not futures/order/exchange state mutation",

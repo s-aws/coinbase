@@ -49,11 +49,28 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7701-7720
+## Current Active Phases 7721-7740
+
+Batch label: Futures/Perpetuals Command Prerequisite Summary Evidence.
+
+Current M57 work adds backend-owned read-only prerequisite summary evidence to
+the futures command-suite response after completed `7701-7720` command
+enablement contextless-review blocker summary evidence. The backend-owned
+contract is implemented through existing per-command prerequisite rows,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/display, and bounded mock fixtures. The rows must
+remain no-live display evidence only and must not resolve prerequisites, clear
+command enablement, admit commands, pass approval/cap/guard/reconciliation
+gates, call Coinbase, mutate futures/order/exchange state, or grant browser/BFF
+or spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.
+
+## Completed Phases 7701-7720
 
 Batch label: Futures/Perpetuals Command Enablement Contextless-Review Blocker Summary Evidence.
 
-Current M57 work adds backend-owned read-only contextless-review evidence to
+Completed M57 work added backend-owned read-only contextless-review evidence to
 the existing futures command enablement blocker summary after completed
 `7681-7700` validation-record acceptance contextless-review acceptance
 evidence. The backend-owned contract is implemented through the existing
@@ -64,7 +81,7 @@ command enablement, admit commands, pass approval/cap/guard/reconciliation
 gates, call Coinbase, mutate futures/order/exchange state, or grant browser/BFF
 or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7701-7720` evidence adds futures command enablement contextless-review blocker summary evidence while completed M57 `7681-7700` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence.
+Completed autonomous phrase: Completed M57 `7701-7720` evidence adds futures command enablement contextless-review blocker summary evidence while completed M57 `7681-7700` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence.
 
 ## Completed Phases 7681-7700
 

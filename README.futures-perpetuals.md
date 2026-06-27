@@ -54,17 +54,22 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7701-7720` evidence adds futures command enablement
+- Active M57 `7721-7740` evidence adds futures command prerequisite summary
+  evidence while completed M57 `7701-7720` carries forward futures command
+  enablement contextless-review blocker summary evidence. The
+  `prerequisite_summaries` rows are derived from existing per-command
+  prerequisite rows and are read-only/no-live evidence only. They do not
+  resolve prerequisites, clear command enablement, pass command readiness, call
+  Coinbase, execute reconciliation, mutate state, grant browser/BFF authority,
+  or import spot-only rules.
+  Exact active phrase: Active M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.
+- Completed M57 `7701-7720` evidence adds futures command enablement
   contextless-review blocker summary evidence while completed M57 `7681-7700`
   carries forward futures request payload validation record execution-eligibility
   resolution-plan step review input store record-validation remediation
   dependency work-item claim-trace clearance-step review input store
   record-validation check output schema field-constraint source-ref
-  validation-record acceptance contextless-review acceptance evidence. The
-  review evidence is read-only and does not clear command enablement, pass
-  command readiness, call Coinbase, execute reconciliation, mutate state, grant
-  browser/BFF authority, or import spot-only rules.
-  Exact active phrase: Active M57 `7701-7720` evidence adds futures command enablement contextless-review blocker summary evidence while completed M57 `7681-7700` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence.
+  validation-record acceptance contextless-review acceptance evidence.
 - Completed M57 `7681-7700` evidence adds futures request payload validation
   record execution-eligibility resolution-plan step review input store
   record-validation remediation dependency work-item claim-trace clearance-step
