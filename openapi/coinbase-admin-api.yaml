@@ -90478,6 +90478,242 @@ components:
       - detail
       title: AdminFuturesCommandRiskProofRequirementItem
       description: One backend-owned futures/perpetual proof requirement before commands.
+    AdminFuturesCommandRiskProofRequirementSummaryItem:
+      properties:
+        proof_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        affected_commands:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandAction'
+          type: array
+          title: Affected Commands
+        blocking_command_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Command Count
+          default: 0
+        semantic_guard_count:
+          type: integer
+          minimum: 0.0
+          title: Semantic Guard Count
+          default: 0
+        semantic_guards:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandSemanticGuard'
+          type: array
+          title: Semantic Guards
+        applies_to_field_count:
+          type: integer
+          minimum: 0.0
+          title: Applies To Field Count
+          default: 0
+        applies_to_fields:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+          type: array
+          title: Applies To Fields
+        evidence_route_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Route Count
+          default: 0
+        evidence_routes:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandEvidenceRoute'
+          type: array
+          title: Evidence Routes
+        required_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Ref Count
+          default: 0
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        missing_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Ref Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        runtime_evidence_observed_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Evidence Observed Count
+          default: 0
+        semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Semantic Contract Requirement Count
+          default: 0
+        blocking_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Semantic Contract Requirement Count
+          default: 0
+        registered_semantic_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Semantic Contract Count
+          default: 0
+        runtime_observed_semantic_contract_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Observed Semantic Contract Requirement Count
+          default: 0
+        proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Contract Count
+          default: 0
+        blocking_proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Proof Contract Count
+          default: 0
+        registered_proof_route_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Proof Route Count
+          default: 0
+        enabled_proof_writer_count:
+          type: integer
+          minimum: 0.0
+          title: Enabled Proof Writer Count
+          default: 0
+        payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Payload Field Count
+          default: 0
+        blocking_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Payload Field Count
+          default: 0
+        present_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Present Payload Field Count
+          default: 0
+        registered_payload_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Payload Validation Count
+          default: 0
+        record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Record Contract Count
+          default: 0
+        blocking_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Record Contract Count
+          default: 0
+        registered_record_store_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Record Store Count
+          default: 0
+        registered_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Registered Record Validation Count
+          default: 0
+        accepted_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Record Contract Count
+          default: 0
+        acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Acceptance Criterion Count
+          default: 0
+        blocking_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Acceptance Criterion Count
+          default: 0
+        accepted_acceptance_criterion_count:
+          type: integer
+          minimum: 0.0
+          title: Accepted Acceptance Criterion Count
+          default: 0
+        satisfies_risk_proof_count:
+          type: integer
+          minimum: 0.0
+          title: Satisfies Risk Proof Count
+          default: 0
+        command_route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Command Route Registered Count
+          default: 0
+        command_draft_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Allowed Count
+          default: 0
+        execution_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Execution Allowed Count
+          default: 0
+        live_coinbase_orders_ran_count:
+          type: integer
+          minimum: 0.0
+          title: Live Coinbase Orders Ran Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - proof_kind
+      - detail
+      title: AdminFuturesCommandRiskProofRequirementSummaryItem
+      description: Backend-owned aggregate summary for one futures risk proof kind.
     AdminFuturesCommandRiskProofSemanticContractDefinitionItem:
       properties:
         proof_kind:
@@ -94046,6 +94282,21 @@ components:
           minimum: 0.0
           title: Blocking Risk Proof Requirement Count
           default: 0
+        risk_proof_requirement_summary_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Requirement Summary Count
+          default: 0
+        risk_proof_requirement_summary_blocking_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Requirement Summary Blocking Count
+          default: 0
+        risk_proof_requirement_summaries:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRequirementSummaryItem'
+          type: array
+          title: Risk Proof Requirement Summaries
         risk_proof_record_resolver_count:
           type: integer
           minimum: 0.0

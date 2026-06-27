@@ -1,4 +1,4 @@
-﻿# Futures/Perpetuals Examples
+# Futures/Perpetuals Examples
 
 These examples use the enterprise Admin API. They are read-only examples and
 do not place, close, cancel, or modify Coinbase orders.
@@ -11,16 +11,19 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7761-7780 range targets explicit M57 futures/perpetual command
-semantic-guard summary evidence. `GET /api/v1/futures/command-suite` reports
-`"approved_phase_range": "7761-7780"`, `semantic_guard_summary_count`,
-`semantic_guard_summary_blocking_count`, and `semantic_guard_summaries` rows
-derived from existing per-command semantic guard rows. These rows are
-display-only evidence and do not evaluate semantic guards, accept risk proofs,
-enable proof writers, clear command enablement, admit commands, call Coinbase,
-execute reconciliation, mutate state, grant browser/BFF authority, or import
-spot-rule authority. Completed 7741-7760 command request-field summary
-evidence remains carried-forward history. Completed 7721-7740 command
+The active 7781-7800 range targets explicit M57 futures/perpetual command
+risk-proof requirement summary evidence. `GET /api/v1/futures/command-suite`
+reports `"approved_phase_range": "7781-7800"`,
+`risk_proof_requirement_summary_count`,
+`risk_proof_requirement_summary_blocking_count`, and
+`risk_proof_requirement_summaries` rows derived from existing per-command
+risk-proof requirement rows. These rows are display-only evidence and do not
+accept risk proofs, register proof routes, enable proof writers, clear command
+enablement, admit commands, call Coinbase, execute reconciliation, mutate
+state, grant browser/BFF authority, or import spot-rule authority. Completed
+7761-7780 command semantic-guard summary evidence remains carried-forward
+history. Completed 7741-7760 command request-field summary evidence remains
+carried-forward history. Completed 7721-7740 command
 prerequisite summary evidence remains carried-forward history. Completed
 7701-7720 command enablement contextless-review
 blocker summary evidence remains carried-forward history. Completed 7681-7700 request payload validation record

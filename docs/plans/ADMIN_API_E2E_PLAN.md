@@ -49,11 +49,27 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7761-7780
+## Current Active Phases 7781-7800
+
+Batch label: Futures/Perpetuals Command Risk-Proof Requirement Summary Evidence.
+
+Current M57 `7781-7800` adds backend-owned read-only
+`risk_proof_requirement_summaries` to
+`GET /api/v1/futures/command-suite` after completed `7761-7780`
+semantic-guard summary evidence. The risk-proof requirement summary rows are
+derived from existing per-command risk-proof requirement rows. They cannot
+accept risk proofs, register proof routes, enable proof writers, clear command
+enablement, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order state, grant browser/BFF authority, or import spot-rule
+authority.
+
+Exact autonomous phrase: Active M57 `7781-7800` evidence adds futures command risk-proof requirement summary evidence while completed M57 `7761-7780` carries forward futures command semantic-guard summary evidence.
+
+## Completed Phases 7761-7780
 
 Batch label: Futures/Perpetuals Command Semantic-Guard Summary Evidence.
 
-Current M57 `7761-7780` adds backend-owned read-only
+Completed M57 `7761-7780` added backend-owned read-only
 `semantic_guard_summaries` to `GET /api/v1/futures/command-suite` after
 completed `7741-7760` request-field summary evidence. The semantic-guard
 summary rows are derived from existing per-command semantic guard rows. They
@@ -62,7 +78,7 @@ clear command enablement, admit commands, call Coinbase, execute
 reconciliation, mutate futures/order state, grant browser/BFF authority, or
 import spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7761-7780` evidence adds futures command semantic-guard summary evidence while completed M57 `7741-7760` carries forward futures command request-field summary evidence.
+Exact historical phrase: Completed M57 `7761-7780` evidence adds futures command semantic-guard summary evidence while completed M57 `7741-7760` carries forward futures command request-field summary evidence.
 
 ## Completed Phases 7741-7760
 

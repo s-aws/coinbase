@@ -1,4 +1,4 @@
-﻿# Futures/Perpetuals Admin Reads
+# Futures/Perpetuals Admin Reads
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,
@@ -37,15 +37,16 @@ and position routes return
 blocked/no-live posture through route-bound draft, execution, browser, BFF,
 and notional evidence fields.
 
-Active M57 `7761-7780` evidence adds futures command semantic-guard summary
-evidence while completed M57 `7741-7760` carries forward futures command
-request-field summary evidence. The `semantic_guard_summaries` rows are
-read-only evidence and cannot evaluate semantic guards, accept risk proofs,
-enable proof writers, clear command enablement, admit commands, call
-Coinbase, execute reconciliation, mutate futures/order state, grant
-browser/BFF authority, or import spot-rule authority.
+Active M57 `7781-7800` evidence adds futures command risk-proof requirement
+summary evidence while completed M57 `7761-7780` carries forward futures
+command semantic-guard summary evidence. The
+`risk_proof_requirement_summaries` rows are read-only evidence and cannot
+accept risk proofs, register proof routes, enable proof writers, clear command
+enablement, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order state, grant browser/BFF authority, or import spot-rule
+authority.
 
-Exact autonomous phrase: Active M57 `7761-7780` evidence adds futures command semantic-guard summary evidence while completed M57 `7741-7760` carries forward futures command request-field summary evidence.
+Exact autonomous phrase: Active M57 `7781-7800` evidence adds futures command risk-proof requirement summary evidence while completed M57 `7761-7780` carries forward futures command semantic-guard summary evidence.
 
 ## Key Concepts
 
@@ -64,15 +65,19 @@ Exact autonomous phrase: Active M57 `7761-7780` evidence adds futures command se
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7761-7780` evidence adds futures command semantic-guard summary
-  evidence while completed M57 `7741-7760` carries forward futures command
-  request-field summary evidence. The `semantic_guard_summaries` rows are
-  derived from existing per-command semantic guard rows and are
-  read-only/no-live evidence only. They do not evaluate semantic guards,
-  accept risk proofs, enable proof writers, clear command enablement, admit
-  commands, call Coinbase, execute reconciliation, mutate state, grant
-  browser/BFF authority, or import spot-only rules.
-  Exact active phrase: Active M57 `7761-7780` evidence adds futures command semantic-guard summary evidence while completed M57 `7741-7760` carries forward futures command request-field summary evidence.
+- Active M57 `7781-7800` evidence adds futures command risk-proof requirement
+  summary evidence while completed M57 `7761-7780` carries forward futures
+  command semantic-guard summary evidence. The
+  `risk_proof_requirement_summaries` rows are derived from existing
+  per-command risk-proof requirement rows and are read-only/no-live evidence
+  only. They do not accept risk proofs, register proof routes, enable proof
+  writers, clear command enablement, admit commands, call Coinbase, execute
+  reconciliation, mutate state, grant browser/BFF authority, or import
+  spot-only rules.
+  Exact active phrase: Active M57 `7781-7800` evidence adds futures command risk-proof requirement summary evidence while completed M57 `7761-7780` carries forward futures command semantic-guard summary evidence.
+- Completed M57 `7761-7780` evidence adds futures command semantic-guard
+  summary evidence while completed M57 `7741-7760` carries forward futures
+  command request-field summary evidence.
 - Completed M57 `7741-7760` evidence adds futures command request-field
   summary evidence while completed M57 `7721-7740` carries forward futures
   command prerequisite summary evidence.

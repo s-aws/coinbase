@@ -11192,6 +11192,10 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert command_suite.risk_semantic_guard_count == 12
     assert command_suite.semantic_guard_summary_count == 13
     assert command_suite.semantic_guard_summary_blocking_count == 13
+    assert command_suite.risk_proof_requirement_count == 20
+    assert command_suite.blocking_risk_proof_requirement_count == 20
+    assert command_suite.risk_proof_requirement_summary_count == 9
+    assert command_suite.risk_proof_requirement_summary_blocking_count == 9
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
@@ -11360,6 +11364,47 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert product_scope_guard_summary.command_count == 2
     assert product_scope_guard_summary.identity_semantic_command_count == 2
     assert product_scope_guard_summary.risk_semantic_command_count == 0
+
+    risk_proof_summaries_by_id = {
+        item.proof_kind: item
+        for item in command_suite.risk_proof_requirement_summaries
+    }
+    assert set(risk_proof_summaries_by_id) == set(
+        AdminFuturesCommandRiskProofKind
+    )
+    margin_proof_summary = risk_proof_summaries_by_id[
+        AdminFuturesCommandRiskProofKind.MARGIN_COLLATERAL
+    ]
+    assert margin_proof_summary.status == AdminApiGateStatus.BLOCKED
+    assert margin_proof_summary.blocking is True
+    assert margin_proof_summary.command_count == 3
+    assert margin_proof_summary.blocking_command_count == 3
+    assert margin_proof_summary.semantic_guard_count == 1
+    assert margin_proof_summary.evidence_route_count == 2
+    assert margin_proof_summary.required_evidence_ref_count == 2
+    assert margin_proof_summary.missing_evidence_ref_count == 2
+    assert margin_proof_summary.proof_contract_count == 6
+    assert margin_proof_summary.blocking_proof_contract_count == 6
+    assert margin_proof_summary.registered_proof_route_count == 0
+    assert margin_proof_summary.enabled_proof_writer_count == 0
+    assert margin_proof_summary.acceptance_criterion_count == 15
+    assert margin_proof_summary.blocking_acceptance_criterion_count == 15
+    assert margin_proof_summary.backend_owned is True
+    assert margin_proof_summary.read_only is True
+    assert margin_proof_summary.spot_rule_authority is False
+    assert margin_proof_summary.browser_authority == "display_only"
+    assert margin_proof_summary.bff_authority == "forward_only_no_execution"
+    assert "cannot accept risk proofs" in margin_proof_summary.detail
+    reconciliation_proof_summary = risk_proof_summaries_by_id[
+        AdminFuturesCommandRiskProofKind.RECONCILIATION_PLAN
+    ]
+    assert reconciliation_proof_summary.command_count == 4
+    assert reconciliation_proof_summary.proof_contract_count == 8
+    assert reconciliation_proof_summary.acceptance_criterion_count == 20
+    assert reconciliation_proof_summary.command_route_registered_count == 0
+    assert reconciliation_proof_summary.command_draft_allowed_count == 0
+    assert reconciliation_proof_summary.execution_allowed_count == 0
+    assert reconciliation_proof_summary.live_coinbase_orders_ran_count == 0
 
     contextless_summary = summaries_by_blocker[
         AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE

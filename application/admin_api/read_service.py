@@ -226,6 +226,7 @@ from .models import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInput,
     AdminFuturesCommandRiskProofRecordValidationRemediationItem,
     AdminFuturesCommandRiskProofRequirementItem,
+    AdminFuturesCommandRiskProofRequirementSummaryItem,
     AdminFuturesCommandRiskProofSemanticContractDefinitionItem,
     AdminFuturesCommandRiskProofSemanticContractRequirementItem,
     AdminFuturesCommandRiskProofSemanticContractValidationGateItem,
@@ -702,7 +703,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7761-7780"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7781-7800"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1010,10 +1011,15 @@ def _compact_futures_command_suite_api_payload(
                 parent_key == "prerequisite_summaries"
                 and key == "required_evidence_refs"
             )
+            preserve_risk_proof_requirement_summary_refs = (
+                parent_key == "risk_proof_requirement_summaries"
+                and key in {"required_evidence_refs", "missing_evidence_refs"}
+            )
             if (
                 key in FUTURES_COMMAND_SUITE_API_COMPACT_FIELDS
                 and not preserve_semantic_guard_refs
                 and not preserve_prerequisite_summary_refs
+                and not preserve_risk_proof_requirement_summary_refs
             ):
                 continue
             if (
@@ -44946,6 +44952,220 @@ class AdminApiReadService:
 
         semantic_guard_summaries = semantic_guard_summaries_for(commands)
 
+        def risk_proof_requirement_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandRiskProofRequirementSummaryItem]:
+            rows: list[AdminFuturesCommandRiskProofRequirementSummaryItem] = []
+            for proof_kind_id in AdminFuturesCommandRiskProofKind:
+                proof_pairs = [
+                    (command_item, proof_requirement)
+                    for command_item in command_items
+                    for proof_requirement in command_item.risk_proof_requirements
+                    if proof_requirement.proof_kind == proof_kind_id
+                ]
+                if not proof_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _proof_requirement in proof_pairs
+                    )
+                )
+                blocking_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, proof_requirement in proof_pairs
+                        if proof_requirement.blocking
+                    )
+                )
+                semantic_guards = unique_enum_values(
+                    [
+                        proof_requirement.semantic_guard
+                        for _command_item, proof_requirement in proof_pairs
+                    ]
+                )
+                applies_to_fields = unique_enum_values(
+                    [
+                        field
+                        for _command_item, proof_requirement in proof_pairs
+                        for field in proof_requirement.applies_to_fields
+                    ]
+                )
+                evidence_routes = unique_enum_values(
+                    [
+                        route
+                        for _command_item, proof_requirement in proof_pairs
+                        for route in proof_requirement.evidence_routes
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        evidence_ref
+                        for _command_item, proof_requirement in proof_pairs
+                        for evidence_ref in proof_requirement.required_evidence_refs
+                    ]
+                )
+                missing_evidence_refs = unique_strings(
+                    [
+                        evidence_ref
+                        for _command_item, proof_requirement in proof_pairs
+                        for evidence_ref in proof_requirement.missing_evidence_refs
+                    ]
+                )
+                blocking = bool(blocking_commands)
+                rows.append(
+                    AdminFuturesCommandRiskProofRequirementSummaryItem(
+                        proof_kind=proof_kind_id,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        blocking_command_count=len(blocking_commands),
+                        semantic_guard_count=len(semantic_guards),
+                        semantic_guards=semantic_guards,
+                        applies_to_field_count=len(applies_to_fields),
+                        applies_to_fields=applies_to_fields,
+                        evidence_route_count=len(evidence_routes),
+                        evidence_routes=evidence_routes,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        missing_evidence_ref_count=len(missing_evidence_refs),
+                        missing_evidence_refs=missing_evidence_refs,
+                        runtime_evidence_observed_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.runtime_evidence_observed
+                        ),
+                        semantic_contract_requirement_count=sum(
+                            proof_requirement.semantic_contract_requirement_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        blocking_semantic_contract_requirement_count=sum(
+                            proof_requirement.blocking_semantic_contract_requirement_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        registered_semantic_contract_count=sum(
+                            proof_requirement.registered_semantic_contract_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        runtime_observed_semantic_contract_requirement_count=sum(
+                            proof_requirement.runtime_observed_semantic_contract_requirement_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        proof_contract_count=sum(
+                            proof_requirement.proof_contract_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        blocking_proof_contract_count=sum(
+                            proof_requirement.blocking_proof_contract_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        registered_proof_route_count=sum(
+                            proof_requirement.registered_proof_route_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        enabled_proof_writer_count=sum(
+                            proof_requirement.enabled_proof_writer_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        payload_field_count=sum(
+                            proof_requirement.payload_field_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        blocking_payload_field_count=sum(
+                            proof_requirement.blocking_payload_field_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        present_payload_field_count=sum(
+                            proof_requirement.present_payload_field_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        registered_payload_validation_count=sum(
+                            proof_requirement.registered_payload_validation_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        record_contract_count=sum(
+                            proof_requirement.record_contract_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        blocking_record_contract_count=sum(
+                            proof_requirement.blocking_record_contract_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        registered_record_store_count=sum(
+                            proof_requirement.registered_record_store_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        registered_record_validation_count=sum(
+                            proof_requirement.registered_record_validation_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        accepted_record_contract_count=sum(
+                            proof_requirement.accepted_record_contract_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        acceptance_criterion_count=sum(
+                            proof_requirement.acceptance_criterion_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        blocking_acceptance_criterion_count=sum(
+                            proof_requirement.blocking_acceptance_criterion_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        accepted_acceptance_criterion_count=sum(
+                            proof_requirement.accepted_acceptance_criterion_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        satisfies_risk_proof_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.satisfies_risk_proof
+                        ),
+                        command_route_registered_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.execution_allowed
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{proof_kind_id.value} proof requirements apply to "
+                            f"{len(affected_commands)} futures/perpetual command "
+                            f"contract(s); {len(blocking_commands)} remain "
+                            "blocked by risk-proof evidence. This aggregate "
+                            "summary is backend-owned read-only evidence and "
+                            "cannot accept risk proofs, register proof routes, "
+                            "enable proof writers, clear command enablement, "
+                            "admit commands, call Coinbase, execute "
+                            "reconciliation, mutate futures/order state, grant "
+                            "browser/BFF authority, or import spot-rule "
+                            "authority."
+                        ),
+                    )
+                )
+            return rows
+
+        risk_proof_requirement_summaries = risk_proof_requirement_summaries_for(
+            commands
+        )
+
         def blocker_summary(
             blocker: AdminFuturesCommandEnablementBlocker,
             *,
@@ -46605,6 +46825,13 @@ class AdminApiReadService:
             blocking_risk_proof_requirement_count=sum(
                 command.blocking_risk_proof_requirement_count for command in commands
             ),
+            risk_proof_requirement_summary_count=len(
+                risk_proof_requirement_summaries
+            ),
+            risk_proof_requirement_summary_blocking_count=sum(
+                1 for item in risk_proof_requirement_summaries if item.blocking
+            ),
+            risk_proof_requirement_summaries=risk_proof_requirement_summaries,
             risk_proof_record_resolver_count=sum(
                 command.risk_proof_record_resolver_count for command in commands
             ),

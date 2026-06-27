@@ -27341,7 +27341,7 @@ def test_admin_api_stealth_recovery_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["recovery_proof_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27568,7 +27568,7 @@ def test_admin_api_stealth_coinbase_exchange_policy_proof_is_no_live_and_path_ke
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["exchange_submission_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -27808,7 +27808,7 @@ def test_admin_api_stealth_state_mutation_policy_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["state_mutation_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -28067,7 +28067,7 @@ def test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert (
         readback_payload["post_write_reconciliation_execution_policy_verified"]
@@ -28292,7 +28292,7 @@ def test_admin_api_stealth_manager_invocation_policy_proof_is_no_live_and_path_k
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["manager_policy_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -29197,7 +29197,7 @@ def test_admin_api_stealth_reveal_trigger_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["reveal_trigger_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -32410,7 +32410,7 @@ def test_admin_api_stealth_lifecycle_write_guard_proof_is_no_live_and_path_keyed
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["lifecycle_write_guard_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -32625,7 +32625,7 @@ def test_admin_api_stealth_mutation_claim_proof_is_no_live_and_path_keyed(
     )
     assert readback.status_code == 200
     readback_payload = readback.json()
-    assert readback_payload["approved_phase_range"] == "7761-7780"
+    assert readback_payload["approved_phase_range"] == "7781-7800"
     assert readback_payload["stealth_order_id"] == stealth_order_id
     assert readback_payload["mutation_claim_snapshot_verified"] is False
     assert readback_payload["persisted_proof_count"] == 1
@@ -35945,7 +35945,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "7761-7780"
+    assert payload["approved_phase_range"] == "7781-7800"
     assert payload["command_count"] == 7
     assert payload["blocked_command_count"] == 7
     assert payload["live_enabled_command_count"] == 0
@@ -43019,7 +43019,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "7761-7780"
+    assert live_payload["approved_phase_range"] == "7781-7800"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -43693,7 +43693,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "7761-7780"
+    assert enterprise_payload["approved_phase_range"] == "7781-7800"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -44535,7 +44535,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "7761-7780"
+    assert recovery_preview_payload["approved_phase_range"] == "7781-7800"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -44621,7 +44621,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_command_suite_fixture = frontend_fixture_payload["fixtures"][
         "futures.commandSuite"
     ]
-    assert futures_command_suite_fixture["approved_phase_range"] == "7761-7780"
+    assert futures_command_suite_fixture["approved_phase_range"] == "7781-7800"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 4
     assert futures_command_suite_fixture["command_draft_allowed_count"] == 4
@@ -47928,7 +47928,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         build_futures_command_suite=lambda: {
             "type": "admin_futures_command_suite",
             "module_id": "futures_perpetuals",
-            "approved_phase_range": "7761-7780",
+            "approved_phase_range": "7781-7800",
             "status": "blocked",
             "command_count": 1,
             "blocked_command_count": 1,
@@ -48068,6 +48068,66 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                     "browser_authority": "display_only",
                     "bff_authority": "forward_only_no_execution",
                     "detail": "Aggregate semantic guard summary evidence is read-only.",
+                },
+            ],
+            "risk_proof_requirement_count": 1,
+            "blocking_risk_proof_requirement_count": 1,
+            "risk_proof_requirement_summary_count": 1,
+            "risk_proof_requirement_summary_blocking_count": 1,
+            "risk_proof_requirement_summaries": [
+                {
+                    "proof_kind": "margin_collateral",
+                    "status": "blocked",
+                    "blocking": True,
+                    "command_count": 1,
+                    "affected_commands": ["futures_place"],
+                    "blocking_command_count": 1,
+                    "semantic_guard_count": 1,
+                    "semantic_guards": ["margin_collateral"],
+                    "applies_to_field_count": 1,
+                    "applies_to_fields": ["product_id"],
+                    "evidence_route_count": 1,
+                    "evidence_routes": ["/api/v1/futures/account"],
+                    "required_evidence_ref_count": 1,
+                    "required_evidence_refs": [
+                        "futures_place_margin_collateral_proof_route_registered"
+                    ],
+                    "missing_evidence_ref_count": 1,
+                    "missing_evidence_refs": [
+                        "futures_place_margin_collateral_proof_route_registered"
+                    ],
+                    "runtime_evidence_observed_count": 0,
+                    "semantic_contract_requirement_count": 1,
+                    "blocking_semantic_contract_requirement_count": 1,
+                    "registered_semantic_contract_count": 0,
+                    "runtime_observed_semantic_contract_requirement_count": 0,
+                    "proof_contract_count": 2,
+                    "blocking_proof_contract_count": 2,
+                    "registered_proof_route_count": 0,
+                    "enabled_proof_writer_count": 0,
+                    "payload_field_count": 2,
+                    "blocking_payload_field_count": 2,
+                    "present_payload_field_count": 0,
+                    "registered_payload_validation_count": 0,
+                    "record_contract_count": 2,
+                    "blocking_record_contract_count": 2,
+                    "registered_record_store_count": 0,
+                    "registered_record_validation_count": 0,
+                    "accepted_record_contract_count": 0,
+                    "acceptance_criterion_count": 5,
+                    "blocking_acceptance_criterion_count": 5,
+                    "accepted_acceptance_criterion_count": 0,
+                    "satisfies_risk_proof_count": 0,
+                    "command_route_registered_count": 0,
+                    "command_draft_allowed_count": 0,
+                    "execution_allowed_count": 0,
+                    "live_coinbase_orders_ran_count": 0,
+                    "backend_owned": True,
+                    "read_only": True,
+                    "spot_rule_authority": False,
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "detail": "Aggregate risk proof summary evidence is read-only.",
                 },
             ],
             "readiness_decision_count": 1,
@@ -48484,7 +48544,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
-    assert command_suite["approved_phase_range"] == "7761-7780"
+    assert command_suite["approved_phase_range"] == "7781-7800"
     assert command_suite["command_route_count"] == 1
     assert command_suite["command_draft_allowed_count"] == 1
     assert command_suite["prerequisite_summary_count"] == 2
@@ -48547,6 +48607,31 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     ] == ["admin_api.futures.semantic_guard.margin_collateral"]
     assert command_suite["semantic_guard_summaries"][0][
         "proof_writer_enabled_count"
+    ] == 0
+    assert command_suite["risk_proof_requirement_count"] == 1
+    assert command_suite["blocking_risk_proof_requirement_count"] == 1
+    assert command_suite["risk_proof_requirement_summary_count"] == 1
+    assert command_suite["risk_proof_requirement_summary_blocking_count"] == 1
+    assert command_suite["risk_proof_requirement_summaries"][0]["proof_kind"] == (
+        "margin_collateral"
+    )
+    assert command_suite["risk_proof_requirement_summaries"][0][
+        "required_evidence_refs"
+    ] == ["futures_place_margin_collateral_proof_route_registered"]
+    assert command_suite["risk_proof_requirement_summaries"][0][
+        "missing_evidence_refs"
+    ] == ["futures_place_margin_collateral_proof_route_registered"]
+    assert command_suite["risk_proof_requirement_summaries"][0][
+        "proof_contract_count"
+    ] == 2
+    assert command_suite["risk_proof_requirement_summaries"][0][
+        "blocking_acceptance_criterion_count"
+    ] == 5
+    assert command_suite["risk_proof_requirement_summaries"][0][
+        "execution_allowed_count"
+    ] == 0
+    assert command_suite["risk_proof_requirement_summaries"][0][
+        "live_coinbase_orders_ran_count"
     ] == 0
     assert command_suite["readiness_decision_count"] == 1
     assert command_suite["blocked_readiness_decision_count"] == 1
@@ -48702,7 +48787,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert detail.position.position_key == item.position_key
 
     assert command_suite.type == "admin_futures_command_suite"
-    assert command_suite.approved_phase_range == "7761-7780"
+    assert command_suite.approved_phase_range == "7781-7800"
     assert command_suite.command_count == 4
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
@@ -48766,6 +48851,30 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert api_margin_collateral_summary["missing_evidence_refs"] == (
         margin_collateral_summary.missing_evidence_refs
     )
+    risk_proof_summary_by_id = {
+        item.proof_kind.value: item
+        for item in command_suite.risk_proof_requirement_summaries
+    }
+    margin_collateral_proof_summary = risk_proof_summary_by_id[
+        "margin_collateral"
+    ]
+    assert margin_collateral_proof_summary.required_evidence_refs
+    assert margin_collateral_proof_summary.missing_evidence_refs == (
+        margin_collateral_proof_summary.required_evidence_refs
+    )
+    api_risk_proof_summary_by_id = {
+        item["proof_kind"]: item
+        for item in command_suite_api_payload["risk_proof_requirement_summaries"]
+    }
+    api_margin_collateral_proof_summary = api_risk_proof_summary_by_id[
+        "margin_collateral"
+    ]
+    assert api_margin_collateral_proof_summary["required_evidence_refs"] == (
+        margin_collateral_proof_summary.required_evidence_refs
+    )
+    assert api_margin_collateral_proof_summary["missing_evidence_refs"] == (
+        margin_collateral_proof_summary.missing_evidence_refs
+    )
     api_prerequisite_summary_by_id = {
         item["prerequisite"]: item
         for item in command_suite_api_payload["prerequisite_summaries"]
@@ -48780,6 +48889,8 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert command_suite.blocking_readiness_closure_step_count == 20
     assert command_suite.risk_proof_requirement_count == 20
     assert command_suite.blocking_risk_proof_requirement_count == 20
+    assert command_suite.risk_proof_requirement_summary_count == 9
+    assert command_suite.risk_proof_requirement_summary_blocking_count == 9
     assert command_suite.risk_proof_record_resolver_count == 20
     assert command_suite.resolved_risk_proof_record_resolver_count == 0
     assert command_suite.missing_risk_proof_record_resolver_count == 20

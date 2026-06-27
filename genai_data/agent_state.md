@@ -24,47 +24,81 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7741-7760`.
-- Active approved range: `7761-7780`.
-- Scope: futures command semantic-guard summary evidence and frontend display.
-  This continues M57 by aggregating existing per-command semantic guard rows
-  into `semantic_guard_summaries` so blocked semantic roles, evidence refs,
-  and proof posture are visible without enabling any command path.
+- Latest completed and pushed range before this work: `7761-7780`.
+- Active approved range: `7781-7800`.
+- Scope: futures command risk-proof requirement summary evidence and frontend
+  display. This continues M57 by aggregating existing per-command risk-proof
+  requirement rows into `risk_proof_requirement_summaries` so proof-kind
+  blockers, evidence refs, proof contract posture, payload fields, record
+  contracts, validations, and acceptance criteria are visible without enabling
+  any command path.
 - Backend implementation status: complete locally.
 - Frontend implementation status: complete locally.
-- Contextless review status: PASS for `7761-7780` after remediation.
-- Commit/push status: pending for `7761-7780`.
+- Contextless review status: PASS for `7781-7800`.
+- Commit/push status: completed for `7781-7800`.
 - Prior phase-end subagent sweep: reviewers
-  `019f0852-667d-7ed1-a712-23047a5ca696` and
-  `019f0852-a6eb-7d42-ba8a-dc2c682d108b` were closed after `7741-7760`
-  findings were consumed. No prior phase-scoped subagents remain intentionally
-  open.
+  `019f0894-af72-7d23-adb3-34a60a3bca66`,
+  `019f0894-e1a1-7a02-9c87-060f0955bb97`,
+  `019f089e-6201-7142-9262-87055c04fd1f`,
+  `019f08af-c5ca-77d2-9b00-13e2c2187d1a`, and
+  `019f08ba-79aa-77f2-9855-d9596aa65116` were closed after `7761-7780`
+  findings were consumed. No prior phase-scoped subagents remain
+  intentionally open.
 
 ## Phase Contract
 
-- The `7761-7780` fields are backend-owned disabled evidence on the existing
+- The `7781-7800` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing command
-  semantic guard rows and do not resolve command readiness.
-- Presence of futures command semantic-guard summary evidence is not semantic
-  guard evaluation, risk-proof acceptance, proof-writer enablement, command
-  enablement clearance, command readiness passage, approval passage,
+  risk-proof requirement rows and do not resolve command readiness.
+- Presence of futures command risk-proof requirement summary evidence is not
+  risk-proof acceptance, proof-route registration, proof-writer enablement,
+  command enablement clearance, command readiness passage, approval passage,
   cap/guard passage, reconciliation passage, command admission, Coinbase
   execution, reconciliation execution, browser/BFF authority, or spot-rule
   authority.
-- The summary evidence can report blocked semantic guards, affected commands,
-  semantic role counts, applies-to fields, evidence routes, required/missing
-  evidence refs, proof-route posture, and proof-writer posture, but it cannot
-  evaluate semantic guards, accept risk proofs, enable proof writers, clear
-  command enablement, admit commands, call Coinbase, execute reconciliation,
-  mutate state, grant browser/BFF authority, or import spot-rule authority.
-- Exact boundary phrase: semantic-guard summaries cannot evaluate semantic
-  guards.
-- Exact validator phrase: semantic-guard summaries cannot evaluate semantic guards; they do not accept risk proofs, clear command enablement, or grant admission, Coinbase execution, reconciliation execution, browser/BFF authority, or spot-rule authority.
+- The summary evidence can report blocked proof kinds, affected commands,
+  semantic guards, applies-to fields, evidence routes, required/missing
+  evidence refs, proof contracts, payload fields, record contracts, record
+  validations, acceptance criteria, and authority flags, but it cannot accept
+  risk proofs, register proof routes, enable proof writers, clear command
+  enablement, admit commands, call Coinbase, execute reconciliation, mutate
+  state, grant browser/BFF authority, or import spot-rule authority.
+- Exact boundary phrase: risk-proof requirement summaries cannot accept risk
+  proofs.
+- Exact validator phrase: risk-proof requirement summaries cannot accept risk proofs; they do not register proof routes, enable proof writers, clear command enablement, or grant admission, Coinbase execution, reconciliation execution, browser/BFF authority, or spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or
   known-profitable-inventory rule may be imported into futures/perpetual
   readiness.
+
+## m57_7781_7800_blind_review
+
+- Result: PASS.
+- Reviewer agents:
+  `019f08f8-b75d-7260-82e8-b43fd5c9a1fa` passed backend review and
+  `019f08f8-fb2f-7290-af29-507a8da21fe0` passed frontend review.
+- Scope: active M57 `7781-7800` futures command risk-proof requirement
+  summary evidence and frontend display.
+- Review evidence: backend reviewer verified active/completed range clarity,
+  backend-owned/read-only/no-live `risk_proof_requirement_summaries` derived
+  from existing per-command risk-proof requirement rows,
+  `risk_proof_requirement_summary_count=9`,
+  `risk_proof_requirement_summary_blocking_count=9`,
+  `risk_proof_requirement_count=20`, `blocking_risk_proof_requirement_count=20`,
+  `executable_command_count=0`, model-backed API serialization of
+  `risk_proof_requirement_summaries` evidence refs, generated OpenAPI parity,
+  no live Coinbase execution, submitted notional `0` USDC, and executed
+  notional `0` USDC. Frontend reviewer verified generated schema, adapter
+  mapping, mock derivation, display-only table rendering, docs, focused tests,
+  no browser/BFF or execution authority, and phase ids `7781` through `7800`.
+- Phase-end subagent sweep: reviewers
+  `019f08f8-b75d-7260-82e8-b43fd5c9a1fa` and
+  `019f08f8-fb2f-7290-af29-507a8da21fe0` were closed after PASS evidence was
+  consumed. No phase-scoped subagents remain intentionally open for
+  `7781-7800`.
+- Live Coinbase execution: not run; submitted notional `0` USDC; executed
+  notional `0` USDC.
 
 ## m57_7761_7780_blind_review
 
@@ -76,7 +110,7 @@ work. Historical milestone detail belongs in
   `019f08af-c5ca-77d2-9b00-13e2c2187d1a` found stale completed-range wording,
   `019f08ba-79aa-77f2-9855-d9596aa65116` passed the final backend re-review,
   and `019f0894-e1a1-7a02-9c87-060f0955bb97` passed frontend review.
-- Scope: active M57 `7761-7780` futures command semantic-guard summary
+- Scope: completed M57 `7761-7780` futures command semantic-guard summary
   evidence and frontend display.
 - Review evidence: backend reviewers verified model/read-service/OpenAPI/docs,
   model-backed API serialization of `semantic_guard_summaries` evidence refs,
@@ -175,8 +209,25 @@ work. Historical milestone detail belongs in
 
 ## Local Validation
 
-- `7741-7760` closeout validation passed before commit/push in both repos.
-- `7761-7780` validation so far:
+- `7761-7780` closeout validation passed before commit/push in both repos.
+- `7781-7800` validation:
+  - Backend OpenAPI and route-inventory artifacts regenerated locally.
+  - Backend direct read-service runtime sample passed after the interrupted
+    attempt was followed by a stale-process check.
+  - Backend `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py tools\run_autonomous_work_queue_check.py` passed.
+  - Backend `pytest tests\regression\test_admin_api_futures_risk_proofs.py::test_futures_command_enablement_blocker_summaries_remain_read_only -q --tb=short` passed.
+  - Backend `pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_frontend_fixtures_are_bounded_and_offline_safe tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_export_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_names_required_shared_methods_and_doc tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_and_openapi_paths_stay_in_sync -q --tb=short` passed.
+  - Backend `python tools\run_autonomous_work_queue_check.py --summary-only` passed.
+  - Frontend generated schema was regenerated locally.
+  - Frontend `npm run typecheck` passed.
+  - Frontend `npm run api:check` passed.
+  - Frontend `npm run test -- tests/unit/mockBackend.test.ts tests/unit/FuturesPerpetualsReadModel.test.tsx tests/unit/qualityGates.test.tsx` passed with `89` tests.
+  - Frontend `npm run autonomous:check` passed.
+  - Blind/contextless backend and frontend reviews passed.
+  - Phase-end subagent sweep closed reviewers
+    `019f08f8-b75d-7260-82e8-b43fd5c9a1fa` and
+    `019f08f8-fb2f-7290-af29-507a8da21fe0`.
+- Prior `7761-7780` validation:
   - Backend `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py application\admin_api\route_inventory.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py tools\run_autonomous_work_queue_check.py` passed.
   - Backend `pytest tests\regression\test_admin_api_futures_risk_proofs.py::test_futures_command_enablement_blocker_summaries_remain_read_only -q --tb=short` passed.
   - Backend `pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_frontend_fixtures_are_bounded_and_offline_safe tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_export_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_names_required_shared_methods_and_doc tests\regression\test_admin_api_contract.py::test_admin_api_route_inventory_and_openapi_paths_stay_in_sync -q --tb=short` passed.
@@ -206,8 +257,7 @@ work. Historical milestone detail belongs in
   - Phase-end subagent sweep closed reviewers
     `019f0852-667d-7ed1-a712-23047a5ca696` and
     `019f0852-a6eb-7d42-ba8a-dc2c682d108b`.
-- Remaining before `7761-7780` phase closeout: final status checks, commit,
-  and push.
+- Remaining before `7781-7800` phase closeout: none.
 
 ## Live Execution
 
@@ -226,9 +276,9 @@ work. Historical milestone detail belongs in
 
 ## Next Actions
 
-1. Run final stale-process/status/diff checks.
-2. Commit and push both repositories for `7761-7780`.
-3. Continue to the next approved M57 phase only after this phase is pushed.
+1. Continue to the next approved M57 phase from the milestone ledger.
+2. Keep full regression reserved for durable milestone closeout unless
+   explicitly requested.
 
 ## Durable Decisions
 

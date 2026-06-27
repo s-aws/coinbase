@@ -12282,6 +12282,70 @@ class AdminFuturesCommandRiskProofRequirementItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRiskProofRequirementSummaryItem(BaseModel):
+    """Backend-owned aggregate summary for one futures risk proof kind."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proof_kind: AdminFuturesCommandRiskProofKind
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    command_count: int = Field(default=0, ge=0)
+    affected_commands: list[AdminFuturesCommandAction] = Field(default_factory=list)
+    blocking_command_count: int = Field(default=0, ge=0)
+    semantic_guard_count: int = Field(default=0, ge=0)
+    semantic_guards: list[AdminFuturesCommandSemanticGuard] = Field(
+        default_factory=list
+    )
+    applies_to_field_count: int = Field(default=0, ge=0)
+    applies_to_fields: list[AdminFuturesCommandRequestField] = Field(
+        default_factory=list
+    )
+    evidence_route_count: int = Field(default=0, ge=0)
+    evidence_routes: list[AdminFuturesCommandEvidenceRoute] = Field(
+        default_factory=list
+    )
+    required_evidence_ref_count: int = Field(default=0, ge=0)
+    required_evidence_refs: list[str] = Field(default_factory=list)
+    missing_evidence_ref_count: int = Field(default=0, ge=0)
+    missing_evidence_refs: list[str] = Field(default_factory=list)
+    runtime_evidence_observed_count: int = Field(default=0, ge=0)
+    semantic_contract_requirement_count: int = Field(default=0, ge=0)
+    blocking_semantic_contract_requirement_count: int = Field(default=0, ge=0)
+    registered_semantic_contract_count: int = Field(default=0, ge=0)
+    runtime_observed_semantic_contract_requirement_count: int = Field(
+        default=0,
+        ge=0,
+    )
+    proof_contract_count: int = Field(default=0, ge=0)
+    blocking_proof_contract_count: int = Field(default=0, ge=0)
+    registered_proof_route_count: int = Field(default=0, ge=0)
+    enabled_proof_writer_count: int = Field(default=0, ge=0)
+    payload_field_count: int = Field(default=0, ge=0)
+    blocking_payload_field_count: int = Field(default=0, ge=0)
+    present_payload_field_count: int = Field(default=0, ge=0)
+    registered_payload_validation_count: int = Field(default=0, ge=0)
+    record_contract_count: int = Field(default=0, ge=0)
+    blocking_record_contract_count: int = Field(default=0, ge=0)
+    registered_record_store_count: int = Field(default=0, ge=0)
+    registered_record_validation_count: int = Field(default=0, ge=0)
+    accepted_record_contract_count: int = Field(default=0, ge=0)
+    acceptance_criterion_count: int = Field(default=0, ge=0)
+    blocking_acceptance_criterion_count: int = Field(default=0, ge=0)
+    accepted_acceptance_criterion_count: int = Field(default=0, ge=0)
+    satisfies_risk_proof_count: int = Field(default=0, ge=0)
+    command_route_registered_count: int = Field(default=0, ge=0)
+    command_draft_allowed_count: int = Field(default=0, ge=0)
+    execution_allowed_count: int = Field(default=0, ge=0)
+    live_coinbase_orders_ran_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandContractItem(BaseModel):
     """One planned futures/perpetual command contract row."""
 
@@ -14455,6 +14519,9 @@ _FUTURES_COMMAND_SUITE_JSON_DUMP_PRESERVE_FIELDS_BY_PARENT = {
     "semantic_guard_summaries": frozenset(
         {"missing_evidence_refs", "required_evidence_refs"}
     ),
+    "risk_proof_requirement_summaries": frozenset(
+        {"missing_evidence_refs", "required_evidence_refs"}
+    ),
 }
 
 
@@ -15606,6 +15673,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     blocking_readiness_closure_step_count: int = Field(default=0, ge=0)
     risk_proof_requirement_count: int = Field(default=0, ge=0)
     blocking_risk_proof_requirement_count: int = Field(default=0, ge=0)
+    risk_proof_requirement_summary_count: int = Field(default=0, ge=0)
+    risk_proof_requirement_summary_blocking_count: int = Field(default=0, ge=0)
+    risk_proof_requirement_summaries: list[
+        AdminFuturesCommandRiskProofRequirementSummaryItem
+    ] = Field(default_factory=list)
     risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     resolved_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     missing_risk_proof_record_resolver_count: int = Field(default=0, ge=0)

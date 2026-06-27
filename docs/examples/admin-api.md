@@ -1,4 +1,4 @@
-﻿# Admin API Examples
+# Admin API Examples
 
 These examples describe the current enterprise Admin API contract. Mutating
 HTTP endpoints are authenticated, permission-checked, idempotent, and audited,
@@ -13,16 +13,16 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7761-7780"`. Futures/perpetual command-suite reads
-now expose backend-owned `semantic_guard_summary_count`,
-`semantic_guard_summary_blocking_count`, and `semantic_guard_summaries`
-evidence for current M57 `7761-7780` while completed `7741-7760` command
-request-field summary evidence remains carried-forward history. The current
-rows are disabled, no-live evidence only and must not evaluate semantic
-guards, accept risk proofs, enable proof writers, clear command enablement,
-pass command readiness, admit commands, pass approval/cap/guard/reconciliation
-gates, call Coinbase, execute reconciliation, mutate state, or grant
-browser/BFF or spot-rule authority.
+`"approved_phase_range": "7781-7800"`. Futures/perpetual command-suite reads
+now expose backend-owned `risk_proof_requirement_summary_count`,
+`risk_proof_requirement_summary_blocking_count`, and
+`risk_proof_requirement_summaries` evidence for current M57 `7781-7800` while
+completed `7761-7780` command semantic-guard summary evidence remains
+carried-forward history. The current rows are disabled, no-live evidence only
+and must not accept risk proofs, register proof routes, enable proof writers,
+clear command enablement, pass command readiness, admit commands, pass
+approval/cap/guard/reconciliation gates, call Coinbase, execute
+reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
 
 Completed `"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input
