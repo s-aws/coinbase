@@ -90594,6 +90594,252 @@ components:
       title: AdminFuturesCommandRiskProofRecordValidationRemediationItem
       description: One blocked backend remediation row for a futures proof record
         validation.
+    AdminFuturesCommandRiskProofRecordValidationSummaryItem:
+      properties:
+        contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordContractKind'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        affected_commands:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandAction'
+          type: array
+          title: Affected Commands
+        proof_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Requirement Count
+          default: 0
+        proof_kinds:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+          type: array
+          title: Proof Kinds
+        record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Count
+          default: 0
+        blocking_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Record Validation Count
+          default: 0
+        ready_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Ready Record Validation Count
+          default: 0
+        required_backend_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Required Backend Contract Count
+          default: 0
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        required_store_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Required Store Ref Count
+          default: 0
+        required_store_refs:
+          items:
+            type: string
+          type: array
+          title: Required Store Refs
+        required_record_key_count:
+          type: integer
+          minimum: 0.0
+          title: Required Record Key Count
+          default: 0
+        required_record_keys:
+          items:
+            type: string
+          type: array
+          title: Required Record Keys
+        required_payload_field_count:
+          type: integer
+          minimum: 0.0
+          title: Required Payload Field Count
+          default: 0
+        required_payload_fields:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofPayloadField'
+          type: array
+          title: Required Payload Fields
+        validation_gate_count:
+          type: integer
+          minimum: 0.0
+          title: Validation Gate Count
+          default: 0
+        validation_gates:
+          items:
+            type: string
+          type: array
+          title: Validation Gates
+        replay_gate_count:
+          type: integer
+          minimum: 0.0
+          title: Replay Gate Count
+          default: 0
+        replay_gates:
+          items:
+            type: string
+          type: array
+          title: Replay Gates
+        required_validation_check_count:
+          type: integer
+          minimum: 0.0
+          title: Required Validation Check Count
+          default: 0
+        required_validation_checks:
+          items:
+            type: string
+          type: array
+          title: Required Validation Checks
+        required_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Ref Count
+          default: 0
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        missing_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Ref Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        record_contract_available_count:
+          type: integer
+          minimum: 0.0
+          title: Record Contract Available Count
+          default: 0
+        store_schema_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Store Schema Registered Count
+          default: 0
+        append_only_log_configured_count:
+          type: integer
+          minimum: 0.0
+          title: Append Only Log Configured Count
+          default: 0
+        idempotency_bound_count:
+          type: integer
+          minimum: 0.0
+          title: Idempotency Bound Count
+          default: 0
+        payload_validation_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Payload Validation Registered Count
+          default: 0
+        replay_guard_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Replay Guard Registered Count
+          default: 0
+        audit_linked_count:
+          type: integer
+          minimum: 0.0
+          title: Audit Linked Count
+          default: 0
+        record_validation_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Registered Count
+          default: 0
+        record_validation_ready_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Ready Count
+          default: 0
+        proof_record_accepted_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Record Accepted Count
+          default: 0
+        command_route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Command Route Registered Count
+          default: 0
+        command_draft_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Allowed Count
+          default: 0
+        execution_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Execution Allowed Count
+          default: 0
+        proof_route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Route Registered Count
+          default: 0
+        proof_writer_enabled_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Writer Enabled Count
+          default: 0
+        live_coinbase_orders_ran_count:
+          type: integer
+          minimum: 0.0
+          title: Live Coinbase Orders Ran Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - contract_kind
+      - detail
+      title: AdminFuturesCommandRiskProofRecordValidationSummaryItem
+      description: Backend-owned aggregate summary for futures risk proof record validations.
     AdminFuturesCommandRiskProofRequirementItem:
       properties:
         proof_kind:
@@ -95536,6 +95782,21 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordContractSummaryItem'
           type: array
           title: Risk Proof Record Contract Summaries
+        risk_proof_record_validation_summary_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Summary Count
+          default: 0
+        risk_proof_record_validation_summary_blocking_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Validation Summary Blocking Count
+          default: 0
+        risk_proof_record_validation_summaries:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordValidationSummaryItem'
+          type: array
+          title: Risk Proof Record Validation Summaries
         risk_proof_acceptance_blocker_count:
           type: integer
           minimum: 0.0

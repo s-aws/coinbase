@@ -123,12 +123,13 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7901-7920` under M57.
-- Active autonomous range: `7921-7940` under M57.
-- Current active range: `7921-7940` adds futures risk-proof record contract
+- Latest completed autonomous range: `7921-7940` under M57.
+- Active autonomous range: `7941-7960` under M57.
+- Current active range: `7941-7960` adds futures risk-proof record validation
   summary evidence derived from existing per-command risk-proof
-  record-contract rows. It remains disabled, no-live, backend-owned evidence
-  only and cannot create stores, configure append-only logs, bind
+  record-validation rows. It remains disabled, no-live, backend-owned evidence
+  only and cannot validate records, register validators, run validation
+  checks, pass replay gates, create stores, configure append-only logs, bind
   idempotency, register payload validation, register replay guards, link audit
   evidence, write proof records, accept proof records, register proof routes,
   enable proof writers, resolve proof acceptance, accept risk proofs, pass
@@ -136,6 +137,9 @@ notional, retained inventory, reconciliation result, and audit ids.
   reconciliation gates, execute reconciliation, call Coinbase, mutate
   futures/order/exchange state, grant browser/BFF authority, or import
   spot-only rules.
+- Completed `7921-7940` added risk-proof record contract summary evidence
+  derived from existing per-command risk-proof record-contract rows and
+  remains carried-forward disabled, no-live, backend-owned evidence only.
 - Completed `7901-7920` added risk-proof payload field summary evidence
   derived from existing per-command risk-proof payload-field rows and remains
   carried-forward disabled, no-live, backend-owned evidence only.

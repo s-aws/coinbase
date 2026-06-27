@@ -1,3 +1,58 @@
+## M57 Futures/Perpetual Risk-Proof Record Validation Summary Evidence - Phases 7941-7960
+
+Result: PASS. Scope: phases `7941-7960`, after completed history through
+`7921-7940`, adds backend-owned read-only futures risk-proof record validation
+summary evidence. Completed history: completed history through `7921-7940`.
+No live Coinbase execution is planned; actual submitted/executed notional remains `0` USDC.
+
+Boundary evidence for current `7941-7960` review: futures command
+`risk_proof_record_validation_summaries` rows derive from existing
+per-command risk-proof requirement record-validation rows. They may summarize
+contract kind, affected commands, proof kinds, backend contracts, store refs,
+record keys, payload fields, validation gates, replay gates, validation
+checks, evidence refs, disabled validation posture, route/writer posture,
+execution flags, and no-live authority flags.
+
+They must remain backend-owned, read-only, no-live evidence only: not record
+validation, not validator registration, not validation execution, not replay
+passage, not store creation, not append-only log configuration, not
+idempotency binding, not payload validation registration, not replay guard
+registration, not audit link creation, not proof record writes, not proof
+record acceptance, not proof route registration, not proof writer enablement,
+not proof acceptance resolution, not risk proof acceptance, not command
+admission, not Coinbase execution, not reconciliation execution, not
+futures/order/exchange state mutation, not browser authority, not BFF
+execution authority, and not spot-rule authority.
+
+Exact checker phrase: futures risk-proof record validation summary evidence; risk_proof_record_validation_summaries; not record validation; not validator registration; not validation execution; not replay passage; not store creation; not append-only log configuration; not idempotency binding; not payload validation registration; not replay guard registration; not audit link creation; not proof record writes; not proof record acceptance; not proof route registration; not proof writer enablement; not proof acceptance resolution; not risk proof acceptance; not command admission; not Coinbase execution; not reconciliation execution; not futures/order/exchange state mutation; not browser authority; not BFF execution authority; not spot-rule authority.
+
+Fresh blind/contextless backend review: PASS. Reviewer
+`019f0ad2-e889-7e40-963c-a90622514a07` verified the backend model, read-service
+derivation from existing `proof_requirement.record_validations`, response
+wiring, OpenAPI schema, focused tests, no-live/no-authority posture, and
+active/completed range clarity. The reviewer found no blocker.
+
+Fresh blind/contextless frontend review: PASS after remediation. Reviewer
+`019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` first blocked on stale frontend
+handoff wording that still called a proof-contract summary the active range.
+After `docs/MAINTAINER_HANDOFF.md` was corrected to describe
+`risk_proof_record_validation_summaries`, the reviewer passed schema,
+mock derivation, adapter mapping, display-only UI rows, docs, tests, and
+active/completed range clarity.
+
+Focused validation evidence: PASS. Backend `python -m py_compile`, focused
+futures risk-proof regression, focused Admin API contract/OpenAPI subset,
+backend autonomous queue check, frontend typecheck, frontend API check,
+frontend autonomous queue check, focused frontend unit tests, frontend stale
+test-process check, and backend sibling stale test-process check passed. Live
+Coinbase execution was not run; actual submitted/executed notional remains
+`0` USDC.
+
+Phase-end stale-subagent sweep completed: backend reviewer
+`019f0ad2-e889-7e40-963c-a90622514a07` and frontend reviewer
+`019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` were closed after findings were consumed
+and remediated. No current phase-scoped subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Risk-Proof Record Contract Summary Evidence - Phases 7921-7940
 
 Result: PASS. Scope: phases `7921-7940`, after completed history through

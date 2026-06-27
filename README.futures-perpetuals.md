@@ -37,18 +37,20 @@ and position routes return
 blocked/no-live posture through route-bound draft, execution, browser, BFF,
 and notional evidence fields.
 
-Active M57 `7921-7940` evidence adds futures risk-proof record contract
-summary evidence while completed M57 `7901-7920` carries forward futures
-risk-proof payload field summary evidence. The
-`risk_proof_record_contract_summaries` rows are read-only evidence and cannot
-create stores, configure append-only logs, bind idempotency, register payload
-validation, register replay guards, link audit evidence, write proof records,
-accept proof records, register proof routes, enable proof writers, resolve
-proof acceptance, accept risk proofs, clear command readiness, admit commands,
-call Coinbase, execute reconciliation, mutate futures/order/exchange state,
-grant browser/BFF authority, or import spot-rule authority.
+Active M57 `7941-7960` evidence adds futures risk-proof record validation
+summary evidence while completed M57 `7921-7940` carries forward futures
+risk-proof record contract summary evidence. The
+`risk_proof_record_validation_summaries` rows are read-only evidence and
+cannot validate records, register validators, run validation checks, pass
+replay gates, create stores, configure append-only logs, bind idempotency,
+register payload validation, register replay guards, link audit evidence,
+write proof records, accept proof records, register proof routes, enable
+proof writers, resolve proof acceptance, accept risk proofs, clear command
+readiness, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, grant browser/BFF authority, or import
+spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7921-7940` evidence adds futures risk-proof record contract summary evidence while completed M57 `7901-7920` carries forward futures risk-proof payload field summary evidence.
+Exact autonomous phrase: Active M57 `7941-7960` evidence adds futures risk-proof record validation summary evidence while completed M57 `7921-7940` carries forward futures risk-proof record contract summary evidence.
 
 ## Key Concepts
 
@@ -67,19 +69,23 @@ Exact autonomous phrase: Active M57 `7921-7940` evidence adds futures risk-proof
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7921-7940` evidence adds futures risk-proof record contract
-  summary evidence while completed M57 `7901-7920` carries forward futures
-  risk-proof payload field summary evidence. The
-  `risk_proof_record_contract_summaries` rows are derived from existing
-  per-command risk-proof record-contract rows and are read-only/no-live
-  evidence only. They do not create stores, configure append-only logs, bind
-  idempotency, register payload validation, register replay guards, link audit
-  evidence, write proof records, accept proof records, resolve proof
-  acceptance, register proof routes, enable proof writers, accept risk proofs,
-  clear command readiness, admit commands, call Coinbase, execute
+- Active M57 `7941-7960` evidence adds futures risk-proof record validation
+  summary evidence while completed M57 `7921-7940` carries forward futures
+  risk-proof record contract summary evidence. The
+  `risk_proof_record_validation_summaries` rows are derived from existing
+  per-command risk-proof record-validation rows and are read-only/no-live
+  evidence only. They do not validate records, register validators, run
+  validation checks, pass replay gates, create stores, configure append-only
+  logs, bind idempotency, register payload validation, register replay guards,
+  link audit evidence, write proof records, accept proof records, resolve
+  proof acceptance, register proof routes, enable proof writers, accept risk
+  proofs, clear command readiness, admit commands, call Coinbase, execute
   reconciliation, mutate futures/order/exchange state, grant browser/BFF
   authority, or import spot-only rules.
-- Exact active phrase: Active M57 `7921-7940` evidence adds futures risk-proof record contract summary evidence while completed M57 `7901-7920` carries forward futures risk-proof payload field summary evidence.
+- Exact active phrase: Active M57 `7941-7960` evidence adds futures risk-proof record validation summary evidence while completed M57 `7921-7940` carries forward futures risk-proof record contract summary evidence.
+- Completed M57 `7921-7940` evidence adds futures risk-proof record contract
+  summary evidence while completed M57 `7901-7920` carries forward futures
+  risk-proof payload field summary evidence.
 - Completed M57 `7901-7920` evidence adds futures risk-proof payload field
   summary evidence while completed M57 `7881-7900` carries forward futures
   risk-proof contract summary evidence.

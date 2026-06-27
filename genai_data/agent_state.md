@@ -24,32 +24,39 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7901-7920`.
-- Active approved range: `7921-7940`.
-- Scope: futures risk-proof record contract summary evidence and frontend
+- Latest completed and pushed range before this work: `7921-7940`.
+- Latest completed and pushed range after this work: `7941-7960`.
+- Active approved range: `7941-7960` complete; next range not yet started in
+  this state file.
+- Scope: futures risk-proof record validation summary evidence and frontend
   display. This continues M57 by aggregating existing per-command risk-proof
-  requirement record-contract rows into `risk_proof_record_contract_summaries`
-  so contract kind, affected commands, proof kinds, backend contracts, store
-  refs, record keys, payload fields, validation gates, required/missing
-  evidence refs, disabled record posture, route/writer posture, execution
-  flags, and no-live authority flags are visible without creating stores,
-  configuring append-only logs, binding idempotency, registering payload
-  validation, registering replay guards, linking audit evidence, writing proof
-  records, accepting proof records, resolving proof acceptance, or enabling
-  any command path.
-- Backend implementation status: complete for `7921-7940`;
+  requirement record-validation rows into
+  `risk_proof_record_validation_summaries` so contract kind, affected
+  commands, proof kinds, backend contracts, store refs, record keys, payload
+  fields, validation gates, replay gates, validation checks, required/missing
+  evidence refs, disabled validation posture, route/writer posture, execution
+  flags, and no-live authority flags are visible without validating records,
+  registering validators, running validation checks, passing replay gates,
+  creating stores, configuring append-only logs, binding idempotency,
+  registering payload validation, registering replay guards, linking audit
+  evidence, writing proof records, accepting proof records, resolving proof
+  acceptance, or enabling any command path.
+- Backend implementation status: complete for `7941-7960`;
   `application/admin_api/models.py` and `application/admin_api/read_service.py`
-  currently add `risk_proof_record_contract_summaries`.
-- Frontend implementation status: complete for `7921-7940`; generated schema,
+  add `risk_proof_record_validation_summaries` and derive them from existing
+  per-command risk-proof record-validation rows.
+- Frontend implementation status: complete for `7941-7960`; generated schema,
   adapter mapping, mock derivation, read-model display, examples, and quality
-  metadata consume record-contract summary evidence.
-- Contextless review status: PASS after remediation for `7921-7940`.
-- Focused validation status: passed for `7921-7940`; backend py_compile,
-  backend queue checker, frontend typecheck, frontend focused unit tests,
-  frontend API check, frontend autonomous checker, and stale test-process
-  checkers passed.
-- Commit/push status: pending for `7921-7940` after backend/frontend sync,
-  focused validation, contextless reviews, and phase-end subagent cleanup.
+  metadata consume record-validation summary evidence as display-only rows.
+- Contextless review status: PASS for `7941-7960`; backend reviewer
+  `019f0ad2-e889-7e40-963c-a90622514a07` passed, and frontend reviewer
+  `019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` passed after stale handoff wording
+  was remediated.
+- Focused validation status: PASS for `7941-7960`; backend py_compile,
+  focused futures risk-proof regression, focused Admin API contract/OpenAPI
+  subset, backend autonomous checker, frontend typecheck/API/unit/autonomous
+  checks, and stale test-process checks passed.
+- Commit/push status: complete for `7941-7960` in backend and frontend repos.
 - Prior phase-end subagent sweep: reviewers
   `019f09b3-c679-7e63-90ce-f4a4ecb25cc2`,
   `019f09bb-cb84-72b1-b515-f38185c6a858`, and
@@ -72,46 +79,87 @@ work. Historical milestone detail belongs in
   `019f0a98-b07a-73e2-b7f9-adf37d6afc37` were closed after `7921-7940`
   findings were consumed and remediated. No current phase-scoped subagent
   remains intentionally open.
+- Current phase-end subagent sweep: backend reviewer
+  `019f0ad2-e889-7e40-963c-a90622514a07` and frontend reviewer
+  `019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` were closed after `7941-7960`
+  findings were consumed and remediated. No current phase-scoped subagent
+  remains intentionally open.
 
 ## Phase Contract
 
-- The `7921-7940` fields are backend-owned disabled evidence on the existing
+- The `7941-7960` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing risk-proof
-  requirement record-contract rows and do not create stores, configure
-  append-only logs, bind idempotency, register payload validation, register
-  replay guards, link audit evidence, write proof records, or accept proof
-  records.
-- Presence of futures risk-proof record contract summary evidence is not store
-  creation, not append-only log configuration, not idempotency binding, not
-  payload validation registration, not replay-guard registration, not audit
-  linkage, not proof record writes, not proof record acceptance, not proof
-  route registration, not proof writer enablement, not proof acceptance
-  resolution, not risk proof acceptance, not command readiness passage, not
-  command enablement clearance, not risk proof acceptance passage, not
-  approval passage, not cap/guard passage, not reconciliation passage, not
-  command admission, not admission, Coinbase execution, not reconciliation
-  execution, not futures/order/exchange state mutation, not browser/BFF
-  authority, and not spot-rule authority.
+  requirement record-validation rows and do not validate records, register
+  validators, run validation checks, pass replay gates, create stores,
+  configure append-only logs, bind idempotency, register payload validation,
+  register replay guards, link audit evidence, write proof records, or accept
+  proof records.
+- Presence of futures risk-proof record validation summary evidence is not
+  record validation, not validator registration, not validation execution, not
+  replay passage, not store creation, not append-only log configuration, not
+  idempotency binding, not payload validation registration, not replay-guard
+  registration, not audit linkage, not proof record writes, not proof record
+  acceptance, not proof route registration, not proof writer enablement, not
+  proof acceptance resolution, not risk proof acceptance, not command
+  readiness passage, not command enablement clearance, not approval passage,
+  not cap/guard passage, not reconciliation passage, not command admission,
+  not Coinbase execution, not reconciliation execution, not futures/order/
+  exchange state mutation, not browser/BFF authority, and not spot-rule
+  authority.
 - The summary evidence can report contract kind, affected commands, proof
   kinds, required backend contracts, store refs, record keys, payload fields,
-  validation gates, required/missing evidence refs, disabled record posture,
-  route/writer posture, execution flags, and authority flags, but it cannot
-  create stores, configure append-only logs, bind idempotency, register
-  payload validation, register replay guards, link audit evidence, write proof
-  records, accept proof records, register proof routes, enable proof writers,
-  resolve proof acceptance, accept risk proofs, clear command readiness, admit
-  commands, call Coinbase, execute reconciliation, mutate
-  futures/order/exchange state, grant browser/BFF authority, or import
-  spot-rule authority.
-- Exact boundary phrase: risk-proof record contract summaries cannot create
-  stores.
-- Exact passage phrase: proof record contract summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
-- Exact validator phrase: risk-proof record contract summaries cannot create stores; they are not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay guard registration, not audit link creation, not proof record writes, not proof record acceptance, not proof route registration, not proof writer enablement, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order/exchange state, grant browser/BFF authority, or import spot-rule authority.
+  validation gates, replay gates, validation checks, required/missing evidence
+  refs, disabled validation posture, route/writer posture, execution flags,
+  and authority flags, but it cannot validate records, register validators,
+  run validation checks, pass replay gates, create stores, configure
+  append-only logs, bind idempotency, register payload validation, register
+  replay guards, link audit evidence, write proof records, accept proof
+  records, register proof routes, enable proof writers, resolve proof
+  acceptance, accept risk proofs, clear command readiness, admit commands,
+  call Coinbase, execute reconciliation, mutate futures/order/exchange state,
+  grant browser/BFF authority, or import spot-rule authority.
+- Exact boundary phrase: risk-proof record validation summaries cannot
+  validate records.
+- Exact passage phrase: proof record validation summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
+- Exact validator phrase: risk-proof record validation summaries cannot validate records; they are not record validation, not validator registration, not validation execution, not replay passage, not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay guard registration, not audit link creation, not proof record writes, not proof record acceptance, not proof route registration, not proof writer enablement, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order/exchange state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or
   known-profitable-inventory rule may be imported into futures/perpetual
   readiness.
+
+## m57_7941_7960_blind_review
+
+- Result: PASS after frontend remediation.
+- Reviewer agents: backend reviewer
+  `019f0ad2-e889-7e40-963c-a90622514a07` passed backend review and frontend
+  reviewer `019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` passed the targeted
+  re-review after stale handoff wording was corrected.
+- Scope: completed M57 `7941-7960` futures risk-proof record validation
+  summary evidence and frontend display.
+- Remediation: the first frontend review found
+  `C:\coinbase-frontend\docs\MAINTAINER_HANDOFF.md` still described the active
+  range as proof-contract summary evidence. The handoff now describes active
+  `risk_proof_record_validation_summaries` and the no-live/no-authority
+  boundary.
+- Review evidence: backend reviewer verified models, read-service derivation
+  from existing record-validation rows, response wiring, OpenAPI, focused
+  tests, docs, no Coinbase execution, no browser/BFF authority, and no
+  spot-rule authority. Frontend reviewer verified generated schema, mock
+  derivation, adapter mapping, display-only table, docs, tests, and no stale
+  active `7921-7940` contradiction after remediation.
+- Validation evidence: backend py_compile, focused futures risk-proof
+  regression, focused Admin API contract/OpenAPI subset, backend autonomous
+  checker, frontend typecheck, frontend API check, frontend autonomous checker,
+  focused frontend unit tests, frontend stale-process check, and backend
+  sibling stale-process check passed.
+- Phase-end subagent sweep: reviewers
+  `019f0ad2-e889-7e40-963c-a90622514a07` and
+  `019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` were closed after findings were
+  consumed and remediated. No phase-scoped subagents remain intentionally open
+  for `7941-7960`.
+- Live Coinbase execution: not run; actual submitted/executed notional remains
+  `0` USDC.
 
 ## m57_7841_7860_blind_review
 
