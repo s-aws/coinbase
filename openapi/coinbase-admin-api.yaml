@@ -18594,6 +18594,137 @@ components:
       - detail
       title: AdminFuturesCommandRequestFieldItem
       description: One planned futures/perpetual command request field row.
+    AdminFuturesCommandRequestFieldSummaryItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        required:
+          type: boolean
+          title: Required
+          default: true
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        affected_commands:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandAction'
+          type: array
+          title: Affected Commands
+        required_command_count:
+          type: integer
+          minimum: 0.0
+          title: Required Command Count
+          default: 0
+        blocking_command_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Command Count
+          default: 0
+        identity_field_command_count:
+          type: integer
+          minimum: 0.0
+          title: Identity Field Command Count
+          default: 0
+        risk_field_command_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Field Command Count
+          default: 0
+        payload_field_command_count:
+          type: integer
+          minimum: 0.0
+          title: Payload Field Command Count
+          default: 0
+        request_payload_contract_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Request Payload Contract Ref Count
+          default: 0
+        request_payload_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Request Payload Contract Refs
+        validation_gate_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Validation Gate Ref Count
+          default: 0
+        validation_gate_refs:
+          items:
+            type: string
+          type: array
+          title: Validation Gate Refs
+        validation_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Validation Evidence Ref Count
+          default: 0
+        validation_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Validation Evidence Refs
+        validator_contract_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Validator Contract Ref Count
+          default: 0
+        validator_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Validator Contract Refs
+        validator_registration_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Validator Registration Ref Count
+          default: 0
+        validator_registration_refs:
+          items:
+            type: string
+          type: array
+          title: Validator Registration Refs
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - detail
+      title: AdminFuturesCommandRequestFieldSummaryItem
+      description: Backend-owned aggregate summary for one futures command request
+        field.
     AdminFuturesCommandRequestPayloadValidationEvidenceItem:
       properties:
         field:
@@ -91754,6 +91885,21 @@ components:
           minimum: 0.0
           title: Blocking Request Field Count
           default: 0
+        request_field_summary_count:
+          type: integer
+          minimum: 0.0
+          title: Request Field Summary Count
+          default: 0
+        request_field_summary_blocking_count:
+          type: integer
+          minimum: 0.0
+          title: Request Field Summary Blocking Count
+          default: 0
+        request_field_summaries:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestFieldSummaryItem'
+          type: array
+          title: Request Field Summaries
         request_payload_validator_contract_count:
           type: integer
           minimum: 0.0

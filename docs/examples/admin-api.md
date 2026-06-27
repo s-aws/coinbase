@@ -13,16 +13,15 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7721-7740"`. Futures/perpetual command-suite reads
-now expose backend-owned `prerequisite_summary_count`,
-`prerequisite_summary_blocking_count`, and `prerequisite_summaries` evidence
-for current M57 `7721-7740` while completed `7701-7720` command enablement
-contextless-review blocker summary evidence remains carried-forward history.
-The current rows are disabled, no-live evidence only and must not resolve
-prerequisites, clear command enablement, pass contextless review for command
-readiness, admit commands, pass approval/cap/guard/reconciliation gates, call
-Coinbase, execute reconciliation, mutate state, or grant browser/BFF or
-spot-rule authority.
+`"approved_phase_range": "7741-7760"`. Futures/perpetual command-suite reads
+now expose backend-owned `request_field_summary_count`,
+`request_field_summary_blocking_count`, and `request_field_summaries` evidence
+for current M57 `7741-7760` while completed `7721-7740` command prerequisite
+summary evidence remains carried-forward history. The current rows are
+disabled, no-live evidence only and must not validate payloads, register
+validators, clear command enablement, pass command readiness, admit commands,
+pass approval/cap/guard/reconciliation gates, call Coinbase, execute
+reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
 
 Completed `"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input

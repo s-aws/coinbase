@@ -11184,6 +11184,8 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert command_suite.command_enablement_sequence_command_trace_blocking_count == 20
     assert command_suite.prerequisite_summary_count == 13
     assert command_suite.prerequisite_summary_blocking_count == 11
+    assert command_suite.request_field_summary_count == 13
+    assert command_suite.request_field_summary_blocking_count == 13
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
@@ -11272,6 +11274,47 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert backend_service_summary.status == AdminApiGateStatus.PASSED
     assert backend_service_summary.resolved_command_count == 4
     assert backend_service_summary.required_evidence_refs == []
+
+    request_field_summaries_by_id = {
+        item.field: item for item in command_suite.request_field_summaries
+    }
+    assert set(request_field_summaries_by_id) == set(
+        AdminFuturesCommandRequestField
+    )
+    product_id_summary = request_field_summaries_by_id[
+        AdminFuturesCommandRequestField.PRODUCT_ID
+    ]
+    assert product_id_summary.status == AdminApiGateStatus.BLOCKED
+    assert product_id_summary.blocking is True
+    assert product_id_summary.required is True
+    assert product_id_summary.command_count == 4
+    assert product_id_summary.blocking_command_count == 4
+    assert product_id_summary.required_command_count == 4
+    assert product_id_summary.identity_field_command_count == 1
+    assert product_id_summary.payload_field_command_count == 4
+    assert product_id_summary.request_payload_contract_ref_count == 4
+    assert product_id_summary.validation_gate_ref_count == 4
+    assert product_id_summary.validation_evidence_ref_count == 4
+    assert product_id_summary.validator_contract_ref_count == 4
+    assert product_id_summary.validator_registration_ref_count == 4
+    assert product_id_summary.backend_owned is True
+    assert product_id_summary.read_only is True
+    assert product_id_summary.spot_rule_authority is False
+    assert product_id_summary.browser_authority == "display_only"
+    assert product_id_summary.bff_authority == "forward_only_no_execution"
+    assert "cannot validate payloads" in product_id_summary.detail
+    position_key_summary = request_field_summaries_by_id[
+        AdminFuturesCommandRequestField.POSITION_KEY
+    ]
+    assert position_key_summary.command_count == 2
+    assert position_key_summary.blocking_command_count == 2
+    assert position_key_summary.risk_field_command_count == 0
+    operator_notes_summary = request_field_summaries_by_id[
+        AdminFuturesCommandRequestField.OPERATOR_NOTES
+    ]
+    assert operator_notes_summary.command_count == 2
+    assert operator_notes_summary.blocking_command_count == 2
+    assert operator_notes_summary.request_payload_contract_ref_count == 2
 
     contextless_summary = summaries_by_blocker[
         AdminFuturesCommandEnablementBlocker.CONTEXTLESS_REVIEW_GATE

@@ -4292,6 +4292,40 @@ class AdminFuturesCommandRequestFieldItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRequestFieldSummaryItem(BaseModel):
+    """Backend-owned aggregate summary for one futures command request field."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminFuturesCommandRequestField
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    required: bool = True
+    command_count: int = Field(default=0, ge=0)
+    affected_commands: list[AdminFuturesCommandAction] = Field(default_factory=list)
+    required_command_count: int = Field(default=0, ge=0)
+    blocking_command_count: int = Field(default=0, ge=0)
+    identity_field_command_count: int = Field(default=0, ge=0)
+    risk_field_command_count: int = Field(default=0, ge=0)
+    payload_field_command_count: int = Field(default=0, ge=0)
+    request_payload_contract_ref_count: int = Field(default=0, ge=0)
+    request_payload_contract_refs: list[str] = Field(default_factory=list)
+    validation_gate_ref_count: int = Field(default=0, ge=0)
+    validation_gate_refs: list[str] = Field(default_factory=list)
+    validation_evidence_ref_count: int = Field(default=0, ge=0)
+    validation_evidence_refs: list[str] = Field(default_factory=list)
+    validator_contract_ref_count: int = Field(default=0, ge=0)
+    validator_contract_refs: list[str] = Field(default_factory=list)
+    validator_registration_ref_count: int = Field(default=0, ge=0)
+    validator_registration_refs: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandRequestPayloadValidatorContractItem(BaseModel):
     """One disabled validator contract row for a futures request payload field."""
 
@@ -14413,6 +14447,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     request_field_count: int = Field(default=0, ge=0)
     required_request_field_count: int = Field(default=0, ge=0)
     blocking_request_field_count: int = Field(default=0, ge=0)
+    request_field_summary_count: int = Field(default=0, ge=0)
+    request_field_summary_blocking_count: int = Field(default=0, ge=0)
+    request_field_summaries: list[AdminFuturesCommandRequestFieldSummaryItem] = Field(
+        default_factory=list
+    )
     request_payload_validator_contract_count: int = Field(default=0, ge=0)
     blocking_request_payload_validator_contract_count: int = Field(default=0, ge=0)
     ready_request_payload_validator_contract_count: int = Field(default=0, ge=0)

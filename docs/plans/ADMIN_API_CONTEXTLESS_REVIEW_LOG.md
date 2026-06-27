@@ -1,3 +1,23 @@
+## M57 Futures/Perpetual Command Request-Field Summary Evidence - Phases 7741-7760
+
+Result: PASS. Scope: phases `7741-7760`, after completed history through
+`7721-7740`, adds backend-owned read-only futures command request-field summary
+evidence from `GET /api/v1/futures/command-suite`. No live Coinbase execution
+is planned. No live Coinbase execution has been run for this slice, and actual
+submitted/executed notional remains `0` USDC.
+
+Boundary evidence for current `7741-7760` review: futures command request-field
+summary evidence is not request payload validation; not validator registration;
+not command enablement clearance; not command readiness passage; not approval
+passage; not cap/guard passage; not reconciliation passage; not command
+admission; not Coinbase execution; not reconciliation execution; not
+futures/order/exchange state mutation; not browser authority; not BFF execution
+authority; and not spot-rule authority.
+
+Exact validation phrases: No live Coinbase execution is planned. The actual submitted/executed notional remains `0` USDC. Completed futures command prerequisite summary evidence remains carried-forward history; current request-field summary evidence is not prerequisite resolution, not futures/order/exchange state mutation, and not BFF execution authority.
+
+Fresh blind/contextless backend review: PASS. Reviewer `019f0852-667d-7ed1-a712-23047a5ca696` verified the backend contract, read-service derivation, OpenAPI schema, docs/roadmap, focused tests, and no-authority boundaries. The reviewer confirmed `approved_phase_range='7741-7760'`, `request_field_summary_count=13`, `request_field_summary_blocking_count=13`, `prerequisite_summary_count=13`, `executable_command_count=0`, `live_coinbase_orders_ran=False`, `submitted_notional_usdc='0'`, and `executed_notional_usdc='0'`.
+
 ## M57 Futures/Perpetual Command Prerequisite Summary Evidence - Phases 7721-7740
 
 Result: PASS after remediation. Scope: phases `7721-7740`, after completed history through

@@ -4,9 +4,18 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7721-7740`.
+Current futures/perpetual M57 scope: `7741-7760`.
 
-Current futures/perpetual M57 scope details: `7721-7740` adds futures command
+Current futures/perpetual M57 scope details: `7741-7760` adds futures command
+request-field summary evidence on top of completed `7721-7740` futures command
+prerequisite summary evidence. The `request_field_summaries` fields are
+backend-owned, display-only, no-live, and do not treat request-field summary
+presence as request payload validation, validator registration, command
+enablement clearance, command readiness passage, approval passage, cap/guard
+passage, reconciliation passage, command admission, Coinbase execution,
+reconciliation execution, browser/BFF authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7721-7740` added futures command
 prerequisite summary evidence on top of completed `7701-7720` futures command
 enablement contextless-review blocker summary evidence. The
 `prerequisite_summaries` fields are backend-owned, display-only, no-live, and

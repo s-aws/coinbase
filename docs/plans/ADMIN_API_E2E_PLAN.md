@@ -1,4 +1,4 @@
-﻿# Admin API E2E Plan
+# Admin API E2E Plan
 
 This plan defines how the backend repository moves from proof-of-concept
 dashboard surfaces to a professional enterprise API consumed by the separate
@@ -49,11 +49,24 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7721-7740
+## Current Active Phases 7741-7760
+
+Batch label: Futures/Perpetuals Command Request-Field Summary Evidence.
+
+Current M57 `7741-7760` adds backend-owned read-only
+`request_field_summaries` to `GET /api/v1/futures/command-suite` after
+completed `7721-7740` prerequisite summary evidence. The request-field summary
+rows are derived from existing per-command request fields and validator refs.
+They cannot validate payloads, register validators, clear command enablement,
+admit commands, call Coinbase, execute reconciliation, mutate futures/order
+state, grant browser/BFF authority, or import spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7741-7760` evidence adds futures command request-field summary evidence while completed M57 `7721-7740` carries forward futures command prerequisite summary evidence.
+## Completed Phases 7721-7740
 
 Batch label: Futures/Perpetuals Command Prerequisite Summary Evidence.
 
-Current M57 work adds backend-owned read-only prerequisite summary evidence to
+Completed M57 `7721-7740` work added backend-owned read-only prerequisite summary evidence to
 the futures command-suite response after completed `7701-7720` command
 enablement contextless-review blocker summary evidence. The backend-owned
 contract is implemented through existing per-command prerequisite rows,
@@ -64,7 +77,7 @@ command enablement, admit commands, pass approval/cap/guard/reconciliation
 gates, call Coinbase, mutate futures/order/exchange state, or grant browser/BFF
 or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.
+Exact historical phrase: Completed M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.
 
 ## Completed Phases 7701-7720
 

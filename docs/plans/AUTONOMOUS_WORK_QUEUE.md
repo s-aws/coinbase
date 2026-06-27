@@ -1,4 +1,4 @@
-﻿# Autonomous Work Queue
+# Autonomous Work Queue
 
 This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work
@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7721-7740**.
+- Approved phase range: **7741-7760**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7701-7720`.
+- Previous completed range: `7721-7740`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7720`.
+- `current_phase`: `7740`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,25 +81,147 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7721-7740
+## Active Phases 7741-7760
+
+Batch label: Futures/Perpetuals Command Request-Field Summary Evidence.
+
+These phases continue M57 after completed `7721-7740` exposed futures command
+prerequisite summary evidence. The concrete gap is that per-command request
+fields and validator refs exist, but operators and contextless agents cannot
+yet see a backend-owned aggregate per request field across all futures command
+contracts. Active `7741-7760` must add derived read-only
+`request_field_summaries` to `GET /api/v1/futures/command-suite`, sync OpenAPI
+and the frontend, and prove that the summary cannot validate payloads,
+register validators, clear command enablement, admit commands, call Coinbase,
+execute reconciliation, mutate state, grant browser/BFF authority, or import
+spot-rule authority.
+
+Active M57 `7741-7760` evidence adds futures command request-field summary
+evidence while completed M57 `7721-7740` carries forward futures command
+prerequisite summary evidence.
+
+Exact autonomous phrase: Active M57 `7741-7760` evidence adds futures command request-field summary evidence while completed M57 `7721-7740` carries forward futures command prerequisite summary evidence.
+
+### Phase 7741 - Prior Range Closure
+
+- Record completed/pushed `7721-7740` command prerequisite summary evidence as
+  historical and move active metadata to `7741-7760`.
+
+### Phase 7742 - Backend Summary Model
+
+- Add typed backend-owned request-field summary rows to the futures command
+  suite response without adding command authority.
+
+### Phase 7743 - Read-Service Derivation
+
+- Derive request-field summaries from existing per-command request fields,
+  including affected commands, blocking counts, field-role counts, and
+  request payload validator refs.
+
+### Phase 7744 - No-Authority Boundary
+
+- Prove summaries remain read-only evidence and cannot validate payloads,
+  register validators, clear command enablement, admit commands, call
+  Coinbase, execute reconciliation, mutate state, grant browser/BFF authority,
+  or import spot-rule authority.
+
+### Phase 7745 - OpenAPI Sync
+
+- Regenerate Admin API OpenAPI from the backend-owned contract.
+
+### Phase 7746 - Frontend Schema Sync
+
+- Regenerate the frontend generated schema from the updated Admin API OpenAPI.
+
+### Phase 7747 - Frontend Adapter Mapping
+
+- Map request-field summary rows into the futures view model with generated
+  contract types.
+
+### Phase 7748 - Frontend Display
+
+- Render request-field summaries as display-only table evidence without any
+  controls or execution affordances.
+
+### Phase 7749 - Mock Backend Derivation
+
+- Update mock backend command-suite fixtures so request-field summaries are
+  derived from fixture command request fields instead of hand-maintained rows.
+
+### Phase 7750 - Backend Focused Tests
+
+- Assert summary counts, representative blocked request fields, authority
+  flags, and no-live posture.
+
+### Phase 7751 - Frontend Focused Tests
+
+- Assert mock parity, adapter/render behavior, active metadata, and
+  no-authority display.
+
+### Phase 7752 - API Documentation
+
+- Update API references and examples for request-field summary fields and
+  no-live/no-authority semantics.
+
+### Phase 7753 - Capability Matrix
+
+- Update the capability matrix so M57 lists request-field summaries as
+  backend-owned read-only evidence.
+
+### Phase 7754 - Maintainer Handoff
+
+- Update agent state, roadmap, and maintainer handoff docs for active
+  `7741-7760` and completed `7721-7740`.
+
+### Phase 7755 - Contextless Review Prep
+
+- Record planned review scope, exact phase phrase, and forbidden authority
+  claims before spawning reviewers.
+
+### Phase 7756 - Blind/Contextless Review
+
+- Run contextless review for the backend/frontend request-field summary path
+  and remediate any blocker.
+
+### Phase 7757 - Autonomous Validation
+
+- Run backend and frontend autonomous queue validators after docs and metadata
+  are synchronized.
+
+### Phase 7758 - Focused Validation
+
+- Run focused backend contract tests and frontend type/API/unit checks covering
+  the changed behavior.
+
+### Phase 7759 - Phase-End Hygiene
+
+- Run final status/diff checks, stale process checks if needed, and close
+  phase-scoped or stale unused subagents after findings are consumed.
+
+### Phase 7760 - Commit And Push
+
+- Commit and push both repos after validation passes and record live Coinbase
+  execution as not run with submitted/executed notional `0` USDC.
+
+## Completed Phases 7721-7740
 
 Batch label: Futures/Perpetuals Command Prerequisite Summary Evidence.
 
-These phases continue M57 after completed `7701-7720` exposed command
+These completed phases continued M57 after completed `7701-7720` exposed command
 enablement contextless-review blocker summary evidence. The concrete gap is
 that `UNRESOLVED_PREREQUISITES` identifies blocked commands and refs, but
 operators and contextless agents cannot yet see a backend-owned aggregate per
-prerequisite family. Active `7721-7740` must add derived read-only
+prerequisite family. Completed `7721-7740` added derived read-only
 `prerequisite_summaries` to `GET /api/v1/futures/command-suite`, sync OpenAPI
 and the frontend, and prove that the summary cannot resolve prerequisites,
 clear command enablement, call Coinbase, execute reconciliation, mutate state,
 grant browser/BFF authority, or import spot-rule authority.
 
-Active M57 `7721-7740` evidence adds futures command prerequisite summary
+Completed M57 `7721-7740` evidence adds futures command prerequisite summary
 evidence while completed M57 `7701-7720` carries forward futures command
 enablement contextless-review blocker summary evidence.
 
-Exact autonomous phrase: Active M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.
+Exact autonomous phrase: Completed M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.
 
 ### Phase 7721 - Prior Range Closure
 

@@ -24,44 +24,67 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7701-7720`.
-- Active approved range: `7721-7740`.
-- Scope: futures command prerequisite summary evidence and frontend display.
-  This continues M57 by aggregating existing per-command prerequisite rows into
-  `prerequisite_summaries` so unresolved prerequisite families are visible
-  without enabling any command path.
+- Latest completed and pushed range before this work: `7721-7740`.
+- Active approved range: `7741-7760`.
+- Scope: futures command request-field summary evidence and frontend display.
+  This continues M57 by aggregating existing per-command request fields into
+  `request_field_summaries` so blocked request payload fields and validator
+  refs are visible without enabling any command path.
 - Backend implementation status: complete locally.
 - Frontend implementation status: complete locally.
-- Contextless review status: PASS after remediation for `7721-7740`.
-- Commit/push status: pending for `7721-7740`.
+- Contextless review status: PASS for `7741-7760`.
+- Commit/push status: pending for `7741-7760`.
 - Prior phase-end subagent sweep: reviewers
-  `019f07d6-5e12-7a73-be72-b23e328d7b8b` and
-  `019f07e2-e8e4-7161-9dba-bb976db49b31` were closed after `7701-7720`
+  `019f0812-deb8-7500-9284-fd5e06f96f36` and
+  `019f081c-d367-7071-8e4e-a4ca4d9c179b` were closed after `7721-7740`
   findings were consumed. No prior phase-scoped subagents remain intentionally
   open.
 
 ## Phase Contract
 
-- The `7721-7740` fields are backend-owned disabled evidence on the existing
+- The `7741-7760` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from the existing command
-  prerequisite rows and do not resolve command readiness.
-- Presence of futures command prerequisite summary evidence is not
-  prerequisite resolution, command enablement clearance, contextless review
-  passage for command readiness, approval passage, cap/guard passage,
+  request-field rows and do not resolve command readiness.
+- Presence of futures command request-field summary evidence is not request
+  payload validation, validator registration, command enablement clearance,
+  command readiness passage, approval passage, cap/guard passage,
   reconciliation passage, command admission, Coinbase execution,
   reconciliation execution, browser/BFF authority, or spot-rule authority.
-- The summary evidence can report blocked families, affected commands,
-  evidence routes, and required evidence refs, but it cannot resolve
-  prerequisites, clear command enablement, call Coinbase, execute
+- The summary evidence can report blocked fields, affected commands,
+  field-role counts, request payload contract refs, validation gate refs,
+  validation evidence refs, validator contract refs, and validator
+  registration refs, but it cannot validate payloads, register validators,
+  clear command enablement, admit commands, call Coinbase, execute
   reconciliation, mutate state, grant browser/BFF authority, or import
   spot-rule authority.
-- Exact boundary phrase: prerequisite summaries cannot resolve prerequisites.
+- Exact boundary phrase: request-field summaries cannot validate payloads.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or
   known-profitable-inventory rule may be imported into futures/perpetual
   readiness.
 
+## m57_7741_7760_blind_review
+
+- Result: PASS.
+- Reviewer agents:
+  `019f0852-667d-7ed1-a712-23047a5ca696` passed backend review and
+  `019f0852-a6eb-7d42-ba8a-dc2c682d108b` passed frontend review.
+- Scope: active M57 `7741-7760` futures command request-field summary evidence
+  and frontend display.
+- Review evidence: backend reviewer verified model/read-service/OpenAPI/docs,
+  `request_field_summary_count=13`, `request_field_summary_blocking_count=13`,
+  `executable_command_count=0`, no live Coinbase execution, and notional `0`
+  USDC. Frontend reviewer verified generated schema, adapter mapping, mock
+  derivation, display-only table rendering, docs, focused tests, and no
+  browser/BFF or execution authority.
+- Phase-end subagent sweep: reviewers
+  `019f0852-667d-7ed1-a712-23047a5ca696` and
+  `019f0852-a6eb-7d42-ba8a-dc2c682d108b` were closed after PASS evidence was
+  consumed. No phase-scoped subagents remain intentionally open for
+  `7741-7760`.
+- Live Coinbase execution: not run; submitted notional `0` USDC; executed
+  notional `0` USDC.
 ## m57_7721_7740_blind_review
 
 - Result: PASS after remediation.
@@ -113,22 +136,22 @@ work. Historical milestone detail belongs in
 
 ## Local Validation
 
-- `7701-7720` closeout validation passed before commit/push in both repos.
-- `7721-7740` validation so far:
-  - Backend `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py` passed.
+- `7721-7740` closeout validation passed before commit/push in both repos.
+- `7741-7760` validation so far:
+  - Backend `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py tools\run_autonomous_work_queue_check.py` passed.
   - Backend `pytest tests\regression\test_admin_api_futures_risk_proofs.py::test_futures_command_enablement_blocker_summaries_remain_read_only -q --tb=short` passed.
   - Backend `pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands tests\regression\test_admin_api_contract.py::test_admin_api_frontend_fixtures_are_bounded_and_offline_safe -q --tb=short` passed.
-  - Backend remediation check `pytest tests\regression\test_admin_api_contract.py::test_admin_api_futures_read_routes_use_read_service_without_commands -q --tb=short` passed.
   - Backend `python tools\run_autonomous_work_queue_check.py --summary-only` passed.
   - Frontend `npm run typecheck` passed.
   - Frontend `npm run api:check` passed.
   - Frontend `npm run test -- tests/unit/mockBackend.test.ts tests/unit/FuturesPerpetualsReadModel.test.tsx tests/unit/qualityGates.test.tsx` passed with `89` tests.
   - Frontend `npm run autonomous:check` passed.
-  - `python tools\check_stale_test_processes.py --include-sibling-frontend`
-    passed with no stale test processes.
+  - Blind/contextless backend and frontend reviews passed.
+  - Phase-end subagent sweep closed reviewers
+    `019f0852-667d-7ed1-a712-23047a5ca696` and
+    `019f0852-a6eb-7d42-ba8a-dc2c682d108b`.
 - Remaining before phase closeout: final status after subagent cleanup, commit,
   and push.
-
 ## Live Execution
 
 - Live Coinbase execution for this phase: not run.
@@ -146,13 +169,10 @@ work. Historical milestone detail belongs in
 
 ## Next Actions
 
-1. Finish `7721-7740` frontend mock/read-model/tests and docs.
-2. Run focused backend/frontend validators for prerequisite summaries.
-3. Run blind/contextless review for `7721-7740` and remediate any blocker.
-4. Run autonomous validators, final diff/status checks, and phase-end stale
-   subagent cleanup.
-5. Commit and push both repositories.
-
+1. Run final stale-process/status/diff checks for `7741-7760`.
+2. Close phase-scoped reviewers after consuming their PASS evidence.
+3. Commit and push both repositories.
+4. Continue to the next approved M57 phase only after this phase is pushed.
 ## Durable Decisions
 
 - Use `client_order_id` for internal tracking. Use `order_id` only for

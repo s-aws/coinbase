@@ -136,6 +136,7 @@ from .models import (
     AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
     AdminFuturesCommandRequestFieldItem,
+    AdminFuturesCommandRequestFieldSummaryItem,
     AdminFuturesCommandRequestPayloadValidatorContractItem,
     AdminFuturesCommandRequestPayloadValidatorInputSchemaItem,
     AdminFuturesCommandRequestPayloadValidatorOutputSchemaItem,
@@ -700,7 +701,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7721-7740"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7741-7760"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -44665,6 +44666,132 @@ class AdminApiReadService:
 
         prerequisite_summaries = prerequisite_summaries_for(commands)
 
+        def request_field_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandRequestFieldSummaryItem]:
+            rows: list[AdminFuturesCommandRequestFieldSummaryItem] = []
+            for field_id in AdminFuturesCommandRequestField:
+                field_pairs = [
+                    (command_item, request_field)
+                    for command_item in command_items
+                    for request_field in command_item.request_fields
+                    if request_field.field == field_id
+                ]
+                if not field_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _request_field in field_pairs
+                    )
+                )
+                required_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, request_field in field_pairs
+                        if request_field.required
+                    )
+                )
+                blocking_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, request_field in field_pairs
+                        if request_field.status != AdminApiGateStatus.PASSED
+                    )
+                )
+                request_payload_contract_refs = unique_strings(
+                    [
+                        request_field.request_payload_contract_ref
+                        for _command_item, request_field in field_pairs
+                    ]
+                )
+                validation_gate_refs = unique_strings(
+                    [
+                        request_field.validation_gate_ref
+                        for _command_item, request_field in field_pairs
+                    ]
+                )
+                validation_evidence_refs = unique_strings(
+                    [
+                        request_field.validation_evidence_ref
+                        for _command_item, request_field in field_pairs
+                    ]
+                )
+                validator_contract_refs = unique_strings(
+                    [
+                        request_field.validator_contract_ref
+                        for _command_item, request_field in field_pairs
+                    ]
+                )
+                validator_registration_refs = unique_strings(
+                    [
+                        request_field.validator_registration_ref
+                        for _command_item, request_field in field_pairs
+                    ]
+                )
+                blocking = bool(blocking_commands)
+                required = bool(required_commands)
+                rows.append(
+                    AdminFuturesCommandRequestFieldSummaryItem(
+                        field=field_id,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        required=required,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        required_command_count=len(required_commands),
+                        blocking_command_count=len(blocking_commands),
+                        identity_field_command_count=sum(
+                            1
+                            for _command_item, request_field in field_pairs
+                            if request_field.identity_field
+                        ),
+                        risk_field_command_count=sum(
+                            1
+                            for _command_item, request_field in field_pairs
+                            if request_field.risk_field
+                        ),
+                        payload_field_command_count=sum(
+                            1
+                            for _command_item, request_field in field_pairs
+                            if request_field.payload_field
+                        ),
+                        request_payload_contract_ref_count=len(
+                            request_payload_contract_refs
+                        ),
+                        request_payload_contract_refs=request_payload_contract_refs,
+                        validation_gate_ref_count=len(validation_gate_refs),
+                        validation_gate_refs=validation_gate_refs,
+                        validation_evidence_ref_count=len(validation_evidence_refs),
+                        validation_evidence_refs=validation_evidence_refs,
+                        validator_contract_ref_count=len(validator_contract_refs),
+                        validator_contract_refs=validator_contract_refs,
+                        validator_registration_ref_count=len(
+                            validator_registration_refs
+                        ),
+                        validator_registration_refs=validator_registration_refs,
+                        detail=(
+                            f"{field_id.value} applies to "
+                            f"{len(affected_commands)} futures/perpetual "
+                            f"command contract(s); {len(blocking_commands)} "
+                            "remain blocked by request payload readiness. "
+                            "This aggregate summary is backend-owned read-only "
+                            "evidence and cannot validate payloads, register "
+                            "validators, clear command enablement, admit "
+                            "commands, call Coinbase, execute reconciliation, "
+                            "mutate futures/order state, grant browser/BFF "
+                            "authority, or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        request_field_summaries = request_field_summaries_for(commands)
+
         def blocker_summary(
             blocker: AdminFuturesCommandEnablementBlocker,
             *,
@@ -45105,6 +45232,11 @@ class AdminApiReadService:
             blocking_request_field_count=sum(
                 command.blocking_request_field_count for command in commands
             ),
+            request_field_summary_count=len(request_field_summaries),
+            request_field_summary_blocking_count=sum(
+                1 for item in request_field_summaries if item.blocking
+            ),
+            request_field_summaries=request_field_summaries,
             request_payload_validator_contract_count=sum(
                 command.request_payload_validator_contract_count
                 for command in commands

@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7721-7740"
-APPROVED_PHASES = tuple(range(7721, 7741))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7701-7720"
+APPROVED_PHASE_RANGE = "7741-7760"
+APPROVED_PHASES = tuple(range(7741, 7761))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7721-7740"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7721-7740` evidence adds futures command prerequisite summary evidence while completed M57 `7701-7720` carries forward futures command enablement contextless-review blocker summary evidence.",
+            "Active M57 `7741-7760` evidence adds futures command request-field summary evidence while completed M57 `7721-7740` carries forward futures command prerequisite summary evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1582,9 +1582,10 @@ def _check_agent_state_docs() -> QueueCheck:
     required = [
         f"Active approved range: `{APPROVED_PHASE_RANGE}`",
         f"Latest completed and pushed range before this work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
-        "futures command prerequisite summary evidence",
-        "prerequisite_summaries",
-        "cannot resolve prerequisites",
+        "futures command request-field summary evidence",
+        "request_field_summaries",
+        "cannot validate payloads",
+        "register validators",
         "clear command enablement",
         "approval passage",
         "cap/guard passage",

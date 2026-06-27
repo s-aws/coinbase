@@ -16,17 +16,22 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7721-7740` futures/perpetual command prerequisite summary
+Current M57 `7741-7760` futures/perpetual command request-field summary
 evidence for `GET /api/v1/futures/command-suite` is the active slice. It adds
-read-only `prerequisite_summary_count`,
-`prerequisite_summary_blocking_count`, and `prerequisite_summaries` fields
-derived from existing per-command prerequisite rows and carries forward
-completed `7701-7720` command enablement contextless-review blocker evidence.
-The fields are read-only/no-live evidence and must not resolve prerequisites,
-clear command enablement, pass contextless review for command readiness, admit
-commands, pass approval, cap/guard, or reconciliation gates, execute
-reconciliation, call Coinbase, mutate futures/order/exchange state, or grant
-browser/BFF or spot-rule authority.
+read-only `request_field_summary_count`,
+`request_field_summary_blocking_count`, and `request_field_summaries` fields
+derived from existing per-command request-field rows and carries forward
+completed `7721-7740` command prerequisite summary evidence. The fields are
+read-only/no-live evidence and must not validate payloads, register validators,
+clear command enablement, pass command readiness, admit commands, pass
+approval, cap/guard, or reconciliation gates, execute reconciliation, call
+Coinbase, mutate futures/order/exchange state, or grant browser/BFF or
+spot-rule authority.
+
+Completed M57 `7721-7740` futures/perpetual command prerequisite summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only prerequisite summary fields derived from existing
+per-command prerequisite rows.
 
 Completed M57 `7701-7720` futures/perpetual command enablement
 contextless-review blocker summary evidence for
