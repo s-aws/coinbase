@@ -11,7 +11,17 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7661-7680 range targets explicit M57 futures/perpetual request
+The active 7681-7700 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation check output schema
+field-constraint source-ref validation-record acceptance contextless-review
+acceptance evidence. Completed 7661-7680 clearance-step review input store
+record-validation check output schema field-constraint source-ref
+validation-record acceptance contextless-review evidence remains
+carried-forward history.
+
+The completed 7661-7680 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
 clearance-step review input store record-validation check output schema
@@ -155,7 +165,15 @@ clearance-step review input evidence for `GET /api/v1/futures/command-suite`
 and the disabled command draft routes.
 
 Current representative response metadata includes
-`"approved_phase_range": "7661-7680"` and planned no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review rows such
+`"approved_phase_range": "7681-7700"` and planned no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance rows such
+as `validation_record_acceptance_contextless_review_acceptance_required=true`,
+`validation_record_acceptance_contextless_review_acceptance_ready=false`,
+`validation_record_acceptance_contextless_review_acceptance_declared=false`,
+`validation_record_acceptance_contextless_review_acceptance_passed=false`,
+`validation_record_acceptance_contextless_review_acceptance_accepted=false`, and
+`validation_record_acceptance_contextless_review_acceptance_recorded=false`.
+
+Completed `"approved_phase_range": "7661-7680"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review rows such
 as `validation_record_acceptance_contextless_review_required=true`,
 `validation_record_acceptance_contextless_review_ready=false`,
 `validation_record_acceptance_contextless_review_declared=false`,
