@@ -4,7 +4,25 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7641-7660` adds futures request payload
+Current futures/perpetual M57 scope: `7661-7680` adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint
+source-ref validation-record acceptance contextless-review evidence on top of
+completed `7641-7660` futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-constraint source-ref
+validation-record acceptance evidence. The current rows are backend-owned,
+display-only, no-live, and do not treat contextless-review presence as
+contextless-review passage, validation-record acceptance passage,
+source-ref record acceptance passage, source-ref acceptance passage,
+source-ref declaration, constraint declaration, field-type declaration,
+field-name declaration, field declaration, schema declaration, command
+admission, Coinbase execution, reconciliation execution, browser/BFF
+authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7641-7660` adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check output schema field-constraint

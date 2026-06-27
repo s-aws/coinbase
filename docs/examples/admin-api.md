@@ -13,17 +13,18 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7641-7660"`. Futures/perpetual command-suite reads
-now expose backend-owned clearance-step review input store record-validation
-check output schema field-constraint source-ref validation-record acceptance evidence for
-active M57 `7641-7660` while completed `7621-7640` clearance-step review input
-store record-validation check output schema field-constraint source-ref record-acceptance evidence remains
-carried-forward history. The current rows are disabled, no-live evidence only
-and do not accept validation records, pass source-ref record acceptance, pass
-source-ref acceptance, pass contextless review, declare source refs,
-constraints, field types, field names, fields, schemas, admit commands, call
-Coinbase, execute reconciliation, mutate state, or grant browser/BFF or
-spot-rule authority.
+`"approved_phase_range": "7661-7680"`. Futures/perpetual command-suite reads
+now target backend-owned clearance-step review input store record-validation
+check output schema field-constraint source-ref validation-record acceptance
+contextless-review evidence for active M57 `7661-7680` while completed
+`7641-7660` clearance-step review input store record-validation check output
+schema field-constraint source-ref validation-record acceptance evidence
+remains carried-forward history. The current rows are disabled, no-live
+evidence only and do not pass contextless review, accept validation records,
+pass validation-record acceptance, pass source-ref record acceptance, pass
+source-ref acceptance, declare source refs, constraints, field types, field
+names, fields, schemas, admit commands, call Coinbase, execute reconciliation,
+mutate state, or grant browser/BFF or spot-rule authority.
 
 Completed `"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input
@@ -59,7 +60,15 @@ execution-eligibility resolution-plan step review evidence,
 execution-eligibility resolution-plan step evidence, execution-eligibility
 resolution-plan evidence, execution-eligibility semantic closure evidence,
 disabled reconciliation semantics, cancel semantics, order semantics, and
-earlier evidence. Active M57 `7641-7660` evidence adds futures request payload
+earlier evidence. Active M57 `7661-7680` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review evidence while
+completed M57 `7641-7660` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref validation-record acceptance evidence.
+Completed M57 `7641-7660` evidence adds futures request payload
 validation record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check output schema field-constraint source-ref validation-record acceptance evidence while
