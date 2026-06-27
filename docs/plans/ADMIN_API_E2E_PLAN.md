@@ -49,11 +49,26 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7961-7980
+## Current Active Phases 7981-8000
+
+Batch label: Release 0.1 Operator Admin Pivot.
+
+Current Release 0.1 `7981-8000` pivots the Admin API plan to a usable private
+operator MVP. The active goal is no longer to add another futures/perpetual
+proof-summary field. The active goal is to make the frontend/API path able to
+manage backend-supported workflows, expose unsupported behavior as
+`unsupported` or `not_modeled`, and choose implementation slices by release
+impact.
+
+Every phase must answer: Does this make the frontend able to manage the project?
+
+Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platform to product-managing operator workflows while completed M57 `7961-7980` carries forward futures risk-proof record validation remediation summary evidence.
+
+## Completed Phases 7961-7980
 
 Batch label: Futures/Perpetuals Risk-Proof Record Validation Remediation Summary Evidence.
 
-Current M57 `7961-7980` adds backend-owned read-only
+Completed M57 `7961-7980` added backend-owned read-only
 `risk_proof_record_validation_remediation_summaries` to
 `GET /api/v1/futures/command-suite` after completed `7941-7960` risk-proof
 record validation summary evidence. The remediation summary rows are derived
@@ -66,7 +81,7 @@ records, accept proof records, accept risk proofs, clear command readiness,
 admit commands, call Coinbase, execute reconciliation, mutate futures/order
 state, grant browser/BFF authority, or import spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+Exact historical phrase: Completed M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
 
 ## Completed Phases 7941-7960
 

@@ -4,6 +4,13 @@ This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
 
+Current active work has pivoted to Release 0.1 operator-admin delivery.
+Active Release 0.1 `7981-8000` pivots the admin platform to product-managing
+operator workflows while completed M57 `7961-7980` carries forward futures
+risk-proof record validation remediation summary evidence.
+
+Exact active release phrase: Active Release 0.1 `7981-8000` pivots the admin platform to product-managing operator workflows while completed M57 `7961-7980` carries forward futures risk-proof record validation remediation summary evidence.
+
 ## When To Use
 
 Use these routes when an operator or admin frontend needs to inspect futures
@@ -37,7 +44,7 @@ and position routes return
 blocked/no-live posture through route-bound draft, execution, browser, BFF,
 and notional evidence fields.
 
-Active M57 `7961-7980` evidence adds futures risk-proof record validation
+Completed M57 `7961-7980` evidence added futures risk-proof record validation
 remediation summary evidence while completed M57 `7941-7960` carries forward
 futures risk-proof record validation summary evidence. The
 `risk_proof_record_validation_remediation_summaries` rows are read-only
@@ -51,7 +58,7 @@ command readiness, admit commands, call Coinbase, execute reconciliation,
 mutate futures/order/exchange state, grant browser/BFF authority, or import
 spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+Exact autonomous phrase: Completed M57 `7961-7980` evidence added futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
 
 ## Key Concepts
 
@@ -70,7 +77,7 @@ Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7961-7980` evidence adds futures risk-proof record validation
+- Completed M57 `7961-7980` evidence added futures risk-proof record validation
   remediation summary evidence while completed M57 `7941-7960` carries
   forward futures risk-proof record validation summary evidence. The
   `risk_proof_record_validation_remediation_summaries` rows are derived from
@@ -84,7 +91,7 @@ Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof
   writers, accept risk proofs, clear command readiness, admit commands, call
   Coinbase, execute reconciliation, mutate futures/order/exchange state, grant
   browser/BFF authority, or import spot-only rules.
-- Exact active phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+- Exact active phrase: Completed M57 `7961-7980` evidence added futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
 - Completed M57 `7941-7960` evidence adds futures risk-proof record validation
   summary evidence while completed M57 `7921-7940` carries forward futures
   risk-proof record contract summary evidence.

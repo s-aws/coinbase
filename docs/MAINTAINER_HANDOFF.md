@@ -25,6 +25,9 @@ perpetuals, stealth orders, movement/repricing, or future modules.
 8. Read `docs/plans/AUTONOMOUS_WORK_QUEUE.md` before advancing phases. Each
    active phase must map to an approved durable milestone and an explicit
    architecture or planning gap.
+9. Read `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` before creating new phases.
+   Active work must clear a named Release 0.1 blocker or directly improve the
+   usable operator admin product.
 
 ## Subagent Hygiene
 
@@ -123,21 +126,18 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7941-7960` under M57.
-- Active autonomous range: `7961-7980` under M57.
-- Current active range: `7961-7980` adds futures risk-proof record validation
-  remediation summary evidence derived from existing per-command risk-proof
-  record-validation remediation rows. It remains disabled, no-live,
-  backend-owned evidence only and cannot perform remediation, create work
-  items, register record validators, run contextless reviews, configure
-  validation gates, create stores, configure append-only logs, bind
-  idempotency, register payload validation, register replay guards, link audit
-  evidence, write validation records, write proof records, accept proof
-  records, register proof routes, enable proof writers, resolve proof
-  acceptance, accept risk proofs, pass command readiness, admit commands, pass
-  approval, cap/guard, or reconciliation gates, execute reconciliation, call
-  Coinbase, mutate futures/order/exchange state, grant browser/BFF authority,
-  or import spot-only rules.
+- Latest completed autonomous range: `7961-7980` under M57.
+- Active autonomous range: `7981-8000` under Release 0.1.
+- Current active range: `7981-8000` pivots the Admin API/frontend work to a
+  usable private operator MVP. Every new phase must either clear a named
+  Release 0.1 blocker or directly improve the usable admin product. Unsupported
+  backend behavior must be surfaced as `unsupported` or `not_modeled`; do not
+  implement missing behavior in the browser, BFF, route-local FastAPI handlers,
+  or any second trading path.
+- Completed `7961-7980` added risk-proof record validation remediation summary
+  evidence derived from existing per-command risk-proof record-validation
+  remediation rows and remains carried-forward disabled, no-live,
+  backend-owned evidence only.
 - Completed `7941-7960` added risk-proof record validation summary evidence
   derived from existing per-command risk-proof record-validation rows and
   remains carried-forward disabled, no-live, backend-owned evidence only.

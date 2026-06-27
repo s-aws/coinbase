@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7961-7980**.
-- Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7941-7960`.
+- Approved phase range: **7981-8000**.
+- Range status: active under Release 0.1 - Private Operator Admin MVP.
+- Previous completed range: `7961-7980`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -47,14 +47,14 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   advance.
 - Frontend release, deployment, artifact, and smoke gates remain no-live.
 - If any stop condition occurs, resolve it before advancing to the next phase.
-- Active phases must map to an approved durable milestone and to a concrete
-  architecture or planning gap in the milestone ledger. Do not create orphan
-  phases, generic polish phases, or unrelated roadmap batches.
-- Normal autonomous continuation may create the next milestone-linked active
+- Active phases must map to Release 0.1 blockers or directly improve the
+  usable operator admin product. Do not create orphan phases, generic polish
+  phases, recommendation-only phases, or proof-summary batches that do not
+  clear a named release blocker.
+- Normal autonomous continuation may create the next release-linked active
   range when this range is completed and pushed, but only when the next gap is
-  directly tied to the approved milestone ledger. If no remaining approved
-  milestone owns the next gap, stop and request a new decision instead of
-  inventing scope.
+  directly tied to the Release 0.1 burn-down. If no release-aligned next gap
+  exists, stop and request a new decision instead of inventing scope.
 
 ## Current Progress Record
 
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7960`.
+- `current_phase`: `7980`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -75,164 +75,153 @@ baseline before the range, not the final phase id in the active range.
 - Full `tests/regression/` or frontend `release:gate` fails when the current
   work is explicitly closing a durable milestone, public/release-candidate
   handoff, deployment approval/closeout, release-hardening closeout, Admin
-  API/backend association closeout, or user-requested full gate.
+  API/backend association closeout, Release 0.1 closeout, or user-requested
+  full gate.
 - `blind/contextless review` finds a blocking ambiguity or unsafe path.
 - Live Coinbase reconciliation fails, live notional exceeds cap, or exact product/notional evidence is missing.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
+- Work would add evidence-only roadmap expansion without tying it to a named Release 0.1 blocker.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7961-7980
+## Active Phases 7981-8000
 
-Batch label: Futures/Perpetuals Risk-Proof Record Validation Remediation Summary Evidence.
+Batch label: Release 0.1 Operator Admin Pivot.
 
-These phases continue M57 after completed `7941-7960` exposed futures
-risk-proof record-validation summary evidence. The concrete gap is that
-per-command risk-proof requirement rows already expose disabled proof
-record-validation remediation rows, but operators and contextless agents
-cannot yet see a backend-owned aggregate grouped by proof record contract
-kind. Active `7961-7980` must add derived read-only
-`risk_proof_record_validation_remediation_summaries` to
-`GET /api/v1/futures/command-suite`, sync OpenAPI and the frontend, and prove
-that the summary cannot perform remediation, create work items, register
-record validators, run contextless reviews, configure validation gates, create
-stores, configure append-only logs, bind idempotency, register payload
-validation, register replay guards, link audit evidence, write validation
-records, write proof records, accept proof records, accept risk proofs, clear
-command readiness, admit commands, call Coinbase, execute reconciliation,
-mutate futures/order/exchange state, grant browser/BFF authority, or import
-spot-rule authority.
+These phases pivot active work away from endless futures/perpetual proof-summary
+expansion and toward a private operator admin release candidate. The concrete
+gap is that the project has backend-owned contracts and proof surfaces, but no
+usable admin product that can manage the engine without falling back to
+proof-of-concept dashboards. The active range must make release blockers
+explicit, classify unsupported behavior as `unsupported` or `not_modeled`, and
+select the next implementation slice by operator value.
 
-Active M57 `7961-7980` evidence adds futures risk-proof record validation
-remediation summary evidence while completed M57 `7941-7960` carries forward
-futures risk-proof record validation summary evidence.
+Every phase must answer: Does this make the frontend able to manage the project?
 
-Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+Active Release 0.1 `7981-8000` pivots the admin platform to product-managing
+operator workflows while completed M57 `7961-7980` carries forward futures
+risk-proof record validation remediation summary evidence.
 
-### Phase 7961 - Prior Range Closure
+Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platform to product-managing operator workflows while completed M57 `7961-7980` carries forward futures risk-proof record validation remediation summary evidence.
 
-- Record completed/pushed `7941-7960` risk-proof record validation summary
-  evidence as historical and move active metadata to `7961-7980`.
+### Phase 7981 - Close Proof Expansion
 
-### Phase 7962 - Backend Record Validation Remediation Summary Model
+- Mark completed/pushed `7961-7980` risk-proof record validation remediation
+  summary evidence as historical and freeze further proof-summary expansion
+  unless it directly closes a named Release 0.1 blocker.
 
-- Add typed backend-owned risk-proof record-validation remediation summary rows
-  to the futures command-suite response without adding remediation execution,
-  work-item creation, validator registration, validation execution, replay
-  passage, store creation, append-only log configuration, idempotency binding,
-  payload validation registration, replay protection, audit linkage,
-  validation-record writes, proof-record writes, proof-record acceptance,
-  proof-route registration, proof-writer enablement, proof-acceptance
-  resolution, risk-proof acceptance, command readiness clearance, or command
-  admission authority.
+### Phase 7982 - Release Blocker Inventory
 
-### Phase 7963 - Read-Service Derivation
+- Inventory backend and frontend gaps against the Release 0.1 blocker table in
+  `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md`.
 
-- Derive record-validation remediation summaries from existing per-command
-  risk-proof requirement `record_validation_remediations` rows, including
-  contract kind, affected commands, proof kinds, required backend contracts,
-  store refs, record keys, remediation refs, remediation gates, validation
-  gates, replay gates, validation checks, remediation actions, owners,
-  evidence refs, disabled remediation posture, route/writer posture,
-  execution flags, and no-live authority flags.
+### Phase 7983 - Admin Shell Operability Map
 
-### Phase 7964 - No-Authority Boundary
+- Map health, lifecycle, pause/resume, stop/drain, and operator status flows
+  from backend route to frontend surface.
 
-- Prove risk-proof record-validation remediation summaries cannot perform
-  remediation, create work items, register record validators, run contextless
-  reviews, configure validation gates, create stores, configure append-only
-  logs, bind idempotency, register payload validation, register replay guards,
-  link audit evidence, write validation records, write proof records, accept
-  proof records, accept risk proofs, clear command readiness, admit commands,
-  call Coinbase, execute reconciliation, mutate futures/order/exchange state,
-  grant browser/BFF authority, or import spot-rule authority.
+### Phase 7984 - Account And Market Coverage Map
 
-### Phase 7965 - OpenAPI Sync
+- Map product, account, balance, order, fill, position, funding, and risk reads
+  to the frontend surfaces that need them.
 
-- Regenerate Admin API OpenAPI from the backend-owned contract.
+### Phase 7985 - Spot Command Usability Map
 
-### Phase 7966 - Frontend Schema Sync
+- Identify the smallest backend-owned spot buy/sell/cancel workflow needed for
+  the private operator MVP.
 
-- Regenerate the frontend generated schema from the updated Admin API OpenAPI.
+### Phase 7986 - Stealth Command Usability Map
 
-### Phase 7967 - Frontend Adapter Mapping
+- Identify supported stealth create/cancel/reveal/move/reprice/recovery flows
+  and unsupported gaps that must surface as `unsupported` or `not_modeled`.
 
-- Map record-validation remediation summary rows into the futures view model
-  with generated contract types.
+### Phase 7987 - Movement/Repricing Usability Map
 
-### Phase 7968 - Frontend Display
+- Identify supported move, premark, reprice, cooldown, claim, cancel/replace,
+  audit, and recovery flows.
 
-- Render record-validation remediation summaries as display-only table evidence
-  without remediation controls, work-item controls, validator-registration
-  controls, validation-run controls, replay-passage controls, store-creation
-  controls, append-only log configuration controls, idempotency controls,
-  proof-record write controls, proof-record acceptance affordances, proof
-  acceptance affordances, or execution affordances.
+### Phase 7988 - Automation And Campaign Usability Map
 
-### Phase 7969 - Mock Backend Derivation
+- Identify supported scheduler, campaign, retry, pause/resume, run-limit, and
+  recovery flows.
 
-- Update mock backend command-suite fixtures so record-validation remediation
-  summaries are derived from fixture risk-proof requirement remediation rows
-  instead of hand-maintained rows.
+### Phase 7989 - Audit, Reconciliation, And Settings Map
 
-### Phase 7970 - Backend Focused Tests
+- Identify audit, reconciliation, settings, policy, and safe-edit paths needed
+  before private operator release.
 
-- Assert summary counts, contract-kind grouping, backend contracts, store
-  refs, record keys, remediation refs, remediation gates, validation gates,
-  replay gates, validation checks, remediation actions, owners, evidence refs,
-  disabled remediation posture, route/writer posture, authority flags, and
-  no-live posture.
+### Phase 7990 - Backend Route-To-UI Release Matrix
 
-### Phase 7971 - Frontend Focused Tests
+- Produce a route-to-frontend matrix that classifies each admin workflow as
+  usable, blocked, `unsupported`, or `not_modeled`.
 
-- Assert mock parity, adapter/render behavior, active metadata, and
-  no-authority display.
+### Phase 7991 - Frontend Workflow Release Matrix
 
-### Phase 7972 - API Documentation
+- Produce a navigation/workflow matrix that shows which operator tasks can be
+  completed end to end in the frontend.
 
-- Update API references and examples for record-validation remediation summary
-  fields and no-live/no-authority semantics.
+### Phase 7992 - Unsupported Gap Classification
 
-### Phase 7973 - Capability Matrix
+- Ensure unsupported and not-modeled gaps are visible in both backend and
+  frontend evidence instead of implied by missing UI.
 
-- Update the capability matrix so M57 lists record-validation remediation
-  summaries as backend-owned read-only evidence.
+### Phase 7993 - Next Implementation Slice Selection
 
-### Phase 7974 - Maintainer Handoff
+- Select the next implementation slice strictly by release impact and state the
+  blocker it clears.
 
-- Update agent state, roadmap, and maintainer handoff docs for active
-  `7961-7980` and completed `7941-7960`.
+### Phase 7994 - Operator Runbook Update
 
-### Phase 7975 - Generated Reference And Examples
+- Update the operator runbook so a contextless maintainer can start the admin
+  API/frontend and understand what Release 0.1 can and cannot do.
 
-- Keep OpenAPI, examples, expanded API reference, and docs index aligned so a
-  contextless maintainer can find the record-validation remediation summary
-  surface.
+### Phase 7995 - Documentation Index Update
 
-### Phase 7976 - Autonomous Validator Sync
+- Link the burn-down, milestones, handoff, and work queue from the ordered docs
+  index.
 
-- Update autonomous work-queue validators and phase metadata so stale
-  `7941-7960` active wording fails.
+### Phase 7996 - Autonomous Validator Pivot
 
-### Phase 7977 - Backend Contextless Review
+- Update autonomous validators and artifacts so active work is `7981-8000` and
+  proof-only drift fails validation.
 
-- Run blind/contextless backend review and remediate any ambiguity before
-  treating the phase as complete.
+### Phase 7997 - Backend Contextless Review
 
-### Phase 7978 - Frontend Contextless Review
+- Run blind/contextless backend review focused on whether Release 0.1 scope and
+  next work are understandable without chat history.
 
-- Run blind/contextless frontend review and remediate any ambiguity before
-  treating the phase as complete.
+### Phase 7998 - Frontend Contextless Review
 
-### Phase 7979 - Validation And Hygiene Sweep
+- Run blind/contextless frontend review focused on whether Release 0.1 scope,
+  blockers, and backend association are understandable without chat history.
 
-- Run focused backend/frontend validation, autonomous validators,
-  stale-process checks after any interrupted command, and phase-end subagent
-  cleanup.
+### Phase 7999 - Focused Validation And Hygiene
 
-### Phase 7980 - Commit And Push Evidence
+- Run focused backend/frontend validation, autonomous validators, stale-process
+  checks after any interrupted command, and phase-end subagent cleanup.
+
+### Phase 8000 - Commit And Push Evidence
 
 - Commit and push synchronized backend/frontend changes after validation and
   review pass, recording live Coinbase execution status and notional evidence.
+
+## Completed Phases 7961-7980
+
+Batch label: Futures/Perpetuals Risk-Proof Record Validation Remediation Summary Evidence.
+
+Completed M57 `7961-7980` added backend-owned read-only
+`risk_proof_record_validation_remediation_summaries` to
+`GET /api/v1/futures/command-suite` after completed `7941-7960` risk-proof
+record validation summary evidence. The remediation summary rows are derived
+from existing per-command risk-proof record-validation remediation rows. They
+cannot perform remediation, create work items, register record validators, run
+contextless reviews, configure validation gates, create stores, configure
+append-only logs, bind idempotency, register payload validation, register
+replay guards, link audit evidence, write validation records, write proof
+records, accept proof records, accept risk proofs, clear command readiness,
+admit commands, call Coinbase, execute reconciliation, mutate futures/order
+state, grant browser/BFF authority, or import spot-rule authority.
+
+Exact historical phrase: Completed M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
 
 ## Completed Phases 7941-7960
 

@@ -10,16 +10,29 @@ Spot is the first complete product module. Do not use spot wallet, USDC,
 cost-basis, or no-shorting rules as generic admin behavior for
 futures/perpetuals, stealth orders, repricing, or risk policy modules.
 
-## Current Futures/Perpetuals M57 Evidence
+## Current Release 0.1 Pivot
 
-`GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7961-7980"`. Futures/perpetual command-suite reads
-now expose backend-owned
+Active Release 0.1 `7981-8000` pivots the admin platform to product-managing
+operator workflows while completed M57 `7961-7980` carries forward futures
+risk-proof record validation remediation summary evidence.
+
+Current active Admin API examples use `"approved_phase_range": "7981-8000"`.
+New examples must clear a named Release 0.1 blocker or directly improve the
+usable operator admin product. Unsupported backend behavior must appear as
+`unsupported` or `not_modeled`; it must not be implemented in the browser, BFF,
+route-local FastAPI code, or a second trading path.
+
+## Completed Futures/Perpetuals M57 Evidence
+
+Completed `GET /api/v1/futures/command-suite` examples for M57 used
+`"approved_phase_range": "7961-7980"` as historical evidence. The current
+active release-control range is `"approved_phase_range": "7981-8000"`.
+Futures/perpetual command-suite reads exposed backend-owned
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
-`risk_proof_record_validation_remediation_summaries` evidence for current M57
-`7961-7980` while completed `7941-7960` risk-proof record validation summary
-evidence remains carried-forward history. The current rows are disabled,
+`risk_proof_record_validation_remediation_summaries` evidence for completed
+M57 `7961-7980` while completed `7941-7960` risk-proof record validation
+summary evidence remains carried-forward history. The completed rows are disabled,
 no-live evidence only and must not perform remediation, create work items,
 register record validators, run contextless reviews, configure validation
 gates, create stores, configure append-only logs, bind idempotency, register

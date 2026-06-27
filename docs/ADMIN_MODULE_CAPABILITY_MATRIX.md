@@ -4,11 +4,18 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7961-7980`.
+Current Release 0.1 scope: `7981-8000`.
 
-Current futures/perpetual M57 scope details: `7961-7980` adds futures
-risk-proof record validation remediation summary evidence on top of completed
-`7941-7960` futures risk-proof record validation summary evidence. The
+Current Release 0.1 scope details: `7981-8000` pivots the admin platform to a
+usable private operator MVP. Active work must clear named Release 0.1 blockers
+or directly improve the frontend/API path for managing backend-supported
+workflows. Unsupported or incomplete backend behavior must be surfaced as
+`unsupported` or `not_modeled`, not hidden and not implemented in browser,
+BFF, route-local FastAPI code, or a second trading path.
+
+Completed futures/perpetual M57 scope: `7961-7980` added futures risk-proof
+record validation remediation summary evidence on top of completed `7941-7960`
+futures risk-proof record validation summary evidence. The
 `risk_proof_record_validation_remediation_summaries` fields are backend-owned,
 display-only, no-live, and do not treat record-validation remediation summary
 presence as remediation execution, work item creation, record validator

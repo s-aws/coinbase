@@ -33,6 +33,9 @@ AGENT_STATE_DOC = PROJECT_ROOT / "genai_data" / "agent_state.md"
 CONTEXTLESS_REVIEW_LOG_DOC = (
     PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_CONTEXTLESS_REVIEW_LOG.md"
 )
+ADMIN_RELEASE_0_1_BURNDOWN_DOC = (
+    PROJECT_ROOT / "docs" / "plans" / "ADMIN_RELEASE_0_1_BURNDOWN.md"
+)
 REGRESSION_GATE_POLICY_DOCS = (
     PROJECT_ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md",
     PROJECT_ROOT / ".github" / "workflows" / "public-agent-checks.yml",
@@ -65,9 +68,15 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7961-7980"
-APPROVED_PHASES = tuple(range(7961, 7981))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7941-7960"
+APPROVED_PHASE_RANGE = "7981-8000"
+APPROVED_PHASES = tuple(range(7981, 8001))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7961-7980"
+RELEASE_PIVOT_PHRASE = (
+    "Active Release 0.1 `7981-8000` pivots the admin platform to "
+    "product-managing operator workflows while completed M57 `7961-7980` "
+    "carries forward futures risk-proof record validation remediation summary "
+    "evidence."
+)
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -111,6 +120,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_stop_conditions(body),
         _check_subagent_hygiene_policy(body),
         _check_required_gates(body),
+        _check_release_pivot_policy(body),
         _check_example_phase_range_docs(),
         _check_futures_resolved_contracts_not_reported_missing(),
         _check_regression_gate_policy_docs(),
@@ -218,6 +228,88 @@ def _check_stop_conditions(body: str) -> QueueCheck:
         name="stop_conditions",
         passed=not missing,
         evidence={"missing_stop_condition_text": missing},
+    )
+
+
+def _check_release_pivot_policy(body: str) -> QueueCheck:
+    required_by_path = {
+        QUEUE_DOC: [
+            "Release 0.1 Operator Admin Pivot",
+            "Does this make the frontend able to manage the project?",
+            "evidence-only roadmap expansion",
+            "unsupported` or `not_modeled`",
+            RELEASE_PIVOT_PHRASE,
+        ],
+        ADMIN_RELEASE_0_1_BURNDOWN_DOC: [
+            "Release 0.1 is a private operator MVP",
+            "Does this make the frontend able to manage the project?",
+            "No new evidence-only phase",
+            "unsupported` or `not_modeled`",
+            "Release Blockers",
+            RELEASE_PIVOT_PHRASE,
+        ],
+        MAINTAINER_HANDOFF_DOC: [
+            "Release 0.1 blocker",
+            "usable admin product",
+            "unsupported` or `not_modeled`",
+            "second trading path",
+        ],
+        AGENT_STATE_DOC: [
+            "Release 0.1 Operator Admin Pivot",
+            "Does this make the frontend able to manage the",
+            "No new evidence-only",
+            "unsupported` or `not_modeled`",
+        ],
+        DOCS_INDEX: [
+            "Admin Release 0.1 Burn-Down",
+            "plans/ADMIN_RELEASE_0_1_BURNDOWN.md",
+        ],
+    }
+    missing: dict[str, list[str]] = {}
+    stale: dict[str, list[str]] = {}
+    stale_by_path = {
+        QUEUE_DOC: [
+            "Active M57 `7961-7980`",
+            "Current M57 `7961-7980`",
+            "active `7961-7980`",
+        ],
+        FUTURES_PERPETUALS_README: [
+            "Active M57 `7961-7980`",
+            "Current M57 `7961-7980`",
+            "active `7961-7980`",
+            "Exact active phrase: Active M57 `7961-7980`",
+        ],
+        ADMIN_API_EXAMPLES_DOC: [
+            "currently reports\n`\"approved_phase_range\": \"7961-7980\"`",
+            "currently reports\r\n`\"approved_phase_range\": \"7961-7980\"`",
+            "current M57\n`7961-7980`",
+            "current M57\r\n`7961-7980`",
+            "evidence for current M57",
+        ],
+        AGENT_STATE_DOC: [
+            "Continue to the next approved M57 phase",
+            "Active M57 `7961-7980`",
+        ],
+    }
+    for path, required in required_by_path.items():
+        path_body = body if path == QUEUE_DOC else (
+            path.read_text(encoding="utf-8") if path.exists() else ""
+        )
+        path_missing = [text for text in required if text not in path_body]
+        if path_missing:
+            missing[str(path.relative_to(PROJECT_ROOT))] = path_missing
+        path_stale = [
+            text for text in stale_by_path.get(path, ()) if text in path_body
+        ]
+        if path_stale:
+            stale[str(path.relative_to(PROJECT_ROOT))] = path_stale
+    return QueueCheck(
+        name="release_0_1_pivot_policy",
+        passed=not missing and not stale,
+        evidence={
+            "missing_release_pivot_text": missing,
+            "stale_release_pivot_text": stale,
+        },
     )
 
 
@@ -499,7 +591,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.",
+            RELEASE_PIVOT_PHRASE,
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1544,25 +1636,12 @@ def _check_maintainer_handoff_docs() -> QueueCheck:
             f"Active autonomous range: `{APPROVED_PHASE_RANGE}`",
         ],
         ADMIN_MODULE_CAPABILITY_MATRIX_DOC: [
-            f"Current futures/perpetual M57 scope: `{APPROVED_PHASE_RANGE}`",
-            "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item evidence",
-            "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency evidence",
-            "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation evidence",
-            "futures request payload validation record execution-eligibility resolution-plan step review input store record-validation evidence",
-            "futures request payload validation record execution-eligibility resolution-plan step review input store record-contract evidence",
-            "futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence",
-            "resolution plan step review input store record-validation remediation dependency work-item presence",
-            "resolution plan step review input store record-validation remediation dependency presence",
-            "resolution plan step review input store record-validation remediation presence",
-            "resolution plan step review input store record-validation presence",
-            "resolution plan step review input store record-contract presence",
-            "create dependency graphs",
-            "create work items",
-            "claim work",
-            "create stores",
-            "configure writers",
-            "create record keys",
-            "enable validation or replay gates",
+            f"Current Release 0.1 scope: `{APPROVED_PHASE_RANGE}`",
+            "usable private operator MVP",
+            "Release 0.1 blockers",
+            "unsupported` or `not_modeled`",
+            "second trading path",
+            "Completed futures/perpetual M57 scope: `7961-7980`",
         ],
     }
     missing: dict[str, list[str]] = {}
@@ -1582,38 +1661,13 @@ def _check_agent_state_docs() -> QueueCheck:
     required = [
         f"Active approved range: `{APPROVED_PHASE_RANGE}`",
         f"Latest completed and pushed range before this work: `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
-        "futures risk-proof record validation remediation summary evidence",
-        "risk_proof_record_validation_remediation_summaries",
-        "risk-proof record validation remediation summaries",
-        "cannot perform remediation",
-        "not remediation execution",
-        "not work item creation",
-        "not record validator registration",
-        "not contextless review execution",
-        "not validation gate configuration",
-        "not record validation",
-        "not validation execution",
-        "not replay passage",
-        "not store creation",
-        "not append-only log configuration",
-        "not idempotency binding",
-        "not payload validation registration",
-        "not replay guard registration",
-        "not audit link creation",
-        "not validation record writes",
-        "not proof record writes",
-        "not proof record acceptance",
-        "not proof route registration",
-        "not proof writer enablement",
-        "resolve proof acceptance",
-        "risk proof acceptance passage",
-        "approval passage",
-        "cap/guard passage",
-        "reconciliation passage",
-        "admission, Coinbase execution",
-        "Coinbase execution",
-        "browser/BFF",
-        "spot-rule authority",
+        "Release 0.1 Operator Admin Pivot",
+        "Does this make the frontend able to manage the project?",
+        "named Release 0.1 blocker",
+        "usable private operator MVP",
+        "unsupported` or `not_modeled`",
+        "second trading path",
+        "Completed M57 `7961-7980`",
     ]
     stale = [
         f"API active approved phase range remains `{PREVIOUS_COMPLETED_PHASE_RANGE}`",
@@ -1824,37 +1878,15 @@ def _check_contextless_review_log_docs() -> QueueCheck:
             "completed history",
             "No live Coinbase execution is planned",
             "actual submitted/executed notional remains `0` USDC",
-            "Boundary evidence for current",
-            "futures risk-proof record validation remediation summary evidence",
-            "risk_proof_record_validation_remediation_summaries",
-            "not remediation execution",
-            "not work item creation",
-            "not record validator registration",
-            "not contextless review execution",
-            "not validation gate configuration",
-            "not record validation",
-            "not validation execution",
-            "not replay passage",
-            "not store creation",
-            "not append-only log configuration",
-            "not idempotency binding",
-            "not payload validation registration",
-            "not replay guard registration",
-            "not audit link creation",
-            "not validation record writes",
-            "not proof record writes",
-            "not proof record acceptance",
-            "not proof route registration",
-            "not proof writer enablement",
-            "not proof acceptance resolution",
-            "not risk proof acceptance",
-            "not command admission",
-            "not Coinbase execution",
-            "not reconciliation execution",
-            "not futures/order/exchange state mutation",
-            "not browser authority",
-            "not BFF execution authority",
-            "not spot-rule authority",
+            "Boundary evidence for current Release 0.1 review",
+            "Release 0.1 Operator Admin Pivot",
+            "Does this make the frontend able to manage the project?",
+            "named Release 0.1 blocker",
+            "usable private operator MVP",
+            "unsupported` or `not_modeled`",
+            "second trading path",
+            "no proof-only expansion",
+            "no browser/BFF execution authority",
         ]
     missing = [text for text in required if text not in section]
     if not has_pass_result and not has_pending_result:

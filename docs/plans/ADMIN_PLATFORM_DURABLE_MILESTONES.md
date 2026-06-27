@@ -111,7 +111,7 @@ not independent roadmaps.
   range and leave the next active range pending restart instead of creating
   new work in the same turn.
 - Do not create generic polish phases, recommendation-only phases, or product
-  scope that is not traceable to M47-M60.
+  scope that is not traceable to M47-M61 or the active Release 0.1 burn-down.
 - Add a new milestone only when no existing approved milestone owns a gap
   that would block the durable objective. The new milestone must state its
   dependency, deliverable, proof, and non-goals. Otherwise use the existing
@@ -180,14 +180,15 @@ not independent roadmaps.
 | M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | In Progress | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
-| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress; active range 7961-7980; latest completed range 7941-7960 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | Evidence expansion frozen; latest completed range 7961-7980 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
+| M61 - Release 0.1 Private Operator Admin MVP | In Progress; active range 7981-8000 | Release a usable private operator admin product that can manage backend-supported workflows while explicit gaps appear as `unsupported` or `not_modeled`. |
 
 ## Remaining Milestone Dependency Ledger
 
-This section is the authoritative sequencing contract for M47-M60. Numbered
+This section is the authoritative sequencing contract for M47-M61. Numbered
 phases are execution slices inside these milestones; agents may split a
 milestone into smaller phases, but they must not skip the dependency gate or
 broaden the milestone's authority.
@@ -208,6 +209,21 @@ broaden the milestone's authority.
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | M54 spot commands and the generic approval/cap/audit/reconciliation chain. | Add durable scheduling, run limits, pause/resume, retry, operator status, recovery, and reconciliation contracts for automations. | Scheduler persistence tests, retry/idempotency tests, run-limit tests, recovery tests, frontend release gate, blind review. | No browser scheduler, no unbounded loops, no live run without explicit cap and audit evidence. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | M51-M52 audit/reconciliation foundation and module-specific repair contracts. | Add backend-owned repair, policy/configuration, role, deployment, observability, and runbook administration with dry-run/preview where destructive. | RBAC tests, repair dry-run tests, policy audit tests, secret-boundary checks, frontend release gate, blind review. | No secret exposure, no direct database repair from browser, no mutation without audit and rollback/preview evidence. |
 | M60 - Full Functionality Release Candidate | M47-M59 complete or explicitly deferred as unsupported/not-modeled. | Prove the complete enterprise admin platform for all backend-supported features with release packaging, operator docs, security review, and handoff evidence. | Backend full regression, frontend `npm run release:gate`, security review, live-cap ledger, contextless reviews, docs index, maintainer handoff. | No unclassified gaps, no undocumented live behavior, no frontend-only functionality claim. |
+| M61 - Release 0.1 Private Operator Admin MVP | M47-M60 evidence plus the Release 0.1 burn-down. | Make the admin frontend/API usable for private operators by clearing named release blockers, classifying unsupported behavior, and selecting implementation slices by operator value. | Release blocker matrix, route-to-UI matrix, workflow matrix, focused validators, contextless reviews, and release closeout gates when the MVP is ready. | No public release claim, no proof-only expansion, no browser/BFF execution authority, no second trading path. |
+
+## Release 0.1 Pivot Overlay
+
+M61 exists because the prior roadmap could keep producing valid evidence while
+still failing to ship a usable admin product. Until Release 0.1 is usable,
+active phases must be derived from
+`docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` and must clear named release
+blockers or directly improve the private operator admin MVP.
+
+The active question for every phase is: Does this make the frontend able to
+manage the project?
+
+Evidence-only futures/perpetual proof expansion is frozen after completed M57
+`7961-7980` unless a future field directly closes a named Release 0.1 blocker.
 
 ## M0 - Platform Pivot Baseline
 

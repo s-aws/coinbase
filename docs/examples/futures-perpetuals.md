@@ -11,9 +11,16 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7961-7980 range targets explicit M57 futures/perpetual risk-proof
-record validation remediation summary evidence. `GET /api/v1/futures/command-suite`
-reports `"approved_phase_range": "7961-7980"`,
+The active 7981-8000 range is the Release 0.1 operator-admin pivot. Active
+Release 0.1 `7981-8000` pivots the admin platform to product-managing operator
+workflows while completed M57 `7961-7980` carries forward futures risk-proof
+record validation remediation summary evidence. Current examples use
+`"approved_phase_range": "7981-8000"` for active release-control metadata.
+
+The completed 7961-7980 range targeted explicit M57 futures/perpetual
+risk-proof record validation remediation summary evidence.
+`GET /api/v1/futures/command-suite` carried
+`"approved_phase_range": "7961-7980"`,
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
 `risk_proof_record_validation_remediation_summaries` rows derived from

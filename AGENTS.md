@@ -18,6 +18,17 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - Single code path per behavior; do not introduce parallel implementations.
 - Use enums (`core/enums.py`), not magic strings.
 - Respect existing module locks; never bypass thread-safety.
+- Release 0.1 is the active product pivot: prioritize a usable private operator
+  admin frontend/API over further proof-summary expansion. Every phase must
+  either clear a named Release 0.1 blocker or directly improve the usable admin
+  product.
+- Do not create evidence-only, roadmap-only, recommendation-only, or generic
+  polish phases unless they directly close a named Release 0.1 blocker. The
+  governing phase question is: "Does this make the frontend able to manage the
+  project?"
+- Unsupported or incomplete backend behavior must be surfaced as
+  `unsupported` or `not_modeled`; do not fill gaps with browser logic, BFF
+  execution authority, route-local FastAPI execution, or a second trading path.
 - Stealth order local state must reflect live exchange reality. Do not mark a revealed order hidden, cancelled, or moved unless the corresponding live Coinbase placement has been handled through the existing cancel/move/reconcile path.
 - Cancel/re-entry is not general hide-again behavior. It is a narrower policy for no-fill revealed stealth placements: cancel the active placement, hold in policy-cancelled hidden state, then re-enter through the normal reveal path.
 - Same-side post-fill retreat is a hidden-order policy only. It may retreat opted-in hidden orders and update their reveal/anchor state, but it must not locally mutate live revealed placements.
