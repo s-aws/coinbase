@@ -13,16 +13,21 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7881-7900"`. Futures/perpetual command-suite reads
-now expose backend-owned `risk_proof_contract_summary_count`,
-`risk_proof_contract_summary_blocking_count`, and
-`risk_proof_contract_summaries` evidence for current M57 `7881-7900` while
-completed `7861-7880` risk-proof acceptance criterion summary evidence remains
+`"approved_phase_range": "7901-7920"`. Futures/perpetual command-suite reads
+now expose backend-owned `risk_proof_payload_field_summary_count`,
+`risk_proof_payload_field_summary_blocking_count`, and
+`risk_proof_payload_field_summaries` evidence for current M57 `7901-7920`
+while completed `7881-7900` risk-proof contract summary evidence remains
 carried-forward history. The current rows are disabled, no-live evidence only
-and must not register proof routes, enable proof writers, accept criteria,
+and must not validate submitted payloads, register payload validation, write
+proof records, register proof routes, enable proof writers, accept criteria,
 resolve proof acceptance, accept risk proofs, pass command readiness, admit
 commands, pass approval/cap/guard/reconciliation gates, call Coinbase, execute
 reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
+
+Completed `"approved_phase_range": "7881-7900"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof contract summary evidence
+while carrying forward risk-proof acceptance criterion summary evidence.
 
 Completed `"approved_phase_range": "7861-7880"`. Futures/perpetual
 command-suite reads expose backend-owned risk-proof acceptance criterion

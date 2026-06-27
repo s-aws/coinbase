@@ -338,6 +338,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofAcceptanceCheck,
     AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
+    AdminFuturesCommandRiskProofPayloadField,
     AdminFuturesCommandRiskProofRecordLookupStatus,
     AdminFuturesCommandSemanticArtifact,
     AdminFuturesCommandSemanticGuard,
@@ -11435,6 +11436,60 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
             assert contract_summary.required_methods == ["LOCAL"]
             assert contract_summary.required_route_path_count == 0
             assert contract_summary.required_route_paths == []
+
+    payload_field_summaries_by_field = {
+        item.field: item for item in command_suite.risk_proof_payload_field_summaries
+    }
+    assert set(payload_field_summaries_by_field) == set(
+        AdminFuturesCommandRiskProofPayloadField
+    )
+    assert command_suite.risk_proof_payload_field_summary_count == 10
+    assert command_suite.risk_proof_payload_field_summary_blocking_count == 10
+    for field_id, payload_summary in payload_field_summaries_by_field.items():
+        assert payload_summary.status == AdminApiGateStatus.BLOCKED
+        assert payload_summary.blocking is True
+        assert payload_summary.command_count == 4
+        assert payload_summary.affected_commands == affected_commands
+        assert payload_summary.proof_requirement_count == 20
+        assert payload_summary.payload_field_count == 20
+        assert payload_summary.blocking_payload_field_count == 20
+        assert payload_summary.present_payload_field_count == 0
+        assert payload_summary.payload_path_count >= 1
+        assert payload_summary.payload_paths
+        assert payload_summary.validation_rule_count >= 1
+        assert payload_summary.validation_rules
+        assert payload_summary.required_evidence_ref_count == 20
+        assert payload_summary.required_evidence_refs
+        assert payload_summary.missing_evidence_ref_count == 20
+        assert payload_summary.missing_evidence_refs == (
+            payload_summary.required_evidence_refs
+        )
+        assert payload_summary.validation_registered_count == 0
+        assert payload_summary.command_route_registered_count == 0
+        assert payload_summary.command_draft_allowed_count == 0
+        assert payload_summary.execution_allowed_count == 0
+        assert payload_summary.proof_route_registered_count == 0
+        assert payload_summary.proof_writer_enabled_count == 0
+        assert payload_summary.live_coinbase_orders_ran_count == 0
+        assert payload_summary.backend_owned is True
+        assert payload_summary.read_only is True
+        assert payload_summary.spot_rule_authority is False
+        assert payload_summary.browser_authority == "display_only"
+        assert payload_summary.bff_authority == "forward_only_no_execution"
+        assert "cannot validate submitted payloads" in payload_summary.detail
+        assert "write proof records" in payload_summary.detail
+
+    command_payload_summary = payload_field_summaries_by_field[
+        AdminFuturesCommandRiskProofPayloadField.COMMAND
+    ]
+    assert command_payload_summary.payload_paths == ["proof_payload.command"]
+    assert "futures_cancel_product_scope_payload_command_validated" in (
+        command_payload_summary.required_evidence_refs
+    )
+    proof_kind_payload_summary = payload_field_summaries_by_field[
+        AdminFuturesCommandRiskProofPayloadField.PROOF_KIND
+    ]
+    assert "proof_payload.proof_kind" in proof_kind_payload_summary.payload_paths
 
     for blocker, summary in summaries_by_blocker.items():
         assert summary.status == AdminApiGateStatus.BLOCKED

@@ -11,18 +11,21 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7881-7900 range targets explicit M57 futures/perpetual risk-proof
-contract summary evidence. `GET /api/v1/futures/command-suite` reports
-`"approved_phase_range": "7881-7900"`,
-`risk_proof_contract_summary_count`,
-`risk_proof_contract_summary_blocking_count`, and
-`risk_proof_contract_summaries` rows derived from existing per-command
-risk-proof proof contracts. These rows are display-only evidence and do not
-register proof routes, enable proof writers, accept criteria, resolve proof
-acceptance, accept risk proofs, admit commands, call Coinbase, execute
-reconciliation, mutate state, grant browser/BFF authority, or import spot-rule
-authority. Completed 7861-7880 risk-proof acceptance criterion summary
-evidence remains carried-forward history. Completed 7841-7860 risk-proof
+The active 7901-7920 range targets explicit M57 futures/perpetual risk-proof
+payload field summary evidence. `GET /api/v1/futures/command-suite` reports
+`"approved_phase_range": "7901-7920"`,
+`risk_proof_payload_field_summary_count`,
+`risk_proof_payload_field_summary_blocking_count`, and
+`risk_proof_payload_field_summaries` rows derived from existing per-command
+risk-proof payload-field rows. These rows are display-only evidence and do
+not validate submitted payloads, register payload validation, write proof
+records, register proof routes, enable proof writers, accept criteria,
+resolve proof acceptance, accept risk proofs, admit commands, call Coinbase,
+execute reconciliation, mutate state, grant browser/BFF authority, or import
+spot-rule authority. Completed 7881-7900 risk-proof contract summary evidence
+remains carried-forward history. Completed 7861-7880 risk-proof acceptance
+criterion summary evidence remains carried-forward history. Completed
+7841-7860 risk-proof
 acceptance blocker summary evidence remains carried-forward history.
 Completed 7821-7840 risk-proof record resolver summary
 evidence remains carried-forward history. Completed 7801-7820 command

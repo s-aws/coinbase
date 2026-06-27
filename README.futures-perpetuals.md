@@ -37,16 +37,17 @@ and position routes return
 blocked/no-live posture through route-bound draft, execution, browser, BFF,
 and notional evidence fields.
 
-Active M57 `7881-7900` evidence adds futures risk-proof contract summary
-evidence while completed M57 `7861-7880` carries forward futures risk-proof
-acceptance criterion summary evidence. The `risk_proof_contract_summaries`
-rows are read-only evidence and cannot register proof routes, enable proof
-writers, accept criteria, resolve proof acceptance, accept risk proofs, clear
-command readiness, admit commands, call Coinbase, execute reconciliation,
-mutate futures/order state, grant browser/BFF authority, or import spot-rule
+Active M57 `7901-7920` evidence adds futures risk-proof payload field summary
+evidence while completed M57 `7881-7900` carries forward futures risk-proof
+contract summary evidence. The `risk_proof_payload_field_summaries` rows are
+read-only evidence and cannot validate submitted payloads, register payload
+validation, write proof records, register proof routes, enable proof writers,
+accept criteria, resolve proof acceptance, accept risk proofs, clear command
+readiness, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order state, grant browser/BFF authority, or import spot-rule
 authority.
 
-Exact autonomous phrase: Active M57 `7881-7900` evidence adds futures risk-proof contract summary evidence while completed M57 `7861-7880` carries forward futures risk-proof acceptance criterion summary evidence.
+Exact autonomous phrase: Active M57 `7901-7920` evidence adds futures risk-proof payload field summary evidence while completed M57 `7881-7900` carries forward futures risk-proof contract summary evidence.
 
 ## Key Concepts
 
@@ -65,16 +66,20 @@ Exact autonomous phrase: Active M57 `7881-7900` evidence adds futures risk-proof
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7881-7900` evidence adds futures risk-proof contract summary
+- Active M57 `7901-7920` evidence adds futures risk-proof payload field
+  summary evidence while completed M57 `7881-7900` carries forward futures
+  risk-proof contract summary evidence. The
+  `risk_proof_payload_field_summaries` rows are derived from existing
+  per-command risk-proof payload-field rows and are read-only/no-live evidence
+  only. They do not validate submitted payloads, register payload validation,
+  write proof records, register proof routes, enable proof writers, accept
+  criteria, resolve proof acceptance, accept risk proofs, clear command
+  readiness, admit commands, call Coinbase, execute reconciliation, mutate
+  state, grant browser/BFF authority, or import spot-only rules.
+- Exact active phrase: Active M57 `7901-7920` evidence adds futures risk-proof payload field summary evidence while completed M57 `7881-7900` carries forward futures risk-proof contract summary evidence.
+- Completed M57 `7881-7900` evidence adds futures risk-proof contract summary
   evidence while completed M57 `7861-7880` carries forward futures risk-proof
-  acceptance criterion summary evidence. The `risk_proof_contract_summaries`
-  rows are derived from existing per-command risk-proof proof contracts and
-  are read-only/no-live evidence only. They do not register proof routes,
-  enable proof writers, accept criteria, resolve proof acceptance, accept risk
-  proofs, clear command readiness, admit commands, call Coinbase, execute
-  reconciliation, mutate state, grant browser/BFF authority, or import
-  spot-only rules.
-- Exact active phrase: Active M57 `7881-7900` evidence adds futures risk-proof contract summary evidence while completed M57 `7861-7880` carries forward futures risk-proof acceptance criterion summary evidence.
+  acceptance criterion summary evidence.
 - Completed M57 `7861-7880` evidence adds futures risk-proof acceptance
   criterion summary evidence while completed M57 `7841-7860` carries forward
   futures risk-proof acceptance blocker summary evidence.

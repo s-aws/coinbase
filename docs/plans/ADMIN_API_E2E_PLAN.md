@@ -49,11 +49,28 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7881-7900
+## Current Active Phases 7901-7920
+
+Batch label: Futures/Perpetuals Risk-Proof Payload Field Summary Evidence.
+
+Current M57 `7901-7920` adds backend-owned read-only
+`risk_proof_payload_field_summaries` to
+`GET /api/v1/futures/command-suite` after completed `7881-7900` risk-proof
+contract summary evidence. The payload-field summary rows are derived from
+existing per-command risk-proof payload-field rows. They cannot validate
+submitted payloads, register payload validation, write proof records, register
+proof routes, enable proof writers, accept criteria, resolve proof
+acceptance, accept risk proofs, clear command readiness, admit commands, call
+Coinbase, execute reconciliation, mutate futures/order state, grant
+browser/BFF authority, or import spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7901-7920` evidence adds futures risk-proof payload field summary evidence while completed M57 `7881-7900` carries forward futures risk-proof contract summary evidence.
+
+## Completed Phases 7881-7900
 
 Batch label: Futures/Perpetuals Risk-Proof Contract Summary Evidence.
 
-Current M57 `7881-7900` adds backend-owned read-only
+Completed M57 `7881-7900` added backend-owned read-only
 `risk_proof_contract_summaries` to `GET /api/v1/futures/command-suite` after
 completed `7861-7880` risk-proof acceptance criterion summary evidence. The
 proof contract summary rows are derived from existing per-command risk-proof
@@ -63,7 +80,7 @@ readiness, admit commands, call Coinbase, execute reconciliation, mutate
 futures/order state, grant browser/BFF authority, or import spot-rule
 authority.
 
-Exact autonomous phrase: Active M57 `7881-7900` evidence adds futures risk-proof contract summary evidence while completed M57 `7861-7880` carries forward futures risk-proof acceptance criterion summary evidence.
+Exact historical phrase: Completed M57 `7881-7900` evidence adds futures risk-proof contract summary evidence while completed M57 `7861-7880` carries forward futures risk-proof acceptance criterion summary evidence.
 
 ## Completed Phases 7861-7880
 

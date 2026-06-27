@@ -208,6 +208,7 @@ from .models import (
     AdminFuturesCommandRiskProofContractItem,
     AdminFuturesCommandRiskProofContractSummaryItem,
     AdminFuturesCommandRiskProofPayloadFieldItem,
+    AdminFuturesCommandRiskProofPayloadFieldSummaryItem,
     AdminFuturesCommandRiskProofRecordContractItem,
     AdminFuturesCommandRiskProofRecordResolverSummaryItem,
     AdminFuturesCommandRiskProofRecordValidationItem,
@@ -708,7 +709,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7881-7900"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7901-7920"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -45859,6 +45860,189 @@ class AdminApiReadService:
             commands
         )
 
+        def risk_proof_payload_field_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandRiskProofPayloadFieldSummaryItem]:
+            rows: list[AdminFuturesCommandRiskProofPayloadFieldSummaryItem] = []
+            for field_id in AdminFuturesCommandRiskProofPayloadField:
+                field_pairs = [
+                    (command_item, proof_requirement, payload_field)
+                    for command_item in command_items
+                    for proof_requirement in command_item.risk_proof_requirements
+                    for payload_field in proof_requirement.payload_fields
+                    if payload_field.field == field_id
+                ]
+                if not field_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _proof_requirement, _payload_field in (
+                            field_pairs
+                        )
+                    )
+                )
+                proof_kinds = unique_enum_values(
+                    [
+                        proof_requirement.proof_kind
+                        for _command_item, proof_requirement, _payload_field in (
+                            field_pairs
+                        )
+                    ]
+                )
+                proof_requirement_refs = unique_strings(
+                    [
+                        (
+                            f"{command_item.command.value}:"
+                            f"{proof_requirement.proof_kind.value}"
+                        )
+                        for command_item, proof_requirement, _payload_field in (
+                            field_pairs
+                        )
+                    ]
+                )
+                payload_paths = unique_strings(
+                    [
+                        payload_field.payload_path
+                        for _command_item, _proof_requirement, payload_field in (
+                            field_pairs
+                        )
+                    ]
+                )
+                validation_rules = unique_strings(
+                    [
+                        payload_field.validation_rule
+                        for _command_item, _proof_requirement, payload_field in (
+                            field_pairs
+                        )
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        payload_field.required_evidence_ref
+                        for _command_item, _proof_requirement, payload_field in (
+                            field_pairs
+                        )
+                    ]
+                )
+                missing_evidence_refs = unique_strings(
+                    [
+                        payload_field.missing_evidence_ref
+                        for _command_item, _proof_requirement, payload_field in (
+                            field_pairs
+                        )
+                        if payload_field.blocking
+                    ]
+                )
+                blocking_payload_field_count = sum(
+                    1
+                    for _command_item, _proof_requirement, payload_field in (
+                        field_pairs
+                    )
+                    if payload_field.blocking
+                )
+                blocking = blocking_payload_field_count > 0
+                rows.append(
+                    AdminFuturesCommandRiskProofPayloadFieldSummaryItem(
+                        field=field_id,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        proof_requirement_count=len(proof_requirement_refs),
+                        proof_kinds=proof_kinds,
+                        payload_field_count=len(field_pairs),
+                        blocking_payload_field_count=blocking_payload_field_count,
+                        present_payload_field_count=sum(
+                            1
+                            for _command_item, _proof_requirement, payload_field in (
+                                field_pairs
+                            )
+                            if payload_field.payload_field_present
+                        ),
+                        payload_path_count=len(payload_paths),
+                        payload_paths=payload_paths,
+                        validation_rule_count=len(validation_rules),
+                        validation_rules=validation_rules,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        missing_evidence_ref_count=len(missing_evidence_refs),
+                        missing_evidence_refs=missing_evidence_refs,
+                        validation_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, payload_field in (
+                                field_pairs
+                            )
+                            if payload_field.validation_registered
+                        ),
+                        command_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, payload_field in (
+                                field_pairs
+                            )
+                            if payload_field.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, payload_field in (
+                                field_pairs
+                            )
+                            if payload_field.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, payload_field in (
+                                field_pairs
+                            )
+                            if payload_field.execution_allowed
+                        ),
+                        proof_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, payload_field in (
+                                field_pairs
+                            )
+                            if payload_field.proof_route_registered
+                        ),
+                        proof_writer_enabled_count=sum(
+                            1
+                            for _command_item, _proof_requirement, payload_field in (
+                                field_pairs
+                            )
+                            if payload_field.proof_writer_enabled
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for _command_item, proof_requirement, _payload_field in (
+                                field_pairs
+                            )
+                            if proof_requirement.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{field_id.value} proof payload fields cover "
+                            f"{len(field_pairs)} futures/perpetual proof "
+                            "payload field row(s). This aggregate summary is "
+                            "backend-owned read-only evidence and cannot "
+                            "validate submitted payloads, register payload "
+                            "validation, write proof records, register proof "
+                            "routes, enable proof writers, accept criteria, "
+                            "resolve proof acceptance, accept risk proofs, "
+                            "clear command readiness, admit commands, call "
+                            "Coinbase, execute reconciliation, mutate "
+                            "futures/order state, grant browser/BFF authority, "
+                            "or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        risk_proof_payload_field_summaries = (
+            risk_proof_payload_field_summaries_for(commands)
+        )
+
         def readiness_decision_summaries_for(
             command_items: list[AdminFuturesCommandContractItem],
         ) -> list[AdminFuturesCommandReadinessDecisionSummaryItem]:
@@ -47712,6 +47896,15 @@ class AdminApiReadService:
                 1 for item in risk_proof_contract_summaries if item.blocking
             ),
             risk_proof_contract_summaries=risk_proof_contract_summaries,
+            risk_proof_payload_field_summary_count=len(
+                risk_proof_payload_field_summaries
+            ),
+            risk_proof_payload_field_summary_blocking_count=sum(
+                1 for item in risk_proof_payload_field_summaries if item.blocking
+            ),
+            risk_proof_payload_field_summaries=(
+                risk_proof_payload_field_summaries
+            ),
             risk_proof_acceptance_blocker_count=sum(
                 command.risk_proof_acceptance_blocker_count
                 for command in commands
