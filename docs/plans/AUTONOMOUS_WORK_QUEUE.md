@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7601-7620**.
+- Approved phase range: **7621-7640**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7581-7600`.
+- Previous completed range: `7601-7620`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7600`.
+- `current_phase`: `7620`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,30 +81,170 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7601-7620
+## Active Phases 7621-7640
+
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Output Schema Field-Constraint Source-Ref Record-Acceptance Evidence.
+
+These phases continue M57 after completed `7601-7620` exposed disabled
+validation-check output schema field-constraint source-ref acceptance evidence.
+The concrete gap is that source-ref acceptance rows now report
+`validation_check_output_schema_field_constraint_source_ref_accepted=false`
+without separately exposing the backend-owned source-ref record-acceptance
+dependency required before later validation-record acceptance, command
+admission, or command-route enablement can be reviewed. Active `7621-7640`
+must expose disabled backend-owned source-ref record-acceptance rows derived
+from existing source-ref acceptance rows. The rows are evidence only:
+validation-check output-schema-field-constraint-source-ref record-acceptance
+presence is not record acceptance, not source-ref acceptance passage, not
+contextless review passage, not source-ref declaration, not constraint
+declaration, not field-type declaration, not field declaration, not schema
+declaration, not command admission, not reconciliation execution, not Coinbase
+execution, not browser execution authority, not BFF execution authority, not
+futures/order/exchange mutation, and not spot-rule authority.
+
+Active M57 `7621-7640` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint
+source-ref record-acceptance evidence while completed M57 `7601-7620` carries
+forward futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-constraint source-ref acceptance
+evidence.
+
+Active `7621-7640` source-ref record-acceptance evidence is implemented through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_record_acceptances.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/view-model display, and bounded mock fixtures.
+
+Exact autonomous phrase: Active M57 `7621-7640` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref record-acceptance evidence while completed M57 `7601-7620` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref acceptance evidence.
+
+### Phase 7621 - Prior Range Closure
+
+- Record completed `7601-7620` validation-check output schema field-constraint
+  source-ref acceptance evidence as historical and move active metadata to
+  `7621-7640`.
+
+### Phase 7622 - Source-Ref Record-Acceptance Enum Contract
+
+- Add backend enums for disabled validation-check output schema
+  field-constraint source-ref record-acceptance kinds and blockers.
+
+### Phase 7623 - Source-Ref Record-Acceptance Registry
+
+- Add the backend validation-check output schema field-constraint source-ref
+  record-acceptance registry and iterator derived from existing source-ref
+  acceptance rows.
+
+### Phase 7624 - Pydantic Model
+
+- Add the Admin API source-ref record-acceptance item and per-command/suite
+  count fields with `extra="forbid"` coverage.
+
+### Phase 7625 - Read Service Materialization
+
+- Serialize disabled source-ref record-acceptance rows through the futures
+  command-suite read service without creating command authority, validators,
+  schemas, source-ref declarations, contextless-review passage, source-ref
+  acceptance, validation-record acceptance, or execution authority.
+
+### Phase 7626 - OpenAPI And Frontend Schema Sync
+
+- Regenerate Admin API OpenAPI and the frontend generated API schema/client
+  from backend-owned OpenAPI.
+
+### Phase 7627 - Frontend Adapter Mapping
+
+- Map generated source-ref record-acceptance rows into the futures/perpetual
+  read model using the existing generated-client/wrapper path.
+
+### Phase 7628 - Summary Counts
+
+- Surface suite and command summary counts for total, blocking, ready,
+  declared, passed, and accepted source-ref record-acceptance evidence.
+
+### Phase 7629 - Source-Ref Record-Acceptance Display
+
+- Display source-ref record-acceptance counts and disabled readiness posture
+  without creating browser/BFF command, schema, validator, source-ref
+  declaration, contextless-review passage, source-ref acceptance,
+  validation-record acceptance, or execution authority.
+
+### Phase 7630 - Mock Backend Sync
+
+- Extend mock backend fixtures for deterministic source-ref record-acceptance
+  evidence.
+
+### Phase 7631 - Backend Focused Regression
+
+- Extend focused futures command-suite regression assertions for counts,
+  disabled flags, refs, blockers, inherited source-ref acceptance blockers,
+  and no-live authority.
+
+### Phase 7632 - Frontend Focused Tests
+
+- Extend focused frontend tests for adapter mapping, summary counts,
+  materialized rows, source-ref record-acceptance detail rendering, and
+  no-live/no-BFF authority display.
+
+### Phase 7633 - Quality Metadata Sync
+
+- Update frontend artifact contracts and deployment/autonomous quality metadata
+  to `7621-7640`.
+
+### Phase 7634 - Roadmap And Handoff Sync
+
+- Update backend/frontend roadmaps, examples, capability matrix, and handoff
+  docs for the source-ref record-acceptance evidence layer.
+
+### Phase 7635 - API Contract Documentation
+
+- Update API contract docs for the new source-ref record-acceptance rows,
+  summary counts, false readiness flags, inherited blockers, and no-live
+  boundaries.
+
+### Phase 7636 - Contextless Review Log
+
+- Record blind/contextless review evidence and remediation status for backend
+  and frontend understanding.
+
+### Phase 7637 - Backend Autonomous Validation
+
+- Run backend focused validators and autonomous queue checks for this range.
+
+### Phase 7638 - Frontend Autonomous Validation
+
+- Run frontend type/schema/focused test and autonomous queue checks for this
+  range.
+
+### Phase 7639 - Phase-End Hygiene
+
+- Run stale process/report-only hygiene and stale subagent sweep after findings
+  are consumed.
+
+### Phase 7640 - Commit And Push
+
+- Commit and push both repos after validation passes and record phase-end
+  stale-subagent sweep evidence.
+
+## Completed Phases 7601-7620
 
 Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Output Schema Field-Constraint Source-Ref Acceptance Evidence.
 
-These phases continue M57 after completed `7581-7600` exposed disabled
-validation-check output schema field-constraint source-ref contextless-review
-evidence. The concrete gap is that contextless-review rows now report
-`validation_check_output_schema_field_constraint_source_ref_contextless_review_passed=false`
-without separately exposing the backend-owned source-ref acceptance dependency
-rows required before later record acceptance, command admission, or
-command-route enablement can be reviewed. Active `7601-7620` must expose
-disabled backend-owned source-ref acceptance rows derived from existing
-validation-check output schema field-constraint source-ref contextless-review
-rows. The rows are evidence only: validation-check output-schema-field-
-constraint-source-ref acceptance presence is not acceptance passage, not
-contextless review passage, not source-ref declaration, not constraint
-declaration, not field-type declaration, not field declaration, not schema
-declaration, not record acceptance, not command admission, not reconciliation
-execution, not Coinbase execution, not browser execution authority, not BFF
-execution authority, not futures/order/exchange mutation, and not spot-rule
-authority.
+Completed `7601-7620` exposed disabled backend-owned source-ref acceptance
+rows derived from existing validation-check output schema field-constraint
+source-ref contextless-review rows. The rows are evidence only:
+validation-check output-schema-field-constraint-source-ref acceptance presence
+is not acceptance passage, not contextless review passage, not source-ref
+declaration, not constraint declaration, not field-type declaration, not field
+declaration, not schema declaration, not record acceptance, not command
+admission, not reconciliation execution, not Coinbase execution, not browser
+execution authority, not BFF execution authority, not futures/order/exchange
+mutation, and not spot-rule authority.
 
-Active M57 `7601-7620` evidence adds futures request payload validation record
-execution-eligibility resolution-plan step review input store
+Completed M57 `7601-7620` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
 record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check output schema field-constraint
 source-ref acceptance evidence while completed M57 `7581-7600` carries forward
@@ -113,123 +253,12 @@ step review input store record-validation remediation dependency work-item
 claim-trace clearance-step review input store record-validation check output
 schema field-constraint source-ref contextless-review evidence.
 
-Active `7601-7620` source-ref acceptance evidence is implemented through
+Completed `7601-7620` source-ref acceptance evidence is implemented through
 `application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_acceptances.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend
 schema, frontend adapter/view-model display, and bounded mock fixtures.
 
-Exact autonomous phrase: Active M57 `7601-7620` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref acceptance evidence while completed M57 `7581-7600` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref contextless-review evidence.
-
-### Phase 7601 - Prior Range Closure
-
-- Record completed `7581-7600` validation-check output schema field-constraint
-  source-ref contextless-review evidence as historical and move active metadata
-  to `7601-7620`.
-
-### Phase 7602 - Validation-Check Output Schema Field-Constraint Source-Ref Acceptance Enum Contract
-
-- Add backend enums for disabled validation-check output schema
-  field-constraint source-ref acceptance kinds and blockers.
-
-### Phase 7603 - Validation-Check Output Schema Field-Constraint Source-Ref Acceptance Registry
-
-- Add the backend validation-check output schema field-constraint source-ref
-  acceptance registry and iterator derived from existing contextless-review
-  rows.
-
-### Phase 7604 - Pydantic Model
-
-- Add the Admin API validation-check output schema field-constraint source-ref
-  acceptance item and per-command/suite count fields with `extra="forbid"`
-  coverage.
-
-### Phase 7605 - Read Service Materialization
-
-- Serialize disabled validation-check output schema field-constraint
-  source-ref acceptance rows through the futures command-suite read service
-  without creating command authority, validators, schemas, source-ref
-  declarations, contextless-review passage, source-ref acceptance, record
-  acceptance, or execution authority.
-
-### Phase 7606 - Bounded Fixture Compaction
-
-- Keep frontend fixture payloads bounded for the new source-ref acceptance
-  detail rows while preserving full count and limit evidence.
-
-### Phase 7607 - Backend Focused Regression
-
-- Extend focused futures command-suite regression assertions for counts,
-  disabled flags, refs, blockers, inherited contextless-review blockers, and
-  no-live authority.
-
-### Phase 7608 - OpenAPI Generation
-
-- Regenerate Admin API OpenAPI after backend model changes.
-
-### Phase 7609 - Frontend Schema Sync
-
-- Regenerate the frontend API schema/client from backend-owned OpenAPI.
-
-### Phase 7610 - Frontend Adapter Mapping
-
-- Map generated validation-check output schema field-constraint source-ref
-  acceptance rows into the futures/perpetual read model using the existing
-  generated-client/wrapper path.
-
-### Phase 7611 - Summary Counts
-
-- Surface suite and command summary counts for total, blocking, ready,
-  declared, passed, and accepted validation-check output schema
-  field-constraint source-ref acceptance evidence.
-
-### Phase 7612 - Validation-Check Output Schema Field-Constraint Source-Ref Acceptance Display
-
-- Display validation-check output schema field-constraint source-ref
-  acceptance counts and disabled readiness posture without creating
-  browser/BFF command, schema, validator, source-ref declaration,
-  contextless-review passage, source-ref acceptance, record acceptance, or
-  execution authority.
-
-### Phase 7613 - Mock Backend Sync
-
-- Extend mock backend fixtures for deterministic validation-check output schema
-  field-constraint source-ref acceptance evidence.
-
-### Phase 7614 - Frontend Focused Tests
-
-- Extend focused frontend tests for adapter mapping, summary counts,
-  materialized rows, source-ref acceptance detail rendering, and no-live/no-BFF
-  authority display.
-
-### Phase 7615 - Quality Metadata Sync
-
-- Update frontend artifact contracts and deployment/autonomous quality metadata
-  to `7601-7620`.
-
-### Phase 7616 - Roadmap And Handoff Sync
-
-- Update backend/frontend roadmaps, examples, capability matrix, and handoff
-  docs for the new validation-check output schema field-constraint source-ref
-  acceptance evidence layer.
-
-### Phase 7617 - Contextless Review Log
-
-- Record blind/contextless review evidence and remediation status for backend
-  and frontend understanding.
-
-### Phase 7618 - Backend Autonomous Validation
-
-- Run backend focused validators and autonomous queue checks for this range.
-
-### Phase 7619 - Frontend Autonomous Validation
-
-- Run frontend type/schema/focused test and autonomous queue checks for this
-  range.
-
-### Phase 7620 - Commit And Push
-
-- Commit and push both repos after validation passes and record phase-end
-  stale-subagent sweep evidence.
+Historical autonomous phrase: Completed M57 `7601-7620` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref acceptance evidence while completed M57 `7581-7600` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref contextless-review evidence.
 
 ## Completed Phases 7581-7600
 

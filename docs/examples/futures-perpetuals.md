@@ -11,7 +11,16 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7601-7620 range targets explicit M57 futures/perpetual request
+The active 7621-7640 range targets explicit M57 futures/perpetual request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store record-validation check output schema
+field-constraint source-ref record-acceptance evidence. Completed 7601-7620
+clearance-step review input store record-validation check output schema
+field-constraint source-ref acceptance evidence remains carried-forward
+history.
+
+The completed 7601-7620 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
 input store record-validation remediation dependency work-item claim-trace
 clearance-step review input store record-validation check output schema
@@ -128,13 +137,14 @@ clearance-step review input evidence for `GET /api/v1/futures/command-suite`
 and the disabled command draft routes.
 
 Current representative response metadata includes
-`"approved_phase_range": "7601-7620"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref acceptance rows such
-as `validation_check_output_schema_field_constraint_source_ref_acceptance_required=true`,
-`validation_check_output_schema_field_constraint_source_ref_acceptance_ready=false`,
-`validation_check_output_schema_field_constraint_source_ref_acceptance_declared=false`,
-`validation_check_output_schema_field_constraint_source_ref_acceptance_passed=false`,
-`validation_check_output_schema_field_constraint_source_ref_accepted=false`, and
-`validation_check_output_schema_field_constraint_source_ref_acceptance_recorded=false`.
+`"approved_phase_range": "7621-7640"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref record-acceptance rows such
+as `validation_check_output_schema_field_constraint_source_ref_record_acceptance_required=true`,
+`validation_check_output_schema_field_constraint_source_ref_record_acceptance_ready=false`,
+`validation_check_output_schema_field_constraint_source_ref_record_acceptance_declared=false`,
+`validation_check_output_schema_field_constraint_source_ref_record_acceptance_passed=false`,
+`validation_check_output_schema_field_constraint_source_ref_record_accepted=false`,
+`validation_check_output_schema_field_constraint_source_ref_record_acceptance_recorded=false`, and
+`validation_record_accepted=false`.
 
 The completed 7281-7300 range targeted explicit M57 futures/perpetual request
 payload validation record execution-eligibility resolution-plan step review
